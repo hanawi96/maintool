@@ -75,6 +75,12 @@ export class InteractionManager {
     this.dragStartPosition = null;
     this.dragStartTime = null;
     
+    // 🆕 **ENHANCED VALIDATION**: Strict drag tracking
+    this.isDraggingConfirmed = false;          // True chỉ khi thực sự đang drag
+    this.mouseDownTimestamp = null;            // Track mouse down time
+    this.lastMousePosition = null;             // Track mouse movement
+    this.dragMoveThreshold = 3;                // Minimum pixels to confirm drag
+    
     // 🆕 NEW: Audio sync manager for cursor synchronization
     this.audioSyncManager = createAudioSyncManager();
     
@@ -95,11 +101,17 @@ export class InteractionManager {
     const handle = detectHandle(x, canvasWidth, duration, startTime, endTime);
     const clickTime = positionToTime(x, canvasWidth, duration);
     
+    // 🆕 **TRACK MOUSE DOWN**: Record mouse down event for drag detection
+    this.mouseDownTimestamp = performance.now();
+    this.lastMousePosition = { x, y: 0 };
+    this.isDraggingConfirmed = false;
+    
     console.log(`🖱️ [${this.debugId}] Mouse down:`, {
       x: x.toFixed(1),
       time: clickTime.toFixed(2) + 's',
       handle: handle || 'none',
-      currentRegion: `${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s`
+      currentRegion: `${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s`,
+      timestamp: this.mouseDownTimestamp
     });
     
     // 🆕 NEW: Use SmartClickManager for intelligent click analysis
@@ -110,18 +122,26 @@ export class InteractionManager {
     // 🎯 Process smart action
     switch (smartAction.action) {
       case CLICK_ACTIONS.START_DRAG:
-        // 🎯 START DRAGGING HANDLE
+        // 🎯 **IMMEDIATE CURSOR SYNC**: Sync cursor ngay khi click handle
         this.state = INTERACTION_STATES.DRAGGING;
         this.activeHandle = smartAction.handle;
         this.dragStartPosition = x;
         this.dragStartTime = smartAction.handle === HANDLE_TYPES.START ? startTime : endTime;
+        // 🆕 **NOTE**: isDraggingConfirmed still false until movement detected
         
-        console.log(`🫳 [${this.debugId}] Started dragging ${smartAction.handle} handle`);
+        console.log(`🫳 [${this.debugId}] Potential drag start for ${smartAction.handle} handle (awaiting movement confirmation)`);
         
         return {
           action: 'startDrag',
           handle: smartAction.handle,
-          cursor: smartAction.cursor
+          cursor: smartAction.cursor,
+          // 🆕 **IMMEDIATE SYNC DATA**: Thông tin để sync cursor ngay lập tức
+          immediateSync: {
+            required: true,
+            handleType: smartAction.handle,
+            targetTime: smartAction.handle === HANDLE_TYPES.START ? startTime : endTime,
+            offsetForEnd: smartAction.handle === HANDLE_TYPES.END ? 3.0 : 0
+          }
         };
         
       case CLICK_ACTIONS.JUMP_TO_TIME:
@@ -157,6 +177,7 @@ export class InteractionManager {
         this.activeHandle = HANDLE_TYPES.END;
         this.dragStartPosition = x;
         this.dragStartTime = clickTime;
+        // 🆕 **NOTE**: isDraggingConfirmed still false until movement detected
         
         return {
           action: 'createSelection',
@@ -176,27 +197,52 @@ export class InteractionManager {
   }
   
   /**
-   * 🎯 Handle mouse move event
+   * 🎯 Handle mouse move event với enhanced drag validation
    */
   handleMouseMove(x, canvasWidth, duration, startTime, endTime, audioContext = null) {
     const currentTime = positionToTime(x, canvasWidth, duration);
     
-    if (this.state === INTERACTION_STATES.DRAGGING) {
-      // 🎯 ACTIVE DRAGGING - Update region
+    // 🆕 **DRAG CONFIRMATION**: Kiểm tra xem có thực sự đang drag không
+    if (this.state === INTERACTION_STATES.DRAGGING && !this.isDraggingConfirmed) {
+      const pixelsMoved = Math.abs(x - (this.lastMousePosition?.x || x));
+      const timeSinceMouseDown = performance.now() - (this.mouseDownTimestamp || 0);
+      
+      // 🆕 **CONFIRM DRAG**: Chỉ confirm drag khi di chuyển đủ xa HOẶC đủ lâu
+      if (pixelsMoved >= this.dragMoveThreshold || timeSinceMouseDown > 100) {
+        this.isDraggingConfirmed = true;
+        console.log(`✅ [${this.debugId}] Drag CONFIRMED:`, {
+          pixelsMoved: pixelsMoved.toFixed(1),
+          timeSinceMouseDown: timeSinceMouseDown.toFixed(0) + 'ms',
+          threshold: this.dragMoveThreshold + 'px'
+        });
+      }
+    }
+    
+    // 🆕 **UPDATE MOUSE POSITION**: Track for next movement calculation
+    this.lastMousePosition = { x, y: 0 };
+    
+    if (this.state === INTERACTION_STATES.DRAGGING && this.isDraggingConfirmed) {
+      // 🎯 **CONFIRMED DRAGGING** - Update region chỉ khi đã confirm drag
       const roundedTime = Math.round(currentTime * 100) / 100; // 10ms precision
       
       if (this.activeHandle === HANDLE_TYPES.START) {
         const newStartTime = Math.min(roundedTime, endTime - 0.1);
         if (Math.abs(newStartTime - startTime) > 0.01) {
-          console.log(`⏮️ [${this.debugId}] Dragging start: ${startTime.toFixed(2)}s → ${newStartTime.toFixed(2)}s`);
+          console.log(`⏮️ [${this.debugId}] CONFIRMED dragging start: ${startTime.toFixed(2)}s → ${newStartTime.toFixed(2)}s`);
           
-          // 🆕 AUDIO SYNC: Sync cursor when dragging start handle
+          // 🆕 **REAL-TIME CURSOR SYNC**: Cursor theo real-time khi drag start handle  
+          let audioSynced = false;
+          
           if (audioContext) {
             const { audioRef, setCurrentTime, isPlaying } = audioContext;
-            if (this.audioSyncManager.shouldSync('start', isPlaying, newStartTime)) {
-              this.audioSyncManager.syncAudioCursor(
-                newStartTime, audioRef, setCurrentTime, isPlaying, 'start'
-              );
+            
+            // 🔥 **ULTRA-SMOOTH REAL-TIME SYNC**: Sử dụng realTimeSync với force mode
+            audioSynced = this.audioSyncManager.realTimeSync(
+              newStartTime, audioRef, setCurrentTime, 'start', true // force = true
+            );
+            
+            if (audioSynced) {
+              console.log(`🎯 [${this.debugId}] REAL-TIME sync start handle: ${newStartTime.toFixed(2)}s`);
             }
           }
           
@@ -204,21 +250,30 @@ export class InteractionManager {
             action: 'updateRegion',
             startTime: newStartTime,
             significant: true,
-            audioSynced: true // 🆕 Flag indicating audio was synced
+            audioSynced: audioSynced,
+            isDraggingConfirmed: true, // 🆕 **VALIDATION FLAG**
+            realTimeSync: true // 🆕 **REAL-TIME FLAG**
           };
         }
       } else if (this.activeHandle === HANDLE_TYPES.END) {
         const newEndTime = Math.max(roundedTime, startTime + 0.1);
         if (Math.abs(newEndTime - endTime) > 0.01) {
-          console.log(`⏭️ [${this.debugId}] Dragging end: ${endTime.toFixed(2)}s → ${newEndTime.toFixed(2)}s`);
+          console.log(`⏭️ [${this.debugId}] CONFIRMED dragging end: ${endTime.toFixed(2)}s → ${newEndTime.toFixed(2)}s`);
           
-          // 🆕 AUDIO SYNC: Sync cursor when dragging end handle (optional)
+          // 🆕 **REAL-TIME CURSOR SYNC**: Cursor theo real-time khi drag end handle với offset
+          let audioSynced = false;
+          
           if (audioContext && this.audioSyncManager.preferences.syncEndHandle) {
             const { audioRef, setCurrentTime, isPlaying } = audioContext;
-            if (this.audioSyncManager.shouldSync('end', isPlaying, newEndTime)) {
-              this.audioSyncManager.syncAudioCursor(
-                newEndTime, audioRef, setCurrentTime, isPlaying, 'end'
-              );
+            
+            // 🔥 **ULTRA-SMOOTH REAL-TIME SYNC**: Sử dụng realTimeSync với force mode cho end handle
+            audioSynced = this.audioSyncManager.realTimeSync(
+              newEndTime, audioRef, setCurrentTime, 'end', true // force = true, sẽ auto-apply 3s offset
+            );
+            
+            if (audioSynced) {
+              const targetSyncTime = Math.max(0, newEndTime - 3.0);
+              console.log(`🎯 [${this.debugId}] REAL-TIME sync end handle: ${newEndTime.toFixed(2)}s → ${targetSyncTime.toFixed(2)}s (3s offset)`);
             }
           }
           
@@ -226,25 +281,34 @@ export class InteractionManager {
             action: 'updateRegion',
             endTime: newEndTime,
             significant: true,
-            audioSynced: this.audioSyncManager.preferences.syncEndHandle
+            audioSynced: audioSynced,
+            isDraggingConfirmed: true, // 🆕 **VALIDATION FLAG**
+            realTimeSync: true // 🆕 **REAL-TIME FLAG**
           };
         }
       }
       
       return { action: 'none' };
+      
+    } else if (this.state === INTERACTION_STATES.DRAGGING && !this.isDraggingConfirmed) {
+      // 🆕 **AWAITING DRAG CONFIRMATION**: Không update region, chỉ log
+      console.log(`⏳ [${this.debugId}] Awaiting drag confirmation (${Math.abs(x - (this.dragStartPosition || x)).toFixed(1)}px moved)`);
+      return { action: 'none', reason: 'awaiting_drag_confirmation' };
+      
     } else {
-      // 🎯 HOVER ONLY - Visual feedback only, NO region changes
+      // 🎯 **HOVER ONLY** - Visual feedback only, TUYỆT ĐỐI KHÔNG thay đổi region
       const handle = detectHandle(x, canvasWidth, duration, startTime, endTime);
       
       if (handle !== this.lastHoveredHandle) {
-        console.log(`👆 [${this.debugId}] Hover changed: ${this.lastHoveredHandle || 'none'} → ${handle || 'none'}`);
+        console.log(`👆 [${this.debugId}] Hover changed: ${this.lastHoveredHandle || 'none'} → ${handle || 'none'} (NO REGION CHANGE)`);
         this.lastHoveredHandle = handle;
         this.state = handle ? INTERACTION_STATES.HOVERING : INTERACTION_STATES.IDLE;
         
         return {
           action: 'updateHover',
           handle: handle,
-          cursor: handle ? 'grab' : 'crosshair'
+          cursor: handle ? 'grab' : 'crosshair',
+          hoverOnly: true // 🆕 **EXPLICIT FLAG**: Chỉ hover, không drag
         };
       }
       
@@ -257,14 +321,18 @@ export class InteractionManager {
    */
   handleMouseUp(startTime, endTime, audioContext = null) {
     const wasDragging = this.state === INTERACTION_STATES.DRAGGING;
+    const wasConfirmedDrag = this.isDraggingConfirmed;
     const draggedHandle = this.activeHandle;
     
     if (wasDragging) {
-      console.log(`🫳 [${this.debugId}] Drag completed for ${this.activeHandle} handle`);
-      console.log(`📊 [${this.debugId}] Final region: ${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s`);
+      console.log(`🫳 [${this.debugId}] Drag completed:`, {
+        handle: this.activeHandle,
+        confirmed: wasConfirmedDrag,
+        finalRegion: `${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s`
+      });
       
-      // 🆕 FINAL AUDIO SYNC: Ensure audio cursor is at correct position
-      if (audioContext && draggedHandle) {
+      // 🆕 FINAL AUDIO SYNC: Ensure audio cursor is at correct position chỉ khi confirmed drag
+      if (audioContext && draggedHandle && wasConfirmedDrag) {
         const { audioRef, setCurrentTime, isPlaying } = audioContext;
         const finalTime = draggedHandle === HANDLE_TYPES.START ? startTime : endTime;
         
@@ -274,17 +342,20 @@ export class InteractionManager {
       }
     }
     
-    // 🎯 Reset dragging state
+    // 🎯 **RESET DRAG STATE**: Reset tất cả drag tracking
     this.state = this.lastHoveredHandle ? INTERACTION_STATES.HOVERING : INTERACTION_STATES.IDLE;
     this.activeHandle = HANDLE_TYPES.NONE;
     this.dragStartPosition = null;
     this.dragStartTime = null;
+    this.isDraggingConfirmed = false;
+    this.mouseDownTimestamp = null;
+    this.lastMousePosition = null;
     
     return {
       action: wasDragging ? 'completeDrag' : 'none',
-      saveHistory: wasDragging,
+      saveHistory: wasConfirmedDrag, // 🆕 **CHỈ SAVE** khi đã confirmed drag
       cursor: this.lastHoveredHandle ? 'grab' : 'crosshair',
-      audioSynced: wasDragging && audioContext && draggedHandle // 🆕 Audio sync flag
+      audioSynced: wasDragging && audioContext && draggedHandle && wasConfirmedDrag
     };
   }
   
@@ -317,7 +388,10 @@ export class InteractionManager {
       state: this.state,
       activeHandle: this.activeHandle,
       lastHoveredHandle: this.lastHoveredHandle,
-      isDragging: this.state === INTERACTION_STATES.DRAGGING
+      isDragging: this.state === INTERACTION_STATES.DRAGGING,
+      isDraggingConfirmed: this.isDraggingConfirmed, // 🆕 **ENHANCED DEBUG**
+      mouseDownTimestamp: this.mouseDownTimestamp,
+      lastMousePosition: this.lastMousePosition
     };
   }
   
@@ -331,6 +405,11 @@ export class InteractionManager {
     this.lastHoveredHandle = HANDLE_TYPES.NONE;
     this.dragStartPosition = null;
     this.dragStartTime = null;
+    
+    // 🆕 **RESET ENHANCED TRACKING**: Reset drag confirmation state
+    this.isDraggingConfirmed = false;
+    this.mouseDownTimestamp = null;
+    this.lastMousePosition = null;
     
     // 🆕 RESET AUDIO SYNC: Reset sync manager state
     if (this.audioSyncManager) {

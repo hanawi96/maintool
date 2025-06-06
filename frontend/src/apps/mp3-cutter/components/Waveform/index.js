@@ -13,6 +13,7 @@ const Waveform = ({
   hoveredHandle,
   isDragging,
   isPlaying,
+  volume = 1,
   
   // Canvas handlers
   onMouseDown,
@@ -32,11 +33,12 @@ const Waveform = ({
         console.log('🌊 [Waveform] Initial setup complete:', {
           waveformLength: waveformData.length,
           duration: duration.toFixed(2) + 's',
+          volume: volume.toFixed(2),
           note: 'TimeSelector moved to UnifiedControlBar'
         });
       }, 0);
     }
-  }, [waveformData.length, duration]);
+  }, [waveformData.length, duration, volume]);
   
   const minWidth = WAVEFORM_CONFIG.RESPONSIVE.MIN_WIDTH;
   
@@ -54,6 +56,7 @@ const Waveform = ({
             hoveredHandle={hoveredHandle}
             isDragging={isDragging}
             isPlaying={isPlaying}
+            volume={volume}
             onMouseDown={onMouseDown}
             onMouseMove={onMouseMove}
             onMouseUp={onMouseUp}

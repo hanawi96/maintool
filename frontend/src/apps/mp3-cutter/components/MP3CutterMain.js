@@ -18,6 +18,7 @@ import UnifiedControlBar from './UnifiedControlBar';
 // Import utils
 import { clamp, validateAudioFile, getAudioErrorMessage, getFormatDisplayName, generateCompatibilityReport, createSafeAudioURL, validateAudioURL } from '../utils/audioUtils';
 import { createInteractionManager } from '../utils/interactionUtils';
+import { getAutoReturnSetting, setAutoReturnSetting } from '../utils/safeStorage';
 
 // 🔥 **ULTRA-LIGHT AUDIO COMPONENT**: Minimized for best performance
 const SafeAudioElement = React.memo(({ 
@@ -72,7 +73,7 @@ const MP3CutterMain = React.memo(() => {
     testConnection,
     uploadProgress
   } = useFileUpload();
-
+  
   const {
     isPlaying,
     currentTime,
@@ -136,8 +137,15 @@ const MP3CutterMain = React.memo(() => {
 
   // 🔥 **ESSENTIAL SETUP ONLY**
   useEffect(() => {
-    if (!interactionManagerRef.current) {
-      interactionManagerRef.current = createInteractionManager();
+  if (!interactionManagerRef.current) {
+    interactionManagerRef.current = createInteractionManager();
+      
+      // 🔧 **REGISTER WITH DEBUG SYSTEM**
+      if (window.mp3CutterInteractionDebug) {
+        window.mp3CutterInteractionDebug.registerManager(interactionManagerRef.current);
+  }
+
+      console.log('🎮 [MP3CutterMain] InteractionManager initialized and registered');
     }
   }, []);
 
@@ -322,10 +330,10 @@ const MP3CutterMain = React.memo(() => {
 
     // 🔥 **CLEAR PREVIOUS ERRORS**: Clear any audio errors from previous files
     setAudioError(null);
-    
+
     console.log('✅ [AudioSetup] Audio interactions configured successfully');
   }, [audioFile?.url]); // 🔥 **OPTIMIZED DEPS**: Chỉ listen audioFile.url
-
+    
   // 🔥 **UPDATE ANIMATION STATE REF**: Cập nhật ref thay vì tạo object mới
   useEffect(() => {
     animationStateRef.current = {
@@ -357,6 +365,43 @@ const MP3CutterMain = React.memo(() => {
         case 'startDrag':
           setIsDragging(result.handle);
           canvas.style.cursor = result.cursor;
+          
+          // 🆕 **IMMEDIATE CURSOR SYNC**: Sync cursor ngay lập tức khi click handle
+          if (result.immediateSync && result.immediateSync.required) {
+            const { handleType, targetTime, offsetForEnd } = result.immediateSync;
+            
+            console.log(`🎯 [HandleClick] IMMEDIATE sync for ${handleType} handle:`, {
+              targetTime: targetTime.toFixed(2) + 's',
+              offset: offsetForEnd > 0 ? offsetForEnd + 's' : 'none'
+            });
+            
+            // 🔥 **USE AUDIO SYNC MANAGER**: Sử dụng forceImmediateSync cho consistency
+            const manager = interactionManagerRef.current;
+            if (manager && manager.audioSyncManager) {
+              const syncSuccess = manager.audioSyncManager.forceImmediateSync(
+                targetTime, audioRef, setCurrentTime, handleType, offsetForEnd
+              );
+              
+              if (syncSuccess) {
+                console.log(`✅ [HandleClick] Audio sync manager completed immediate sync for ${handleType} handle`);
+              } else {
+                console.warn(`⚠️ [HandleClick] Audio sync manager failed for ${handleType} handle`);
+              }
+            } else {
+              // 🔄 **FALLBACK**: Manual sync nếu không có AudioSyncManager
+              let syncTime = targetTime;
+              if (handleType === 'end' && offsetForEnd > 0) {
+                syncTime = Math.max(0, targetTime - offsetForEnd);
+                console.log(`🎯 [HandleClick] End handle offset applied: ${targetTime.toFixed(2)}s → ${syncTime.toFixed(2)}s`);
+              }
+              
+              if (audioRef.current) {
+                audioRef.current.currentTime = syncTime;
+                setCurrentTime(syncTime);
+                console.log(`✅ [HandleClick] Manual cursor synced to ${syncTime.toFixed(2)}s for ${handleType} handle`);
+              }
+            }
+          }
           break;
           
         case 'jumpToTime':
@@ -397,9 +442,9 @@ const MP3CutterMain = React.memo(() => {
           setEndTime(result.endTime);
           canvas.style.cursor = result.cursor;
           
-          // 🔥 **IMMEDIATE CURSOR SYNC**: Sync to preview position (2s before end)
+          // 🔥 **IMMEDIATE CURSOR SYNC**: Sync to preview position (3s before end)
           if (audioRef.current) {
-            const previewTime = Math.max(0, result.endTime - 2.0);
+            const previewTime = Math.max(0, result.endTime - 3.0);
             audioRef.current.currentTime = previewTime;
             setCurrentTime(previewTime);
           }
@@ -429,7 +474,17 @@ const MP3CutterMain = React.memo(() => {
     
     // 🔥 **ULTRA-RESPONSIVE THROTTLING**: Tăng frame rate cho smooth cursor sync
     const manager = interactionManagerRef.current;
-    const throttleInterval = manager.getDebugInfo().isDragging ? 4 : 30; // 250fps vs 33fps
+    const debugInfo = manager.getDebugInfo();
+    
+    // 🆕 **DYNAMIC THROTTLING**: Ultra-high fps cho confirmed dragging
+    let throttleInterval;
+    if (debugInfo.isDraggingConfirmed) {
+      throttleInterval = 2; // 500fps cho ultra-smooth real-time sync
+    } else if (debugInfo.isDragging) {
+      throttleInterval = 8; // 125fps cho drag confirmation
+    } else {
+      throttleInterval = 30; // 33fps cho hover
+    }
     
     if (now - lastMouseTimeRef.current < throttleInterval) return;
     lastMouseTimeRef.current = now;
@@ -452,39 +507,70 @@ const MP3CutterMain = React.memo(() => {
       x, canvas.width, duration, startTime, endTime, audioContext
     );
     
-    // 🎯 Process action based on result
+    // 🆕 **ENHANCED VALIDATION**: Chỉ process action nếu logic hợp lệ
     const processAction = () => {
       switch (result.action) {
         case 'updateRegion':
-          if (result.startTime !== undefined) setStartTime(result.startTime);
-          if (result.endTime !== undefined) setEndTime(result.endTime);
-          
-          // 🔥 **REAL-TIME CURSOR SYNC**: Update cursor ngay khi drag để mượt mà
-          if (!result.audioSynced && audioRef.current && !isPlaying) {
-            // 🔥 **MANUAL SYNC**: Nếu không auto-sync thì manual sync
-            const syncTime = result.startTime !== undefined ? result.startTime : 
-                            result.endTime !== undefined ? Math.max(0, result.endTime - 1.5) : null;
+          // 🆕 **STRICT VALIDATION**: CHỈ update region nếu đã confirmed drag
+          if (result.isDraggingConfirmed) {
+            console.log(`📊 [MouseMove] VALIDATED region update:`, {
+              isDraggingConfirmed: result.isDraggingConfirmed,
+              significant: result.significant,
+              audioSynced: result.audioSynced,
+              realTimeSync: result.realTimeSync
+            });
             
-            if (syncTime !== null) {
-              audioRef.current.currentTime = syncTime;
-              setCurrentTime(syncTime);
+            if (result.startTime !== undefined) setStartTime(result.startTime);
+            if (result.endTime !== undefined) setEndTime(result.endTime);
+            
+            // 🆕 **REAL-TIME SYNC STATUS**: Log real-time sync success
+            if (result.realTimeSync && result.audioSynced) {
+              console.log(`🎯 [MouseMove] REAL-TIME cursor sync active - ultra-smooth mode`);
+            } else if (!result.audioSynced && audioRef.current && !isPlaying) {
+              // 🔄 **FALLBACK SYNC**: Manual sync nếu real-time sync không hoạt động
+              const syncTime = result.startTime !== undefined ? result.startTime : 
+                              result.endTime !== undefined ? Math.max(0, result.endTime - 3.0) : null;
+              
+              if (syncTime !== null) {
+                console.log(`🔄 [MouseMove] Fallback audio sync to ${syncTime.toFixed(2)}s`);
+                audioRef.current.currentTime = syncTime;
+                setCurrentTime(syncTime);
+              }
             }
+          } else {
+            // 🚫 **BLOCKED UPDATE**: Log bị chặn update
+            console.warn(`🚫 [MouseMove] BLOCKED region update - drag not confirmed:`, {
+              action: result.action,
+              reason: result.reason || 'drag_not_confirmed',
+              isDraggingConfirmed: result.isDraggingConfirmed || false
+            });
           }
           break;
           
         case 'updateHover':
+          // 🆕 **SAFE HOVER**: Chỉ update visual, TUYỆT ĐỐI không touch region
+          console.log(`👆 [MouseMove] Safe hover update:`, {
+            handle: result.handle,
+            cursor: result.cursor,
+            hoverOnly: result.hoverOnly,
+            note: 'Visual feedback only, NO region change'
+          });
+          
           setHoveredHandle(result.handle);
           canvas.style.cursor = result.cursor;
           break;
           
         default:
+          // 🔇 **SILENT**: Không action, không log spam
           break;
       }
     };
     
-    // 🎯 IMMEDIATE updates for dragging, debounced for hover
-    if (result.significant) {
-      processAction(); // Immediate for dragging
+    // 🎯 **IMMEDIATE PROCESSING**: Immediate updates cho all confirmed dragging
+    if (result.significant && result.isDraggingConfirmed) {
+      processAction(); // Immediate for confirmed dragging với real-time sync
+    } else if (result.action === 'updateHover') {
+      processAction(); // Immediate for hover feedback  
     } else if (result.action !== 'none') {
       if (window.requestIdleCallback) {
         window.requestIdleCallback(processAction);
@@ -666,7 +752,7 @@ const MP3CutterMain = React.memo(() => {
       
       // 🔥 **AUTO-RETURN**: Kiểm tra nếu đến cuối selection
       if (end > start && audioCurrentTime >= end - 0.05) {
-        const autoReturnEnabled = localStorage.getItem('mp3cutter_auto_return') !== 'false';
+        const autoReturnEnabled = getAutoReturnSetting();
         
         if (autoReturnEnabled && audioRef.current) {
           audioRef.current.currentTime = start;
@@ -854,11 +940,11 @@ const MP3CutterMain = React.memo(() => {
     return () => {
       // 🔥 **SAFE CLEANUP**: Kiểm tra audio element trước khi cleanup
       if (audio) {
-        audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
-        audio.removeEventListener('ended', handleEnded);
-        audio.removeEventListener('play', handlePlay);
-        audio.removeEventListener('pause', handlePause);
-        audio.removeEventListener('error', handleError);
+      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      audio.removeEventListener('ended', handleEnded);
+      audio.removeEventListener('play', handlePlay);
+      audio.removeEventListener('pause', handlePause);
+      audio.removeEventListener('error', handleError);
       }
     };
   }, [audioFile?.name, setCurrentTime, setDuration, setIsPlaying, setEndTime, fileValidation, setAudioError]); // 🔥 **OPTIMIZED DEPS**
@@ -874,7 +960,7 @@ const MP3CutterMain = React.memo(() => {
     // 🔥 **AUTO-RETURN CONFIG**: Global function cho auto-return behavior
     window.mp3CutterConfigureAutoReturn = (enabled = true) => {
       if (typeof enabled === 'boolean') {
-        localStorage.setItem('mp3cutter_auto_return', enabled.toString());
+        setAutoReturnSetting(enabled);
         console.log(`⚙️ [AutoReturn] Configured: ${enabled ? 'ENABLED' : 'DISABLED'}`);
       } else {
         console.warn('⚠️ [AutoReturn] Invalid value. Use: true or false');
@@ -883,15 +969,180 @@ const MP3CutterMain = React.memo(() => {
     
     // 🔥 **AUTO-RETURN STATUS**: Function để check current auto-return setting
     window.mp3CutterGetAutoReturnStatus = () => {
-      const enabled = localStorage.getItem('mp3cutter_auto_return') !== 'false';
+      const enabled = getAutoReturnSetting();
       console.log(`📊 [AutoReturn] Status: ${enabled ? 'ENABLED' : 'DISABLED'}`);
       return enabled;
+    };
+    
+    // 🆕 **INTERACTION DEBUG**: Monitor interaction system
+    window.mp3CutterInteractionDebug = () => {
+      const manager = interactionManagerRef.current;
+      if (!manager) {
+        console.warn('⚠️ [InteractionDebug] No InteractionManager available');
+        return null;
+      }
+      
+      const debugInfo = manager.getDebugInfo();
+      console.log('🎮 [InteractionDebug] Current state:', debugInfo);
+      
+      // 🆕 **VALIDATION CHECK**: Verify hover không thay đổi region
+      const isHoverOnly = debugInfo.state === 'hovering' && !debugInfo.isDraggingConfirmed;
+      if (isHoverOnly) {
+        console.log(`✅ [InteractionDebug] SAFE HOVER MODE: Visual feedback only, region protected`);
+      }
+      
+      return debugInfo;
+    };
+    
+    // 🆕 **DRAG VALIDATION DEBUG**: Check drag confirmation system
+    window.mp3CutterValidateDragSystem = () => {
+      const manager = interactionManagerRef.current;
+      if (!manager) {
+        console.warn('⚠️ [DragValidation] No InteractionManager available');
+        return null;
+      }
+      
+      const debugInfo = manager.getDebugInfo();
+      const validation = {
+        canChangeRegion: debugInfo.isDraggingConfirmed,
+        state: debugInfo.state,
+        activeHandle: debugInfo.activeHandle,
+        protection: !debugInfo.isDraggingConfirmed ? 'REGION_PROTECTED' : 'REGION_EDITABLE',
+        message: !debugInfo.isDraggingConfirmed ? 
+          'Hover detected - region changes BLOCKED until drag confirmed' :
+          'Confirmed drag - region changes ALLOWED'
+      };
+      
+      console.log('🛡️ [DragValidation] System status:', validation);
+      return validation;
+    };
+    
+    // 🆕 **LIVE MONITOR**: Real-time interaction monitoring  
+    window.mp3CutterStartInteractionMonitor = (interval = 1000) => {
+      if (window.mp3CutterInteractionMonitorId) {
+        clearInterval(window.mp3CutterInteractionMonitorId);
+      }
+      
+      console.log(`📡 [InteractionMonitor] Starting live monitor (${interval}ms interval)`);
+      window.mp3CutterInteractionMonitorId = setInterval(() => {
+        const manager = interactionManagerRef.current;
+        if (manager) {
+          const debug = manager.getDebugInfo();
+          if (debug.state !== 'idle') {
+            console.log(`📡 [LiveMonitor] ${debug.state.toUpperCase()}:`, {
+              handle: debug.activeHandle || 'none',
+              dragConfirmed: debug.isDraggingConfirmed,
+              protection: debug.isDraggingConfirmed ? '🔓 EDITABLE' : '🔒 PROTECTED'
+            });
+          }
+        }
+      }, interval);
+      
+      return window.mp3CutterInteractionMonitorId;
+    };
+    
+    // 🆕 **REAL-TIME SYNC MONITOR**: Monitor cursor sync performance
+    window.mp3CutterStartSyncMonitor = (interval = 500) => {
+      if (window.mp3CutterSyncMonitorId) {
+        clearInterval(window.mp3CutterSyncMonitorId);
+      }
+      
+      console.log(`🎯 [SyncMonitor] Starting real-time sync monitor (${interval}ms interval)`);
+      window.mp3CutterSyncMonitorId = setInterval(() => {
+        const manager = interactionManagerRef.current;
+        if (manager && manager.audioSyncManager) {
+          const syncDebug = manager.audioSyncManager.getDebugInfo();
+          const interactionDebug = manager.getDebugInfo();
+          
+          if (interactionDebug.isDraggingConfirmed) {
+            console.log(`🎯 [SyncMonitor] REAL-TIME SYNC STATUS:`, {
+              activeHandle: interactionDebug.activeHandle,
+              audioTime: audioRef.current?.currentTime?.toFixed(2) + 's' || 'N/A',
+              currentSelection: `${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s`,
+              syncEnabled: syncDebug.isEnabled,
+              lastSyncTime: syncDebug.lastSyncTime,
+              isThrottled: syncDebug.isThrottled
+            });
+          }
+        }
+      }, interval);
+      
+      return window.mp3CutterSyncMonitorId;
+    };
+    
+    // 🆕 **SYNC PERFORMANCE TEST**: Test immediate sync performance
+    window.mp3CutterTestSyncPerformance = (handleType = 'start', targetTime = 5.0) => {
+      console.log(`🚀 [SyncTest] Testing immediate sync performance for ${handleType} handle`);
+      
+      const manager = interactionManagerRef.current;
+      if (!manager || !manager.audioSyncManager) {
+        console.error('❌ [SyncTest] No AudioSyncManager available');
+        return;
+      }
+      
+      const startTime = performance.now();
+      const offset = handleType === 'end' ? 3.0 : 0;
+      
+      const success = manager.audioSyncManager.forceImmediateSync(
+        targetTime, audioRef, setCurrentTime, handleType, offset
+      );
+      
+      const endTime = performance.now();
+      const duration = endTime - startTime;
+      
+      console.log(`📊 [SyncTest] Performance results:`, {
+        handleType,
+        targetTime: targetTime + 's',
+        offset: offset + 's',
+        success,
+        duration: duration.toFixed(2) + 'ms',
+        performance: duration < 1 ? '🚀 EXCELLENT' : 
+                    duration < 5 ? '✅ GOOD' : 
+                    duration < 10 ? '⚠️ AVERAGE' : '❌ SLOW'
+      });
+      
+      return { success, duration };
+    };
+    
+    window.mp3CutterStopInteractionMonitor = () => {
+      if (window.mp3CutterInteractionMonitorId) {
+        clearInterval(window.mp3CutterInteractionMonitorId);
+        delete window.mp3CutterInteractionMonitorId;
+        console.log('📡 [InteractionMonitor] Stopped');
+      }
+    };
+    
+    window.mp3CutterStopSyncMonitor = () => {
+      if (window.mp3CutterSyncMonitorId) {
+        clearInterval(window.mp3CutterSyncMonitorId);
+        delete window.mp3CutterSyncMonitorId;
+        console.log('🎯 [SyncMonitor] Stopped');
+      }
     };
     
     return () => {
       delete window.mp3CutterSetSelection;
       delete window.mp3CutterConfigureAutoReturn;
       delete window.mp3CutterGetAutoReturnStatus;
+      delete window.mp3CutterInteractionDebug;
+      delete window.mp3CutterValidateDragSystem;
+      delete window.mp3CutterStartInteractionMonitor;
+      delete window.mp3CutterStopInteractionMonitor;
+      delete window.mp3CutterStartSyncMonitor;
+      delete window.mp3CutterStopSyncMonitor;
+      delete window.mp3CutterTestSyncPerformance;
+      
+      // Cleanup monitor if running
+      if (window.mp3CutterInteractionMonitorId) {
+        clearInterval(window.mp3CutterInteractionMonitorId);
+        delete window.mp3CutterInteractionMonitorId;
+      }
+      
+      // Cleanup sync monitor if running
+      if (window.mp3CutterSyncMonitorId) {
+        clearInterval(window.mp3CutterSyncMonitorId);
+        delete window.mp3CutterSyncMonitorId;
+      }
     };
   }, []); // 🔥 **EMPTY DEPS**: Setup một lần
 
@@ -1063,6 +1314,7 @@ const MP3CutterMain = React.memo(() => {
               hoveredHandle={hoveredHandle}
               isDragging={isDragging}
               isPlaying={isPlaying}
+              volume={volume}
               onMouseDown={handleCanvasMouseDown}
               onMouseMove={handleCanvasMouseMove}
               onMouseUp={handleCanvasMouseUp}
@@ -1072,14 +1324,14 @@ const MP3CutterMain = React.memo(() => {
             {/* 🎯 UNIFIED CONTROLS - Single row layout with all controls */}
             <UnifiedControlBar
               // Audio Player props
-              isPlaying={isPlaying}
-              volume={volume}
-              playbackRate={playbackRate}
-              onTogglePlayPause={togglePlayPause}
-              onJumpToStart={handleJumpToStart}
-              onJumpToEnd={handleJumpToEnd}
-              onVolumeChange={updateVolume}
-              onSpeedChange={updatePlaybackRate}
+                  isPlaying={isPlaying}
+                  volume={volume}
+                  playbackRate={playbackRate}
+                  onTogglePlayPause={togglePlayPause}
+                  onJumpToStart={handleJumpToStart}
+                  onJumpToEnd={handleJumpToEnd}
+                  onVolumeChange={updateVolume}
+                  onSpeedChange={updatePlaybackRate}
               
               // Time Selector props  
               startTime={startTime}
@@ -1089,16 +1341,16 @@ const MP3CutterMain = React.memo(() => {
               onEndTimeChange={handleEndTimeChange}
               
               // History props
-              canUndo={canUndo}
-              canRedo={canRedo}
-              onUndo={handleUndo}
-              onRedo={handleRedo}
-              historyIndex={historyIndex}
-              historyLength={historyLength}
+                  canUndo={canUndo}
+                  canRedo={canRedo}
+                  onUndo={handleUndo}
+                  onRedo={handleRedo}
+                  historyIndex={historyIndex}
+                  historyLength={historyLength}
               
               // Common props
               disabled={!audioFile}
-            />
+                />
 
             {/* Effects and Export */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

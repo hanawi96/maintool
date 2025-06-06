@@ -12,6 +12,7 @@ const WaveformCanvas = React.memo(({
   hoveredHandle,
   isDragging,
   isPlaying,
+  volume = 1, // 🆕 **VOLUME PROP**: Volume level (0-1) for responsive bars
   onMouseDown,
   onMouseMove,
   onMouseUp,
@@ -23,6 +24,10 @@ const WaveformCanvas = React.memo(({
   const lastRenderDataRef = useRef(null);
   const isInitializedRef = useRef(false);
   const lastCanvasWidthRef = useRef(0);
+  
+  // 🆕 **VOLUME ANIMATION**: Smooth volume transitions
+  const volumeAnimationRef = useRef(volume);
+  const targetVolumeRef = useRef(volume);
   
   // 🔥 **OPTIMIZED**: Removed all debug logging refs to prevent spam
   const setupCompleteRef = useRef(false);
@@ -77,7 +82,7 @@ const WaveformCanvas = React.memo(({
     return waveformData;
   }, [waveformData, canvasRef]);
 
-  // 🔥 **STABLE RENDER DATA**: Giảm re-calculation và logging
+  // 🔥 **STABLE RENDER DATA**: Giảm re-calculation và logging với volume support
   const renderData = useMemo(() => {    
     if (!adaptiveWaveformData.length || duration === 0) {
       return null;
@@ -90,6 +95,7 @@ const WaveformCanvas = React.memo(({
     const stableStartTime = Math.round(startTime * 10) / 10; // 0.1s precision
     const stableEndTime = Math.round(endTime * 10) / 10;     // 0.1s precision
     const stableDuration = Math.round(duration * 10) / 10;   // 0.1s precision
+    const stableVolume = Math.round(volumeAnimationRef.current * 100) / 100; // 0.01 precision
     
     const data = {
       waveformData: adaptiveWaveformData,
@@ -99,14 +105,15 @@ const WaveformCanvas = React.memo(({
       hoveredHandle,
       isDragging,
       canvasWidth,
-      dataHash: `${adaptiveWaveformData.length}-${stableDuration}-${stableStartTime}-${stableEndTime}-${hoveredHandle || 'none'}-${isDragging || 'none'}-${canvasWidth}`
+      volume: stableVolume, // 🆕 **VOLUME IN RENDER DATA**
+      dataHash: `${adaptiveWaveformData.length}-${stableDuration}-${stableStartTime}-${stableEndTime}-${hoveredHandle || 'none'}-${isDragging || 'none'}-${canvasWidth}-${stableVolume}`
     };
     
     // 🔥 **UPDATE REF**: Update ref without logging to prevent spam
     lastRenderDataRef.current = data;
     
     return data;
-  }, [adaptiveWaveformData, duration, startTime, endTime, hoveredHandle, isDragging, canvasRef]);
+  }, [adaptiveWaveformData, duration, startTime, endTime, hoveredHandle, isDragging, canvasRef, volume]);
 
   // 🎯 ENHANCED: Drawing function with performance optimizations
   const drawWaveform = useCallback(() => {
@@ -131,8 +138,8 @@ const WaveformCanvas = React.memo(({
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, width, height);
     
-    // 2. 🎯 RESPONSIVE WAVEFORM BARS
-    const { waveformData, duration, startTime, endTime } = renderData;
+    // 2. 🎯 RESPONSIVE WAVEFORM BARS với Volume Scaling
+    const { waveformData, duration, startTime, endTime, volume: currentVolume } = renderData;
     const centerY = height / 2;
     
     // 🎯 SMART BAR WIDTH CALCULATION
@@ -140,6 +147,13 @@ const WaveformCanvas = React.memo(({
     const minBarWidth = WAVEFORM_CONFIG.RESPONSIVE.MIN_BAR_WIDTH;
     const barWidth = Math.max(minBarWidth, rawBarWidth);
     const useOptimizedSpacing = rawBarWidth < minBarWidth;
+    
+    // 🆕 **VOLUME SCALING**: Calculate volume-based height multiplier
+    const volumeMultiplier = Math.max(0.1, Math.min(2.0, currentVolume)); // Range: 0.1x to 2.0x
+    const baseVolumeMultiplier = 0.3; // Minimum visible height when volume = 0
+    const finalVolumeMultiplier = baseVolumeMultiplier + (volumeMultiplier * (1 - baseVolumeMultiplier));
+    
+    console.log(`🔊 [WaveformDraw] Volume scaling: ${currentVolume.toFixed(2)} → ${finalVolumeMultiplier.toFixed(2)}x height`);
     
     // 🎯 PERFORMANCE: Batch draw operations
     ctx.save();
@@ -151,7 +165,8 @@ const WaveformCanvas = React.memo(({
       
       for (let i = 0; i < waveformData.length; i++) {
         const value = waveformData[i];
-        const barHeight = Math.max(2, (value * height) / 2); // Minimum 2px height
+        const baseBarHeight = Math.max(2, (value * height) / 2); // Minimum 2px height
+        const scaledBarHeight = baseBarHeight * finalVolumeMultiplier; // 🆕 **VOLUME SCALING**
         const x = i * spacing;
         const barTime = (i / waveformData.length) * duration;
         
@@ -159,14 +174,15 @@ const WaveformCanvas = React.memo(({
         const isInSelection = barTime >= startTime && barTime <= endTime;
         ctx.fillStyle = isInSelection ? '#8b5cf6' : '#cbd5e1';
         
-        // Draw bar with guaranteed visibility
-        ctx.fillRect(Math.floor(x), centerY - barHeight, minBarWidth, barHeight * 2);
+        // Draw bar with guaranteed visibility and volume scaling
+        ctx.fillRect(Math.floor(x), centerY - scaledBarHeight, minBarWidth, scaledBarHeight * 2);
       }
     } else {
       // 🎯 LARGE SCREENS: Normal spacing with calculated bar width
       for (let i = 0; i < waveformData.length; i++) {
         const value = waveformData[i];
-        const barHeight = Math.max(2, (value * height) / 2); // Minimum 2px height
+        const baseBarHeight = Math.max(2, (value * height) / 2); // Minimum 2px height
+        const scaledBarHeight = baseBarHeight * finalVolumeMultiplier; // 🆕 **VOLUME SCALING**
         const x = i * barWidth;
         const barTime = (i / waveformData.length) * duration;
         
@@ -174,9 +190,9 @@ const WaveformCanvas = React.memo(({
         const isInSelection = barTime >= startTime && barTime <= endTime;
         ctx.fillStyle = isInSelection ? '#8b5cf6' : '#cbd5e1';
         
-        // Draw bar with optimized width (small gap between bars for definition)
+        // Draw bar with optimized width and volume scaling
         const drawWidth = Math.max(1, barWidth - 0.3);
-        ctx.fillRect(Math.floor(x), centerY - barHeight, drawWidth, barHeight * 2);
+        ctx.fillRect(Math.floor(x), centerY - scaledBarHeight, drawWidth, scaledBarHeight * 2);
       }
     }
     ctx.restore();
@@ -362,6 +378,42 @@ const WaveformCanvas = React.memo(({
       }
     };
   }, []);
+
+  // 🆕 **SMOOTH VOLUME ANIMATION**: Animate volume changes smoothly
+  useEffect(() => {
+    targetVolumeRef.current = volume;
+    
+    let animationId = null;
+    
+    const animateVolume = () => {
+      const current = volumeAnimationRef.current;
+      const target = targetVolumeRef.current;
+      const diff = target - current;
+      
+      if (Math.abs(diff) > 0.01) {
+        // 🎯 **SMOOTH TRANSITION**: 15% of difference per frame for smooth animation
+        volumeAnimationRef.current = current + diff * 0.15;
+        
+        // 🎯 **CONTINUE ANIMATION**: Schedule next frame
+        animationId = requestAnimationFrame(animateVolume);
+      } else {
+        // 🎯 **SNAP TO TARGET**: When close enough, snap to target
+        volumeAnimationRef.current = target;
+        animationId = null;
+      }
+    };
+    
+    // 🎯 **START ANIMATION**: Begin smooth volume transition
+    console.log(`🔊 [VolumeAnimation] Animating: ${volumeAnimationRef.current.toFixed(2)} → ${volume.toFixed(2)}`);
+    animationId = requestAnimationFrame(animateVolume);
+    
+    // 🎯 **CLEANUP**: Cancel animation on unmount or volume change
+    return () => {
+      if (animationId) {
+        cancelAnimationFrame(animationId);
+      }
+    };
+  }, [volume]);
 
   return (
     <div className="relative" style={{ minWidth: `${WAVEFORM_CONFIG.RESPONSIVE.MIN_WIDTH}px` }}>

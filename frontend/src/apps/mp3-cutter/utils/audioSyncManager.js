@@ -204,6 +204,86 @@ export class AudioSyncManager {
     this.lastSyncTime = 0;
     console.log(`🔄 [${this.debugId}] AudioSyncManager reset`);
   }
+  
+  /**
+   * 🆕 **FORCE IMMEDIATE SYNC**: Immediate sync bỏ qua tất cả throttling và validation
+   * @param {number} targetTime - Target time to sync to
+   * @param {object} audioRef - Audio element ref
+   * @param {function} setCurrentTime - React state setter
+   * @param {string} handleType - Handle type for logging
+   * @param {number} offset - Offset to apply (for end handle)
+   */
+  forceImmediateSync(targetTime, audioRef, setCurrentTime, handleType = 'unknown', offset = 0) {
+    if (!audioRef.current) {
+      console.warn(`⚠️ [${this.debugId}] No audio element for force sync`);
+      return false;
+    }
+    
+    // 🔥 **CALCULATE FINAL TIME**: Apply offset if provided
+    const finalTime = offset > 0 ? Math.max(0, targetTime - offset) : targetTime;
+    
+    console.log(`🚀 [${this.debugId}] FORCE IMMEDIATE SYNC:`, {
+      handleType,
+      targetTime: targetTime.toFixed(2) + 's',
+      offset: offset > 0 ? offset + 's' : 'none', 
+      finalTime: finalTime.toFixed(2) + 's',
+      skipValidation: true
+    });
+    
+    // 🔥 **IMMEDIATE AUDIO UPDATE**: Direct update without any checks
+    const audio = audioRef.current;
+    audio.currentTime = finalTime;
+    
+    // 🔥 **IMMEDIATE STATE UPDATE**: Force immediate React state update
+    setCurrentTime(finalTime);
+    
+    // 🔥 **RESET THROTTLE**: Allow next sync immediately
+    this.lastSyncTime = 0;
+    
+    console.log(`✅ [${this.debugId}] Force sync completed: ${finalTime.toFixed(2)}s`);
+    return true;
+  }
+  
+  /**
+   * 🆕 **REAL-TIME SYNC**: High-frequency sync cho smooth dragging
+   * @param {number} newTime - New time position
+   * @param {object} audioRef - Audio element ref
+   * @param {function} setCurrentTime - React state setter
+   * @param {string} handleType - Handle being dragged
+   * @param {boolean} force - Force sync even if throttled
+   */
+  realTimeSync(newTime, audioRef, setCurrentTime, handleType, force = false) {
+    if (!audioRef.current) return false;
+    
+    // 🔥 **FORCE MODE**: Skip throttling for ultra-smooth dragging
+    if (force) {
+      this.lastSyncTime = 0;
+    } else if (this._isThrottled()) {
+      return false; // Skip if throttled and not forced
+    }
+    
+    // 🔥 **CALCULATE TARGET**: Apply offset for end handle
+    let targetTime = newTime;
+    if (handleType === 'end') {
+      targetTime = Math.max(0, newTime - this.preferences.endHandleOffset);
+    }
+    
+    // 🔥 **MICRO-OPTIMIZATION**: Skip if change is too small (< 1ms)
+    const currentAudioTime = audioRef.current.currentTime;
+    const timeDifference = Math.abs(targetTime - currentAudioTime);
+    if (timeDifference < 0.001 && !force) {
+      return false;
+    }
+    
+    // 🔥 **IMMEDIATE UPDATE**: Direct audio and state update
+    audioRef.current.currentTime = targetTime;
+    setCurrentTime(targetTime);
+    
+    // 🔥 **UPDATE THROTTLE**: Record sync time
+    this.lastSyncTime = performance.now();
+    
+    return true;
+  }
 }
 
 /**
