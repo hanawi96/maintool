@@ -5,12 +5,9 @@
 **/uploads/
 /.pnp
 .pnp.js
-.mp3
+*.mp3
 # testing
 /coverage
-
-# production
-/build
 
 # misc
 .DS_Store
