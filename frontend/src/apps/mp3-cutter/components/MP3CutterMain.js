@@ -20,6 +20,7 @@ import AudioErrorAlert from './AudioErrorAlert';
 import InteractionDebug from './Debug/InteractionDebug';
 import AudioSyncDebug from './Debug/AudioSyncDebug';
 import SmartClickDebug from './Debug/SmartClickDebug';
+import UnifiedControlBar from './UnifiedControlBar';
 
 // Import utils
 import { clamp, validateAudioFile, getAudioErrorMessage, getFormatDisplayName, generateCompatibilityReport } from '../utils/audioUtils';
@@ -107,8 +108,26 @@ const MP3CutterMain = React.memo(() => {
   // 🎯 Optimized refs - prevent excessive logging
   const lastMouseTimeRef = useRef(0);
   const lastUpdateTimeRef = useRef(0);
-  const animationIdRef = useRef(null);
   const isSetupRef = useRef(false);
+
+  // 🔥 **FIX INFINITE LOOP**: Stable refs thay vì reactive dependencies
+  const animationStateRef = useRef({
+    isPlaying: false,
+    startTime: 0,
+    endTime: 0
+  });
+
+  // 🔥 **ANIMATION TRIGGER**: Ref để trigger animation restart
+  const animationTriggerRef = useRef(0);
+
+  // 🔥 **UPDATE ANIMATION STATE REF**: Cập nhật ref thay vì tạo object mới
+  useEffect(() => {
+    animationStateRef.current = {
+      isPlaying,
+      startTime,
+      endTime
+    };
+  }, [isPlaying, startTime, endTime]);
 
   // 🆕 NEW: Interaction Manager for smart mouse handling
   const interactionManagerRef = useRef(null);
@@ -151,13 +170,6 @@ const MP3CutterMain = React.memo(() => {
     
     checkConnection();
   }, [testConnection]);
-
-  // 🎯 MEMOIZED: Animation state to prevent setup loops
-  const animationState = useMemo(() => ({
-    isPlaying,
-    endTime,
-    startTime
-  }), [isPlaying, endTime, startTime]);
 
   // 🎯 ENHANCED: File upload handler with audio validation
   const handleFileUpload = useCallback(async (file) => {
@@ -342,146 +354,176 @@ const MP3CutterMain = React.memo(() => {
     if (files.length > 0) handleFileUpload(files[0]);
   }, [handleFileUpload]);
 
-  // 🎯 FIXED: Single animation system - prevent setState conflicts
+  // 🔥 **SMART ANIMATION LOOP**: Responsive animation với trigger mechanism
   useEffect(() => {
-    // 🎯 Prevent multiple setups and early returns for stability
-    if (isSetupRef.current && !animationState.isPlaying) return;
+    console.log('🎬 [Animation] Setting up smart animation system...');
     
-    const { isPlaying: playing, endTime: end, startTime: start } = animationState;
-    
-    // 🎯 Reduced logging - move out of render cycle
-    if (!isSetupRef.current) {
-      setTimeout(() => console.log('🎬 [Animation] Initial setup'), 0);
-      isSetupRef.current = true;
-    }
-    
-    let animationActive = false; // 🆕 Track animation state to prevent conflicts
+    let animationActive = false;
+    let currentAnimationId = null;
     
     const updateCursor = (timestamp) => {
-      // 🎯 Enhanced frame limiting with consistent timing
+      // 🔥 **GET FRESH STATE**: Lấy state mới nhất từ ref
+      const currentState = animationStateRef.current;
+      const { isPlaying: playing, startTime: start, endTime: end } = currentState;
+      
+      // 🔥 **EARLY EXIT**: Không animation nếu không playing
+      if (!playing || !audioRef.current || audioRef.current.paused || !animationActive) {
+        animationActive = false;
+        currentAnimationId = null;
+        console.log('⏸️ [Animation] Stopped - not playing or paused');
+        return;
+      }
+      
+      // 🔥 **SMART THROTTLING**: 60fps for cursor updates
       const targetFPS = 60;
       const frameInterval = 1000 / targetFPS;
       
       if (timestamp - lastUpdateTimeRef.current < frameInterval) {
-        if (playing && animationActive) {
-          animationIdRef.current = requestAnimationFrame(updateCursor);
+        if (animationActive && playing) {
+          currentAnimationId = requestAnimationFrame(updateCursor);
         }
         return;
       }
       
       lastUpdateTimeRef.current = timestamp;
       
-      // 🆕 BATCH STATE UPDATES: Prevent rapid setState calls
-      if (playing && audioRef.current && !audioRef.current.paused && animationActive) {
-        const audioCurrentTime = audioRef.current.currentTime;
-        
-        // 🆕 DEBOUNCED LOGGING: Reduce console spam
-        const shouldLog = Math.floor(audioCurrentTime * 4) % 10 === 0; // Every 2.5 seconds
-        if (shouldLog) {
-          setTimeout(() => console.log('🎵 [Animation] Cursor:', audioCurrentTime.toFixed(2)), 0);
-        }
-        
-        // 🆕 Use requestIdleCallback for non-critical state updates
-        if (window.requestIdleCallback) {
-          window.requestIdleCallback(() => {
-            if (animationActive) setCurrentTime(audioCurrentTime);
-          });
-        } else {
-          setCurrentTime(audioCurrentTime);
-        }
-        
-        // 🆕 ENHANCED: Auto-return to start when reaching selection end
-        if (end > start && audioCurrentTime >= end - 0.05) { // 50ms buffer
-          setTimeout(() => {
-            // 🎯 CHECK USER PREFERENCE: Auto-return enabled or just pause?
-            const autoReturnEnabled = localStorage.getItem('mp3cutter_auto_return') !== 'false'; // Default true
-            
-            if (autoReturnEnabled) {
-              console.log('🛑 [Animation] Selection end reached - returning to start');
-              if (audioRef.current) {
-                // 🎯 SEEK TO START: Move audio cursor back to region start
-                audioRef.current.currentTime = start;
-                console.log(`🔄 [Animation] Audio cursor reset: ${end.toFixed(2)}s → ${start.toFixed(2)}s`);
-                
-                // 🎯 PAUSE AUDIO: Stop playback (user must click play to continue)
-                audioRef.current.pause();
-                console.log('⏸️ [Animation] Audio paused at region start');
-              }
-              
-              // 🎯 UPDATE REACT STATE: Sync UI with new audio position
-              if (window.requestIdleCallback) {
-                window.requestIdleCallback(() => {
-                  setCurrentTime(start);
-                  setIsPlaying(false);
-                  console.log('⚛️ [Animation] React state updated - ready for next play');
-                });
-              } else {
-                setTimeout(() => {
-                  setCurrentTime(start);
-                  setIsPlaying(false);
-                  console.log('⚛️ [Animation] React state updated - ready for next play');
-                }, 0);
-              }
-            } else {
-              console.log('🛑 [Animation] Selection end reached - pausing at end (auto-return disabled)');
-              if (audioRef.current) {
-                // 🎯 JUST PAUSE: Keep cursor at end position
-                audioRef.current.pause();
-                console.log('⏸️ [Animation] Audio paused at region end');
-              }
-              
-              // 🎯 UPDATE REACT STATE: Just update playing state
-              if (window.requestIdleCallback) {
-                window.requestIdleCallback(() => {
-                  setIsPlaying(false);
-                  console.log('⚛️ [Animation] React state updated - paused at end');
-                });
-              } else {
-                setTimeout(() => {
-                  setIsPlaying(false);
-                  console.log('⚛️ [Animation] React state updated - paused at end');
-                }, 0);
-              }
-            }
-            
-            // 🎯 STOP ANIMATION: Clean up animation loop
-            animationActive = false;
-          }, 0);
-          return;
-        }
+      // 🔥 **CURSOR UPDATE**: Lấy thời gian từ audio element
+      const audioCurrentTime = audioRef.current.currentTime;
+      
+      // 🔥 **SMOOTH STATE UPDATE**: Update React state cho UI
+      setCurrentTime(audioCurrentTime);
+      
+      // 🔥 **DEBUG**: Log cursor movement mỗi giây
+      if (Math.floor(timestamp) % 1000 < 16) {
+        console.log(`🎵 [Cursor] Time: ${audioCurrentTime.toFixed(2)}s / ${end.toFixed(2)}s`);
       }
       
-      // Continue animation loop only if still active
-      if (playing && animationActive) {
-        animationIdRef.current = requestAnimationFrame(updateCursor);
-      }
-    };
-    
-    // Start or stop animation loop with proper state management
-    if (playing) {
-      if (!animationIdRef.current && !animationActive) {
-        animationActive = true;
-        setTimeout(() => console.log('🚀 [Animation] Starting loop'), 0);
-        animationIdRef.current = requestAnimationFrame(updateCursor);
-      }
-    } else {
-      if (animationIdRef.current) {
+      // 🔥 **AUTO-RETURN**: Kiểm tra nếu đến cuối selection
+      if (end > start && audioCurrentTime >= end - 0.05) {
+        const autoReturnEnabled = localStorage.getItem('mp3cutter_auto_return') !== 'false';
+        
+        console.log('🛑 [Animation] Reached selection end, auto-return:', autoReturnEnabled);
+        
+        if (autoReturnEnabled && audioRef.current) {
+          audioRef.current.currentTime = start;
+          audioRef.current.pause();
+          setCurrentTime(start);
+        } else if (audioRef.current) {
+          audioRef.current.pause();
+        }
+        
+        setIsPlaying(false);
         animationActive = false;
-        setTimeout(() => console.log('⏸️ [Animation] Stopping loop'), 0);
-        cancelAnimationFrame(animationIdRef.current);
-        animationIdRef.current = null;
+        currentAnimationId = null;
+        return;
       }
-    }
-    
-    // Enhanced cleanup with state reset
-    return () => {
-      animationActive = false;
-      if (animationIdRef.current) {
-        cancelAnimationFrame(animationIdRef.current);
-        animationIdRef.current = null;
+      
+      // 🔥 **CONTINUE ANIMATION**: Tiếp tục loop nếu đang playing
+      if (playing && animationActive && audioRef.current && !audioRef.current.paused) {
+        currentAnimationId = requestAnimationFrame(updateCursor);
+      } else {
+        animationActive = false;
+        currentAnimationId = null;
+        console.log('⏸️ [Animation] Loop ended');
       }
     };
-  }, [animationState, audioRef, setCurrentTime, setIsPlaying]);
+    
+    // 🔥 **START ANIMATION**: Function để bắt đầu animation
+    const startAnimation = () => {
+      if (!animationActive && !currentAnimationId) {
+        animationActive = true;
+        currentAnimationId = requestAnimationFrame(updateCursor);
+        console.log('🚀 [Animation] Started - cursor will move');
+        return true;
+      }
+      return false;
+    };
+    
+    // 🔥 **STOP ANIMATION**: Function để dừng animation
+    const stopAnimation = () => {
+      animationActive = false;
+      if (currentAnimationId) {
+        cancelAnimationFrame(currentAnimationId);
+        currentAnimationId = null;
+        console.log('⏹️ [Animation] Stopped');
+      }
+    };
+    
+    // 🔥 **TRIGGER LISTENER**: Listen for trigger changes
+    const checkAndTrigger = () => {
+      const currentState = animationStateRef.current;
+      if (currentState.isPlaying && audioRef.current && !audioRef.current.paused) {
+        console.log('🎯 [Animation] Triggering animation for play state');
+        startAnimation();
+      } else {
+        console.log('🛑 [Animation] Stopping animation for pause state');
+        stopAnimation();
+      }
+    };
+    
+    // 🔥 **EXPOSE TRIGGER**: Cho phép trigger từ bên ngoài
+    const triggerInterval = setInterval(checkAndTrigger, 100); // Check mỗi 100ms
+    
+    // 🔥 **INITIAL CHECK**: Kiểm tra ngay lập tức
+    checkAndTrigger();
+    
+    // 🔥 **CLEANUP**: Dọn dẹp khi unmount
+    return () => {
+      clearInterval(triggerInterval);
+      stopAnimation();
+    };
+  }, []); // 🔥 **EMPTY DEPS**: Stable setup
+
+  // 🔥 **PLAY STATE TRIGGER**: Trigger animation khi play state thay đổi
+  useEffect(() => {
+    console.log('🎮 [PlayState] State changed to:', isPlaying ? 'PLAYING' : 'PAUSED');
+    
+    // 🔥 **UPDATE REF**: Cập nhật ref ngay lập tức
+    animationStateRef.current.isPlaying = isPlaying;
+    
+    // 🔥 **IMMEDIATE TRIGGER**: Trigger animation ngay lập tức
+    const timeoutId = setTimeout(() => {
+      if (isPlaying && audioRef.current && !audioRef.current.paused) {
+        console.log('🎵 [PlayState] Should start cursor animation');
+        // Animation loop sẽ tự detect và start
+      } else {
+        console.log('⏸️ [PlayState] Should stop cursor animation');
+        // Animation loop sẽ tự detect và stop
+      }
+    }, 16); // Next frame
+    
+    return () => clearTimeout(timeoutId);
+  }, [isPlaying]);
+
+  // 🔥 **AUDIO EVENTS**: Listen để sync với audio element
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    
+    const handleAudioPlay = () => {
+      console.log('🎵 [AudioElement] Play event detected');
+      animationStateRef.current.isPlaying = true;
+    };
+    
+    const handleAudioPause = () => {
+      console.log('⏸️ [AudioElement] Pause event detected');
+      animationStateRef.current.isPlaying = false;
+    };
+    
+    const handleAudioTimeUpdate = () => {
+      // Passive listener, animation loop sẽ handle việc update UI
+    };
+    
+    audio.addEventListener('play', handleAudioPlay);
+    audio.addEventListener('pause', handleAudioPause);
+    audio.addEventListener('timeupdate', handleAudioTimeUpdate);
+    
+    return () => {
+      audio.removeEventListener('play', handleAudioPlay);
+      audio.removeEventListener('pause', handleAudioPause);
+      audio.removeEventListener('timeupdate', handleAudioTimeUpdate);
+    };
+  }, [audioRef]);
 
   // 🎯 SMART: Mouse handlers using InteractionManager
   const handleCanvasMouseDown = useCallback((e) => {
@@ -505,7 +547,16 @@ const MP3CutterMain = React.memo(() => {
           break;
           
         case 'jumpToTime':
+          // 🔥 **IMMEDIATE CURSOR SYNC**: Update cursor ngay lập tức khi jump
+          console.log(`🎯 [QuickJump] Jumping to ${result.time.toFixed(2)}s with immediate cursor sync`);
           jumpToTime(result.time);
+          
+          // 🔥 **FORCE CURSOR UPDATE**: Đảm bảo cursor update ngay
+          if (audioRef.current) {
+            audioRef.current.currentTime = result.time;
+            setCurrentTime(result.time);
+            console.log(`🎯 [CursorSync] Immediate cursor update to ${result.time.toFixed(2)}s`);
+          }
           break;
           
         case 'createSelection':
@@ -520,9 +571,9 @@ const MP3CutterMain = React.memo(() => {
           setStartTime(result.startTime);
           canvas.style.cursor = result.cursor;
           
-          // 🆕 AUDIO SYNC: Sync audio cursor when updating start time
-          if (audioRef.current && isPlaying) {
-            console.log(`🔄 [Audio Sync] Seeking to new start time: ${result.startTime.toFixed(2)}s`);
+          // 🔥 **IMMEDIATE CURSOR SYNC**: Sync audio cursor ngay lập tức
+          if (audioRef.current) {
+            console.log(`🚀 [FastSync] Immediate cursor to start: ${result.startTime.toFixed(2)}s`);
             audioRef.current.currentTime = result.startTime;
             setCurrentTime(result.startTime);
           }
@@ -539,12 +590,12 @@ const MP3CutterMain = React.memo(() => {
           setEndTime(result.endTime);
           canvas.style.cursor = result.cursor;
           
-          // 🆕 AUDIO SYNC: Sync audio cursor when updating end time (3s offset)
+          // 🔥 **IMMEDIATE CURSOR SYNC**: Sync to preview position (2s before end)
           if (audioRef.current) {
-            const targetTime = Math.max(0, result.endTime - 3.0); // 3 seconds before end
-            console.log(`🔄 [Audio Sync] End update: Seeking to ${targetTime.toFixed(2)}s (3s before ${result.endTime.toFixed(2)}s)`);
-            audioRef.current.currentTime = targetTime;
-            setCurrentTime(targetTime);
+            const previewTime = Math.max(0, result.endTime - 2.0); // 2 seconds before end
+            console.log(`🚀 [FastSync] Immediate cursor to preview: ${previewTime.toFixed(2)}s (2s before ${result.endTime.toFixed(2)}s)`);
+            audioRef.current.currentTime = previewTime;
+            setCurrentTime(previewTime);
           }
           
           // 🆕 SAVE HISTORY: Save state after smart update
@@ -575,9 +626,9 @@ const MP3CutterMain = React.memo(() => {
   const handleCanvasMouseMove = useCallback((e) => {
     const now = performance.now();
     
-    // 🎯 SMART THROTTLING: Use different intervals based on interaction state
+    // 🔥 **ULTRA-RESPONSIVE THROTTLING**: Tăng frame rate cho smooth cursor sync
     const manager = interactionManagerRef.current;
-    const throttleInterval = manager.getDebugInfo().isDragging ? 8 : 50; // 120fps vs 20fps
+    const throttleInterval = manager.getDebugInfo().isDragging ? 4 : 30; // 250fps vs 33fps
     
     if (now - lastMouseTimeRef.current < throttleInterval) return;
     lastMouseTimeRef.current = now;
@@ -607,9 +658,19 @@ const MP3CutterMain = React.memo(() => {
           if (result.startTime !== undefined) setStartTime(result.startTime);
           if (result.endTime !== undefined) setEndTime(result.endTime);
           
-          // 🆕 AUDIO SYNC FEEDBACK: Log when audio was synced
+          // 🔥 **REAL-TIME CURSOR SYNC**: Update cursor ngay khi drag để mượt mà
           if (result.audioSynced) {
-            console.log(`🔄 [AudioSync] Cursor synced during ${result.startTime !== undefined ? 'start' : 'end'} handle drag`);
+            console.log(`🚀 [RealTimeSync] Cursor synced during ${result.startTime !== undefined ? 'start' : 'end'} handle drag`);
+          } else if (audioRef.current && !isPlaying) {
+            // 🔥 **MANUAL SYNC**: Nếu không auto-sync thì manual sync
+            const syncTime = result.startTime !== undefined ? result.startTime : 
+                            result.endTime !== undefined ? Math.max(0, result.endTime - 1.5) : null;
+            
+            if (syncTime !== null) {
+              audioRef.current.currentTime = syncTime;
+              setCurrentTime(syncTime);
+              console.log(`🎯 [ManualSync] Cursor manually synced to ${syncTime.toFixed(2)}s during drag`);
+            }
           }
           break;
           
@@ -961,12 +1022,84 @@ const MP3CutterMain = React.memo(() => {
       return enabled;
     };
     
+    // 🔥 **EXPOSE DEBUG FUNCTIONS**: Cho phép test cursor movement
+    window.mp3CutterTestCursor = () => {
+      if (audioRef.current) {
+        const currentTime = audioRef.current.currentTime;
+        const duration = audioRef.current.duration;
+        const isPlaying = !audioRef.current.paused;
+        
+        console.log('🧪 [CursorTest] Audio State:', {
+          currentTime: currentTime.toFixed(2) + 's',
+          duration: duration.toFixed(2) + 's',
+          isPlaying,
+          animationState: animationStateRef.current
+        });
+        
+        return { currentTime, duration, isPlaying };
+      }
+      return null;
+    };
+    
+    // 🔥 **MANUAL CURSOR UPDATE**: Force cursor update for testing
+    window.mp3CutterForceCursorUpdate = () => {
+      if (audioRef.current) {
+        const time = audioRef.current.currentTime;
+        setCurrentTime(time);
+        console.log('🔄 [CursorTest] Forced cursor update to:', time.toFixed(2) + 's');
+      }
+    };
+    
+    // 🔥 **CURSOR SYNC TEST**: Test cursor movement performance
+    window.mp3CutterTestCursorSync = (targetTime) => {
+      if (audioRef.current && typeof targetTime === 'number') {
+        const startTime = performance.now();
+        audioRef.current.currentTime = targetTime;
+        setCurrentTime(targetTime);
+        const endTime = performance.now();
+        
+        console.log('🚀 [CursorSyncTest] Performance:', {
+          targetTime: targetTime.toFixed(2) + 's',
+          syncDuration: (endTime - startTime).toFixed(2) + 'ms',
+          actualTime: audioRef.current.currentTime.toFixed(2) + 's'
+        });
+        
+        return {
+          target: targetTime,
+          actual: audioRef.current.currentTime,
+          syncTime: endTime - startTime
+        };
+      }
+      console.warn('⚠️ [CursorSyncTest] Invalid parameters or no audio loaded');
+      return null;
+    };
+    
+    // 🔥 **DRAG PERFORMANCE TEST**: Test drag responsiveness
+    window.mp3CutterTestDragPerformance = () => {
+      const manager = interactionManagerRef.current;
+      if (manager) {
+        const debugInfo = manager.getDebugInfo();
+        console.log('🎯 [DragPerformanceTest] Current settings:', {
+          throttleInterval: debugInfo.isDragging ? '4ms (250fps)' : '30ms (33fps)',
+          isDragging: debugInfo.isDragging,
+          lastUpdateTime: debugInfo.lastUpdateTime,
+          interactionCount: debugInfo.interactionCount || 'N/A'
+        });
+        return debugInfo;
+      }
+      return null;
+    };
+    
     return () => {
       delete window.mp3CutterSetSelection;
       delete window.mp3CutterConfigureSmartClick;
       delete window.mp3CutterConfigureAudioSync;
       delete window.mp3CutterConfigureAutoReturn;
       delete window.mp3CutterGetAutoReturnStatus;
+      delete window.mp3CutterTestCursor;
+      delete window.mp3CutterForceCursorUpdate;
+      delete window.mp3CutterTestCursorSync;
+      delete window.mp3CutterTestDragPerformance;
     };
   }, [setStartTime, setEndTime, saveState, fadeIn, fadeOut, interactionManagerRef]);
 
@@ -1144,36 +1277,38 @@ const MP3CutterMain = React.memo(() => {
               onMouseMove={handleCanvasMouseMove}
               onMouseUp={handleCanvasMouseUp}
               onMouseLeave={handleCanvasMouseLeave}
-              onStartTimeChange={handleStartTimeChange}
-              onEndTimeChange={handleEndTimeChange}
             />
 
-            {/* Controls */}
-            <div className="bg-white/70 backdrop-blur-sm rounded-xl p-3 border border-slate-200/50 shadow-sm">
-              <div className="flex items-center justify-between gap-4 flex-wrap">
-                
-                <AudioPlayer
-                  isPlaying={isPlaying}
-                  volume={volume}
-                  playbackRate={playbackRate}
-                  onTogglePlayPause={togglePlayPause}
-                  onJumpToStart={handleJumpToStart}
-                  onJumpToEnd={handleJumpToEnd}
-                  onVolumeChange={updateVolume}
-                  onSpeedChange={updatePlaybackRate}
-                  disabled={!audioFile}
-                />
-
-                <HistoryControls
-                  canUndo={canUndo}
-                  canRedo={canRedo}
-                  onUndo={handleUndo}
-                  onRedo={handleRedo}
-                  historyIndex={historyIndex}
-                  historyLength={historyLength}
-                />
-              </div>
-            </div>
+            {/* 🎯 UNIFIED CONTROLS - Single row layout with all controls */}
+            <UnifiedControlBar
+              // Audio Player props
+              isPlaying={isPlaying}
+              volume={volume}
+              playbackRate={playbackRate}
+              onTogglePlayPause={togglePlayPause}
+              onJumpToStart={handleJumpToStart}
+              onJumpToEnd={handleJumpToEnd}
+              onVolumeChange={updateVolume}
+              onSpeedChange={updatePlaybackRate}
+              
+              // Time Selector props  
+              startTime={startTime}
+              endTime={endTime}
+              duration={duration}
+              onStartTimeChange={handleStartTimeChange}
+              onEndTimeChange={handleEndTimeChange}
+              
+              // History props
+              canUndo={canUndo}
+              canRedo={canRedo}
+              onUndo={handleUndo}
+              onRedo={handleRedo}
+              historyIndex={historyIndex}
+              historyLength={historyLength}
+              
+              // Common props
+              disabled={!audioFile}
+            />
 
             {/* Effects and Export */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

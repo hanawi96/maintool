@@ -26,35 +26,30 @@ const WaveformCanvas = React.memo(({
   const debugLogTimeRef = useRef(0); // 🆕 Control debug logging frequency
   const renderCountRef = useRef(0); // 🆕 Track render count
 
-  // 🆕 DEBUG: Component render tracking
+  // 🔥 **THROTTLED DEBUG**: Component render tracking với giảm spam
   useEffect(() => {
     renderCountRef.current += 1;
     const now = performance.now();
     
-    // 🆕 Log render info every 2 seconds to prevent spam
-    if (now - debugLogTimeRef.current > 2000) {
-      console.log(`🔄 [WaveformCanvas] Render #${renderCountRef.current}`, {
-        waveformDataLength: waveformData.length,
-        duration: duration.toFixed(2),
-        timeRange: `${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s`,
-        isPlaying,
-        isDragging: isDragging || 'none',
-        hoveredHandle: hoveredHandle || 'none'
+    // 🔥 **REDUCED LOGGING**: Chỉ log mỗi 10 giây để giảm spam
+    if (now - debugLogTimeRef.current > 10000) {
+      console.log(`🔄 [WaveformCanvas] Render #${renderCountRef.current} (10s interval)`, {
+        waveformLength: waveformData.length,
+        duration: duration.toFixed(1) + 's',
+        isPlaying
       });
       debugLogTimeRef.current = now;
     }
   });
 
-  // 🎯 ENHANCED: Smart waveform sampling with debug throttling
+  // 🔥 **OPTIMIZED ADAPTIVE DATA**: Giảm logging và chỉ log khi cần
   const adaptiveWaveformData = useMemo(() => {
-    console.log('📊 [WaveformCanvas] Calculating adaptive waveform data...');
-    
     if (!waveformData.length) return [];
     
     const canvas = canvasRef.current;
     if (!canvas) return waveformData;
     
-    const canvasWidth = canvas.width || 800; // fallback width
+    const canvasWidth = canvas.width || 800;
     const currentWidth = lastCanvasWidthRef.current || canvasWidth;
     
     // 🎯 SMART ADAPTIVE SAMPLING using configuration
@@ -91,11 +86,9 @@ const WaveformCanvas = React.memo(({
         adaptedData.push(count > 0 ? sum / count : 0);
       }
       
-      // 🆕 THROTTLED DEBUG: Only log significant changes
-      const now = performance.now();
-      if (now - debugLogTimeRef.current > 1000 || !isInitializedRef.current) {
-        console.log(`📊 [Responsive] Canvas:${currentWidth}px, Rule:${rule.samplesPerPx}spp, Original:${waveformData.length} → Adapted:${finalSamples} samples`);
-        debugLogTimeRef.current = now;
+      // 🔥 **MINIMAL LOGGING**: Chỉ log khi setup lần đầu
+      if (!isInitializedRef.current) {
+        console.log(`📊 [WaveformCanvas] Adaptive sampling: ${waveformData.length} → ${finalSamples} samples`);
       }
       return adaptedData;
     }
@@ -103,22 +96,19 @@ const WaveformCanvas = React.memo(({
     return waveformData;
   }, [waveformData, canvasRef]);
 
-  // 🎯 OPTIMIZED: Render data with stable hash generation
-  const renderData = useMemo(() => {
-    console.log('🎯 [WaveformCanvas] Calculating render data...');
-    
+  // 🔥 **STABLE RENDER DATA**: Giảm re-calculation và logging
+  const renderData = useMemo(() => {    
     if (!adaptiveWaveformData.length || duration === 0) {
-      console.log('⚠️ [WaveformCanvas] No render data - missing waveform or duration');
       return null;
     }
     
     const canvas = canvasRef.current;
     const canvasWidth = canvas?.width || 800;
     
-    // 🆕 STABLE HASH: Use rounded values to prevent excessive re-calculations
-    const stableStartTime = Math.round(startTime * 100) / 100;
-    const stableEndTime = Math.round(endTime * 100) / 100;
-    const stableDuration = Math.round(duration * 100) / 100;
+    // 🔥 **STABLE HASH**: Use rounded values to prevent excessive re-calculations
+    const stableStartTime = Math.round(startTime * 10) / 10; // 0.1s precision
+    const stableEndTime = Math.round(endTime * 10) / 10;     // 0.1s precision
+    const stableDuration = Math.round(duration * 10) / 10;   // 0.1s precision
     
     const data = {
       waveformData: adaptiveWaveformData,
@@ -131,22 +121,15 @@ const WaveformCanvas = React.memo(({
       dataHash: `${adaptiveWaveformData.length}-${stableDuration}-${stableStartTime}-${stableEndTime}-${hoveredHandle || 'none'}-${isDragging || 'none'}-${canvasWidth}`
     };
     
-    // 🆕 ENHANCED LOGGING: Log render data changes
+    // 🔥 **MINIMAL LOGGING**: Chỉ log khi hash thay đổi và không spam
     const isNewData = !lastRenderDataRef.current || lastRenderDataRef.current.dataHash !== data.dataHash;
     if (isNewData) {
-      console.log('✅ [WaveformCanvas] Render data updated:', {
-        hash: data.dataHash,
-        samples: data.waveformData.length,
-        timeRange: `${data.startTime.toFixed(2)}s - ${data.endTime.toFixed(2)}s`,
-        canvasSize: `${data.canvasWidth}px`,
-        state: {
-          hoveredHandle: data.hoveredHandle || 'none',
-          isDragging: data.isDragging || 'none'
-        }
-      });
+      const now = performance.now();
+      if (now - debugLogTimeRef.current > 1000) { // Log mỗi 1s max
+        console.log('🎯 [WaveformCanvas] Data updated:', data.dataHash.split('-').slice(0, 3).join('-'));
+        debugLogTimeRef.current = now;
+      }
       lastRenderDataRef.current = data;
-    } else {
-      console.log('🔄 [WaveformCanvas] Render data unchanged, skipping update');
     }
     
     return data;
@@ -291,62 +274,69 @@ const WaveformCanvas = React.memo(({
       ctx.strokeRect(rightHandleX, handleY, responsiveHandleWidth, HANDLE_HEIGHT);
     }
     
-    // 5. 🎯 Playback cursor - only draw if position is valid
-    if (duration > 0) {
+    // 5. 🔥 **CLEAN CURSOR**: Slim 2px cursor as requested
+    if (duration > 0 && currentTime >= 0) {
       const cursorX = (currentTime / duration) * width;
       
-      // Cursor line
-      ctx.strokeStyle = '#f59e0b';
-      ctx.lineWidth = 2.5;
-      ctx.shadowColor = '#f59e0b';
-      ctx.shadowBlur = isPlaying ? 3 : 0;
+      // 🔥 **CURSOR DEBUG**: Log cursor position when playing
+      if (isPlaying && Math.floor(performance.now()) % 2000 < 16) {
+        console.log(`🎯 [Cursor] 2px cursor at ${cursorX.toFixed(1)}px (${currentTime.toFixed(2)}s/${duration.toFixed(2)}s)`);
+      }
+      
+      // 🔥 **SLIM CURSOR LINE**: Clean 2px line for all states
+      ctx.strokeStyle = isPlaying ? '#f59e0b' : '#f97316';
+      ctx.lineWidth = 2; // ← Fixed 2px as requested
+      ctx.shadowColor = isPlaying ? '#f59e0b' : '#f97316';
+      ctx.shadowBlur = isPlaying ? 2 : 1; // Subtle shadow
+      
       ctx.beginPath();
       ctx.moveTo(cursorX, 0);
       ctx.lineTo(cursorX, height);
       ctx.stroke();
       ctx.shadowBlur = 0;
       
-      // Cursor triangle
-      const triangleSize = 5;
+      // 🔥 **COMPACT CURSOR TRIANGLE**: Smaller, cleaner triangle
+      const triangleSize = 4; // Reduced from 6/5 to 4
       ctx.fillStyle = isPlaying ? '#f59e0b' : '#f97316';
+      ctx.shadowColor = isPlaying ? '#f59e0b' : '#f97316';
+      ctx.shadowBlur = isPlaying ? 1 : 0;
+      
       ctx.beginPath();
       ctx.moveTo(cursorX - triangleSize, 0);
       ctx.lineTo(cursorX + triangleSize, 0);
-      ctx.lineTo(cursorX, triangleSize * 2);
+      ctx.lineTo(cursorX, triangleSize * 1.5); // Slightly shorter triangle
       ctx.closePath();
       ctx.fill();
+      ctx.shadowBlur = 0;
     }
   }, [canvasRef, renderData, currentTime, isPlaying]);
 
-  // 🎯 OPTIMIZED: Smart redraw system with better frame management
+  // 🔥 **OPTIMIZED REDRAW**: High-performance cursor animation
   const requestRedraw = useCallback(() => {
-    // 🎯 Cancel previous frame to prevent stacking
+    // 🔥 Cancel previous frame to prevent stacking
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
     }
     
     animationFrameRef.current = requestAnimationFrame((timestamp) => {
-      // 🎯 Context-aware throttling
+      // 🔥 **SMART PERFORMANCE**: Context-aware frame rates
       let minInterval;
       if (isDragging) {
-        minInterval = 8;   // 120fps for smooth dragging
+        minInterval = 8;   // 120fps for ultra-smooth dragging
       } else if (isPlaying) {
-        minInterval = 16;  // 60fps for playback
+        minInterval = 16;  // 60fps for smooth cursor movement
       } else {
-        minInterval = 33;  // 30fps for static UI (reduced from 50)
+        minInterval = 33;  // 30fps for static UI
       }
       
-      // 🎯 Time-based throttling
+      // 🔥 **SMOOTH THROTTLING**: Allow cursor updates
       if (timestamp - lastDrawTimeRef.current >= minInterval) {
         drawWaveform();
         lastDrawTimeRef.current = timestamp;
         
-        // 🆕 THROTTLED DEBUG: Only log during significant state changes
-        if ((isDragging || isPlaying) && (timestamp % 500 < 16)) { // Every 500ms during action
-          const fps = 1000 / (timestamp - lastDrawTimeRef.current + minInterval);
-          setTimeout(() => {
-            console.log('🎯 [WaveformCanvas] Frame:', fps.toFixed(1) + 'fps', isDragging ? 'DRAG' : isPlaying ? 'PLAY' : 'STATIC');
-          }, 0);
+        // 🔥 **CURSOR DEBUG**: Log cursor updates when playing
+        if (isPlaying && Math.floor(timestamp) % 500 < 16) {
+          console.log('🎨 [WaveformCanvas] Cursor redraw @', (timestamp/1000).toFixed(1) + 's');
         }
       }
       
@@ -354,7 +344,30 @@ const WaveformCanvas = React.memo(({
     });
   }, [drawWaveform, isDragging, isPlaying]);
 
-  // 🎯 ENHANCED: Canvas setup with stable dependencies
+  // 🔥 **RESPONSIVE CURSOR**: High-frequency cursor updates for smooth movement
+  useEffect(() => {
+    if (isPlaying && renderData && duration > 0) {
+      // 🔥 **IMMEDIATE REDRAW**: Không delay cho cursor movement
+      requestRedraw();
+      
+      console.log('🎯 [WaveformCanvas] Cursor update triggered:', {
+        currentTime: currentTime.toFixed(2) + 's',
+        isPlaying,
+        hasRenderData: !!renderData
+      });
+    }
+  }, [currentTime, isPlaying, renderData, requestRedraw, duration]);
+
+  // 🔥 **STABLE REDRAW**: Minimal re-triggers for non-cursor updates
+  useEffect(() => {
+    if (renderData && !isPlaying) {
+      // 🔥 **STATIC UPDATES**: Chỉ khi không playing để tránh conflict
+      const timeoutId = setTimeout(requestRedraw, 0);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [renderData, requestRedraw, isPlaying]);
+
+  // 🔥 **CANVAS SETUP**: Minimal setup với reduced logging
   useEffect(() => {
     let resizeTimeoutRef = null;
     
@@ -365,42 +378,39 @@ const WaveformCanvas = React.memo(({
       const parent = canvas.parentElement;
       const parentWidth = parent.offsetWidth;
       
-      // 🎯 RESPONSIVE: Minimum width protection
+      // 🔥 RESPONSIVE: Minimum width protection
       const minWidth = WAVEFORM_CONFIG.RESPONSIVE.MIN_WIDTH;
       const newWidth = Math.max(minWidth, parentWidth);
       const newHeight = WAVEFORM_CONFIG.HEIGHT;
       
-      // 🎯 Only resize if dimensions actually changed
+      // 🔥 **ONLY RESIZE**: if dimensions actually changed
       if (canvas.width !== newWidth || canvas.height !== newHeight) {
-        setTimeout(() => {
-          console.log(`📐 [Canvas Setup] Parent:${parentWidth}px → Canvas:${newWidth}px x ${newHeight}px (min:${minWidth}px)`);
-        }, 0);
-        
         canvas.width = newWidth;
         canvas.height = newHeight;
-        
-        // 🎯 Update canvas width reference
         lastCanvasWidthRef.current = newWidth;
         
-        // 🎯 Debounced redraw to prevent resize loops
+        // 🔥 **MINIMAL LOG**: Chỉ log setup lần đầu
+        if (!isInitializedRef.current) {
+          console.log(`📐 [WaveformCanvas] Canvas setup: ${newWidth}px x ${newHeight}px`);
+          isInitializedRef.current = true;
+        }
+        
+        // 🔥 **DEBOUNCED REDRAW**: Prevent resize loops
         if (resizeTimeoutRef) clearTimeout(resizeTimeoutRef);
         resizeTimeoutRef = setTimeout(() => {
           requestRedraw();
           resizeTimeoutRef = null;
-        }, 16); // Single frame delay
+        }, 16);
       }
     };
     
-    // 🎯 Debounced resize handler
+    // 🔥 **DEBOUNCED RESIZE**: Handler
     const handleResize = () => {
       if (resizeTimeoutRef) clearTimeout(resizeTimeoutRef);
       resizeTimeoutRef = setTimeout(setupCanvas, 100);
     };
     
-    // 🎯 Initial setup
     setupCanvas();
-    
-    // 🎯 Window resize listener
     window.addEventListener('resize', handleResize);
     
     return () => {
@@ -411,25 +421,7 @@ const WaveformCanvas = React.memo(({
         animationFrameRef.current = null;
       }
     };
-  }, []); // 🎯 Empty dependency array to prevent loops
-
-  // 🎯 OPTIMIZED: Stable redraw trigger with debouncing
-  useEffect(() => {
-    // 🎯 Only redraw if renderData actually changed and avoid rapid re-triggers
-    if (renderData) {
-      const timeoutId = setTimeout(requestRedraw, 0); // Next tick to avoid render cycle issues
-      return () => clearTimeout(timeoutId);
-    }
-  }, [renderData, requestRedraw]);
-
-  // 🎯 OPTIMIZED: Cursor update with performance improvements
-  useEffect(() => {
-    if (isPlaying && renderData) {
-      // 🆕 Throttle cursor updates during playback to every other frame
-      const timeoutId = setTimeout(requestRedraw, 0);
-      return () => clearTimeout(timeoutId);
-    }
-  }, [currentTime, isPlaying, renderData, requestRedraw]);
+  }, []); // 🔥 **EMPTY DEPS**: Prevent loops
 
   return (
     <div className="relative" style={{ minWidth: `${WAVEFORM_CONFIG.RESPONSIVE.MIN_WIDTH}px` }}>

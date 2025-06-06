@@ -1,6 +1,5 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import WaveformCanvas from './WaveformCanvas';
-import TimeSelector from './TimeSelector';
 import { WAVEFORM_CONFIG } from '../../utils/constants';
 
 const Waveform = ({
@@ -19,12 +18,25 @@ const Waveform = ({
   onMouseDown,
   onMouseMove,
   onMouseUp,
-  onMouseLeave,
-  
-  // Time handlers
-  onStartTimeChange,
-  onEndTimeChange
+  onMouseLeave
 }) => {
+  // 🔥 **FIX INFINITE LOG**: Throttle logging để tránh spam
+  const lastLogTimeRef = useRef(0);
+  const renderCountRef = useRef(0);
+  
+  renderCountRef.current += 1;
+  const now = performance.now();
+  
+  // 🔥 **THROTTLED LOGGING**: Chỉ log mỗi 5 giây
+  if (now - lastLogTimeRef.current > 5000) {
+    console.log(`🌊 [Waveform] Render #${renderCountRef.current} (throttled - last 5s)`, {
+      waveformLength: waveformData.length,
+      duration: duration.toFixed(2) + 's',
+      note: 'TimeSelector moved to UnifiedControlBar'
+    });
+    lastLogTimeRef.current = now;
+  }
+  
   const minWidth = WAVEFORM_CONFIG.RESPONSIVE.MIN_WIDTH;
   
   return (
@@ -45,18 +57,6 @@ const Waveform = ({
             onMouseMove={onMouseMove}
             onMouseUp={onMouseUp}
             onMouseLeave={onMouseLeave}
-          />
-        </div>
-      </div>
-      
-      <div className="mt-4 overflow-x-auto">
-        <div className="min-w-[300px]">
-          <TimeSelector
-            startTime={startTime}
-            endTime={endTime}
-            duration={duration}
-            onStartTimeChange={onStartTimeChange}
-            onEndTimeChange={onEndTimeChange}
           />
         </div>
       </div>

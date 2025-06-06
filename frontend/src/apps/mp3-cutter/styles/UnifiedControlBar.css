@@ -1,0 +1,328 @@
+/* 🎯 Unified Control Bar - Bright Light Theme */
+
+/* 🔥 **MAIN CONTAINER** - Bright and clean design */
+.unified-control-bar {
+  /* Bright background with subtle shadow */
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)!important;
+  border: 1px solid #e2e8f0;
+  
+  /* Ensure smooth transitions */
+  transition: all 0.2s ease-in-out;
+  
+  /* Prevent layout shifts */
+  contain: layout style;
+  
+  /* Enhanced shadow for better depth */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04), 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+/* 🔥 **HOVER EFFECT** - Subtle brightening */
+.unified-control-bar:hover {
+  background: linear-gradient(135deg, #ffffff 0%, #f1f5f9 100%);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06), 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* 🎯 **RESPONSIVE CONTAINERS** */
+.unified-control-bar {
+  /* Ensure smooth transitions */
+  transition: all 0.2s ease-in-out;
+  
+  /* Prevent layout shifts */
+  contain: layout style;
+}
+
+/* 🎯 **COMPACT TIME SELECTOR STYLES** */
+.unified-control-bar .compact-time-input {
+  transition: all 0.15s ease;
+}
+
+.unified-control-bar .compact-time-input:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* 🎯 **CUSTOM SLIDER STYLES** - Webkit browsers (Chrome, Safari, Edge) */
+.volume-slider::-webkit-slider-thumb,
+.speed-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid #6366f1;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
+  position: relative;
+  z-index: 1;
+}
+
+.volume-slider::-webkit-slider-thumb:hover,
+.speed-slider::-webkit-slider-thumb:hover {
+  border-color: #4f46e5;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  transform: scale(1.1);
+}
+
+.speed-slider::-webkit-slider-thumb {
+  border-color: #8b5cf6;
+}
+
+.speed-slider::-webkit-slider-thumb:hover {
+  border-color: #7c3aed;
+}
+
+/* 🎯 **FIREFOX SLIDER STYLES** */
+.volume-slider::-moz-range-thumb,
+.speed-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid #6366f1;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
+}
+
+.speed-slider::-moz-range-thumb {
+  border-color: #8b5cf6;
+}
+
+/* 🎯 **SLIDER TRACK STYLES** */
+.volume-slider::-webkit-slider-track,
+.speed-slider::-webkit-slider-track {
+  background: transparent;
+  border-radius: 4px;
+  height: 8px;
+}
+
+.volume-slider::-moz-range-track,
+.speed-slider::-moz-range-track {
+  background: transparent;
+  border-radius: 4px;
+  border: none;
+  height: 8px;
+}
+
+/* 🎯 **FOCUS STATES** - Accessibility */
+.volume-slider:focus,
+.speed-slider:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+/* 🎯 **RESPONSIVE BREAKPOINTS** */
+@media (max-width: 640px) {
+  .unified-control-bar .volume-slider,
+  .unified-control-bar .speed-slider {
+    width: 60px; /* Smaller on mobile */
+  }
+  
+  /* Hide less critical elements on mobile */
+  .unified-control-bar .speed-display {
+    display: none;
+  }
+}
+
+@media (min-width: 641px) and (max-width: 768px) {
+  .unified-control-bar .volume-slider,
+  .unified-control-bar .speed-slider {
+    width: 70px; /* Medium on tablet */
+  }
+}
+
+@media (min-width: 769px) {
+  .unified-control-bar .volume-slider,
+  .unified-control-bar .speed-slider {
+    width: 80px; /* Larger on desktop */
+  }
+}
+
+/* 🎯 **BUTTON HOVER ANIMATIONS** */
+.unified-control-bar button {
+  /* Bright button styling */
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  border: 1px solid #e2e8f0;
+  color: #475569;
+  
+  transition: all 0.2s ease;
+  /* Prevent focus outline lag */
+  backface-visibility: hidden;
+}
+
+.unified-control-bar button:hover:not(:disabled) {
+  background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+  border-color: #cbd5e1;
+  color: #334155;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.unified-control-bar button:active:not(:disabled) {
+  background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%);
+  transform: translateY(0px);
+  transition-duration: 0.1s;
+}
+
+/* 🎯 **DISABLED STATE** - Consistent with light theme */
+.unified-control-bar button:disabled {
+  background: #f8fafc;
+  border-color: #f1f5f9;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+/* 🎯 **PLAY BUTTON SPECIAL ANIMATION** */
+.unified-control-bar button[title*="Play"],
+.unified-control-bar button[title*="Pause"] {
+  position: relative;
+  overflow: hidden;
+}
+
+.unified-control-bar button[title*="Play"]:hover,
+.unified-control-bar button[title*="Pause"]:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+}
+
+/* 🎯 **SEPARATOR LINES** - Subtle visual separators */
+.unified-control-bar .border-r {
+  border-right: 1px solid rgba(148, 163, 184, 0.3);
+}
+
+.unified-control-bar .border-l {
+  border-left: 1px solid rgba(148, 163, 184, 0.3);
+}
+
+.unified-control-bar .border-t {
+  border-top: 1px solid rgba(148, 163, 184, 0.3);
+}
+
+/* 🎯 **MOBILE COLLAPSED SECTION** */
+@media (max-width: 639px) {
+  .unified-control-bar .mobile-controls {
+    animation: slideDown 0.3s ease-out;
+  }
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 🎯 **PERFORMANCE OPTIMIZATIONS** */
+.unified-control-bar * {
+  /* Enable hardware acceleration for smooth animations */
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  
+  /* Optimize for 60fps */
+  will-change: transform;
+}
+
+/* 🎯 **TIME SELECTOR INTEGRATION** - Ensure it fits well */
+.unified-control-bar .flex-1 {
+  min-width: 200px; /* Minimum width for time selector */
+  /* Prevent shrinking below minimum */
+  flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+  .unified-control-bar .flex-1 {
+    min-width: 150px;
+  }
+}
+
+@media (max-width: 480px) {
+  .unified-control-bar .flex-1 {
+    min-width: 120px;
+  }
+}
+
+/* 🎯 **LOADING/DISABLED STATES** */
+.unified-control-bar:has([disabled="true"]) {
+  opacity: 0.7;
+  pointer-events: none;
+  filter: grayscale(0.3);
+}
+
+/* 🎯 **TOUCH OPTIMIZATION** */
+@media (pointer: coarse) {
+  .unified-control-bar button {
+    /* Larger touch targets */
+    min-width: 44px;
+    min-height: 44px;
+  }
+  
+  .unified-control-bar .volume-slider,
+  .unified-control-bar .speed-slider {
+    /* Larger slider track for touch */
+    height: 12px;
+  }
+  
+  .unified-control-bar .volume-slider::-webkit-slider-thumb,
+  .unified-control-bar .speed-slider::-webkit-slider-thumb {
+    width: 20px;
+    height: 20px;
+  }
+}
+
+/* 🎯 **HIGH CONTRAST MODE SUPPORT** */
+@media (prefers-contrast: high) {
+  .unified-control-bar {
+    border-color: #000000;
+    background: #ffffff;
+  }
+  
+  .unified-control-bar button {
+    border: 2px solid #000000;
+  }
+  
+  .unified-control-bar .volume-slider,
+  .unified-control-bar .speed-slider {
+    filter: contrast(1.5);
+  }
+}
+
+/* 🎯 **REDUCED MOTION SUPPORT** */
+@media (prefers-reduced-motion: reduce) {
+  .unified-control-bar,
+  .unified-control-bar *,
+  .volume-slider::-webkit-slider-thumb,
+  .speed-slider::-webkit-slider-thumb {
+    transition: none !important;
+    animation: none !important;
+    transform: none !important;
+  }
+  
+  .unified-control-bar button:hover {
+    transform: none !important;
+    box-shadow: none !important;
+  }
+}
+
+/* 🎯 **DARK MODE SUPPORT** (if needed later) */
+@media (prefers-color-scheme: dark) {
+  .unified-control-bar {
+    background: rgba(0, 0, 0, 0.7);
+    border-color: rgba(255, 255, 255, 0.2);
+  }
+  
+  .unified-control-bar button {
+    background: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+  }
+  
+  .unified-control-bar .compact-time-input button {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.3);
+    color: #ffffff;
+  }
+} 
