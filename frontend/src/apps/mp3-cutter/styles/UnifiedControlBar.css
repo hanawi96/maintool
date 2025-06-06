@@ -31,6 +31,10 @@
   contain: layout style;
 }
 
+.text-color-timeselector{
+  color:#1e293b !important;
+}
+
 /* 🎯 **COMPACT TIME SELECTOR STYLES** */
 .unified-control-bar .compact-time-input {
   transition: all 0.15s ease;
@@ -39,6 +43,29 @@
 .unified-control-bar .compact-time-input:hover {
   transform: translateY(-1px);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* 🔥 **TIME INPUT BUTTONS** - Ensure text visibility */
+.unified-control-bar .compact-time-input button {
+  color: #374151 !important; /* Darker text for better visibility */
+  font-weight: 500;
+}
+
+.unified-control-bar .compact-time-input button:hover {
+  color: #1f2937 !important; /* Even darker on hover */
+  background: #f8fafc !important;
+}
+
+/* 🔥 **TIME LABELS** - Consistent with other UI elements */
+.unified-control-bar label {
+  color: #374151 !important;
+  font-weight: 500;
+}
+
+/* 🔥 **SELECTION DURATION** - Enhanced visibility */
+.unified-control-bar .text-purple-700 {
+  color: #7c3aed !important;
+  font-weight: 600;
 }
 
 /* 🎯 **CUSTOM SLIDER STYLES** - Webkit browsers (Chrome, Safari, Edge) */
@@ -173,17 +200,30 @@
   cursor: not-allowed;
 }
 
-/* 🎯 **PLAY BUTTON SPECIAL ANIMATION** */
+/* 🎯 **PLAY/PAUSE BUTTON** - Special styling for visibility */
 .unified-control-bar button[title*="Play"],
 .unified-control-bar button[title*="Pause"] {
+  /* Override any conflicting styles */
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%) !important;
+  border: none !important;
+  color: #ffffff !important;
+  
   position: relative;
   overflow: hidden;
 }
 
 .unified-control-bar button[title*="Play"]:hover,
 .unified-control-bar button[title*="Pause"]:hover {
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%) !important;
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+}
+
+/* 🎯 **PLAY/PAUSE ICONS** - Ensure white color */
+.unified-control-bar button[title*="Play"] svg,
+.unified-control-bar button[title*="Pause"] svg {
+  color: #ffffff !important;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.1));
 }
 
 /* 🎯 **SEPARATOR LINES** - Subtle visual separators */

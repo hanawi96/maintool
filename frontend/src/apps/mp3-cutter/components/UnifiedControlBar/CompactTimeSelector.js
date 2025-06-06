@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 
 // 🎯 **COMPACT TIME INPUT** - Optimized for UnifiedControlBar
 const CompactTimeInput = React.memo(({ value, onChange, label, max, isCompact = false }) => {
@@ -49,7 +49,10 @@ const CompactTimeInput = React.memo(({ value, onChange, label, max, isCompact = 
         const newTime = minutes * 60 + seconds + milliseconds / 1000;
         const clampedTime = Math.max(0, Math.min(max, newTime));
         
-        console.log(`⏰ [CompactTimeInput] ${label} time changed:`, value.toFixed(3), '→', clampedTime.toFixed(3));
+        // 🔥 **ASYNC LOG**: Đưa ra khỏi commit để tránh setState conflict
+        setTimeout(() => {
+          console.log(`⏰ [CompactTimeInput] ${label} time changed:`, value.toFixed(3), '→', clampedTime.toFixed(3));
+        }, 0);
         onChange(clampedTime);
       }
     }
@@ -70,7 +73,7 @@ const CompactTimeInput = React.memo(({ value, onChange, label, max, isCompact = 
 
   return (
     <div className="flex items-center gap-1">
-      <label className="text-xs font-medium text-slate-600 min-w-[24px] hidden sm:block">
+      <label className="text-xs font-medium text-slate-700 min-w-[24px] hidden sm:block">
         {label}
       </label>
       
@@ -82,13 +85,13 @@ const CompactTimeInput = React.memo(({ value, onChange, label, max, isCompact = 
           onChange={(e) => setTempValue(e.target.value)}
           onKeyDown={handleKeyDown}
           onBlur={commitEdit}
-          className="w-16 sm:w-20 text-center bg-indigo-50 border border-indigo-300 rounded px-1 py-0.5 text-xs font-mono outline-none focus:bg-indigo-100 focus:border-indigo-400"
+          className="w-16 sm:w-20 text-center bg-indigo-50 border border-indigo-300 rounded px-1 py-0.5 text-sm font-mono outline-none focus:bg-indigo-100 focus:border-indigo-400 text-color-timeselector"
           placeholder={isCompact ? "MM:SS" : "MM:SS.mmm"}
         />
       ) : (
         <button
           onClick={handleClick}
-          className="w-16 sm:w-20 text-center bg-white hover:bg-slate-50 border border-slate-300 hover:border-slate-400 rounded px-1 py-0.5 text-xs font-mono transition-colors cursor-pointer"
+          className="w-16 sm:w-20 text-center bg-white hover:bg-slate-50 border border-slate-300 hover:border-slate-400 rounded px-1 py-0.5 text-sm font-mono text-slate-700 hover:text-slate-900 transition-colors cursor-pointer text-color-timeselector"
           title={`Click to edit ${label} time`}
         >
           {formattedTime}
@@ -108,9 +111,46 @@ const CompactTimeSelector = React.memo(({
   onStartTimeChange, 
   onEndTimeChange 
 }) => {
-  console.log('⏰ [CompactTimeSelector] Rendered:', {
-    timeRange: `${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s`,
-    duration: duration.toFixed(2)
+  // 🔥 **FIX INFINITE LOG**: Refs để track render mà không gây setState
+  const lastLogTimeRef = useRef(0);
+  const renderCountRef = useRef(0);
+  const setupCompleteRef = useRef(false);
+  
+  // 🔥 **SMART RENDER TRACKING**: Passive tracking không gây re-render
+  const trackRender = useCallback(() => {
+    renderCountRef.current += 1;
+    const now = performance.now();
+    
+    // 🔥 **INITIAL SETUP LOG**: Chỉ log setup lần đầu
+    if (!setupCompleteRef.current && duration > 0) {
+      setupCompleteRef.current = true;
+      // 🔥 **ASYNC LOG**: Đưa ra khỏi render cycle
+      setTimeout(() => {
+        console.log('⏰ [CompactTimeSelector] Initial setup complete:', {
+          timeRange: `${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s`,
+          duration: duration.toFixed(2),
+          renderCount: renderCountRef.current
+        });
+      }, 0);
+    }
+    
+    // 🔥 **PERIODIC STATUS**: Log trạng thái mỗi 180s để debug
+    if (now - lastLogTimeRef.current > 180000) {
+      lastLogTimeRef.current = now;
+      // 🔥 **ASYNC LOG**: Đưa ra khỏi render cycle  
+      setTimeout(() => {
+        console.log(`⏰ [CompactTimeSelector] Status check (180s interval):`, {
+          renders: renderCountRef.current,
+          timeRange: `${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s`,
+          duration: duration.toFixed(2)
+        });
+      }, 0);
+    }
+  }, [startTime, endTime, duration]);
+
+  // 🔥 **PASSIVE RENDER TRACKING**: Track render chỉ để debug, không gây re-render
+  useEffect(() => {
+    trackRender();
   });
 
   // 🎯 SELECTION DURATION: Memoized calculation
@@ -132,7 +172,7 @@ const CompactTimeSelector = React.memo(({
       />
       
       {/* Arrow Separator - Hidden on very small screens */}
-      <div className="text-slate-400 text-sm hidden sm:block">→</div>
+      <div className="text-slate-500 text-sm hidden sm:block">→</div>
       
       {/* End Time */}
       <CompactTimeInput
@@ -145,8 +185,8 @@ const CompactTimeSelector = React.memo(({
       
       {/* Selection Duration - Hidden on small screens */}
       <div className="hidden md:flex items-center gap-1 ml-2 pl-2 border-l border-slate-300">
-        <span className="text-xs text-slate-600">Sel:</span>
-        <div className="text-xs font-mono text-purple-600 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
+        <span className="text-xs text-slate-700">Sel:</span>
+        <div className="text-xs font-mono text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
           {(selectionDuration / 60).toFixed(1)}m
         </div>
       </div>

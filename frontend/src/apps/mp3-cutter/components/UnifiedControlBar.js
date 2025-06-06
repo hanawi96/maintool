@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useEffect } from 'react';
+import React, { useCallback, useMemo, useEffect, useRef } from 'react';
 import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Zap, RotateCcw, RotateCw } from 'lucide-react';
 import CompactTimeSelector from './UnifiedControlBar/CompactTimeSelector';
 import '../styles/UnifiedControlBar.css';
@@ -35,14 +35,53 @@ const UnifiedControlBar = React.memo(({
   // Common props
   disabled = false
 }) => {
-  // 🎯 DEBUG: Log render with performance tracking
-  console.log('🎛️ [UnifiedControlBar] Rendered with:', {
-    isPlaying,
-    volume: volume.toFixed(2),
-    speed: playbackRate + 'x',
-    timeRange: `${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s`,
-    historyState: `${historyIndex}/${historyLength}`,
-    disabled
+  // 🔥 **FIX INFINITE LOG**: Refs để track render mà không gây setState
+  const lastLogTimeRef = useRef(0);
+  const renderCountRef = useRef(0);
+  const setupCompleteRef = useRef(false);
+  
+  // 🔥 **SMART RENDER TRACKING**: Passive tracking không gây re-render
+  const trackRender = useCallback(() => {
+    renderCountRef.current += 1;
+    const now = performance.now();
+    
+    // 🔥 **INITIAL SETUP LOG**: Chỉ log setup lần đầu
+    if (!setupCompleteRef.current && duration > 0) {
+      setupCompleteRef.current = true;
+      // 🔥 **ASYNC LOG**: Đưa ra khỏi render cycle
+      setTimeout(() => {
+        console.log('🎛️ [UnifiedControlBar] Initial setup complete:', {
+          isPlaying,
+          volume: volume.toFixed(2),
+          speed: playbackRate + 'x',
+          timeRange: `${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s`,
+          historyState: `${historyIndex}/${historyLength}`,
+          disabled,
+          renderCount: renderCountRef.current
+        });
+      }, 0);
+    }
+    
+    // 🔥 **PERIODIC STATUS**: Log trạng thái mỗi 120s để debug
+    if (now - lastLogTimeRef.current > 120000) {
+      lastLogTimeRef.current = now;
+      // 🔥 **ASYNC LOG**: Đưa ra khỏi render cycle  
+      setTimeout(() => {
+        console.log(`🎛️ [UnifiedControlBar] Status check (120s interval):`, {
+          renders: renderCountRef.current,
+          isPlaying,
+          volume: volume.toFixed(2),
+          speed: playbackRate + 'x',
+          timeRange: `${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s`,
+          historyState: `${historyIndex}/${historyLength}`
+        });
+      }, 0);
+    }
+  }, [isPlaying, volume, playbackRate, startTime, endTime, historyIndex, historyLength, disabled, duration]);
+
+  // 🔥 **PASSIVE RENDER TRACKING**: Track render chỉ để debug, không gây re-render
+  useEffect(() => {
+    trackRender();
   });
 
   // 🎯 **KEYBOARD SHORTCUTS** - Global keyboard handling
@@ -60,20 +99,29 @@ const UnifiedControlBar = React.memo(({
       switch (e.code) {
         case 'Space':
           onTogglePlayPause();
-          console.log('⌨️ [Keyboard] Space → Toggle Play/Pause');
+          // 🔥 **ASYNC LOG**: Đưa ra khỏi event handler để tránh conflict
+          setTimeout(() => {
+            console.log('⌨️ [Keyboard] Space → Toggle Play/Pause');
+          }, 0);
           break;
           
         case 'ArrowLeft':
           if (e.shiftKey) {
             onJumpToStart();
-            console.log('⌨️ [Keyboard] Shift+← → Jump to Start');
+            // 🔥 **ASYNC LOG**: Đưa ra khỏi event handler để tránh conflict
+            setTimeout(() => {
+              console.log('⌨️ [Keyboard] Shift+← → Jump to Start');
+            }, 0);
           }
           break;
           
         case 'ArrowRight':
           if (e.shiftKey) {
             onJumpToEnd();
-            console.log('⌨️ [Keyboard] Shift+→ → Jump to End');
+            // 🔥 **ASYNC LOG**: Đưa ra khỏi event handler để tránh conflict
+            setTimeout(() => {
+              console.log('⌨️ [Keyboard] Shift+→ → Jump to End');
+            }, 0);
           }
           break;
           
@@ -82,12 +130,18 @@ const UnifiedControlBar = React.memo(({
             if (e.shiftKey) {
               if (canRedo) {
                 onRedo();
-                console.log('⌨️ [Keyboard] Ctrl+Shift+Z → Redo');
+                // 🔥 **ASYNC LOG**: Đưa ra khỏi event handler để tránh conflict
+                setTimeout(() => {
+                  console.log('⌨️ [Keyboard] Ctrl+Shift+Z → Redo');
+                }, 0);
               }
             } else {
               if (canUndo) {
                 onUndo();
-                console.log('⌨️ [Keyboard] Ctrl+Z → Undo');
+                // 🔥 **ASYNC LOG**: Đưa ra khỏi event handler để tránh conflict
+                setTimeout(() => {
+                  console.log('⌨️ [Keyboard] Ctrl+Z → Undo');
+                }, 0);
               }
             }
           }
@@ -97,7 +151,10 @@ const UnifiedControlBar = React.memo(({
           if (e.ctrlKey || e.metaKey) {
             if (canRedo) {
               onRedo();
-              console.log('⌨️ [Keyboard] Ctrl+Y → Redo');
+              // 🔥 **ASYNC LOG**: Đưa ra khỏi event handler để tránh conflict
+              setTimeout(() => {
+                console.log('⌨️ [Keyboard] Ctrl+Y → Redo');
+              }, 0);
             }
           }
           break;
@@ -111,25 +168,37 @@ const UnifiedControlBar = React.memo(({
   // 🎯 **OPTIMIZED HANDLERS** - Memoized to prevent re-renders
   const handleVolumeChange = useCallback((e) => {
     const newVolume = parseFloat(e.target.value);
-    console.log('🔊 [UnifiedControlBar] Volume changed:', newVolume);
+    // 🔥 **ASYNC LOG**: Đưa ra khỏi event handler để tránh conflict
+    setTimeout(() => {
+      console.log('🔊 [UnifiedControlBar] Volume changed:', newVolume);
+    }, 0);
     onVolumeChange(newVolume);
   }, [onVolumeChange]);
 
   const handleSpeedChange = useCallback((e) => {
     const newRate = parseFloat(e.target.value);
-    console.log('⚡ [UnifiedControlBar] Speed changed:', newRate);
+    // 🔥 **ASYNC LOG**: Đưa ra khỏi event handler để tránh conflict
+    setTimeout(() => {
+      console.log('⚡ [UnifiedControlBar] Speed changed:', newRate);
+    }, 0);
     onSpeedChange(newRate);
   }, [onSpeedChange]);
 
   const toggleMute = useCallback(() => {
     const isMuted = volume === 0;
     onVolumeChange(isMuted ? 1 : 0);
-    console.log('🔇 [UnifiedControlBar] Mute toggled:', !isMuted);
+    // 🔥 **ASYNC LOG**: Đưa ra khỏi event handler để tránh conflict
+    setTimeout(() => {
+      console.log('🔇 [UnifiedControlBar] Mute toggled:', !isMuted);
+    }, 0);
   }, [volume, onVolumeChange]);
 
   const resetSpeed = useCallback(() => {
     onSpeedChange(1);
-    console.log('⚡ [UnifiedControlBar] Speed reset to 1x');
+    // 🔥 **ASYNC LOG**: Đưa ra khỏi event handler để tránh conflict
+    setTimeout(() => {
+      console.log('⚡ [UnifiedControlBar] Speed reset to 1x');
+    }, 0);
   }, [onSpeedChange]);
 
   // 🎯 **PLAY CONTROLS SECTION** - Memoized for performance
@@ -149,10 +218,14 @@ const UnifiedControlBar = React.memo(({
       <button
         onClick={onTogglePlayPause}
         disabled={disabled}
-        className="p-2.5 bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition-all duration-200 shadow-md text-white group"
+        className="p-2.5 bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition-all duration-200 shadow-md group"
         title={isPlaying ? "Pause (Space)" : "Play (Space)"}
       >
-        {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
+        {isPlaying ? (
+          <Pause className="w-5 h-5 text-white drop-shadow-sm" />
+        ) : (
+          <Play className="w-5 h-5 text-white drop-shadow-sm" />
+        )}
       </button>
       
       {/* Jump to End */}

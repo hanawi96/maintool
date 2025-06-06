@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useCallback, useEffect } from 'react';
 import WaveformCanvas from './WaveformCanvas';
 import { WAVEFORM_CONFIG } from '../../utils/constants';
 
@@ -20,22 +20,50 @@ const Waveform = ({
   onMouseUp,
   onMouseLeave
 }) => {
-  // 🔥 **FIX INFINITE LOG**: Throttle logging để tránh spam
+  // 🔥 **FIX INFINITE LOG**: Refs để track render mà không gây setState
   const lastLogTimeRef = useRef(0);
   const renderCountRef = useRef(0);
+  const setupCompleteRef = useRef(false);
   
-  renderCountRef.current += 1;
-  const now = performance.now();
+  // 🔥 **SMART RENDER TRACKING**: Passive tracking không gây re-render
+  const trackRender = useCallback(() => {
+    renderCountRef.current += 1;
+    const now = performance.now();
+    
+    // 🔥 **INITIAL SETUP LOG**: Chỉ log setup lần đầu
+    if (!setupCompleteRef.current && waveformData.length > 0 && duration > 0) {
+      setupCompleteRef.current = true;
+      // 🔥 **ASYNC LOG**: Đưa ra khỏi render cycle
+      setTimeout(() => {
+        console.log('🌊 [Waveform] Initial setup complete:', {
+          waveformLength: waveformData.length,
+          duration: duration.toFixed(2) + 's',
+          renderCount: renderCountRef.current,
+          note: 'TimeSelector moved to UnifiedControlBar'
+        });
+      }, 0);
+    }
+    
+    // 🔥 **PERIODIC STATUS**: Log trạng thái mỗi 60s để debug
+    if (now - lastLogTimeRef.current > 60000) {
+      lastLogTimeRef.current = now;
+      // 🔥 **ASYNC LOG**: Đưa ra khỏi render cycle  
+      setTimeout(() => {
+        console.log(`🌊 [Waveform] Status check (60s interval):`, {
+          renders: renderCountRef.current,
+          waveformLength: waveformData.length,
+          duration: duration.toFixed(2) + 's',
+          isPlaying,
+          timeRange: `${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s`
+        });
+      }, 0);
+    }
+  }, [waveformData.length, duration, isPlaying, startTime, endTime]);
   
-  // 🔥 **THROTTLED LOGGING**: Chỉ log mỗi 5 giây
-  if (now - lastLogTimeRef.current > 5000) {
-    console.log(`🌊 [Waveform] Render #${renderCountRef.current} (throttled - last 5s)`, {
-      waveformLength: waveformData.length,
-      duration: duration.toFixed(2) + 's',
-      note: 'TimeSelector moved to UnifiedControlBar'
-    });
-    lastLogTimeRef.current = now;
-  }
+  // 🔥 **PASSIVE RENDER TRACKING**: Track render chỉ để debug, không gây re-render
+  useEffect(() => {
+    trackRender();
+  });
   
   const minWidth = WAVEFORM_CONFIG.RESPONSIVE.MIN_WIDTH;
   
