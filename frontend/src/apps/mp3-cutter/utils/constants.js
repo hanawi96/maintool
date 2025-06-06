@@ -1,0 +1,42 @@
+export const AUDIO_FORMATS = {
+    MP3: { value: 'mp3', label: 'MP3 (High Quality)', mime: 'audio/mpeg' },
+    WAV: { value: 'wav', label: 'WAV (Lossless)', mime: 'audio/wav' },
+    M4A: { value: 'm4a', label: 'M4A (AAC)', mime: 'audio/mp4' },
+    OGG: { value: 'ogg', label: 'OGG (Vorbis)', mime: 'audio/ogg' }
+  };
+  
+  export const QUALITY_SETTINGS = {
+    HIGH: 'high',
+    MEDIUM: 'medium',
+    LOW: 'low'
+  };
+  
+  export const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 2];
+  
+  export const WAVEFORM_CONFIG = {
+    SAMPLE_COUNT: 500,
+    HEIGHT: 180,
+    HANDLE_WIDTH: 10,
+    HANDLE_HEIGHT: 20,
+    
+    // 🎯 RESPONSIVE: Adaptive configuration for different screen sizes
+    RESPONSIVE: {
+      MIN_WIDTH: 250,           // Minimum canvas width (px)
+      MIN_BAR_WIDTH: 1.5,       // Minimum bar width for visibility (px)
+      MOBILE_BREAKPOINT: 600,   // Mobile breakpoint (px)
+      TOUCH_TOLERANCE: 15,      // Touch area tolerance on mobile (px)
+      
+      // Adaptive sampling rules (samples per pixel)
+      SAMPLING_RULES: {
+        SMALL: { maxWidth: 400, samplesPerPx: 1/3 },    // 1 sample per 3px
+        MEDIUM: { maxWidth: 800, samplesPerPx: 1/2.5 }, // 1 sample per 2.5px  
+        LARGE: { maxWidth: Infinity, samplesPerPx: 1/2 } // 1 sample per 2px
+      }
+    }
+  };
+  
+  export const API_ENDPOINTS = {
+    UPLOAD: '/api/mp3-cutter/upload',
+    CUT: '/api/mp3-cutter/cut',
+    DOWNLOAD: '/api/mp3-cutter/download'
+  };

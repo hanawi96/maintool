@@ -1,0 +1,228 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom styles cho MP3 Cutter */
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 🎯 ENHANCED: Modern slider styling for all controls */
+
+/* Volume Slider */
+.volume-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 18px;
+  width: 18px;
+  border-radius: 50%;
+  background: #6366f1;
+  border: 3px solid #ffffff;
+  box-shadow: 0 2px 6px rgba(99, 102, 241, 0.3);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.volume-slider::-webkit-slider-thumb:hover {
+  background: #5855eb;
+  transform: scale(1.1);
+  box-shadow: 0 3px 8px rgba(99, 102, 241, 0.4);
+}
+
+.volume-slider::-moz-range-thumb {
+  height: 18px;
+  width: 18px;
+  border-radius: 50%;
+  background: #6366f1;
+  border: 3px solid #ffffff;
+  box-shadow: 0 2px 6px rgba(99, 102, 241, 0.3);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.volume-slider::-moz-range-thumb:hover {
+  background: #5855eb;
+  transform: scale(1.1);
+}
+
+/* Speed Slider */
+.speed-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.speed-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 18px;
+  width: 18px;
+  border-radius: 50%;
+  background: #8b5cf6;
+  border: 3px solid #ffffff;
+  box-shadow: 0 2px 6px rgba(139, 92, 246, 0.3);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.speed-slider::-webkit-slider-thumb:hover {
+  background: #7c3aed;
+  transform: scale(1.1);
+  box-shadow: 0 3px 8px rgba(139, 92, 246, 0.4);
+}
+
+.speed-slider::-moz-range-thumb {
+  height: 18px;
+  width: 18px;
+  border-radius: 50%;
+  background: #8b5cf6;
+  border: 3px solid #ffffff;
+  box-shadow: 0 2px 6px rgba(139, 92, 246, 0.3);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.speed-slider::-moz-range-thumb:hover {
+  background: #7c3aed;
+  transform: scale(1.1);
+}
+
+/* Fade In Slider */
+.fade-in-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.fade-in-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 18px;
+  width: 18px;
+  border-radius: 50%;
+  background: #10b981;
+  border: 3px solid #ffffff;
+  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.fade-in-slider::-webkit-slider-thumb:hover {
+  background: #059669;
+  transform: scale(1.1);
+  box-shadow: 0 3px 8px rgba(16, 185, 129, 0.4);
+}
+
+.fade-in-slider::-moz-range-thumb {
+  height: 18px;
+  width: 18px;
+  border-radius: 50%;
+  background: #10b981;
+  border: 3px solid #ffffff;
+  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.fade-in-slider::-moz-range-thumb:hover {
+  background: #059669;
+  transform: scale(1.1);
+}
+
+/* Fade Out Slider */
+.fade-out-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.fade-out-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 18px;
+  width: 18px;
+  border-radius: 50%;
+  background: #ef4444;
+  border: 3px solid #ffffff;
+  box-shadow: 0 2px 6px rgba(239, 68, 68, 0.3);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.fade-out-slider::-webkit-slider-thumb:hover {
+  background: #dc2626;
+  transform: scale(1.1);
+  box-shadow: 0 3px 8px rgba(239, 68, 68, 0.4);
+}
+
+.fade-out-slider::-moz-range-thumb {
+  height: 18px;
+  width: 18px;
+  border-radius: 50%;
+  background: #ef4444;
+  border: 3px solid #ffffff;
+  box-shadow: 0 2px 6px rgba(239, 68, 68, 0.3);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.fade-out-slider::-moz-range-thumb:hover {
+  background: #dc2626;
+  transform: scale(1.1);
+}
+
+/* 🎯 Firefox specific track styling */
+.volume-slider::-moz-range-track,
+.speed-slider::-moz-range-track,
+.fade-in-slider::-moz-range-track,
+.fade-out-slider::-moz-range-track {
+  height: 8px;
+  border-radius: 4px;
+  border: none;
+  outline: none;
+}
+
+/* 🎯 Focus states for accessibility */
+.volume-slider:focus,
+.speed-slider:focus,
+.fade-in-slider:focus,
+.fade-out-slider:focus {
+  outline: 2px solid #6366f1;
+  outline-offset: 2px;
+}
+
+/* 🎯 Disabled state */
+.volume-slider:disabled::-webkit-slider-thumb,
+.speed-slider:disabled::-webkit-slider-thumb,
+.fade-in-slider:disabled::-webkit-slider-thumb,
+.fade-out-slider:disabled::-webkit-slider-thumb {
+  background: #94a3b8;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.volume-slider:disabled::-moz-range-thumb,
+.speed-slider:disabled::-moz-range-thumb,
+.fade-in-slider:disabled::-moz-range-thumb,
+.fade-out-slider:disabled::-moz-range-thumb {
+  background: #94a3b8;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
