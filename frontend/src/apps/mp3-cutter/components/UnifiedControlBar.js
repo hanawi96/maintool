@@ -35,20 +35,14 @@ const UnifiedControlBar = React.memo(({
   // Common props
   disabled = false
 }) => {
-  // 🔥 **FIX INFINITE LOG**: Refs để track render mà không gây setState
-  const lastLogTimeRef = useRef(0);
-  const renderCountRef = useRef(0);
+  // 🔥 **OPTIMIZED**: Removed all logging refs to prevent spam
   const setupCompleteRef = useRef(false);
   
-  // 🔥 **SMART RENDER TRACKING**: Passive tracking không gây re-render
-  const trackRender = useCallback(() => {
-    renderCountRef.current += 1;
-    const now = performance.now();
-    
-    // 🔥 **INITIAL SETUP LOG**: Chỉ log setup lần đầu
+  // 🔥 **SINGLE SETUP LOG**: Only log initial setup once, asynchronously
+  useEffect(() => {
     if (!setupCompleteRef.current && duration > 0) {
       setupCompleteRef.current = true;
-      // 🔥 **ASYNC LOG**: Đưa ra khỏi render cycle
+      // 🔥 **ASYNC LOG**: Move out of render cycle
       setTimeout(() => {
         console.log('🎛️ [UnifiedControlBar] Initial setup complete:', {
           isPlaying,
@@ -56,33 +50,11 @@ const UnifiedControlBar = React.memo(({
           speed: playbackRate + 'x',
           timeRange: `${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s`,
           historyState: `${historyIndex}/${historyLength}`,
-          disabled,
-          renderCount: renderCountRef.current
+          disabled
         });
       }, 0);
     }
-    
-    // 🔥 **PERIODIC STATUS**: Log trạng thái mỗi 120s để debug
-    if (now - lastLogTimeRef.current > 120000) {
-      lastLogTimeRef.current = now;
-      // 🔥 **ASYNC LOG**: Đưa ra khỏi render cycle  
-      setTimeout(() => {
-        console.log(`🎛️ [UnifiedControlBar] Status check (120s interval):`, {
-          renders: renderCountRef.current,
-          isPlaying,
-          volume: volume.toFixed(2),
-          speed: playbackRate + 'x',
-          timeRange: `${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s`,
-          historyState: `${historyIndex}/${historyLength}`
-        });
-      }, 0);
-    }
-  }, [isPlaying, volume, playbackRate, startTime, endTime, historyIndex, historyLength, disabled, duration]);
-
-  // 🔥 **PASSIVE RENDER TRACKING**: Track render chỉ để debug, không gây re-render
-  useEffect(() => {
-    trackRender();
-  });
+  }, [duration, isPlaying, volume, playbackRate, startTime, endTime, historyIndex, historyLength, disabled]);
 
   // 🎯 **KEYBOARD SHORTCUTS** - Global keyboard handling
   useEffect(() => {
@@ -99,29 +71,17 @@ const UnifiedControlBar = React.memo(({
       switch (e.code) {
         case 'Space':
           onTogglePlayPause();
-          // 🔥 **ASYNC LOG**: Đưa ra khỏi event handler để tránh conflict
-          setTimeout(() => {
-            console.log('⌨️ [Keyboard] Space → Toggle Play/Pause');
-          }, 0);
           break;
           
         case 'ArrowLeft':
           if (e.shiftKey) {
             onJumpToStart();
-            // 🔥 **ASYNC LOG**: Đưa ra khỏi event handler để tránh conflict
-            setTimeout(() => {
-              console.log('⌨️ [Keyboard] Shift+← → Jump to Start');
-            }, 0);
           }
           break;
           
         case 'ArrowRight':
           if (e.shiftKey) {
             onJumpToEnd();
-            // 🔥 **ASYNC LOG**: Đưa ra khỏi event handler để tránh conflict
-            setTimeout(() => {
-              console.log('⌨️ [Keyboard] Shift+→ → Jump to End');
-            }, 0);
           }
           break;
           
@@ -130,18 +90,10 @@ const UnifiedControlBar = React.memo(({
             if (e.shiftKey) {
               if (canRedo) {
                 onRedo();
-                // 🔥 **ASYNC LOG**: Đưa ra khỏi event handler để tránh conflict
-                setTimeout(() => {
-                  console.log('⌨️ [Keyboard] Ctrl+Shift+Z → Redo');
-                }, 0);
               }
             } else {
               if (canUndo) {
                 onUndo();
-                // 🔥 **ASYNC LOG**: Đưa ra khỏi event handler để tránh conflict
-                setTimeout(() => {
-                  console.log('⌨️ [Keyboard] Ctrl+Z → Undo');
-                }, 0);
               }
             }
           }
@@ -151,10 +103,6 @@ const UnifiedControlBar = React.memo(({
           if (e.ctrlKey || e.metaKey) {
             if (canRedo) {
               onRedo();
-              // 🔥 **ASYNC LOG**: Đưa ra khỏi event handler để tránh conflict
-              setTimeout(() => {
-                console.log('⌨️ [Keyboard] Ctrl+Y → Redo');
-              }, 0);
             }
           }
           break;
@@ -168,37 +116,21 @@ const UnifiedControlBar = React.memo(({
   // 🎯 **OPTIMIZED HANDLERS** - Memoized to prevent re-renders
   const handleVolumeChange = useCallback((e) => {
     const newVolume = parseFloat(e.target.value);
-    // 🔥 **ASYNC LOG**: Đưa ra khỏi event handler để tránh conflict
-    setTimeout(() => {
-      console.log('🔊 [UnifiedControlBar] Volume changed:', newVolume);
-    }, 0);
     onVolumeChange(newVolume);
   }, [onVolumeChange]);
 
   const handleSpeedChange = useCallback((e) => {
     const newRate = parseFloat(e.target.value);
-    // 🔥 **ASYNC LOG**: Đưa ra khỏi event handler để tránh conflict
-    setTimeout(() => {
-      console.log('⚡ [UnifiedControlBar] Speed changed:', newRate);
-    }, 0);
     onSpeedChange(newRate);
   }, [onSpeedChange]);
 
   const toggleMute = useCallback(() => {
     const isMuted = volume === 0;
     onVolumeChange(isMuted ? 1 : 0);
-    // 🔥 **ASYNC LOG**: Đưa ra khỏi event handler để tránh conflict
-    setTimeout(() => {
-      console.log('🔇 [UnifiedControlBar] Mute toggled:', !isMuted);
-    }, 0);
   }, [volume, onVolumeChange]);
 
   const resetSpeed = useCallback(() => {
     onSpeedChange(1);
-    // 🔥 **ASYNC LOG**: Đưa ra khỏi event handler để tránh conflict
-    setTimeout(() => {
-      console.log('⚡ [UnifiedControlBar] Speed reset to 1x');
-    }, 0);
   }, [onSpeedChange]);
 
   // 🎯 **PLAY CONTROLS SECTION** - Memoized for performance
@@ -402,7 +334,7 @@ const UnifiedControlBar = React.memo(({
       </div>
       
       {/* 🎯 **MOBILE COLLAPSED CONTROLS** - Show hidden controls on small screens */}
-      <div className="sm:hidden mt-3 pt-3 border-t border-slate-200 mobile-controls">
+      <div className="sm:hidden mt-3 pt-3 border-t border-slate-200">
         <div className="flex items-center justify-center gap-6">
           {/* Mobile Volume */}
           <div className="flex items-center gap-2">

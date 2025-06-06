@@ -35,69 +35,85 @@ const CompactTimeInput = React.memo(({ value, onChange, label, max, isCompact = 
     }, 0);
   }, [formattedTime]);
 
-  // 🎯 COMMIT: Parse and validate input
-  const commitEdit = useCallback(() => {
-    if (tempValue && tempValue !== formattedTime) {
-      // Parse MM:SS or MM:SS.mmm format
-      const parts = tempValue.split(':');
-      if (parts.length >= 2) {
-        const minutes = parseInt(parts[0]) || 0;
-        const secondsParts = parts[1].split('.');
+  // 🎯 COMMIT: Validate and commit changes
+  const handleCommit = useCallback(() => {
+    let newValue = 0;
+    
+    try {
+      // Parse MM:SS.mmm or MM:SS format
+      const timeParts = tempValue.split(':');
+      if (timeParts.length >= 2) {
+        const minutes = parseInt(timeParts[0]) || 0;
+        const secondsParts = timeParts[1].split('.');
         const seconds = parseInt(secondsParts[0]) || 0;
-        const milliseconds = secondsParts[1] ? parseInt(secondsParts[1].padEnd(3, '0').slice(0, 3)) || 0 : 0;
+        const milliseconds = secondsParts[1] ? parseInt(secondsParts[1].padEnd(3, '0').slice(0, 3)) : 0;
         
-        const newTime = minutes * 60 + seconds + milliseconds / 1000;
-        const clampedTime = Math.max(0, Math.min(max, newTime));
+        newValue = minutes * 60 + seconds + milliseconds / 1000;
         
-        // 🔥 **ASYNC LOG**: Đưa ra khỏi commit để tránh setState conflict
-        setTimeout(() => {
-          console.log(`⏰ [CompactTimeInput] ${label} time changed:`, value.toFixed(3), '→', clampedTime.toFixed(3));
-        }, 0);
-        onChange(clampedTime);
+        // Validate range
+        newValue = Math.max(0, Math.min(newValue, max));
       }
+    } catch (error) {
+      // Keep current value on error
+      newValue = value;
     }
     
+    // 🔥 **ASYNC LOG**: Only log commits
+    setTimeout(() => {
+      console.log(`⏰ [CompactTimeInput] ${label} committed:`, `${value.toFixed(2)}s → ${newValue.toFixed(2)}s`);
+    }, 0);
+    
+    onChange(newValue);
+    setIsEditing(false);
+  }, [tempValue, onChange, value, max, label]);
+
+  // 🎯 CANCEL: Revert changes
+  const handleCancel = useCallback(() => {
     setIsEditing(false);
     setTempValue('');
-  }, [tempValue, formattedTime, max, onChange, label, value]);
+  }, []);
 
-  // 🎯 KEYBOARD: Handle enter/escape
+  // 🎯 KEYBOARD: Handle input events
   const handleKeyDown = useCallback((e) => {
-    if (e.key === 'Enter') {
-      commitEdit();
-    } else if (e.key === 'Escape') {
-      setIsEditing(false);
-      setTempValue('');
+    switch (e.key) {
+      case 'Enter':
+        e.preventDefault();
+        handleCommit();
+        break;
+      case 'Escape':
+        e.preventDefault();
+        handleCancel();
+        break;
     }
-  }, [commitEdit]);
+  }, [handleCommit, handleCancel]);
+
+  const handleBlur = useCallback(() => {
+    handleCommit();
+  }, [handleCommit]);
+
+  if (isEditing) {
+    return (
+      <input
+        ref={inputRef}
+        type="text"
+        value={tempValue}
+        onChange={(e) => setTempValue(e.target.value)}
+        onKeyDown={handleKeyDown}
+        onBlur={handleBlur}
+        className="w-20 px-2 py-1 text-xs text-center border border-indigo-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-mono"
+        placeholder="MM:SS.mmm"
+      />
+    );
+  }
 
   return (
-    <div className="flex items-center gap-1">
-      <label className="text-xs font-medium text-slate-700 min-w-[24px] hidden sm:block">
-        {label}
-      </label>
-      
-      {isEditing ? (
-        <input
-          ref={inputRef}
-          type="text"
-          value={tempValue}
-          onChange={(e) => setTempValue(e.target.value)}
-          onKeyDown={handleKeyDown}
-          onBlur={commitEdit}
-          className="w-16 sm:w-20 text-center bg-indigo-50 border border-indigo-300 rounded px-1 py-0.5 text-sm font-mono outline-none focus:bg-indigo-100 focus:border-indigo-400 text-color-timeselector"
-          placeholder={isCompact ? "MM:SS" : "MM:SS.mmm"}
-        />
-      ) : (
-        <button
-          onClick={handleClick}
-          className="w-16 sm:w-20 text-center bg-white hover:bg-slate-50 border border-slate-300 hover:border-slate-400 rounded px-1 py-0.5 text-sm font-mono text-slate-700 hover:text-slate-900 transition-colors cursor-pointer text-color-timeselector"
-          title={`Click to edit ${label} time`}
-        >
-          {formattedTime}
-        </button>
-      )}
-    </div>
+    <button
+      onClick={handleClick}
+      className="w-20 px-2 py-1 text-xs text-center border border-slate-300 rounded bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors font-mono compact-time-input text-color-timeselector"
+      title={`Click to edit ${label}`}
+    >
+      {formattedTime}
+    </button>
   );
 });
 
@@ -111,47 +127,22 @@ const CompactTimeSelector = React.memo(({
   onStartTimeChange, 
   onEndTimeChange 
 }) => {
-  // 🔥 **FIX INFINITE LOG**: Refs để track render mà không gây setState
-  const lastLogTimeRef = useRef(0);
-  const renderCountRef = useRef(0);
+  // 🔥 **OPTIMIZED**: Removed all logging refs to prevent spam
   const setupCompleteRef = useRef(false);
   
-  // 🔥 **SMART RENDER TRACKING**: Passive tracking không gây re-render
-  const trackRender = useCallback(() => {
-    renderCountRef.current += 1;
-    const now = performance.now();
-    
-    // 🔥 **INITIAL SETUP LOG**: Chỉ log setup lần đầu
+  // 🔥 **SINGLE SETUP LOG**: Only log initial setup once, asynchronously
+  useEffect(() => {
     if (!setupCompleteRef.current && duration > 0) {
       setupCompleteRef.current = true;
-      // 🔥 **ASYNC LOG**: Đưa ra khỏi render cycle
+      // 🔥 **ASYNC LOG**: Move out of render cycle
       setTimeout(() => {
         console.log('⏰ [CompactTimeSelector] Initial setup complete:', {
-          timeRange: `${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s`,
-          duration: duration.toFixed(2),
-          renderCount: renderCountRef.current
-        });
-      }, 0);
-    }
-    
-    // 🔥 **PERIODIC STATUS**: Log trạng thái mỗi 180s để debug
-    if (now - lastLogTimeRef.current > 180000) {
-      lastLogTimeRef.current = now;
-      // 🔥 **ASYNC LOG**: Đưa ra khỏi render cycle  
-      setTimeout(() => {
-        console.log(`⏰ [CompactTimeSelector] Status check (180s interval):`, {
-          renders: renderCountRef.current,
           timeRange: `${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s`,
           duration: duration.toFixed(2)
         });
       }, 0);
     }
-  }, [startTime, endTime, duration]);
-
-  // 🔥 **PASSIVE RENDER TRACKING**: Track render chỉ để debug, không gây re-render
-  useEffect(() => {
-    trackRender();
-  });
+  }, [duration, startTime, endTime]);
 
   // 🎯 SELECTION DURATION: Memoized calculation
   const selectionDuration = useMemo(() => {
@@ -159,36 +150,46 @@ const CompactTimeSelector = React.memo(({
     return Math.round(dur * 100) / 100;
   }, [startTime, endTime]);
 
-  // 🎯 RESPONSIVE: Different layouts for different screen sizes
+  // 🎯 DURATION FORMAT: Compact display
+  const formattedDuration = useMemo(() => {
+    if (selectionDuration < 60) {
+      return `${selectionDuration.toFixed(1)}s`;
+    } else {
+      const minutes = Math.floor(selectionDuration / 60);
+      const seconds = selectionDuration % 60;
+      return `${minutes}m ${seconds.toFixed(1)}s`;
+    }
+  }, [selectionDuration]);
+
   return (
-    <div className="flex items-center gap-2 sm:gap-3">
+    <div className="flex items-center justify-center gap-3 flex-wrap">
       {/* Start Time */}
-      <CompactTimeInput
-        value={startTime}
-        onChange={onStartTimeChange}
-        label="Start"
-        max={endTime}
-        isCompact={false}
-      />
-      
-      {/* Arrow Separator - Hidden on very small screens */}
-      <div className="text-slate-500 text-sm hidden sm:block">→</div>
-      
+      <div className="flex items-center gap-1">
+        <label className="text-xs font-medium text-slate-600">Start:</label>
+        <CompactTimeInput
+          value={startTime}
+          onChange={onStartTimeChange}
+          label="start time"
+          max={endTime - 0.1}
+          isCompact={true}
+        />
+      </div>
+
+      {/* Separator with duration */}
+      <div className="text-xs text-purple-700 font-semibold px-2 py-1 bg-purple-50 rounded border">
+        {formattedDuration}
+      </div>
+
       {/* End Time */}
-      <CompactTimeInput
-        value={endTime}
-        onChange={onEndTimeChange}
-        label="End"
-        max={duration}
-        isCompact={false}
-      />
-      
-      {/* Selection Duration - Hidden on small screens */}
-      <div className="hidden md:flex items-center gap-1 ml-2 pl-2 border-l border-slate-300">
-        <span className="text-xs text-slate-700">Sel:</span>
-        <div className="text-xs font-mono text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
-          {(selectionDuration / 60).toFixed(1)}m
-        </div>
+      <div className="flex items-center gap-1">
+        <label className="text-xs font-medium text-slate-600">End:</label>
+        <CompactTimeInput
+          value={endTime}
+          onChange={onEndTimeChange}
+          label="end time"
+          max={duration}
+          isCompact={true}
+        />
       </div>
     </div>
   );

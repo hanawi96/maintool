@@ -236,3 +236,106 @@ export const generateCompatibilityReport = () => {
   
   return report;
 };
+
+// 🔥 **NEW**: Audio URL utilities for better debugging
+export const validateAudioURL = (url) => {
+  if (!url) return { valid: false, reason: 'URL is empty or null' };
+  
+  if (typeof url !== 'string') return { valid: false, reason: 'URL is not a string' };
+  
+  if (url === window.location.href) return { valid: false, reason: 'URL is the page location (empty src)' };
+  
+  if (!url.startsWith('blob:') && !url.startsWith('http://') && !url.startsWith('https://')) {
+    return { valid: false, reason: 'URL does not start with blob:, http:// or https://' };
+  }
+  
+  if (url.startsWith('blob:') && !url.includes(window.location.origin)) {
+    return { valid: false, reason: 'Blob URL does not match current origin' };
+  }
+  
+  return { valid: true, reason: 'URL is valid' };
+};
+
+// 🔥 **NEW**: Debug audio element state
+export const debugAudioState = (audioElement, label = 'Audio') => {
+  if (!audioElement) {
+    console.warn(`🔍 [${label}] No audio element provided for debugging`);
+    return null;
+  }
+  
+  const state = {
+    src: audioElement.src,
+    currentSrc: audioElement.currentSrc,
+    readyState: audioElement.readyState,
+    networkState: audioElement.networkState,
+    paused: audioElement.paused,
+    ended: audioElement.ended,
+    currentTime: audioElement.currentTime,
+    duration: audioElement.duration,
+    error: audioElement.error ? {
+      code: audioElement.error.code,
+      message: audioElement.error.message
+    } : null
+  };
+  
+  const readyStates = ['HAVE_NOTHING', 'HAVE_METADATA', 'HAVE_CURRENT_DATA', 'HAVE_FUTURE_DATA', 'HAVE_ENOUGH_DATA'];
+  const networkStates = ['NETWORK_EMPTY', 'NETWORK_IDLE', 'NETWORK_LOADING', 'NETWORK_NO_SOURCE'];
+  
+  console.log(`🔍 [${label}] Debug State:`, {
+    ...state,
+    readyStateText: readyStates[state.readyState] || `Unknown(${state.readyState})`,
+    networkStateText: networkStates[state.networkState] || `Unknown(${state.networkState})`,
+    srcValidation: validateAudioURL(state.src),
+    currentSrcValidation: validateAudioURL(state.currentSrc)
+  });
+  
+  return state;
+};
+
+// 🔥 **NEW**: Create safe audio URL with validation
+export const createSafeAudioURL = (file) => {
+  if (!file) {
+    console.error('❌ [createSafeAudioURL] No file provided');
+    return null;
+  }
+  
+  if (!isValidAudioFile(file)) {
+    console.error('❌ [createSafeAudioURL] Invalid audio file:', file.name);
+    return null;
+  }
+  
+  try {
+    const url = URL.createObjectURL(file);
+    console.log('✅ [createSafeAudioURL] Created URL:', url, 'for file:', file.name);
+    return url;
+  } catch (error) {
+    console.error('❌ [createSafeAudioURL] Failed to create URL:', error);
+    return null;
+  }
+};
+
+// 🔥 **NEW**: Safe URL cleanup with validation
+export const revokeSafeAudioURL = (url) => {
+  if (!url) {
+    console.log('🔍 [revokeSafeAudioURL] No URL to revoke');
+    return;
+  }
+  
+  const validation = validateAudioURL(url);
+  if (!validation.valid) {
+    console.warn('⚠️ [revokeSafeAudioURL] Invalid URL, skipping revoke:', validation.reason);
+    return;
+  }
+  
+  if (!url.startsWith('blob:')) {
+    console.log('🔍 [revokeSafeAudioURL] URL is not a blob, skipping revoke:', url);
+    return;
+  }
+  
+  try {
+    URL.revokeObjectURL(url);
+    console.log('✅ [revokeSafeAudioURL] Revoked URL:', url);
+  } catch (error) {
+    console.error('❌ [revokeSafeAudioURL] Failed to revoke URL:', error);
+  }
+};

@@ -20,50 +20,23 @@ const Waveform = ({
   onMouseUp,
   onMouseLeave
 }) => {
-  // 🔥 **FIX INFINITE LOG**: Refs để track render mà không gây setState
-  const lastLogTimeRef = useRef(0);
-  const renderCountRef = useRef(0);
+  // 🔥 **OPTIMIZED**: Removed all logging refs to prevent spam
   const setupCompleteRef = useRef(false);
   
-  // 🔥 **SMART RENDER TRACKING**: Passive tracking không gây re-render
-  const trackRender = useCallback(() => {
-    renderCountRef.current += 1;
-    const now = performance.now();
-    
-    // 🔥 **INITIAL SETUP LOG**: Chỉ log setup lần đầu
+  // 🔥 **SINGLE SETUP LOG**: Only log initial setup once, asynchronously
+  useEffect(() => {
     if (!setupCompleteRef.current && waveformData.length > 0 && duration > 0) {
       setupCompleteRef.current = true;
-      // 🔥 **ASYNC LOG**: Đưa ra khỏi render cycle
+      // 🔥 **ASYNC LOG**: Move out of render cycle
       setTimeout(() => {
         console.log('🌊 [Waveform] Initial setup complete:', {
           waveformLength: waveformData.length,
           duration: duration.toFixed(2) + 's',
-          renderCount: renderCountRef.current,
           note: 'TimeSelector moved to UnifiedControlBar'
         });
       }, 0);
     }
-    
-    // 🔥 **PERIODIC STATUS**: Log trạng thái mỗi 60s để debug
-    if (now - lastLogTimeRef.current > 60000) {
-      lastLogTimeRef.current = now;
-      // 🔥 **ASYNC LOG**: Đưa ra khỏi render cycle  
-      setTimeout(() => {
-        console.log(`🌊 [Waveform] Status check (60s interval):`, {
-          renders: renderCountRef.current,
-          waveformLength: waveformData.length,
-          duration: duration.toFixed(2) + 's',
-          isPlaying,
-          timeRange: `${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s`
-        });
-      }, 0);
-    }
-  }, [waveformData.length, duration, isPlaying, startTime, endTime]);
-  
-  // 🔥 **PASSIVE RENDER TRACKING**: Track render chỉ để debug, không gây re-render
-  useEffect(() => {
-    trackRender();
-  });
+  }, [waveformData.length, duration]);
   
   const minWidth = WAVEFORM_CONFIG.RESPONSIVE.MIN_WIDTH;
   

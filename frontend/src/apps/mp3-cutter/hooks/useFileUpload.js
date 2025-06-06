@@ -25,10 +25,27 @@ export const useFileUpload = () => {
     setUploadProgress(0);
 
     try {
-      // 🎯 Set file immediately for UI (local preview)
+      // 🔥 **ENHANCED FILE SETUP**: Create URL with better tracking
+      console.log('🔧 [useFileUpload] Creating audio URL for immediate use...');
       const audioUrl = createAudioURL(file);
-      setAudioFile({ ...file, url: audioUrl });
+      
+      // 🔥 **IMMEDIATE FILE STATE**: Set file with URL immediately for UI
+      const immediateAudioFile = { 
+        ...file, 
+        url: audioUrl,
+        createdAt: Date.now(),
+        type: file.type || 'audio/unknown'
+      };
+      
+      setAudioFile(immediateAudioFile);
       setUploadProgress(25); // Local file loaded
+      
+      console.log('🎯 [useFileUpload] File validated and URL created:', {
+        fileName: file.name,
+        fileSize: file.size,
+        audioUrl: audioUrl,
+        mimeType: file.type
+      });
 
       console.log('🎯 [useFileUpload] File validated, starting upload...');
 
@@ -38,13 +55,16 @@ export const useFileUpload = () => {
       
       console.log('✅ [useFileUpload] Upload successful:', result);
       
-      // 🎯 Update file with backend data
+      // 🔥 **PRESERVE LOCAL URL**: Keep the local URL for immediate playback
+      // Backend URL can be used for other purposes if needed
       setAudioFile(prev => ({
         ...prev,
         fileId: result.data?.fileId || result.fileId,
         serverData: result.data || result,
         duration: result.data?.duration || result.duration,
-        size: result.data?.size || result.size
+        size: result.data?.size || result.size,
+        serverUrl: result.data?.url || result.url, // Keep server URL separate
+        uploadedAt: Date.now()
       }));
 
       setUploadProgress(100); // Complete
@@ -53,11 +73,16 @@ export const useFileUpload = () => {
     } catch (error) {
       console.error('❌ [useFileUpload] Upload failed:', error);
       
-      // 🎯 Clean up on error
-      if (audioFile?.url) {
+      // 🔥 **SMART CLEANUP**: Only cleanup on real errors, not network issues
+      const shouldCleanup = !error.message.includes('Network error') && 
+                           !error.message.includes('Backend server is not available');
+      
+      if (shouldCleanup && audioFile?.url) {
+        console.log('🧹 [useFileUpload] Cleaning up audio URL on error');
         URL.revokeObjectURL(audioFile.url);
+        setAudioFile(null);
       }
-      setAudioFile(null);
+      
       setUploadProgress(0);
       setUploadError(error.message);
       
@@ -82,9 +107,12 @@ export const useFileUpload = () => {
   const clearFile = useCallback(() => {
     console.log('🗑️ [useFileUpload] Clearing file...');
     
-    if (audioFile?.url) {
+    // 🔥 **SAFE URL CLEANUP**: Only revoke if it's a blob URL
+    if (audioFile?.url && audioFile.url.startsWith('blob:')) {
+      console.log('🧹 [useFileUpload] Revoking blob URL:', audioFile.url);
       URL.revokeObjectURL(audioFile.url);
     }
+    
     setAudioFile(null);
     setUploadProgress(0);
     setUploadError(null);
