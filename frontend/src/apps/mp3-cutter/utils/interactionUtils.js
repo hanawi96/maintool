@@ -81,6 +81,11 @@ export class InteractionManager {
     this.lastMousePosition = null;             // Track mouse movement
     this.dragMoveThreshold = 3;                // Minimum pixels to confirm drag
     
+    // 🆕 **REGION DRAG**: Support cho region dragging
+    this.isDraggingRegion = false;             // True khi đang drag toàn bộ region
+    this.regionDragStartTime = null;           // Reference time cho region drag
+    this.regionDragOffset = 0;                 // Offset từ click position đến region start
+    
     // 🆕 NEW: Audio sync manager for cursor synchronization
     this.audioSyncManager = createAudioSyncManager();
     
@@ -186,6 +191,35 @@ export class InteractionManager {
           cursor: smartAction.cursor
         };
         
+      case CLICK_ACTIONS.DRAG_REGION:
+        // 🆕 **REGION DRAG**: Setup region dragging
+        console.log(`🔄 [${this.debugId}] Setting up region drag from ${clickTime.toFixed(2)}s`);
+        this.state = INTERACTION_STATES.DRAGGING;
+        this.isDraggingRegion = true;
+        this.regionDragStartTime = clickTime;
+        this.regionDragOffset = clickTime - startTime; // Offset từ click đến start của region
+        this.dragStartPosition = x;
+        this.dragStartTime = clickTime;
+        // 🆕 **NOTE**: isDraggingConfirmed still false until movement detected
+        
+        console.log(`🔄 [${this.debugId}] Region drag setup:`, {
+          clickTime: clickTime.toFixed(2) + 's',
+          regionStart: startTime.toFixed(2) + 's',
+          regionEnd: endTime.toFixed(2) + 's',
+          offset: this.regionDragOffset.toFixed(2) + 's'
+        });
+        
+        return {
+          action: 'startRegionDrag',
+          cursor: smartAction.cursor,
+          regionData: {
+            clickTime,
+            offset: this.regionDragOffset,
+            originalStart: startTime,
+            originalEnd: endTime
+          }
+        };
+        
       case CLICK_ACTIONS.NO_ACTION:
       default:
         console.log(`⚠️ [${this.debugId}] No action: ${smartAction.reason}`);
@@ -225,7 +259,51 @@ export class InteractionManager {
       // 🎯 **CONFIRMED DRAGGING** - Update region chỉ khi đã confirm drag
       const roundedTime = Math.round(currentTime * 100) / 100; // 10ms precision
       
-      if (this.activeHandle === HANDLE_TYPES.START) {
+      if (this.isDraggingRegion) {
+        // 🆕 **REGION DRAG**: Di chuyển toàn bộ region
+        const regionDuration = endTime - startTime;
+        const newStartTime = roundedTime - this.regionDragOffset;
+        const newEndTime = newStartTime + regionDuration;
+        
+        // 🔒 **BOUNDARY CHECK**: Đảm bảo region không ra ngoài duration
+        const adjustedStartTime = Math.max(0, Math.min(newStartTime, duration - regionDuration));
+        const adjustedEndTime = adjustedStartTime + regionDuration;
+        
+        console.log(`🔄 [${this.debugId}] CONFIRMED region drag:`, {
+          from: `${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s`,
+          to: `${adjustedStartTime.toFixed(2)}s - ${adjustedEndTime.toFixed(2)}s`,
+          duration: regionDuration.toFixed(2) + 's',
+          mouseTime: roundedTime.toFixed(2) + 's',
+          offset: this.regionDragOffset.toFixed(2) + 's'
+        });
+        
+        // 🎯 **REGION CURSOR SYNC**: Sync cursor to middle of region
+        let audioSynced = false;
+        if (audioContext) {
+          const { audioRef, setCurrentTime, isPlaying } = audioContext;
+          const regionMiddle = adjustedStartTime + (regionDuration / 2);
+          
+          audioSynced = this.audioSyncManager.realTimeSync(
+            regionMiddle, audioRef, setCurrentTime, 'region', true // force = true
+          );
+          
+          if (audioSynced) {
+            console.log(`🎯 [${this.debugId}] REAL-TIME sync region middle: ${regionMiddle.toFixed(2)}s`);
+          }
+        }
+        
+        return {
+          action: 'updateRegion',
+          startTime: adjustedStartTime,
+          endTime: adjustedEndTime,
+          significant: true,
+          audioSynced: audioSynced,
+          isDraggingConfirmed: true,
+          isRegionDrag: true, // 🆕 **FLAG**: Đánh dấu là region drag
+          realTimeSync: true
+        };
+        
+      } else if (this.activeHandle === HANDLE_TYPES.START) {
         const newStartTime = Math.min(roundedTime, endTime - 0.1);
         if (Math.abs(newStartTime - startTime) > 0.01) {
           console.log(`⏮️ [${this.debugId}] CONFIRMED dragging start: ${startTime.toFixed(2)}s → ${newStartTime.toFixed(2)}s`);
@@ -304,10 +382,28 @@ export class InteractionManager {
         this.lastHoveredHandle = handle;
         this.state = handle ? INTERACTION_STATES.HOVERING : INTERACTION_STATES.IDLE;
         
+        // 🆕 **ENHANCED CURSOR LOGIC**: Different cursors cho different zones
+        let hoverCursor = 'crosshair'; // Default
+        
+        if (handle) {
+          // 🎯 **HANDLE HOVER**: Resize cursor cho handles
+          hoverCursor = 'ew-resize';
+        } else {
+          // 🆕 **CHECK REGION HOVER**: Kiểm tra xem có hover trong region không
+          const timeAtPosition = positionToTime(x, canvasWidth, duration);
+          const isInRegion = timeAtPosition >= startTime && timeAtPosition <= endTime && 
+                            startTime < endTime; // Ensure có valid region
+          
+          if (isInRegion) {
+            // 🔄 **REGION HOVER**: Move cursor cho region
+            hoverCursor = this.smartClickManager.preferences.enableRegionDrag ? 'move' : 'pointer';
+          }
+        }
+        
         return {
           action: 'updateHover',
           handle: handle,
-          cursor: handle ? 'grab' : 'crosshair',
+          cursor: hoverCursor,
           hoverOnly: true // 🆕 **EXPLICIT FLAG**: Chỉ hover, không drag
         };
       }
@@ -323,22 +419,38 @@ export class InteractionManager {
     const wasDragging = this.state === INTERACTION_STATES.DRAGGING;
     const wasConfirmedDrag = this.isDraggingConfirmed;
     const draggedHandle = this.activeHandle;
+    const wasRegionDrag = this.isDraggingRegion;
     
     if (wasDragging) {
       console.log(`🫳 [${this.debugId}] Drag completed:`, {
         handle: this.activeHandle,
         confirmed: wasConfirmedDrag,
+        regionDrag: wasRegionDrag,
         finalRegion: `${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s`
       });
       
-      // 🆕 FINAL AUDIO SYNC: Ensure audio cursor is at correct position chỉ khi confirmed drag
-      if (audioContext && draggedHandle && wasConfirmedDrag) {
+      // 🆕 FINAL AUDIO SYNC: Different logic for region vs handle drag
+      if (audioContext && wasConfirmedDrag) {
         const { audioRef, setCurrentTime, isPlaying } = audioContext;
-        const finalTime = draggedHandle === HANDLE_TYPES.START ? startTime : endTime;
         
-        this.audioSyncManager.completeDragSync(
-          draggedHandle, finalTime, audioRef, setCurrentTime, isPlaying
-        );
+        if (wasRegionDrag) {
+          // 🔄 **REGION DRAG COMPLETION**: Sync to middle of new region
+          const regionDuration = endTime - startTime;
+          const regionMiddle = startTime + (regionDuration / 2);
+          
+          this.audioSyncManager.completeDragSync(
+            'region', regionMiddle, audioRef, setCurrentTime, isPlaying
+          );
+          
+          console.log(`🔄 [${this.debugId}] Region drag completed - synced to middle: ${regionMiddle.toFixed(2)}s`);
+        } else if (draggedHandle) {
+          // 🎯 **HANDLE DRAG COMPLETION**: Standard handle sync
+          const finalTime = draggedHandle === HANDLE_TYPES.START ? startTime : endTime;
+          
+          this.audioSyncManager.completeDragSync(
+            draggedHandle, finalTime, audioRef, setCurrentTime, isPlaying
+          );
+        }
       }
     }
     
@@ -351,11 +463,17 @@ export class InteractionManager {
     this.mouseDownTimestamp = null;
     this.lastMousePosition = null;
     
+    // 🆕 **RESET REGION DRAG**: Reset region drag state
+    this.isDraggingRegion = false;
+    this.regionDragStartTime = null;
+    this.regionDragOffset = 0;
+    
     return {
       action: wasDragging ? 'completeDrag' : 'none',
       saveHistory: wasConfirmedDrag, // 🆕 **CHỈ SAVE** khi đã confirmed drag
       cursor: this.lastHoveredHandle ? 'grab' : 'crosshair',
-      audioSynced: wasDragging && audioContext && draggedHandle && wasConfirmedDrag
+      audioSynced: wasDragging && audioContext && (draggedHandle || wasRegionDrag) && wasConfirmedDrag,
+      wasRegionDrag: wasRegionDrag // 🆕 **FLAG**: Thông báo đã hoàn thành region drag
     };
   }
   
@@ -391,7 +509,11 @@ export class InteractionManager {
       isDragging: this.state === INTERACTION_STATES.DRAGGING,
       isDraggingConfirmed: this.isDraggingConfirmed, // 🆕 **ENHANCED DEBUG**
       mouseDownTimestamp: this.mouseDownTimestamp,
-      lastMousePosition: this.lastMousePosition
+      lastMousePosition: this.lastMousePosition,
+      // 🆕 **REGION DRAG DEBUG**
+      isDraggingRegion: this.isDraggingRegion,
+      regionDragStartTime: this.regionDragStartTime,
+      regionDragOffset: this.regionDragOffset
     };
   }
   
@@ -410,6 +532,11 @@ export class InteractionManager {
     this.isDraggingConfirmed = false;
     this.mouseDownTimestamp = null;
     this.lastMousePosition = null;
+    
+    // 🆕 **RESET REGION DRAG**: Reset region drag state
+    this.isDraggingRegion = false;
+    this.regionDragStartTime = null;
+    this.regionDragOffset = 0;
     
     // 🆕 RESET AUDIO SYNC: Reset sync manager state
     if (this.audioSyncManager) {

@@ -29,8 +29,128 @@ const WaveformCanvas = React.memo(({
   const volumeAnimationRef = useRef(volume);
   const targetVolumeRef = useRef(volume);
   
+  // 🔇 **VOLUME LOGGING**: Track last logged volume to prevent spam
+  const lastVolumeLogRef = useRef(null);
+  
   // 🔥 **OPTIMIZED**: Removed all debug logging refs to prevent spam
   const setupCompleteRef = useRef(false);
+
+  // 🆕 **CURSOR INTELLIGENCE**: Smart cursor management based on hover position
+  const currentCursorRef = useRef('crosshair');
+  const lastCursorUpdateRef = useRef(0);
+
+  // 🎯 **SMART CURSOR DETECTION**: Detect cursor type based on mouse position
+  const detectCursorType = useCallback((mouseX, canvasWidth) => {
+    if (!canvasWidth || duration === 0) return 'crosshair';
+
+    // 🔧 **DEBUG REDUCED**: Only log significant cursor detections to reduce console spam
+    const shouldLog = currentCursorRef.current === 'crosshair' || Math.random() < 0.1; // 10% sampling
+    if (shouldLog) {
+      console.log(`🖱️ [CursorDetect] Analyzing position ${mouseX.toFixed(1)}px of ${canvasWidth}px`);
+    }
+
+    // 🎯 **HANDLE DETECTION**: Check if hovering over handles first (highest priority)
+    const { HANDLE_WIDTH } = WAVEFORM_CONFIG;
+    const responsiveHandleWidth = canvasWidth < WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT ? 
+      Math.max(8, HANDLE_WIDTH * 0.8) : HANDLE_WIDTH;
+    
+    const startX = (startTime / duration) * canvasWidth;
+    const endX = (endTime / duration) * canvasWidth;
+    const tolerance = Math.max(responsiveHandleWidth / 2, WAVEFORM_CONFIG.RESPONSIVE.TOUCH_TOLERANCE);
+    
+    // 🔍 **HANDLE HOVER DETECTION**
+    if (startTime < endTime) { // Only check handles if there's a valid selection
+      if (Math.abs(mouseX - startX) <= tolerance) {
+        if (shouldLog) console.log(`🎯 [CursorDetect] START HANDLE at ${startX.toFixed(1)}px`);
+        return 'ew-resize'; // ← Handle resize cursor
+      }
+      if (Math.abs(mouseX - endX) <= tolerance) {
+        if (shouldLog) console.log(`🎯 [CursorDetect] END HANDLE at ${endX.toFixed(1)}px`);
+        return 'ew-resize'; // ← Handle resize cursor
+      }
+    }
+
+    // 🔍 **REGION DETECTION**: Check if hovering inside selection region
+    if (startTime < endTime) {
+      const timeAtPosition = (mouseX / canvasWidth) * duration;
+      const isInRegion = timeAtPosition >= startTime && timeAtPosition <= endTime;
+      
+      if (isInRegion) {
+        if (shouldLog) console.log(`🔄 [CursorDetect] INSIDE REGION - time: ${timeAtPosition.toFixed(2)}s`);
+        return 'move'; // ← 4-directional arrows for region move
+      }
+    }
+
+    // 🔍 **OUTSIDE REGION**: Default cursor for empty areas
+    if (shouldLog) console.log(`👆 [CursorDetect] OUTSIDE REGION - pointer cursor`);
+    return 'pointer'; // ← Hand cursor for clicking outside selection
+
+  }, [duration, startTime, endTime]);
+
+  // 🆕 **CURSOR UPDATE HANDLER**: Update cursor with throttling for performance
+  const updateCursor = useCallback((mouseX) => {
+    const now = performance.now();
+    
+    // 🔥 **PERFORMANCE THROTTLING**: Update cursor max 60fps to prevent lag
+    if (now - lastCursorUpdateRef.current < 16) return; // 60fps throttling
+    lastCursorUpdateRef.current = now;
+
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    // 🎯 **DRAGGING STATE OVERRIDE**: Different cursors during drag
+    if (isDragging) {
+      const draggingCursor = isDragging === 'region' ? 'grabbing' : 'grabbing';
+      if (currentCursorRef.current !== draggingCursor) {
+        canvas.style.cursor = draggingCursor;
+        currentCursorRef.current = draggingCursor;
+        console.log(`🫳 [CursorUpdate] DRAGGING cursor: ${draggingCursor} (handle: ${isDragging})`);
+      }
+      return;
+    }
+
+    // 🎯 **DETECT NEW CURSOR TYPE**: Based on current mouse position
+    const newCursorType = detectCursorType(mouseX, canvas.width);
+    
+    // 🔄 **UPDATE ONLY IF CHANGED**: Prevent unnecessary DOM updates
+    if (currentCursorRef.current !== newCursorType) {
+      canvas.style.cursor = newCursorType;
+      currentCursorRef.current = newCursorType;
+      console.log(`✨ [CursorUpdate] Cursor changed: ${newCursorType}`);
+    }
+  }, [canvasRef, isDragging, detectCursorType]);
+
+  // 🆕 **ENHANCED MOUSE MOVE HANDLER**: Add cursor detection to mouse move
+  const handleEnhancedMouseMove = useCallback((e) => {
+    // 🎯 **CALL ORIGINAL HANDLER**: Maintain existing functionality
+    if (onMouseMove) {
+      onMouseMove(e);
+    }
+
+    // 🆕 **CURSOR INTELLIGENCE**: Update cursor based on mouse position
+    const canvas = canvasRef.current;
+    if (canvas) {
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      updateCursor(mouseX);
+    }
+  }, [onMouseMove, canvasRef, updateCursor]);
+
+  // 🆕 **ENHANCED MOUSE LEAVE HANDLER**: Reset cursor on leave
+  const handleEnhancedMouseLeave = useCallback((e) => {
+    // 🎯 **CALL ORIGINAL HANDLER**: Maintain existing functionality
+    if (onMouseLeave) {
+      onMouseLeave(e);
+    }
+
+    // 🆕 **RESET CURSOR**: Reset to default when leaving canvas
+    const canvas = canvasRef.current;
+    if (canvas && !isDragging) {
+      canvas.style.cursor = 'default';
+      currentCursorRef.current = 'default';
+      console.log(`🫥 [CursorUpdate] Mouse left canvas - reset to default cursor`);
+    }
+  }, [onMouseLeave, canvasRef, isDragging]);
 
   // 🔥 **OPTIMIZED ADAPTIVE DATA**: Giảm logging và chỉ log khi cần
   const adaptiveWaveformData = useMemo(() => {
@@ -153,7 +273,11 @@ const WaveformCanvas = React.memo(({
     const baseVolumeMultiplier = 0.3; // Minimum visible height when volume = 0
     const finalVolumeMultiplier = baseVolumeMultiplier + (volumeMultiplier * (1 - baseVolumeMultiplier));
     
-    console.log(`🔊 [WaveformDraw] Volume scaling: ${currentVolume.toFixed(2)} → ${finalVolumeMultiplier.toFixed(2)}x height`);
+    // 🔇 **MINIMAL LOGGING**: Only log significant volume changes to prevent spam
+    if (!lastVolumeLogRef.current || Math.abs(currentVolume - lastVolumeLogRef.current) > 0.1) {
+      console.log(`🔊 [WaveformDraw] Volume scaling: ${currentVolume.toFixed(2)} → ${finalVolumeMultiplier.toFixed(2)}x height`);
+      lastVolumeLogRef.current = currentVolume;
+    }
     
     // 🎯 PERFORMANCE: Batch draw operations
     ctx.save();
@@ -404,7 +528,9 @@ const WaveformCanvas = React.memo(({
     };
     
     // 🎯 **START ANIMATION**: Begin smooth volume transition
-    console.log(`🔊 [VolumeAnimation] Animating: ${volumeAnimationRef.current.toFixed(2)} → ${volume.toFixed(2)}`);
+    if (Math.abs(volume - volumeAnimationRef.current) > 0.05) {
+      console.log(`🔊 [VolumeAnimation] Animating: ${volumeAnimationRef.current.toFixed(2)} → ${volume.toFixed(2)}`);
+    }
     animationId = requestAnimationFrame(animateVolume);
     
     // 🎯 **CLEANUP**: Cancel animation on unmount or volume change
@@ -415,18 +541,45 @@ const WaveformCanvas = React.memo(({
     };
   }, [volume]);
 
+  // 🆕 **CURSOR INITIALIZATION**: Setup intelligent cursor system when component mounts
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (canvas) {
+      // 🎯 **INITIAL CURSOR**: Set default cursor when component first loads
+      canvas.style.cursor = 'pointer';
+      currentCursorRef.current = 'pointer';
+      console.log(`🎯 [CursorInit] Initialized canvas cursor system with default: pointer`);
+      
+      // 🆕 **RESPONSIVE CURSOR UPDATES**: Update cursor when selection changes
+      const updateCursorForSelection = () => {
+        // If there's no selection yet, keep pointer cursor
+        if (startTime >= endTime || duration === 0) {
+          if (currentCursorRef.current !== 'pointer') {
+            canvas.style.cursor = 'pointer';
+            currentCursorRef.current = 'pointer';
+            console.log(`🔄 [CursorInit] Updated to pointer - no valid selection`);
+          }
+        }
+      };
+      
+      updateCursorForSelection();
+    }
+  }, [canvasRef, startTime, endTime, duration]); // Update when selection changes
+
   return (
     <div className="relative" style={{ minWidth: `${WAVEFORM_CONFIG.RESPONSIVE.MIN_WIDTH}px` }}>
       <canvas
         ref={canvasRef}
-        className="w-full border border-slate-200 rounded-lg cursor-crosshair"
         onMouseDown={onMouseDown}
-        onMouseMove={onMouseMove}
+        onMouseMove={handleEnhancedMouseMove}
         onMouseUp={onMouseUp}
-        onMouseLeave={onMouseLeave}
+        onMouseLeave={handleEnhancedMouseLeave}
+        className="w-full border border-slate-200 rounded-lg"
         style={{ 
-          height: WAVEFORM_CONFIG.HEIGHT,
-          minWidth: `${WAVEFORM_CONFIG.RESPONSIVE.MIN_WIDTH}px`
+          height: WAVEFORM_CONFIG.HEIGHT, // 🔧 **FIXED**: Use config height instead of undefined variables
+          touchAction: 'none', // Prevent scrolling on touch devices
+          // 🆕 **INTELLIGENT CURSOR**: Removed hardcoded cursor - let JavaScript handle it dynamically
+          // cursor: 'crosshair' ← REMOVED - now handled by cursor intelligence system
         }}
       />
     </div>

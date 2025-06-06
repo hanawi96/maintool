@@ -364,7 +364,8 @@ const MP3CutterMain = React.memo(() => {
       switch (result.action) {
         case 'startDrag':
           setIsDragging(result.handle);
-          canvas.style.cursor = result.cursor;
+          // 🆕 **CURSOR REMOVED**: Let WaveformCanvas handle cursor logic
+          // canvas.style.cursor = result.cursor; ← REMOVED
           
           // 🆕 **IMMEDIATE CURSOR SYNC**: Sync cursor ngay lập tức khi click handle
           if (result.immediateSync && result.immediateSync.required) {
@@ -419,12 +420,33 @@ const MP3CutterMain = React.memo(() => {
           setStartTime(result.startTime);
           setEndTime(result.endTime);
           setIsDragging(result.handle || 'end');
-          canvas.style.cursor = result.cursor;
+          // 🆕 **CURSOR REMOVED**: Let WaveformCanvas handle cursor logic
+          // canvas.style.cursor = result.cursor; ← REMOVED
+          break;
+          
+        case 'startRegionDrag':
+          // 🆕 **REGION DRAG**: Setup region dragging
+          console.log(`🔄 [RegionDrag] Starting region drag:`, result.regionData);
+          setIsDragging('region'); // Special drag type for region
+          // 🆕 **CURSOR REMOVED**: Let WaveformCanvas handle cursor logic
+          // canvas.style.cursor = result.cursor; ← REMOVED
+          
+          // 🆕 **IMMEDIATE CURSOR SYNC**: Sync to region middle for smooth start
+          if (audioRef.current && result.regionData) {
+            const { originalStart, originalEnd } = result.regionData;
+            const regionDuration = originalEnd - originalStart;
+            const regionMiddle = originalStart + (regionDuration / 2);
+            
+            console.log(`🎯 [RegionDrag] Initial sync to region middle: ${regionMiddle.toFixed(2)}s`);
+            audioRef.current.currentTime = regionMiddle;
+            setCurrentTime(regionMiddle);
+          }
           break;
           
         case 'updateStart':
           setStartTime(result.startTime);
-          canvas.style.cursor = result.cursor;
+          // 🆕 **CURSOR REMOVED**: Let WaveformCanvas handle cursor logic
+          // canvas.style.cursor = result.cursor; ← REMOVED
           
           // 🔥 **IMMEDIATE CURSOR SYNC**: Sync audio cursor ngay lập tức
           if (audioRef.current) {
@@ -440,7 +462,8 @@ const MP3CutterMain = React.memo(() => {
           
         case 'updateEnd':
           setEndTime(result.endTime);
-          canvas.style.cursor = result.cursor;
+          // 🆕 **CURSOR REMOVED**: Let WaveformCanvas handle cursor logic
+          // canvas.style.cursor = result.cursor; ← REMOVED
           
           // 🔥 **IMMEDIATE CURSOR SYNC**: Sync to preview position (3s before end)
           if (audioRef.current) {
@@ -557,7 +580,8 @@ const MP3CutterMain = React.memo(() => {
           });
           
           setHoveredHandle(result.handle);
-          canvas.style.cursor = result.cursor;
+          // 🆕 **CURSOR REMOVED**: Let WaveformCanvas handle cursor logic
+          // canvas.style.cursor = result.cursor; ← REMOVED
           break;
           
         default:
@@ -599,7 +623,8 @@ const MP3CutterMain = React.memo(() => {
       switch (result.action) {
         case 'completeDrag':
           setIsDragging(null);
-          canvas.style.cursor = result.cursor;
+          // 🆕 **CURSOR REMOVED**: Let WaveformCanvas handle cursor logic
+          // canvas.style.cursor = result.cursor; ← REMOVED
           
           // 🎯 Save history after drag completion
           if (result.saveHistory) {
@@ -611,7 +636,8 @@ const MP3CutterMain = React.memo(() => {
           
         default:
           setIsDragging(null);
-          if (canvas) canvas.style.cursor = result.cursor;
+          // 🆕 **CURSOR REMOVED**: Let WaveformCanvas handle cursor logic
+          // if (canvas) canvas.style.cursor = result.cursor; ← REMOVED
           break;
       }
     };
@@ -635,7 +661,8 @@ const MP3CutterMain = React.memo(() => {
     const processAction = () => {
       if (result.action === 'clearHover') {
         setHoveredHandle(null);
-        if (canvas) canvas.style.cursor = result.cursor;
+        // 🆕 **CURSOR REMOVED**: Let WaveformCanvas handle cursor logic
+        // if (canvas) canvas.style.cursor = result.cursor; ← REMOVED
       }
     };
     
@@ -1104,6 +1131,60 @@ const MP3CutterMain = React.memo(() => {
       return { success, duration };
     };
     
+    // 🆕 **REGION DRAG DEBUG**: Test và configure region drag
+    window.mp3CutterConfigureRegionDrag = (enabled = true) => {
+      const manager = interactionManagerRef.current;
+      if (!manager || !manager.smartClickManager) {
+        console.error('❌ [RegionDrag] No SmartClickManager available');
+        return;
+      }
+      
+      manager.smartClickManager.updatePreferences({ enableRegionDrag: enabled });
+      console.log(`🔄 [RegionDrag] Region drag ${enabled ? 'ENABLED' : 'DISABLED'}`);
+      
+      return manager.smartClickManager.preferences.enableRegionDrag;
+    };
+    
+    // 🆕 **REGION DRAG STATUS**: Check current region drag setting
+    window.mp3CutterGetRegionDragStatus = () => {
+      const manager = interactionManagerRef.current;
+      if (!manager || !manager.smartClickManager) {
+        console.warn('⚠️ [RegionDrag] No SmartClickManager available');
+        return null;
+      }
+      
+      const enabled = manager.smartClickManager.preferences.enableRegionDrag;
+      console.log(`📊 [RegionDrag] Status: ${enabled ? 'ENABLED' : 'DISABLED'}`);
+      return enabled;
+    };
+    
+    // 🆕 **REGION DRAG TEST**: Test region drag functionality
+    window.mp3CutterTestRegionDrag = (startTime = 10, endTime = 20, dragToTime = 30) => {
+      console.log(`🧪 [RegionDragTest] Testing region drag functionality`);
+      
+      const manager = interactionManagerRef.current;
+      if (!manager) {
+        console.error('❌ [RegionDragTest] No InteractionManager available');
+        return;
+      }
+      
+      console.log(`🧪 [RegionDragTest] Simulating:`, {
+        originalRegion: `${startTime}s - ${endTime}s`,
+        dragTo: `${dragToTime}s`,
+        expectedNewRegion: `${dragToTime - (startTime)}s - ${dragToTime + (endTime - startTime)}s`
+      });
+      
+      // Set test region
+      setStartTime(startTime);
+      setEndTime(endTime);
+      
+      // Get debug info
+      const debugInfo = manager.getDebugInfo();
+      console.log(`📊 [RegionDragTest] Manager state:`, debugInfo);
+      
+      return debugInfo;
+    };
+    
     window.mp3CutterStopInteractionMonitor = () => {
       if (window.mp3CutterInteractionMonitorId) {
         clearInterval(window.mp3CutterInteractionMonitorId);
@@ -1131,6 +1212,11 @@ const MP3CutterMain = React.memo(() => {
       delete window.mp3CutterStartSyncMonitor;
       delete window.mp3CutterStopSyncMonitor;
       delete window.mp3CutterTestSyncPerformance;
+      
+      // 🆕 **REGION DRAG CLEANUP**: Cleanup region drag functions
+      delete window.mp3CutterConfigureRegionDrag;
+      delete window.mp3CutterGetRegionDragStatus;
+      delete window.mp3CutterTestRegionDrag;
       
       // Cleanup monitor if running
       if (window.mp3CutterInteractionMonitorId) {

@@ -22,6 +22,7 @@ export const CLICK_ACTIONS = {
   UPDATE_START: 'updateStart',       // Update start time
   UPDATE_END: 'updateEnd',           // Update end time  
   CREATE_SELECTION: 'createSelection', // Create new selection
+  DRAG_REGION: 'dragRegion',         // 🆕 NEW: Drag entire region
   NO_ACTION: 'noAction'              // Do nothing
 };
 
@@ -38,7 +39,8 @@ export class SmartClickManager {
       enableSmartUpdate: true,        // Enable smart start/end updates
       requireMinSelection: 0.1,       // Minimum selection duration (seconds)
       allowZeroDuration: false,       // Allow zero-duration selections
-      preserveAudioSync: true         // Maintain audio sync during updates
+      preserveAudioSync: true,        // Maintain audio sync during updates
+      enableRegionDrag: true          // 🆕 NEW: Enable region dragging
     };
     
     console.log(`🎯 [SmartClickManager] Created with ID: ${this.debugId}`);
@@ -100,32 +102,42 @@ export class SmartClickManager {
       case CLICK_ZONES.ON_START_HANDLE:
         actionDetails.action = CLICK_ACTIONS.START_DRAG;
         actionDetails.handle = 'start';
-        actionDetails.cursor = 'grabbing';
+        actionDetails.cursor = 'ew-resize';
         actionDetails.reason = 'Dragging start handle';
         break;
         
       case CLICK_ZONES.ON_END_HANDLE:
         actionDetails.action = CLICK_ACTIONS.START_DRAG;
         actionDetails.handle = 'end';
-        actionDetails.cursor = 'grabbing';
+        actionDetails.cursor = 'ew-resize';
         actionDetails.reason = 'Dragging end handle';
         break;
         
       case CLICK_ZONES.INSIDE_SELECTION:
-        actionDetails.action = CLICK_ACTIONS.JUMP_TO_TIME;
-        actionDetails.seekTime = clickTime;
-        actionDetails.reason = 'Seeking within selection';
+        if (this.preferences.enableRegionDrag) {
+          actionDetails.action = CLICK_ACTIONS.DRAG_REGION;
+          actionDetails.seekTime = clickTime;
+          actionDetails.cursor = 'move';
+          actionDetails.reason = 'Dragging entire region';
+        } else {
+          actionDetails.action = CLICK_ACTIONS.JUMP_TO_TIME;
+          actionDetails.seekTime = clickTime;
+          actionDetails.cursor = 'pointer';
+          actionDetails.reason = 'Seeking within selection';
+        }
         break;
         
       case CLICK_ZONES.BEFORE_START:
         if (this.preferences.enableSmartUpdate) {
           actionDetails.action = CLICK_ACTIONS.UPDATE_START;
           actionDetails.newStartTime = clickTime;
+          actionDetails.cursor = 'pointer';
           actionDetails.reason = `Moving start from ${startTime.toFixed(2)}s to ${clickTime.toFixed(2)}s`;
         } else {
           actionDetails.action = CLICK_ACTIONS.CREATE_SELECTION;
           actionDetails.newStartTime = clickTime;
           actionDetails.newEndTime = clickTime;
+          actionDetails.cursor = 'crosshair';
           actionDetails.reason = 'Creating new selection';
         }
         break;
@@ -134,21 +146,25 @@ export class SmartClickManager {
         if (this.preferences.enableSmartUpdate) {
           actionDetails.action = CLICK_ACTIONS.UPDATE_END;
           actionDetails.newEndTime = clickTime;
+          actionDetails.cursor = 'pointer';
           actionDetails.reason = `Moving end from ${endTime.toFixed(2)}s to ${clickTime.toFixed(2)}s`;
         } else {
           actionDetails.action = CLICK_ACTIONS.CREATE_SELECTION;
           actionDetails.newStartTime = clickTime;
           actionDetails.newEndTime = clickTime;
+          actionDetails.cursor = 'crosshair';
           actionDetails.reason = 'Creating new selection';
         }
         break;
         
       case CLICK_ZONES.OUTSIDE_DURATION:
         actionDetails.action = CLICK_ACTIONS.NO_ACTION;
+        actionDetails.cursor = 'default';
         actionDetails.reason = 'Click outside valid duration';
         break;
         
       default:
+        actionDetails.cursor = 'default';
         actionDetails.reason = 'Unhandled click zone';
         break;
     }

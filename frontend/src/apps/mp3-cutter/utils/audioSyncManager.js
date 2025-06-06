@@ -81,6 +81,10 @@ export class AudioSyncManager {
     if (handleType === 'end' && this.preferences.endHandleOffset > 0) {
       targetTime = Math.max(0, newTime - this.preferences.endHandleOffset);
       console.log(`🎯 [${this.debugId}] End handle offset applied: ${newTime.toFixed(2)}s → ${targetTime.toFixed(2)}s (${this.preferences.endHandleOffset}s offset)`);
+    } else if (handleType === 'region') {
+      // 🆕 **REGION SYNC**: newTime đã là middle của region, không cần offset
+      targetTime = newTime;
+      console.log(`🔄 [${this.debugId}] Region sync - using middle position: ${targetTime.toFixed(2)}s`);
     }
     
     const timeDifference = Math.abs(targetTime - currentAudioTime);
@@ -141,17 +145,24 @@ export class AudioSyncManager {
   completeDragSync(handleType, finalTime, audioRef, setCurrentTime, isPlaying) {
     const shouldSyncStart = handleType === 'start' && this.preferences.syncStartHandle;
     const shouldSyncEnd = handleType === 'end' && this.preferences.syncEndHandle;
+    const shouldSyncRegion = handleType === 'region'; // 🆕 **REGION SYNC**
     
-    if (shouldSyncStart || shouldSyncEnd) {
-      console.log(`🏁 [${this.debugId}] Completing ${handleType} handle drag sync to ${finalTime.toFixed(2)}s`);
+    if (shouldSyncStart || shouldSyncEnd || shouldSyncRegion) {
+      console.log(`🏁 [${this.debugId}] Completing ${handleType} drag sync to ${finalTime.toFixed(2)}s`);
       
       // 🎯 FORCE FINAL SYNC: Ignore throttling for completion
       const wasThrottled = this._isThrottled();
       this.lastSyncTime = 0; // Reset throttle
       
-      this.syncAudioCursor(finalTime, audioRef, setCurrentTime, isPlaying, handleType);
+      // 🆕 **REGION SYNC**: Không cần offset cho region (finalTime đã là middle)
+      if (handleType === 'region') {
+        console.log(`🔄 [${this.debugId}] Region drag completion - sync to middle: ${finalTime.toFixed(2)}s`);
+        this.syncAudioCursor(finalTime, audioRef, setCurrentTime, isPlaying, 'region');
+      } else {
+        this.syncAudioCursor(finalTime, audioRef, setCurrentTime, isPlaying, handleType);
+      }
       
-      console.log(`✅ [${this.debugId}] Drag sync completed for ${handleType} handle`);
+      console.log(`✅ [${this.debugId}] Drag sync completed for ${handleType}`);
     }
   }
   
@@ -262,10 +273,13 @@ export class AudioSyncManager {
       return false; // Skip if throttled and not forced
     }
     
-    // 🔥 **CALCULATE TARGET**: Apply offset for end handle
+    // 🔥 **CALCULATE TARGET**: Apply offset cho different handle types
     let targetTime = newTime;
     if (handleType === 'end') {
       targetTime = Math.max(0, newTime - this.preferences.endHandleOffset);
+    } else if (handleType === 'region') {
+      // 🆕 **REGION SYNC**: Không cần offset, newTime đã là middle của region
+      targetTime = newTime;
     }
     
     // 🔥 **MICRO-OPTIMIZATION**: Skip if change is too small (< 1ms)
