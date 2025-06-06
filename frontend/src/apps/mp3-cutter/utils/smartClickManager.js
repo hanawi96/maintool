@@ -114,17 +114,15 @@ export class SmartClickManager {
         break;
         
       case CLICK_ZONES.INSIDE_SELECTION:
-        if (this.preferences.enableRegionDrag) {
-          actionDetails.action = CLICK_ACTIONS.DRAG_REGION;
-          actionDetails.seekTime = clickTime;
-          actionDetails.cursor = 'move';
-          actionDetails.reason = 'Dragging entire region';
-        } else {
-          actionDetails.action = CLICK_ACTIONS.JUMP_TO_TIME;
-          actionDetails.seekTime = clickTime;
-          actionDetails.cursor = 'pointer';
-          actionDetails.reason = 'Seeking within selection';
-        }
+        // 🆕 **FIXED LOGIC**: Click trong region luôn jump to time, không drag
+        // Chỉ drag region khi thực sự có dragging movement được detect
+        actionDetails.action = CLICK_ACTIONS.JUMP_TO_TIME;
+        actionDetails.seekTime = clickTime;
+        actionDetails.cursor = 'pointer';
+        actionDetails.reason = 'Jumping to clicked position within selection';
+        
+        // 🔧 **DEBUG INFO**: Log jump action
+        console.log(`⏯️ [${this.debugId}] INSIDE_SELECTION click → JUMP_TO_TIME: ${clickTime.toFixed(2)}s`);
         break;
         
       case CLICK_ZONES.BEFORE_START:

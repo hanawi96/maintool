@@ -407,12 +407,16 @@ const MP3CutterMain = React.memo(() => {
           
         case 'jumpToTime':
           // 🔥 **IMMEDIATE CURSOR SYNC**: Update cursor ngay lập tức khi jump
+          console.log(`⏯️ [ClickToJump] Jumping audio cursor to: ${result.time.toFixed(2)}s`);
           jumpToTime(result.time);
           
           // 🔥 **FORCE CURSOR UPDATE**: Đảm bảo cursor update ngay
           if (audioRef.current) {
             audioRef.current.currentTime = result.time;
             setCurrentTime(result.time);
+            console.log(`✅ [ClickToJump] Audio cursor synced successfully to: ${result.time.toFixed(2)}s`);
+          } else {
+            console.warn(`⚠️ [ClickToJump] No audio element available for cursor sync`);
           }
           break;
           

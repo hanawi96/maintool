@@ -1,5 +1,5 @@
 // 📄 src/apps/mp3-cutter/components/Waveform/WaveformCanvas.js
-import React, { useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useEffect, useCallback, useRef, useMemo, useState } from 'react';
 import { WAVEFORM_CONFIG } from '../../utils/constants';
 
 const WaveformCanvas = React.memo(({
@@ -39,6 +39,11 @@ const WaveformCanvas = React.memo(({
   const currentCursorRef = useRef('crosshair');
   const lastCursorUpdateRef = useRef(0);
 
+  // 🆕 **TIME TOOLTIP SYSTEM**: Hover time display and cursor line
+  const [hoverPosition, setHoverPosition] = useState(null); // { x, time, visible }
+  const lastHoverUpdateRef = useRef(0);
+  const hoverTimeoutRef = useRef(null);
+
   // 🎯 **SMART CURSOR DETECTION**: Detect cursor type based on mouse position
   const detectCursorType = useCallback((mouseX, canvasWidth) => {
     if (!canvasWidth || duration === 0) return 'crosshair';
@@ -77,7 +82,8 @@ const WaveformCanvas = React.memo(({
       
       if (isInRegion) {
         if (shouldLog) console.log(`🔄 [CursorDetect] INSIDE REGION - time: ${timeAtPosition.toFixed(2)}s`);
-        return 'move'; // ← 4-directional arrows for region move
+        // 🆕 **FIXED CURSOR LOGIC**: Region hover = pointer, region drag = move
+        return 'pointer'; // ← Hand cursor for region hover (changed from 'move')
       }
     }
 
@@ -100,11 +106,18 @@ const WaveformCanvas = React.memo(({
 
     // 🎯 **DRAGGING STATE OVERRIDE**: Different cursors during drag
     if (isDragging) {
-      const draggingCursor = isDragging === 'region' ? 'grabbing' : 'grabbing';
+      // 🆕 **IMPROVED DRAG CURSORS**: Specific cursors for different drag types
+      let draggingCursor;
+      if (isDragging === 'region') {
+        draggingCursor = 'move'; // ← 4-directional arrows for region drag
+      } else {
+        draggingCursor = 'grabbing'; // ← Grabbing for handle drag
+      }
+      
       if (currentCursorRef.current !== draggingCursor) {
         canvas.style.cursor = draggingCursor;
         currentCursorRef.current = draggingCursor;
-        console.log(`🫳 [CursorUpdate] DRAGGING cursor: ${draggingCursor} (handle: ${isDragging})`);
+        console.log(`🫳 [CursorUpdate] DRAGGING cursor: ${draggingCursor} (type: ${isDragging})`);
       }
       return;
     }
@@ -120,23 +133,89 @@ const WaveformCanvas = React.memo(({
     }
   }, [canvasRef, isDragging, detectCursorType]);
 
-  // 🆕 **ENHANCED MOUSE MOVE HANDLER**: Add cursor detection to mouse move
+  // 🆕 **TIME FORMATTING**: Convert seconds to MM:SS format
+  const formatTime = useCallback((timeInSeconds) => {
+    if (timeInSeconds < 0) return '00:00';
+    
+    const minutes = Math.floor(timeInSeconds / 60);
+    const seconds = Math.floor(timeInSeconds % 60);
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  }, []);
+
+  // 🆕 **HOVER TIME TRACKER**: Track mouse position and calculate time
+  const updateHoverTime = useCallback((mouseX, canvasWidth) => {
+    const now = performance.now();
+    
+    // 🔥 **THROTTLE HOVER UPDATES**: 60fps to prevent lag
+    if (now - lastHoverUpdateRef.current < 16) return; // 60fps
+    lastHoverUpdateRef.current = now;
+
+    if (!canvasWidth || duration === 0) {
+      setHoverPosition(null);
+      return;
+    }
+
+    // 🆕 **HANDLE DETECTION**: Check if hovering over handles to hide cursor line
+    const { HANDLE_WIDTH } = WAVEFORM_CONFIG;
+    const responsiveHandleWidth = canvasWidth < WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT ? 
+      Math.max(8, HANDLE_WIDTH * 0.8) : HANDLE_WIDTH;
+    
+    const startX = (startTime / duration) * canvasWidth;
+    const endX = (endTime / duration) * canvasWidth;
+    const tolerance = Math.max(responsiveHandleWidth / 2, WAVEFORM_CONFIG.RESPONSIVE.TOUCH_TOLERANCE);
+    
+    // 🚫 **HIDE CURSOR LINE**: When hovering over handles
+    if (startTime < endTime) { // Only check handles if there's a valid selection
+      if (Math.abs(mouseX - startX) <= tolerance || Math.abs(mouseX - endX) <= tolerance) {
+        // 🔧 **DEBUG HANDLE HOVER**: Log when hiding cursor line for handles
+        if (Math.random() < 0.1) { // 10% sampling
+          console.log(`🚫 [HoverTime] Hiding cursor line - hovering over handle`);
+        }
+        setHoverPosition(null); // ← Hide cursor line when on handles
+        return;
+      }
+    }
+
+    // 🎯 **CALCULATE TIME**: Convert mouse X to time position
+    const timeAtPosition = (mouseX / canvasWidth) * duration;
+    const clampedTime = Math.max(0, Math.min(timeAtPosition, duration));
+    
+    // 🆕 **UPDATE HOVER POSITION**: Set hover data for tooltip and line
+    setHoverPosition({
+      x: mouseX,
+      time: clampedTime,
+      formattedTime: formatTime(clampedTime),
+      visible: true
+    });
+
+    // 🔧 **DEBUG SAMPLING**: Only log occasionally to prevent spam
+    if (Math.random() < 0.05) { // 5% sampling
+      console.log(`⏰ [HoverTime] Position: ${mouseX.toFixed(1)}px → ${formatTime(clampedTime)} (${clampedTime.toFixed(2)}s)`);
+    }
+  }, [duration, formatTime, startTime, endTime]);
+
+  // 🆕 **ENHANCED MOUSE MOVE HANDLER**: Add cursor detection and time tracking
   const handleEnhancedMouseMove = useCallback((e) => {
     // 🎯 **CALL ORIGINAL HANDLER**: Maintain existing functionality
     if (onMouseMove) {
       onMouseMove(e);
     }
 
-    // 🆕 **CURSOR INTELLIGENCE**: Update cursor based on mouse position
+    // 🆕 **CURSOR AND TIME INTELLIGENCE**: Update cursor and time tracking
     const canvas = canvasRef.current;
     if (canvas) {
       const rect = canvas.getBoundingClientRect();
       const mouseX = e.clientX - rect.left;
+      
+      // 🎯 **UPDATE CURSOR**: Smart cursor management
       updateCursor(mouseX);
+      
+      // 🆕 **UPDATE HOVER TIME**: Time tooltip and hover line
+      updateHoverTime(mouseX, canvas.width);
     }
-  }, [onMouseMove, canvasRef, updateCursor]);
+  }, [onMouseMove, canvasRef, updateCursor, updateHoverTime]);
 
-  // 🆕 **ENHANCED MOUSE LEAVE HANDLER**: Reset cursor on leave
+  // 🆕 **ENHANCED MOUSE LEAVE HANDLER**: Reset cursor and hide tooltip
   const handleEnhancedMouseLeave = useCallback((e) => {
     // 🎯 **CALL ORIGINAL HANDLER**: Maintain existing functionality
     if (onMouseLeave) {
@@ -150,6 +229,18 @@ const WaveformCanvas = React.memo(({
       currentCursorRef.current = 'default';
       console.log(`🫥 [CursorUpdate] Mouse left canvas - reset to default cursor`);
     }
+
+    // 🆕 **HIDE TOOLTIP**: Hide time tooltip when leaving canvas
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+    }
+    
+    // 🎯 **DELAYED HIDE**: Small delay to prevent flickering
+    hoverTimeoutRef.current = setTimeout(() => {
+      setHoverPosition(null);
+      console.log(`⏰ [HoverTime] Hidden - mouse left canvas`);
+    }, 50);
+    
   }, [onMouseLeave, canvasRef, isDragging]);
 
   // 🔥 **OPTIMIZED ADAPTIVE DATA**: Giảm logging và chỉ log khi cần
@@ -406,7 +497,28 @@ const WaveformCanvas = React.memo(({
       ctx.fill();
       ctx.shadowBlur = 0;
     }
-  }, [canvasRef, renderData, currentTime, isPlaying]);
+
+    // 6. 🆕 **HOVER TIME LINE**: Thin 1px line showing hover position
+    if (hoverPosition && hoverPosition.visible && duration > 0) {
+      const hoverX = hoverPosition.x;
+      
+      // 🎯 **ULTRA-THIN HOVER LINE**: 1px line as requested
+      ctx.strokeStyle = 'rgba(59, 130, 246, 0.8)'; // Blue with transparency
+      ctx.lineWidth = 1; // ← Exactly 1px as requested
+      ctx.setLineDash([2, 2]); // Dashed line to distinguish from cursor
+      
+      ctx.beginPath();
+      ctx.moveTo(hoverX, 0);
+      ctx.lineTo(hoverX, height);
+      ctx.stroke();
+      ctx.setLineDash([]); // Reset dash
+      
+      // 🔧 **DEBUG HOVER LINE**: Occasional logging
+      if (Math.random() < 0.02) { // 2% sampling
+        console.log(`📍 [HoverLine] Drawing at ${hoverX.toFixed(1)}px for time ${hoverPosition.formattedTime}`);
+      }
+    }
+  }, [canvasRef, renderData, currentTime, isPlaying, hoverPosition]);
 
   // 🔥 **OPTIMIZED REDRAW**: High-performance cursor animation
   const requestRedraw = useCallback(() => {
@@ -451,7 +563,7 @@ const WaveformCanvas = React.memo(({
       const timeoutId = setTimeout(requestRedraw, 0);
       return () => clearTimeout(timeoutId);
     }
-  }, [renderData, requestRedraw, isPlaying]);
+  }, [renderData, requestRedraw, isPlaying, hoverPosition]); // 🆕 **HOVER DEPENDENCY**: Include hoverPosition for hover line updates
 
   // 🔥 **CANVAS SETUP**: Minimal setup với reduced logging
   useEffect(() => {
@@ -499,6 +611,11 @@ const WaveformCanvas = React.memo(({
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
         animationFrameRef.current = null;
+      }
+      // 🆕 **HOVER CLEANUP**: Clear hover timeout to prevent memory leaks
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+        hoverTimeoutRef.current = null;
       }
     };
   }, []);
@@ -582,6 +699,25 @@ const WaveformCanvas = React.memo(({
           // cursor: 'crosshair' ← REMOVED - now handled by cursor intelligence system
         }}
       />
+      
+      {/* 🆕 **TIME TOOLTIP**: Hover time display */}
+      {hoverPosition && hoverPosition.visible && (
+        <div
+          className="absolute pointer-events-none z-10 bg-slate-800 text-white text-xs px-2 py-1 rounded shadow-lg transform -translate-x-1/2 -translate-y-full"
+          style={{
+            left: `${hoverPosition.x}px`,
+            top: '-8px', // 8px above canvas
+            transition: 'none', // No transition for immediate response
+            whiteSpace: 'nowrap'
+          }}
+        >
+          {hoverPosition.formattedTime}
+          {/* 🎯 **TOOLTIP ARROW**: Small arrow pointing down to hover line */}
+          <div 
+            className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-2 border-r-2 border-t-2 border-transparent border-t-slate-800"
+          />
+        </div>
+      )}
     </div>
   );
 });
