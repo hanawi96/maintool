@@ -9,20 +9,17 @@ import { useFileUpload } from '../hooks/useFileUpload';
 
 // Import components
 import FileInfo from './FileInfo';
-import AudioPlayer from './AudioPlayer';
 import Waveform from './Waveform';
-import HistoryControls from './History';
 import FadeControls from './Effects';
 import Export from './Export';
 import AudioErrorAlert from './AudioErrorAlert';
 import UnifiedControlBar from './UnifiedControlBar';
 
 // Import utils
-import { clamp, validateAudioFile, getAudioErrorMessage, getFormatDisplayName, generateCompatibilityReport, debugAudioState, createSafeAudioURL, validateAudioURL } from '../utils/audioUtils';
-import { WAVEFORM_CONFIG } from '../utils/constants';
+import { clamp, validateAudioFile, getAudioErrorMessage, getFormatDisplayName, generateCompatibilityReport, createSafeAudioURL, validateAudioURL } from '../utils/audioUtils';
 import { createInteractionManager } from '../utils/interactionUtils';
 
-// 🔥 **STABLE AUDIO COMPONENT**: SafeAudioElement được define bên ngoài để tránh re-create
+// 🔥 **ULTRA-LIGHT AUDIO COMPONENT**: Minimized for best performance
 const SafeAudioElement = React.memo(({ 
   audioRef, 
   audioFile, 
@@ -31,26 +28,22 @@ const SafeAudioElement = React.memo(({
   onCanPlay, 
   onLoadedMetadata 
 }) => {
-  // 🔥 **SILENT CONDITIONAL RENDER**: Chỉ render khi có audioFile.url, KHÔNG log
-  if (!audioFile?.url) {
-    return null; // 🔥 REMOVED: console.log để tránh infinite loop
-  }
+  // 🔥 **HOOKS FIRST**: All hooks before any early returns
+  const urlValidation = useMemo(() => {
+    if (!audioFile?.url) return { valid: false };
+    return validateAudioURL(audioFile.url);
+  }, [audioFile?.url]);
 
-  // 🔥 **SILENT URL VALIDATION**: Validate URL mà không log
-  const urlValidation = useMemo(() => validateAudioURL(audioFile.url), [audioFile.url]);
-  if (!urlValidation.valid) {
-    return null; // 🔥 REMOVED: console.warn để tránh infinite loop
-  }
-
-  // 🔥 **SINGLE LOG ON RENDER**: Chỉ log khi thật sự render audio element
   useEffect(() => {
-    // 🔥 **ASYNC LOG**: Đưa log ra khỏi render cycle
-    const timeoutId = setTimeout(() => {
-      console.log('✅ [SafeAudioElement] Audio element rendered with URL:', audioFile.url);
-    }, 0);
-    
-    return () => clearTimeout(timeoutId);
-  }, [audioFile.url]);
+    if (audioFile?.url && urlValidation.valid) {
+      // 🔥 **SILENT SUCCESS**: No unnecessary logging
+    }
+  }, [audioFile?.url, urlValidation.valid]);
+
+  // 🔥 **CONDITIONAL RENDER AFTER HOOKS**
+  if (!audioFile?.url || !urlValidation.valid) {
+    return null;
+  }
 
   return (
     <audio 
@@ -69,7 +62,7 @@ const SafeAudioElement = React.memo(({
 SafeAudioElement.displayName = 'SafeAudioElement';
 
 const MP3CutterMain = React.memo(() => {
-  // File upload hook with enhanced error handling
+  // 🔥 **ESSENTIAL HOOKS ONLY**
   const { 
     audioFile, 
     uploadFile, 
@@ -79,8 +72,7 @@ const MP3CutterMain = React.memo(() => {
     testConnection,
     uploadProgress
   } = useFileUpload();
-  
-  // Audio player hook
+
   const {
     isPlaying,
     currentTime,
@@ -97,7 +89,6 @@ const MP3CutterMain = React.memo(() => {
     setIsPlaying
   } = useAudioPlayer();
 
-  // Waveform hook
   const {
     waveformData,
     startTime,
@@ -113,98 +104,63 @@ const MP3CutterMain = React.memo(() => {
     canvasRef
   } = useWaveform();
 
-  // History hook
   const { saveState, undo, redo, canUndo, canRedo, historyIndex, historyLength } = useHistory();
 
-  // Effects state
+  // 🔥 **MINIMAL STATE**
   const [fadeIn, setFadeIn] = useState(0);
   const [fadeOut, setFadeOut] = useState(0);
   const [outputFormat, setOutputFormat] = useState('mp3');
-
-  // 🎯 NEW: Connection state
-  const [isConnected, setIsConnected] = useState(null); // null = unknown, true = connected, false = disconnected
+  const [isConnected, setIsConnected] = useState(null);
   const [connectionError, setConnectionError] = useState(null);
-
-  // 🆕 NEW: Audio validation and error states
   const [audioError, setAudioError] = useState(null);
   const [fileValidation, setFileValidation] = useState(null);
   const [compatibilityReport, setCompatibilityReport] = useState(null);
 
-  // 🔥 **OPTIMIZED REFS**: Prevent excessive logging and re-renders
+  // 🔥 **PERFORMANCE REFS**
   const lastMouseTimeRef = useRef(0);
   const lastUpdateTimeRef = useRef(0);
-  const isSetupRef = useRef(false);
-  const lastPerformanceLogRef = useRef(0); // 🔥 NEW: Track performance log timing
+  const lastPerformanceLogRef = useRef(0);
+  const animationStateRef = useRef({ isPlaying: false, startTime: 0, endTime: 0 });
+  const interactionManagerRef = useRef(null);
 
-  // 🔥 **STABLE ANIMATION STATE**: Refs thay vì reactive dependencies
-  const animationStateRef = useRef({
-    isPlaying: false,
-    startTime: 0,
-    endTime: 0
-  });
-
-  // 🔥 **ULTRA-LIGHT PERFORMANCE TRACKER**: Chỉ log critical performance mỗi 5 phút
-  const trackPerformance = useCallback((eventType, data = {}) => {
+  // 🔥 **ULTRA-LIGHT PERFORMANCE TRACKER**
+  const trackPerformance = useCallback((eventType) => {
     const now = performance.now();
-    
-    // 🔥 **ULTRA THROTTLING**: Chỉ log performance mỗi 5 phút
-    if (now - lastPerformanceLogRef.current > 300000) { // 5 minutes
+    if (now - lastPerformanceLogRef.current > 300000) { // 5 minutes only
       lastPerformanceLogRef.current = now;
-      
-      // 🔥 **MINIMAL LOG**: Chỉ log thông tin cần thiết nhất
       setTimeout(() => {
-        console.log(`📊 [Performance] ${eventType}:`, {
-          audioFile: audioFile?.name || 'None',
-          memoryUsed: performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1024 / 1024) + 'MB' : 'N/A'
-        });
+        console.log(`📊 [Performance] ${eventType}: ${audioFile?.name || 'None'}`);
       }, 0);
     }
   }, [audioFile?.name]);
 
-  // 🆕 NEW: Interaction Manager for smart mouse handling
-  const interactionManagerRef = useRef(null);
-  if (!interactionManagerRef.current) {
-    interactionManagerRef.current = createInteractionManager();
-  }
+  // 🔥 **ESSENTIAL SETUP ONLY**
+  useEffect(() => {
+    if (!interactionManagerRef.current) {
+      interactionManagerRef.current = createInteractionManager();
+    }
+  }, []);
 
-  // 🆕 NEW: Generate browser compatibility report on mount ONLY
   useEffect(() => {
     const report = generateCompatibilityReport();
     setCompatibilityReport(report);
-    
-    // 🔥 **SINGLE SETUP LOG**: Chỉ log một lần khi mount
-    console.log('🔍 [Browser Compatibility] Report generated:', {
-      universal: Object.keys(report.universal).length,
-      moderate: Object.keys(report.moderate).length, 
-      limited: Object.keys(report.limited).length,
-      browser: report.browser.includes('Chrome') ? 'Chrome' : 
-               report.browser.includes('Firefox') ? 'Firefox' : 
-               report.browser.includes('Safari') ? 'Safari' : 'Other'
-    });
-  }, []); // 🔥 **EMPTY DEPS**: Chỉ chạy một lần
+  }, []);
 
-  // 🎯 NEW: Test backend connection on component mount ONLY
   useEffect(() => {
     const checkConnection = async () => {
-      console.log('🏥 [Connection] Testing backend connection...');
       try {
         const connected = await testConnection();
         setIsConnected(connected);
-        if (connected) {
-          setConnectionError(null);
-          console.log('✅ [Connection] Backend connection successful');
-        }
+        if (connected) setConnectionError(null);
       } catch (error) {
-        console.error('❌ [Connection] Backend connection failed:', error);
         setIsConnected(false);
         setConnectionError('Backend server is not available. Please start the backend server.');
       }
     };
-    
     checkConnection();
-  }, [testConnection]); // 🔥 **STABLE DEPS**: testConnection stable from hook
+  }, [testConnection]);
 
-  // 🎯 ENHANCED: File upload handler with audio validation
+  // 🎯 NEW: File upload handler with audio validation
   const handleFileUpload = useCallback(async (file) => {
     console.log('📤 [FileUpload] Starting file upload process...');
     
@@ -303,10 +259,7 @@ const MP3CutterMain = React.memo(() => {
       }
       
       // 🔥 **TRACK PERFORMANCE**: Track immediate audio setup
-      trackPerformance('immediate_audio_setup', {
-        fileName: file.name,
-        hasAudioRef: !!audioRef.current
-      });
+      trackPerformance('immediate_audio_setup');
       
       // 🎯 4. GENERATE WAVEFORM
       console.log('🎯 [Waveform] Generating waveform...');
@@ -382,10 +335,7 @@ const MP3CutterMain = React.memo(() => {
     };
     
     // 🔥 **ULTRA-LIGHT PERFORMANCE TRACKING**: Minimal performance tracking
-    trackPerformance('state_update', {
-      isPlaying,
-      timeRange: `${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s`
-    });
+    trackPerformance('state_update');
   }, [isPlaying, startTime, endTime, trackPerformance]);
 
   // 🎯 ULTRA-LIGHT: Mouse handlers using InteractionManager
@@ -661,13 +611,13 @@ const MP3CutterMain = React.memo(() => {
   const handleJumpToStart = useCallback(() => {
     jumpToTime(startTime);
     // 🔥 **TRACK PERFORMANCE**: Track jump actions
-    trackPerformance('jump_to_start', { time: startTime.toFixed(2) });
+    trackPerformance('jump_to_start');
   }, [jumpToTime, startTime, trackPerformance]);
   
   const handleJumpToEnd = useCallback(() => {
     jumpToTime(endTime);
     // 🔥 **TRACK PERFORMANCE**: Track jump actions
-    trackPerformance('jump_to_end', { time: endTime.toFixed(2) });
+    trackPerformance('jump_to_end');
   }, [jumpToTime, endTime, trackPerformance]);
 
   // Drag and drop handler
