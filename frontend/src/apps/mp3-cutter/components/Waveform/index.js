@@ -44,8 +44,25 @@ const Waveform = ({
   
   return (
     <div className="bg-white/70 backdrop-blur-sm rounded-xl p-4 border border-slate-200/50 shadow-sm">
-      <div className="w-full overflow-x-auto">
-        <div style={{ minWidth: `${minWidth}px` }}>
+      <div 
+        className="w-full"
+        style={{
+          overflow: 'hidden', // 🚫 **NO SCROLLBARS**: Loại bỏ hoàn toàn scrollbars
+          scrollbarWidth: 'none', // Firefox
+          msOverflowStyle: 'none', // IE/Edge
+          WebkitOverflowScrolling: 'touch' // iOS smooth scrolling (if needed)
+        }}
+      >
+        <div 
+          style={{ 
+            minWidth: `${minWidth}px`,
+            // 🚫 **WEBKIT SCROLLBAR HIDE**: Chrome, Safari, Edge - inline styles
+            WebkitScrollbar: 'none',
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none'
+          }}
+          className="waveform-container-no-scrollbar"
+        >
           <WaveformCanvas
             canvasRef={canvasRef}
             waveformData={waveformData}
@@ -64,6 +81,27 @@ const Waveform = ({
           />
         </div>
       </div>
+      
+      {/* 🚫 **GLOBAL SCROLLBAR HIDE CSS**: Ensure no scrollbars appear */}
+      <style>
+        {`
+          .waveform-container-no-scrollbar::-webkit-scrollbar {
+            display: none !important;
+            width: 0 !important;
+            height: 0 !important;
+            background: transparent !important;
+          }
+          
+          .waveform-container-no-scrollbar {
+            -ms-overflow-style: none !important;
+            scrollbar-width: none !important;
+          }
+          
+          .waveform-container-no-scrollbar * {
+            overflow: hidden !important;
+          }
+        `}
+      </style>
     </div>
   );
 };

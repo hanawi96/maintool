@@ -1,5 +1,6 @@
 // 📄 src/apps/mp3-cutter/components/Waveform/WaveformCanvas.js
 import React, { useEffect, useCallback, useRef, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom'; // 🆕 **PORTAL IMPORT**: For rendering tooltips outside stacking context
 import { WAVEFORM_CONFIG } from '../../utils/constants';
 
 const WaveformCanvas = React.memo(({
@@ -43,6 +44,40 @@ const WaveformCanvas = React.memo(({
   const [hoverPosition, setHoverPosition] = useState(null); // { x, time, visible }
   const lastHoverUpdateRef = useRef(0);
   const hoverTimeoutRef = useRef(null);
+
+  // 🆕 **ADVANCED TOOLTIP SYSTEM**: Handle tooltips, cursor tooltip, và selection duration tooltip
+  const [tooltipPositions, setTooltipPositions] = useState({
+    startHandle: null,    // { x, time, visible, formattedTime }
+    endHandle: null,      // { x, time, visible, formattedTime }
+    cursor: null,         // { x, time, visible, formattedTime }
+    selectionDuration: null // { x, duration, visible, formattedDuration }
+  });
+  const lastTooltipUpdateRef = useRef(0);
+
+  // 🆕 **PORTAL SYSTEM**: Refs for portal-based tooltips rendering
+  const portalContainerRef = useRef(null);
+  const canvasRectRef = useRef(null);
+  const tooltipPortalTargetRef = useRef(null);
+
+  // 🆕 **CANVAS POSITION TRACKER**: Track canvas position for absolute tooltip positioning
+  const updateCanvasPosition = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
+    
+    const rect = canvas.getBoundingClientRect();
+    canvasRectRef.current = rect;
+    
+    console.log(`📍 [CanvasPosition] Updated:`, {
+      x: rect.x.toFixed(1),
+      y: rect.y.toFixed(1),
+      width: rect.width.toFixed(1),
+      height: rect.height.toFixed(1),
+      scrollX: window.scrollX,
+      scrollY: window.scrollY
+    });
+    
+    return rect;
+  }, [canvasRef]);
 
   // 🎯 **SMART CURSOR DETECTION**: Detect cursor type based on mouse position
   const detectCursorType = useCallback((mouseX, canvasWidth) => {
@@ -133,14 +168,148 @@ const WaveformCanvas = React.memo(({
     }
   }, [canvasRef, isDragging, detectCursorType]);
 
-  // 🆕 **TIME FORMATTING**: Convert seconds to MM:SS format
+  // 🆕 **TIME FORMATTING**: Convert seconds to MM:SS.d format với decimal
   const formatTime = useCallback((timeInSeconds) => {
-    if (timeInSeconds < 0) return '00:00';
+    if (timeInSeconds < 0) return '00:00.0';
     
     const minutes = Math.floor(timeInSeconds / 60);
     const seconds = Math.floor(timeInSeconds % 60);
-    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    const decimal = Math.floor((timeInSeconds % 1) * 10); // 1 decimal place
+    
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${decimal}`;
   }, []);
+
+  // 🆕 **DURATION FORMATTING**: Convert seconds to MM:SS.d format cho selection duration
+  const formatDuration = useCallback((durationInSeconds) => {
+    if (durationInSeconds < 0) return '00:00.0';
+    
+    const minutes = Math.floor(durationInSeconds / 60);
+    const seconds = Math.floor(durationInSeconds % 60);
+    const decimal = Math.floor((durationInSeconds % 1) * 10); // 1 decimal place
+    
+    // 🎯 **CONSISTENT FORMAT**: Luôn dùng MM:SS.d format cho consistency
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${decimal}`;
+  }, []);
+
+  // 🆕 **ADVANCED TOOLTIP POSITION TRACKER**: Cập nhật vị trí tất cả tooltips real-time
+  const updateTooltipPositions = useCallback(() => {
+    const now = performance.now();
+    
+    // 🔥 **PERFORMANCE THROTTLING**: 60fps cho smooth tooltip movement
+    if (now - lastTooltipUpdateRef.current < 16) return; // 60fps
+    lastTooltipUpdateRef.current = now;
+
+    const canvas = canvasRef.current;
+    if (!canvas || duration === 0) {
+      setTooltipPositions({
+        startHandle: null,
+        endHandle: null,
+        cursor: null,
+        selectionDuration: null
+      });
+      return;
+    }
+
+    // 🆕 **UPDATE CANVAS POSITION**: Always update canvas position for portal rendering
+    const canvasRect = updateCanvasPosition();
+    if (!canvasRect) return;
+
+    const canvasWidth = canvas.width;
+    const canvasHeight = canvas.height;
+
+    // 🎯 **CALCULATE POSITIONS**: Tính toán vị trí pixel từ time
+    const startX = (startTime / duration) * canvasWidth;
+    const endX = (endTime / duration) * canvasWidth;
+    const cursorX = (currentTime / duration) * canvasWidth;
+    
+    // 🎯 **SELECTION INFO**: Thông tin về selection
+    const hasValidSelection = startTime < endTime;
+    const selectionDuration = hasValidSelection ? endTime - startTime : 0;
+    const selectionCenterX = hasValidSelection ? (startX + endX) / 2 : null;
+
+    // 🆕 **TOOLTIP VISIBILITY LOGIC**: Chỉ hiện tooltip khi cần thiết
+    const showStartHandle = hasValidSelection && startX >= 0 && startX <= canvasWidth;
+    const showEndHandle = hasValidSelection && endX >= 0 && endX <= canvasWidth;
+    const showCursor = currentTime >= 0 && currentTime <= duration && cursorX >= 0 && cursorX <= canvasWidth;
+    const showSelectionDuration = hasValidSelection && selectionDuration > 0.1; // Chỉ hiện nếu selection > 0.1s
+
+    // 🆕 **ABSOLUTE POSITIONING**: Calculate absolute positions for portal rendering
+    const absoluteStartX = canvasRect.left + startX + window.scrollX;
+    const absoluteEndX = canvasRect.left + endX + window.scrollX;
+    const absoluteCursorX = canvasRect.left + cursorX + window.scrollX;
+    const absoluteSelectionCenterX = hasValidSelection ? canvasRect.left + selectionCenterX + window.scrollX : null;
+    const tooltipBaseY = canvasRect.top + window.scrollY;
+
+    // 🆕 **DIFFERENTIATED Y POSITIONING**: Different Y positions for different tooltip types
+    const handlesTooltipY = tooltipBaseY + WAVEFORM_CONFIG.HEIGHT + 5; // 🎯 **BELOW WAVEFORM**: 5px below canvas for handles
+    const cursorTooltipY = tooltipBaseY - 30; // 🎯 **ABOVE WAVEFORM**: 30px above canvas for cursor (unchanged)
+
+    // 🎯 **UPDATE TOOLTIP POSITIONS**: Cập nhật state với vị trí mới (differentiated positioning)
+    setTooltipPositions({
+      // 🏷️ **START HANDLE TOOLTIP**: Tooltip cho handle trái - BELOW waveform
+      startHandle: showStartHandle ? {
+        x: startX, // Canvas relative position
+        absoluteX: absoluteStartX, // Absolute position for portal
+        absoluteY: handlesTooltipY, // 🆕 **BELOW CANVAS**: 5px below waveform
+        time: startTime,
+        visible: true,
+        formattedTime: formatTime(startTime)
+      } : null,
+
+      // 🏷️ **END HANDLE TOOLTIP**: Tooltip cho handle phải - BELOW waveform  
+      endHandle: showEndHandle ? {
+        x: endX, // Canvas relative position
+        absoluteX: absoluteEndX, // Absolute position for portal
+        absoluteY: handlesTooltipY, // 🆕 **BELOW CANVAS**: 5px below waveform
+        time: endTime,
+        visible: true,
+        formattedTime: formatTime(endTime)
+      } : null,
+
+      // 🏷️ **CURSOR TOOLTIP**: Tooltip cho cursor line - ABOVE waveform (unchanged)
+      cursor: showCursor ? {
+        x: cursorX, // Canvas relative position
+        absoluteX: absoluteCursorX, // Absolute position for portal
+        absoluteY: cursorTooltipY, // 🎯 **ABOVE CANVAS**: Keep cursor tooltip above (unchanged)
+        time: currentTime,
+        visible: true,
+        formattedTime: formatTime(currentTime)
+      } : null,
+
+      // 🏷️ **SELECTION DURATION TOOLTIP**: Tooltip cho duration ở giữa selection (INSIDE waveform)
+      selectionDuration: showSelectionDuration ? {
+        x: selectionCenterX, // Canvas relative position
+        absoluteX: absoluteSelectionCenterX, // Absolute position for portal
+        absoluteY: tooltipBaseY + WAVEFORM_CONFIG.HEIGHT - 35, // Inside waveform (unchanged)
+        duration: selectionDuration,
+        visible: true,
+        formattedDuration: formatDuration(selectionDuration)
+      } : null
+    });
+
+    // 🔧 **DEBUG TOOLTIP POSITIONS**: Log occasional để track tooltip positions với differentiated positioning
+    if (Math.random() < 0.02) { // 2% sampling
+      console.log(`🏷️ [TooltipPositions] Updated with DIFFERENTIATED positioning:`, {
+        startHandle: showStartHandle ? `${absoluteStartX.toFixed(1)}px absolute, Y: ${handlesTooltipY.toFixed(1)}px BELOW (${formatTime(startTime)})` : 'hidden',
+        endHandle: showEndHandle ? `${absoluteEndX.toFixed(1)}px absolute, Y: ${handlesTooltipY.toFixed(1)}px BELOW (${formatTime(endTime)})` : 'hidden',
+        cursor: showCursor ? `${absoluteCursorX.toFixed(1)}px absolute, Y: ${cursorTooltipY.toFixed(1)}px ABOVE (${formatTime(currentTime)})` : 'hidden',
+        selectionDuration: showSelectionDuration ? `${absoluteSelectionCenterX.toFixed(1)}px absolute - INSIDE WAVEFORM` : 'hidden',
+        positioning: {
+          handlesY: `${handlesTooltipY.toFixed(1)}px (canvas + ${WAVEFORM_CONFIG.HEIGHT} + 5px)`,
+          cursorY: `${cursorTooltipY.toFixed(1)}px (canvas - 30px)`,
+          differentiatedMode: 'ENABLED - Handles BELOW, Cursor ABOVE'
+        },
+        canvasRect: {
+          left: canvasRect.left.toFixed(1),
+          top: canvasRect.top.toFixed(1),
+          width: canvasRect.width.toFixed(1),
+          height: canvasRect.height.toFixed(1)
+        },
+        portalMode: 'ACTIVE - Outside stacking context'
+      });
+    }
+
+  }, [canvasRef, duration, startTime, endTime, currentTime, formatTime, formatDuration, updateCanvasPosition]);
 
   // 🆕 **HOVER TIME TRACKER**: Track mouse position and calculate time
   const updateHoverTime = useCallback((mouseX, canvasWidth) => {
@@ -188,9 +357,9 @@ const WaveformCanvas = React.memo(({
       visible: true
     });
 
-    // 🔧 **DEBUG SAMPLING**: Only log occasionally to prevent spam
+    // 🔧 **DEBUG SAMPLING**: Only log occasionally to prevent spam với format mới
     if (Math.random() < 0.05) { // 5% sampling
-      console.log(`⏰ [HoverTime] Position: ${mouseX.toFixed(1)}px → ${formatTime(clampedTime)} (${clampedTime.toFixed(2)}s)`);
+      console.log(`⏰ [HoverTime] Position: ${mouseX.toFixed(1)}px → ${formatTime(clampedTime)} (precise: ${clampedTime.toFixed(3)}s)`);
     }
   }, [duration, formatTime, startTime, endTime]);
 
@@ -565,6 +734,32 @@ const WaveformCanvas = React.memo(({
     }
   }, [renderData, requestRedraw, isPlaying, hoverPosition]); // 🆕 **HOVER DEPENDENCY**: Include hoverPosition for hover line updates
 
+  // 🆕 **TOOLTIP POSITION UPDATES**: Trigger tooltip position updates khi cần thiết
+  useEffect(() => {
+    // 🎯 **REAL-TIME UPDATES**: Update tooltip positions khi có thay đổi quan trọng
+    updateTooltipPositions();
+    
+    // 🔧 **DEBUG TOOLTIP TRIGGER**: Log khi tooltip positions được update
+    console.log(`🏷️ [TooltipTrigger] Positions updated due to time/selection changes`);
+  }, [startTime, endTime, currentTime, duration, updateTooltipPositions]);
+
+  // 🆕 **DRAGGING TOOLTIP UPDATES**: Update tooltips với tần suất cao khi đang drag
+  useEffect(() => {
+    if (isDragging) {
+      // 🔥 **HIGH FREQUENCY UPDATES**: Update tooltips mỗi 16ms khi đang drag để smooth
+      const dragTooltipInterval = setInterval(() => {
+        updateTooltipPositions();
+      }, 16); // 60fps
+
+      console.log(`🏷️ [TooltipDragging] Started high-frequency tooltip updates for smooth dragging`);
+
+      return () => {
+        clearInterval(dragTooltipInterval);
+        console.log(`🏷️ [TooltipDragging] Stopped high-frequency tooltip updates`);
+      };
+    }
+  }, [isDragging, updateTooltipPositions]);
+
   // 🔥 **CANVAS SETUP**: Minimal setup với reduced logging
   useEffect(() => {
     let resizeTimeoutRef = null;
@@ -683,6 +878,66 @@ const WaveformCanvas = React.memo(({
     }
   }, [canvasRef, startTime, endTime, duration]); // Update when selection changes
 
+  // 🆕 **PORTAL CONTAINER SETUP**: Setup portal container for tooltips
+  useEffect(() => {
+    // 🎯 **CREATE PORTAL CONTAINER**: Create container at body level for tooltips
+    let portalContainer = document.getElementById('waveform-tooltips-portal');
+    if (!portalContainer) {
+      portalContainer = document.createElement('div');
+      portalContainer.id = 'waveform-tooltips-portal';
+      portalContainer.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 999999;
+        overflow: visible;
+      `;
+      document.body.appendChild(portalContainer);
+      console.log(`🚪 [Portal] Created tooltip portal container`);
+    }
+    
+    tooltipPortalTargetRef.current = portalContainer;
+    
+    // 🎯 **SCROLL & RESIZE TRACKING**: Update canvas position on scroll/resize for accurate tooltip positioning
+    const updatePositionOnScroll = () => {
+      updateCanvasPosition();
+      updateTooltipPositions();
+    };
+    
+    const updatePositionOnResize = () => {
+      setTimeout(() => {
+        updateCanvasPosition();
+        updateTooltipPositions();
+      }, 100); // Small delay for DOM to settle
+    };
+    
+    window.addEventListener('scroll', updatePositionOnScroll, { passive: true });
+    window.addEventListener('resize', updatePositionOnResize, { passive: true });
+    
+    console.log(`📍 [Portal] Setup scroll/resize tracking for tooltips`);
+    
+    // 🎯 **CLEANUP**: Remove event listeners and portal container
+    return () => {
+      window.removeEventListener('scroll', updatePositionOnScroll);
+      window.removeEventListener('resize', updatePositionOnResize);
+      
+      // Only remove portal if it exists and no other instances are using it
+      if (tooltipPortalTargetRef.current && tooltipPortalTargetRef.current.children.length === 0) {
+        document.body.removeChild(tooltipPortalTargetRef.current);
+        console.log(`🚪 [Portal] Removed tooltip portal container`);
+      }
+    };
+  }, [updateCanvasPosition, updateTooltipPositions]);
+
+  // 🆕 **TOOLTIP PORTAL COMPONENT**: Component to render tooltips via portal
+  const TooltipPortal = useCallback(({ children }) => {
+    if (!tooltipPortalTargetRef.current) return null;
+    return createPortal(children, tooltipPortalTargetRef.current);
+  }, []);
+
   return (
     <div className="relative" style={{ minWidth: `${WAVEFORM_CONFIG.RESPONSIVE.MIN_WIDTH}px` }}>
       <canvas
@@ -693,31 +948,126 @@ const WaveformCanvas = React.memo(({
         onMouseLeave={handleEnhancedMouseLeave}
         className="w-full border border-slate-200 rounded-lg"
         style={{ 
-          height: WAVEFORM_CONFIG.HEIGHT, // 🔧 **FIXED**: Use config height instead of undefined variables
+          height: WAVEFORM_CONFIG.HEIGHT,
           touchAction: 'none', // Prevent scrolling on touch devices
+          overflow: 'hidden', // 🚫 **NO CANVAS SCROLLBARS**: Đảm bảo canvas không tạo scrollbar
           // 🆕 **INTELLIGENT CURSOR**: Removed hardcoded cursor - let JavaScript handle it dynamically
-          // cursor: 'crosshair' ← REMOVED - now handled by cursor intelligence system
         }}
       />
       
-      {/* 🆕 **TIME TOOLTIP**: Hover time display */}
+      {/* 🆕 **TIME TOOLTIP**: Hover time display - Updated format (RELATIVE POSITIONING) */}
       {hoverPosition && hoverPosition.visible && (
         <div
-          className="absolute pointer-events-none z-10 bg-slate-800 text-white text-xs px-2 py-1 rounded shadow-lg transform -translate-x-1/2 -translate-y-full"
+          className="absolute pointer-events-none text-xs px-2 py-1 rounded font-medium"
           style={{
             left: `${hoverPosition.x}px`,
             top: '-8px', // 8px above canvas
+            transform: 'translateX(-50%)',
+            backgroundColor: 'rgba(71, 85, 105, 0.95)', // Slate color
+            color: 'white',
             transition: 'none', // No transition for immediate response
-            whiteSpace: 'nowrap'
+            whiteSpace: 'nowrap',
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 30 // 🎯 **HIGH Z-INDEX**: Đảm bảo nổi trên cùng
           }}
         >
           {hoverPosition.formattedTime}
-          {/* 🎯 **TOOLTIP ARROW**: Small arrow pointing down to hover line */}
-          <div 
-            className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-2 border-r-2 border-t-2 border-transparent border-t-slate-800"
-          />
         </div>
       )}
+
+      {/* 🆕 **PORTAL TOOLTIPS**: All handles and cursor tooltips render via portal (ABSOLUTE POSITIONING) */}
+      <TooltipPortal>
+        {/* 🏷️ **START HANDLE TOOLTIP**: Portal-rendered tooltip cho left handle */}
+        {tooltipPositions.startHandle && tooltipPositions.startHandle.visible && (
+          <div
+            className="pointer-events-none text-xs px-2 py-1 rounded font-medium"
+            style={{
+              position: 'absolute',
+              left: `${tooltipPositions.startHandle.absoluteX}px`,
+              top: `${tooltipPositions.startHandle.absoluteY}px`,
+              transform: 'translateX(-50%)',
+              backgroundColor: 'rgba(20, 184, 166, 0.95)', // Cyan color như đối thủ
+              color: 'white',
+              transition: 'none',
+              whiteSpace: 'nowrap',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.4)',
+              backdropFilter: 'blur(6px)',
+              zIndex: 999999 // 🆕 **PORTAL Z-INDEX**: Highest possible z-index via portal
+            }}
+          >
+            {tooltipPositions.startHandle.formattedTime}
+          </div>
+        )}
+
+        {/* 🏷️ **END HANDLE TOOLTIP**: Portal-rendered tooltip cho right handle */}
+        {tooltipPositions.endHandle && tooltipPositions.endHandle.visible && (
+          <div
+            className="pointer-events-none text-xs px-2 py-1 rounded font-medium"
+            style={{
+              position: 'absolute',
+              left: `${tooltipPositions.endHandle.absoluteX}px`,
+              top: `${tooltipPositions.endHandle.absoluteY}px`,
+              transform: 'translateX(-50%)',
+              backgroundColor: 'rgba(20, 184, 166, 0.95)', // Cyan color như đối thủ
+              color: 'white',
+              transition: 'none',
+              whiteSpace: 'nowrap',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.4)',
+              backdropFilter: 'blur(6px)',
+              zIndex: 999999 // 🆕 **PORTAL Z-INDEX**: Highest possible z-index via portal
+            }}
+          >
+            {tooltipPositions.endHandle.formattedTime}
+          </div>
+        )}
+
+        {/* 🏷️ **CURSOR TOOLTIP**: Portal-rendered tooltip cho cursor line */}
+        {tooltipPositions.cursor && tooltipPositions.cursor.visible && (
+          <div
+            className="pointer-events-none text-xs px-2 py-1 rounded font-medium"
+            style={{
+              position: 'absolute',
+              left: `${tooltipPositions.cursor.absoluteX}px`,
+              top: `${tooltipPositions.cursor.absoluteY}px`,
+              transform: 'translateX(-50%)',
+              backgroundColor: 'rgba(255, 255, 255, 0.95)', // Trắng như đối thủ
+              color: 'rgba(30, 41, 59, 0.9)', // Dark text
+              transition: 'none',
+              whiteSpace: 'nowrap',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.4)',
+              backdropFilter: 'blur(6px)',
+              border: '1px solid rgba(148, 163, 184, 0.3)',
+              zIndex: 999999 // 🆕 **PORTAL Z-INDEX**: Highest possible z-index via portal
+            }}
+          >
+            {tooltipPositions.cursor.formattedTime}
+          </div>
+        )}
+
+        {/* 🏷️ **SELECTION DURATION TOOLTIP**: Portal-rendered tooltip TRONG waveform */}
+        {tooltipPositions.selectionDuration && tooltipPositions.selectionDuration.visible && (
+          <div
+            className="pointer-events-none text-sm px-3 py-1 rounded font-semibold"
+            style={{
+              position: 'absolute',
+              left: `${tooltipPositions.selectionDuration.absoluteX}px`,
+              top: `${tooltipPositions.selectionDuration.absoluteY}px`,
+              transform: 'translateX(-50%)',
+              backgroundColor: 'rgba(30, 41, 59, 0.92)', // Dark background với opacity cao hơn
+              color: 'white',
+              transition: 'none',
+              whiteSpace: 'nowrap',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
+              backdropFilter: 'blur(8px)', // Blur mạnh hơn để nổi bật trong waveform
+              border: '1px solid rgba(255, 255, 255, 0.1)', // Border nhẹ để phân biệt
+              zIndex: 999999 // 🆕 **PORTAL Z-INDEX**: Highest possible z-index via portal
+            }}
+          >
+            {tooltipPositions.selectionDuration.formattedDuration}
+          </div>
+        )}
+      </TooltipPortal>
     </div>
   );
 });

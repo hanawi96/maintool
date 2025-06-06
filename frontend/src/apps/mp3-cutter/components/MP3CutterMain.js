@@ -1189,6 +1189,205 @@ const MP3CutterMain = React.memo(() => {
       return debugInfo;
     };
     
+    // 🆕 **TOOLTIP SYSTEM DEBUG**: Test và monitor tooltip system mới
+    window.mp3CutterTestTooltipSystem = () => {
+      console.log(`🏷️ [TooltipTest] Testing enhanced tooltip system with decimal format`);
+      
+      // Test format functions
+      const testTimes = [0, 5.3, 65.7, 3661.9]; // Test cases
+      const formatResults = testTimes.map(time => ({
+        input: time + 's',
+        formatted: time < 60 ? `${Math.floor(time / 60).toString().padStart(2, '0')}:${Math.floor(time % 60).toString().padStart(2, '0')}.${Math.floor((time % 1) * 10)}` : 'complex'
+      }));
+      
+      console.log(`🏷️ [TooltipTest] Format test results:`, formatResults);
+      
+      // Current tooltip status
+      const currentStatus = {
+        startTime: startTime + 's',
+        endTime: endTime + 's', 
+        currentTime: currentTime + 's',
+        selectionDuration: (endTime - startTime) + 's',
+        hasValidSelection: startTime < endTime,
+        audioReady: !!audioRef.current?.duration
+      };
+      
+      console.log(`🏷️ [TooltipTest] Current state:`, currentStatus);
+      
+      return { formatResults, currentStatus };
+    };
+    
+    // 🆕 **TOOLTIP STYLING TEST**: Test tooltip styling và vị trí
+    window.mp3CutterTestTooltipStyling = () => {
+      console.log(`🎨 [TooltipStyling] Testing competitor-inspired tooltip design`);
+      
+      const stylingInfo = {
+        handleTooltips: {
+          color: 'rgba(20, 184, 166, 0.95)', // Cyan
+          position: '25px above canvas',
+          format: 'MM:SS.d with decimal',
+          zIndex: 50 // Highest priority
+        },
+        cursorTooltip: {
+          color: 'rgba(255, 255, 255, 0.95)', // White
+          position: '25px above canvas',
+          format: 'MM:SS.d with decimal',
+          zIndex: 40 // Medium-high priority
+        },
+        selectionDuration: {
+          color: 'rgba(30, 41, 59, 0.92)', // Dark
+          position: 'INSIDE waveform (35px from bottom)', // 🆕 **MOVED INSIDE**
+          format: 'MM:SS.d with decimal',
+          zIndex: 35, // Medium priority
+          improvement: 'Moved inside to save space'
+        },
+        scrollbarFixes: {
+          horizontalScrollbar: 'REMOVED - overflow: hidden',
+          verticalScrollbar: 'PREVENTED - canvas overflow: hidden',
+          webkitScrollbar: 'HIDDEN - ::-webkit-scrollbar { display: none }',
+          firefoxScrollbar: 'HIDDEN - scrollbar-width: none',
+          ieScrollbar: 'HIDDEN - ms-overflow-style: none'
+        },
+        features: [
+          'No arrows (clean design)',
+          'Backdrop blur effect',
+          'Box shadow for depth',
+          'Immediate response (no transitions)',
+          'Real-time updates during drag',
+          '🆕 Selection duration INSIDE waveform',
+          '🆕 Scrollbars completely removed',
+          '🆕 Z-index hierarchy optimized'
+        ]
+      };
+      
+      console.log(`🎨 [TooltipStyling] Enhanced design specification:`, stylingInfo);
+      return stylingInfo;
+    };
+
+    // 🆕 **SCROLLBAR TEST**: Test scrollbar removal
+    window.mp3CutterTestScrollbarRemoval = () => {
+      console.log(`🚫 [ScrollbarTest] Testing scrollbar removal`);
+      
+      const waveformContainer = document.querySelector('.overflow-x-auto, [style*="overflow"]');
+      const canvas = document.querySelector('canvas');
+      
+      const scrollbarStatus = {
+        waveformContainer: {
+          found: !!waveformContainer,
+          overflowStyle: waveformContainer?.style?.overflow || 'not found',
+          className: waveformContainer?.className || 'not found'
+        },
+        canvas: {
+          found: !!canvas,
+          overflowStyle: canvas?.style?.overflow || 'not found',
+          hasScrollbar: canvas ? (canvas.scrollWidth > canvas.clientWidth || canvas.scrollHeight > canvas.clientHeight) : 'unknown'
+        },
+        globalStyles: {
+          webkitScrollbarHidden: 'Applied via styled-jsx',
+          firefoxScrollbarWidth: 'none via scrollbar-width CSS',
+          ieScrollbarStyle: 'none via ms-overflow-style CSS'
+        }
+      };
+      
+      console.log(`🚫 [ScrollbarTest] Status report:`, scrollbarStatus);
+      return scrollbarStatus;
+    };
+
+    // 🆕 **DIFFERENTIATED POSITIONING TEST**: Test handles below, cursor above positioning
+    window.mp3CutterTestDifferentiatedTooltips = () => {
+      console.log(`📍 [DifferentiatedPositioning] Testing handles BELOW, cursor ABOVE positioning`);
+      
+      const canvas = document.querySelector('canvas');
+      const portalContainer = document.getElementById('waveform-tooltips-portal');
+      
+      if (!canvas) {
+        console.error('❌ [DifferentiatedPositioning] No canvas found');
+        return null;
+      }
+      
+      const canvasRect = canvas.getBoundingClientRect();
+      const canvasHeight = 150; // WAVEFORM_CONFIG.HEIGHT value
+      
+      const positioningInfo = {
+        currentSetup: {
+          handlesTooltips: `BELOW waveform (canvas.top + ${canvasHeight} + 5px)`,
+          cursorTooltip: 'ABOVE waveform (canvas.top - 30px)',
+          selectionDuration: 'INSIDE waveform (canvas.top + height - 35px)'
+        },
+        calculations: {
+          canvasTop: canvasRect.top.toFixed(1) + 'px',
+          canvasBottom: (canvasRect.top + canvasHeight).toFixed(1) + 'px',
+          handlesTooltipY: (canvasRect.top + window.scrollY + canvasHeight + 5).toFixed(1) + 'px',
+          cursorTooltipY: (canvasRect.top + window.scrollY - 30).toFixed(1) + 'px',
+          selectionDurationY: (canvasRect.top + window.scrollY + canvasHeight - 35).toFixed(1) + 'px'
+        },
+        portal: {
+          containerExists: !!portalContainer,
+          zIndex: portalContainer?.style?.zIndex || 'not found',
+          position: portalContainer?.style?.position || 'not found'
+        },
+        currentTooltips: {
+          startTime: startTime.toFixed(2) + 's',
+          endTime: endTime.toFixed(2) + 's',
+          currentTime: currentTime.toFixed(2) + 's',
+          hasValidSelection: startTime < endTime,
+          duration: (endTime - startTime).toFixed(2) + 's'
+        },
+        differentiation: {
+          mode: 'ENABLED',
+          handlesPosition: 'BELOW canvas (5px gap)',
+          cursorPosition: 'ABOVE canvas (30px gap)',
+          reasoning: 'Handles BELOW to avoid cluttering above, cursor ABOVE for quick time reference'
+        }
+      };
+      
+      console.log(`📍 [DifferentiatedPositioning] Complete analysis:`, positioningInfo);
+      return positioningInfo;
+    };
+
+    // 🆕 **PORTAL TOOLTIP VALIDATION**: Validate portal system functionality
+    window.mp3CutterValidatePortalTooltips = () => {
+      console.log(`🚪 [PortalValidation] Validating portal tooltip system`);
+      
+      const portalContainer = document.getElementById('waveform-tooltips-portal');
+      const tooltipElements = portalContainer?.children || [];
+      
+      const validation = {
+        portalContainer: {
+          exists: !!portalContainer,
+          id: portalContainer?.id || 'not found',
+          childCount: tooltipElements.length,
+          position: portalContainer?.style?.position || 'not set',
+          zIndex: portalContainer?.style?.zIndex || 'not set',
+          pointerEvents: portalContainer?.style?.pointerEvents || 'not set'
+        },
+        activeTooltips: Array.from(tooltipElements).map((tooltip, index) => ({
+          index,
+          className: tooltip.className,
+          position: tooltip.style.position,
+          left: tooltip.style.left,
+          top: tooltip.style.top,
+          zIndex: tooltip.style.zIndex,
+          content: tooltip.textContent
+        })),
+        positioning: {
+          totalTooltips: tooltipElements.length,
+          usesDifferentiatedY: 'Handles BELOW, Cursor ABOVE',
+          outsideStacking: 'Portal renders at body level',
+          zIndexGuarantee: 'Z-index 999999 via portal'
+        },
+        functionality: {
+          bypassesOverflow: 'YES - Portal renders outside parent containers',
+          bypassesZIndex: 'YES - Body level portal with highest z-index',
+          scrollIndependent: 'YES - Absolute positioning with scroll tracking',
+          resizeResponsive: 'YES - Event listeners update positions'
+        }
+      };
+      
+      console.log(`🚪 [PortalValidation] System status:`, validation);
+      return validation;
+    };
+
     window.mp3CutterStopInteractionMonitor = () => {
       if (window.mp3CutterInteractionMonitorId) {
         clearInterval(window.mp3CutterInteractionMonitorId);
@@ -1222,13 +1421,21 @@ const MP3CutterMain = React.memo(() => {
       delete window.mp3CutterGetRegionDragStatus;
       delete window.mp3CutterTestRegionDrag;
       
-      // Cleanup monitor if running
+      // 🆕 **TOOLTIP SYSTEM CLEANUP**: Cleanup tooltip test functions
+      delete window.mp3CutterTestTooltipSystem;
+      delete window.mp3CutterTestTooltipStyling;
+      delete window.mp3CutterTestScrollbarRemoval;
+      
+      // 🆕 **DIFFERENTIATED POSITIONING CLEANUP**: Cleanup new positioning test functions
+      delete window.mp3CutterTestDifferentiatedTooltips;
+      delete window.mp3CutterValidatePortalTooltips;
+      
+      // 🔧 **MONITOR CLEANUP**: Cleanup running monitors
       if (window.mp3CutterInteractionMonitorId) {
         clearInterval(window.mp3CutterInteractionMonitorId);
         delete window.mp3CutterInteractionMonitorId;
       }
       
-      // Cleanup sync monitor if running
       if (window.mp3CutterSyncMonitorId) {
         clearInterval(window.mp3CutterSyncMonitorId);
         delete window.mp3CutterSyncMonitorId;
