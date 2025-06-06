@@ -2,9 +2,10 @@
 
 # dependencies
 **/node_modules/
+**/uploads/
 /.pnp
 .pnp.js
-
+.mp3
 # testing
 /coverage
 
