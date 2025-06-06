@@ -106,9 +106,9 @@ const AdvancedTimeInput = React.memo(({ value, onChange, label, max }) => {
   }, [commitEdit]);
 
   return (
-    <div className="flex flex-col items-center gap-1">
-      <label className="text-xs font-medium text-slate-600">{label}</label>
-      <div className="relative bg-white border border-slate-300 rounded px-2 py-1 font-mono text-xs">
+    <div className="flex items-center gap-2">
+      <label className="text-xs font-medium text-slate-600 min-w-[28px]">{label}</label>
+      <div className="relative bg-white border border-slate-300 rounded px-2 py-1 font-mono text-xs shadow-sm hover:shadow-md transition-shadow">
         <div className="flex items-center">
           {editingSegment === 'minutes' ? (
             <input
@@ -201,7 +201,7 @@ const TimeSelector = React.memo(({
   }, [selectionDuration]);
 
   return (
-    <div className="flex items-center gap-2 bg-slate-50/80 rounded-lg px-3 py-1.5">
+    <div className="flex items-center gap-3 bg-slate-50/80 rounded-lg px-4 py-2 backdrop-blur-sm border border-slate-200/50">
       <AdvancedTimeInput
         value={startTime}
         onChange={onStartTimeChange}
@@ -209,7 +209,7 @@ const TimeSelector = React.memo(({
         max={endTime}
       />
       
-      <div className="text-slate-400 text-sm">→</div>
+      <div className="text-slate-400 text-sm font-medium">→</div>
       
       <AdvancedTimeInput
         value={endTime}
@@ -218,9 +218,9 @@ const TimeSelector = React.memo(({
         max={duration}
       />
       
-      <div className="flex flex-col items-center ml-2">
-        <div className="text-xs text-slate-500 mb-1">Selection</div>
-        <div className="text-xs font-mono text-purple-600 bg-white px-2 py-0.5 rounded border">
+      <div className="flex items-center gap-2 ml-2 pl-3 border-l border-slate-300">
+        <span className="text-xs font-medium text-slate-600 min-w-[52px]">Selection</span>
+        <div className="text-xs font-mono text-purple-600 bg-white px-2 py-1 rounded border border-purple-200 shadow-sm">
           {durationDisplay}
         </div>
       </div>
