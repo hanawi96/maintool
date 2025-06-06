@@ -1045,22 +1045,22 @@ const WaveformCanvas = React.memo(({
           </div>
         )}
 
-        {/* 🏷️ **SELECTION DURATION TOOLTIP**: Portal-rendered tooltip TRONG waveform */}
+        {/* 🏷️ **SELECTION DURATION TOOLTIP**: Portal-rendered tooltip TRONG waveform - TEXT ONLY */}
         {tooltipPositions.selectionDuration && tooltipPositions.selectionDuration.visible && (
           <div
-            className="pointer-events-none text-sm px-3 py-1 rounded font-semibold"
+            className="pointer-events-none text-sm font-semibold"
             style={{
               position: 'absolute',
               left: `${tooltipPositions.selectionDuration.absoluteX}px`,
               top: `${tooltipPositions.selectionDuration.absoluteY}px`,
               transform: 'translateX(-50%)',
-              backgroundColor: 'rgba(30, 41, 59, 0.92)', // Dark background với opacity cao hơn
-              color: 'white',
+              // 🚫 **NO BACKGROUND**: Removed background, border, shadow for clean text-only display
+              color: 'rgba(30, 41, 59, 0.9)', // Dark text for good contrast
               transition: 'none',
               whiteSpace: 'nowrap',
-              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
-              backdropFilter: 'blur(8px)', // Blur mạnh hơn để nổi bật trong waveform
-              border: '1px solid rgba(255, 255, 255, 0.1)', // Border nhẹ để phân biệt
+              // 🎯 **TEXT SHADOW**: Subtle text shadow for readability on waveform background
+              textShadow: '0 1px 2px rgba(255, 255, 255, 0.8), 0 -1px 1px rgba(0, 0, 0, 0.2)',
+              fontWeight: '600', // Slightly bolder for better visibility
               zIndex: 999999 // 🆕 **PORTAL Z-INDEX**: Highest possible z-index via portal
             }}
           >

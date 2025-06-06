@@ -1388,6 +1388,64 @@ const MP3CutterMain = React.memo(() => {
       return validation;
     };
 
+    // 🆕 **TEXT-ONLY TOOLTIP TEST**: Test selection duration text-only display
+    window.mp3CutterTestTextOnlyTooltip = () => {
+      console.log(`📝 [TextOnlyTooltip] Testing text-only selection duration tooltip`);
+      
+      const portalContainer = document.getElementById('waveform-tooltips-portal');
+      const selectionTooltip = Array.from(portalContainer?.children || [])
+        .find(tooltip => tooltip.textContent && tooltip.textContent.includes(':'));
+      
+      const testResult = {
+        selectionTooltip: {
+          found: !!selectionTooltip,
+          content: selectionTooltip?.textContent || 'not found',
+          hasBackground: !!(selectionTooltip?.style?.backgroundColor),
+          hasBoxShadow: !!(selectionTooltip?.style?.boxShadow),
+          hasBorder: !!(selectionTooltip?.style?.border),
+          hasBackdropFilter: !!(selectionTooltip?.style?.backdropFilter)
+        },
+        textOnlyFeatures: {
+          removedBackground: 'backgroundColor removed for clean display',
+          removedBoxShadow: 'boxShadow removed to eliminate visual bulk',
+          removedBorder: 'border removed for minimal appearance',
+          removedBackdropFilter: 'backdropFilter removed for performance',
+          addedTextShadow: 'textShadow added for readability on waveform',
+          boldedFont: 'fontWeight 600 for better visibility'
+        },
+        currentSelection: {
+          startTime: startTime.toFixed(2) + 's',
+          endTime: endTime.toFixed(2) + 's',
+          duration: (endTime - startTime).toFixed(2) + 's',
+          hasValidSelection: startTime < endTime,
+          displayFormat: 'MM:SS.d with decimal precision'
+        },
+        benefits: {
+          spaceSaving: 'No background box → saves visual space',
+          cleanAppearance: 'Text-only → minimalist design',
+          betterReadability: 'Text shadow → readable on any background',
+          performance: 'No blur effects → better rendering performance'
+        }
+      };
+      
+      console.log(`📝 [TextOnlyTooltip] Analysis:`, testResult);
+      
+      // 🎯 **VISUAL TEST**: Log styling details if tooltip exists
+      if (selectionTooltip) {
+        const computedStyle = window.getComputedStyle(selectionTooltip);
+        console.log(`🎨 [TextOnlyTooltip] Computed styles:`, {
+          color: computedStyle.color,
+          textShadow: computedStyle.textShadow,
+          fontWeight: computedStyle.fontWeight,
+          fontSize: computedStyle.fontSize,
+          backgroundColor: computedStyle.backgroundColor || 'transparent',
+          border: computedStyle.border || 'none'
+        });
+      }
+      
+      return testResult;
+    };
+
     window.mp3CutterStopInteractionMonitor = () => {
       if (window.mp3CutterInteractionMonitorId) {
         clearInterval(window.mp3CutterInteractionMonitorId);
@@ -1429,6 +1487,7 @@ const MP3CutterMain = React.memo(() => {
       // 🆕 **DIFFERENTIATED POSITIONING CLEANUP**: Cleanup new positioning test functions
       delete window.mp3CutterTestDifferentiatedTooltips;
       delete window.mp3CutterValidatePortalTooltips;
+      delete window.mp3CutterTestTextOnlyTooltip;
       
       // 🔧 **MONITOR CLEANUP**: Cleanup running monitors
       if (window.mp3CutterInteractionMonitorId) {
