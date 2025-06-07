@@ -3,9 +3,6 @@ import { AUDIO_FORMATS } from '../../utils/constants';
 
 // 🚀 **MEMOIZED COMPONENT**: Prevent unnecessary re-renders
 const FormatPresets = memo(({ selectedFormat, onFormatChange }) => {
-  // 🔧 **DEBUG PERFORMANCE**: Log render để track performance
-  console.log('🎵 [FormatPresets] RENDER:', selectedFormat, performance.now());
-  
   return (
     <div className="mb-3">
       <div className="grid grid-cols-4 gap-1.5">
@@ -15,17 +12,7 @@ const FormatPresets = memo(({ selectedFormat, onFormatChange }) => {
           return (
             <button
               key={format.value}
-              onClick={() => {
-                // 🔧 **DEBUG CLICK**: Track click response time
-                const startTime = performance.now();
-                console.log(`🚀 [FormatSelector] INSTANT CLICK START: ${format.value}`, startTime);
-                onFormatChange(format.value);
-                console.log(`⚡ [FormatSelector] CLICK PROCESSED: ${format.value}`, performance.now() - startTime, 'ms');
-              }}
-              onMouseEnter={() => {
-                // 🔧 **DEBUG HOVER**: Track hover response time  
-                console.log(`🚀 [FormatSelector] INSTANT HOVER: ${format.value}`, performance.now());
-              }}
+              onClick={() => onFormatChange(format.value)}
               className={`
                 px-2 py-1.5 rounded-md text-xs font-semibold text-center
                 min-h-[40px] flex flex-col justify-center border-2

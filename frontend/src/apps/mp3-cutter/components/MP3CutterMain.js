@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Upload, Music, AlertCircle, Wifi, WifiOff } from 'lucide-react';
+import { Music, Wifi, WifiOff } from 'lucide-react';
 
 // Import hooks
 import { useAudioPlayer } from '../hooks/useAudioPlayer';
@@ -7,6 +7,8 @@ import { useWaveform } from '../hooks/useWaveform';
 import { useHistory } from '../hooks/useHistory';
 import { useFileUpload } from '../hooks/useFileUpload';
 import { useRealTimeFadeEffects } from '../hooks/useRealTimeFadeEffects';
+import { useInteractionHandlers } from '../hooks/useInteractionHandlers';
+import { useTimeChangeHandlers } from '../hooks/useTimeChangeHandlers';
 
 // Import components
 import FileInfo from './FileInfo';
@@ -15,9 +17,11 @@ import FadeControls from './Effects';
 import Export from './Export';
 import AudioErrorAlert from './AudioErrorAlert';
 import UnifiedControlBar from './UnifiedControlBar';
+import ConnectionErrorAlert from './ConnectionErrorAlert';
+import FileUploadSection from './FileUploadSection';
 
 // Import utils
-import { clamp, validateAudioFile, getAudioErrorMessage, getFormatDisplayName, generateCompatibilityReport, createSafeAudioURL, validateAudioURL } from '../utils/audioUtils';
+import { validateAudioFile, getAudioErrorMessage, getFormatDisplayName, generateCompatibilityReport, createSafeAudioURL, validateAudioURL } from '../utils/audioUtils';
 import { createInteractionManager } from '../utils/interactionUtils';
 import { getAutoReturnSetting } from '../utils/safeStorage';
 
@@ -111,10 +115,7 @@ const MP3CutterMain = React.memo(() => {
     connectAudioElement,
     updateFadeConfig,
     setFadeActive,
-    fadeConfig,
-    isWebAudioSupported,
-    getConnectionDebugInfo, // 🆕 **DEBUG API**: Function để debug connection issues
-    connectionState // 🆕 **CONNECTION STATE**: Track connection status
+    isWebAudioSupported
   } = useRealTimeFadeEffects();
 
   // 🔥 **MINIMAL STATE**
@@ -128,9 +129,52 @@ const MP3CutterMain = React.memo(() => {
   const [compatibilityReport, setCompatibilityReport] = useState(null);
 
   // 🔥 **PERFORMANCE REFS**
-  const lastMouseTimeRef = useRef(0);
   const animationStateRef = useRef({ isPlaying: false, startTime: 0, endTime: 0 });
   const interactionManagerRef = useRef(null);
+
+  // 🎯 **INTERACTION HANDLERS**: Extract interaction logic using custom hook
+  const {
+    handleCanvasMouseDown,
+    handleCanvasMouseMove,
+    handleCanvasMouseUp,
+    handleCanvasMouseLeave
+  } = useInteractionHandlers({
+    canvasRef,
+    duration,
+    startTime,
+    endTime,
+    audioRef,
+    isPlaying,
+    fadeIn,
+    fadeOut,
+    
+    // State setters
+    setStartTime,
+    setEndTime,
+    setIsDragging,
+    setHoveredHandle,
+    setCurrentTime,
+    
+    // Utilities
+    jumpToTime,
+    saveState,
+    interactionManagerRef
+  });
+
+  // 🎯 **TIME CHANGE HANDLERS**: Extract time change logic using custom hook
+  const {
+    handleStartTimeChange,
+    handleEndTimeChange
+  } = useTimeChangeHandlers({
+    startTime,
+    endTime,
+    duration,
+    fadeIn,
+    fadeOut,
+    setStartTime,
+    setEndTime,
+    saveState
+  });
 
   // 🔥 **ESSENTIAL SETUP ONLY**
   useEffect(() => {
@@ -326,7 +370,7 @@ const MP3CutterMain = React.memo(() => {
     setAudioError(null);
 
     console.log('✅ [AudioSetup] Audio interactions configured successfully');
-  }, [audioFile?.url]); // 🔥 **OPTIMIZED DEPS**: Chỉ listen audioFile.url
+  }, [audioFile?.url, setAudioError]); // 🔥 **OPTIMIZED DEPS**: Added missing setAudioError
     
   // 🔥 **UPDATE ANIMATION STATE REF**: Cập nhật ref thay vì tạo object mới
   useEffect(() => {
@@ -360,7 +404,7 @@ const MP3CutterMain = React.memo(() => {
     const setupTimeout = setTimeout(setupWebAudio, 100);
     
     return () => clearTimeout(setupTimeout);
-  }, [audioFile?.url, connectAudioElement, isWebAudioSupported, getConnectionDebugInfo]);
+  }, [audioFile?.url, connectAudioElement, isWebAudioSupported]); // 🔥 **OPTIMIZED DEPS**: Removed getConnectionDebugInfo
 
   // 🆕 **FADE CONFIG SYNC**: Update fade configuration when fadeIn/fadeOut/selection changes
   useEffect(() => {
@@ -370,7 +414,7 @@ const MP3CutterMain = React.memo(() => {
       startTime,
       endTime
     });
-  }, [fadeIn, fadeOut, startTime, endTime, updateFadeConfig, connectionState]);
+  }, [fadeIn, fadeOut, startTime, endTime, updateFadeConfig]); // 🔥 **OPTIMIZED DEPS**: Removed connectionState
 
   // 🆕 **PLAYBACK STATE SYNC**: Start/stop fade effects khi playback state thay đổi
   useEffect(() => {
@@ -378,428 +422,7 @@ const MP3CutterMain = React.memo(() => {
     if (!audio || !isWebAudioSupported) return;
     
     setFadeActive(isPlaying, audio);
-  }, [isPlaying, setFadeActive, fadeConfig.isActive, isWebAudioSupported, connectionState, getConnectionDebugInfo]);
-
-  // 🎯 ULTRA-LIGHT: Mouse handlers using InteractionManager
-  const handleCanvasMouseDown = useCallback((e) => {
-    if (!canvasRef.current || duration <= 0) return;
-    
-    const rect = canvasRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    
-    // 🎯 Use InteractionManager for smart handling
-    const result = interactionManagerRef.current.handleMouseDown(
-      x, canvasRef.current.width, duration, startTime, endTime
-    );
-    
-    // 🎯 Process action based on result
-    const processAction = () => {
-      switch (result.action) {
-        case 'startDrag':
-          setIsDragging(result.handle);
-          // 🆕 **CURSOR REMOVED**: Let WaveformCanvas handle cursor logic
-          // canvas.style.cursor = result.cursor; ← REMOVED
-          
-          // 🆕 **IMMEDIATE CURSOR SYNC**: Sync cursor ngay lập tức khi click handle
-          if (result.immediateSync && result.immediateSync.required) {
-            const { handleType, targetTime, offsetForEnd } = result.immediateSync;
-            
-            console.log(`🎯 [HandleClick] IMMEDIATE sync for ${handleType} handle:`, {
-              targetTime: targetTime.toFixed(2) + 's',
-              offset: offsetForEnd > 0 ? offsetForEnd + 's' : 'none'
-            });
-            
-            // 🔥 **USE AUDIO SYNC MANAGER**: Sử dụng forceImmediateSync cho consistency
-            const manager = interactionManagerRef.current;
-            if (manager && manager.audioSyncManager) {
-              const syncSuccess = manager.audioSyncManager.forceImmediateSync(
-                targetTime, audioRef, setCurrentTime, handleType, offsetForEnd
-              );
-              
-              if (syncSuccess) {
-                console.log(`✅ [HandleClick] Audio sync manager completed immediate sync for ${handleType} handle`);
-              } else {
-                console.warn(`⚠️ [HandleClick] Audio sync manager failed for ${handleType} handle`);
-              }
-            } else {
-              // 🔄 **FALLBACK**: Manual sync nếu không có AudioSyncManager
-              let syncTime = targetTime;
-              if (handleType === 'end' && offsetForEnd > 0) {
-                syncTime = Math.max(0, targetTime - offsetForEnd);
-                console.log(`🎯 [HandleClick] End handle offset applied: ${targetTime.toFixed(2)}s → ${syncTime.toFixed(2)}s`);
-              }
-              
-              if (audioRef.current) {
-                audioRef.current.currentTime = syncTime;
-                setCurrentTime(syncTime);
-                console.log(`✅ [HandleClick] Manual cursor synced to ${syncTime.toFixed(2)}s for ${handleType} handle`);
-              }
-            }
-          }
-          break;
-          
-        case 'pendingJump':
-          // 🆕 **DELAYED JUMP**: Setup pending jump để tránh shock khi drag region
-          console.log(`⏳ [PendingJump] DELAYED jump setup to: ${result.time.toFixed(2)}s (anti-shock protection)`);
-          
-          // 🆕 **REGION DRAG POTENTIAL**: Setup potential region drag if flagged
-          if (result.regionDragPotential) {
-            console.log(`🔄 [PendingJump] Setting up region drag potential - will activate on movement or jump on mouse up`);
-            // 🔧 **NO DRAG STATE YET**: Don't set isDragging until movement detected
-            // setIsDragging will be handled by mouse move when region drag is confirmed
-          } else {
-            console.log(`⏳ [PendingJump] Simple pending jump - will execute on mouse up if no drag: ${result.pendingJumpTime.toFixed(2)}s`);
-          }
-          
-          // 🚫 **NO IMMEDIATE CURSOR MOVEMENT**: Do NOT jump cursor now - wait for mouse up
-          console.log(`🚫 [PendingJump] Cursor LOCKED at current position until mouse up (anti-shock for region drag)`);
-          break;
-          
-        case 'createSelection':
-          setStartTime(result.startTime);
-          setEndTime(result.endTime);
-          setIsDragging(result.handle || 'end');
-          // 🆕 **CURSOR REMOVED**: Let WaveformCanvas handle cursor logic
-          // canvas.style.cursor = result.cursor; ← REMOVED
-          break;
-          
-        case 'startRegionDrag':
-          // 🆕 **REGION DRAG**: Setup region dragging
-          console.log(`🔄 [RegionDrag] Starting region drag:`, result.regionData);
-          setIsDragging('region'); // Special drag type for region
-          // 🆕 **CURSOR REMOVED**: Let WaveformCanvas handle cursor logic
-          // canvas.style.cursor = result.cursor; ← REMOVED
-          
-          // 🆕 **IMMEDIATE CURSOR SYNC**: Sync to region START for consistent behavior (not middle)
-          if (audioRef.current && result.regionData) {
-            const { originalStart } = result.regionData;
-            
-            console.log(`🎯 [RegionDrag] Initial sync to region START: ${originalStart.toFixed(2)}s (not middle as before)`);
-            audioRef.current.currentTime = originalStart; // 🎯 **SYNC TO START**: Use originalStart instead of middle
-            setCurrentTime(originalStart);
-          }
-          break;
-          
-        case 'pendingHandleUpdate':
-          // 🆕 **DELAYED HANDLE UPDATE**: Setup pending handle update để tránh shock khi drag
-          console.log(`⏳ [PendingHandleUpdate] DELAYED ${result.handleType} handle update setup:`, {
-            from: result.oldTime.toFixed(2) + 's',
-            to: result.newTime.toFixed(2) + 's',
-            reason: result.reason,
-            note: 'Will execute on mouse up if no drag'
-          });
-          
-          // 🚫 **NO IMMEDIATE HANDLE MOVEMENT**: Do NOT move handle now - wait for mouse up
-          console.log(`🚫 [PendingHandleUpdate] Handle LOCKED at current position until mouse up (anti-shock for handle update)`);
-          break;
-          
-        case 'none':
-        default:
-          break;
-      }
-    };
-    
-    // 🚀 **IMMEDIATE PROCESSING**: Process action ngay lập tức cho ultra-fast cursor response
-    processAction(); // ← Removed all async delays (requestIdleCallback/setTimeout) for immediate cursor movement
-  }, [canvasRef, duration, startTime, endTime, jumpToTime, setStartTime, setEndTime, setIsDragging, audioRef, setCurrentTime, saveState, fadeIn, fadeOut]);
-
-  const handleCanvasMouseMove = useCallback((e) => {
-    const now = performance.now();
-    
-    // 🚀 **ULTRA-SMOOTH REGION DRAG THROTTLING**: Optimized for region drag performance
-    const manager = interactionManagerRef.current;
-    const debugInfo = manager.getDebugInfo();
-    
-    // 🆕 **REGION DRAG DETECTION**: Check if currently dragging region for ultra-smooth performance
-    const isRegionDragging = debugInfo.isDraggingRegion && debugInfo.isDraggingConfirmed;
-    
-    // 🆕 **ULTRA-OPTIMIZED THROTTLING**: Minimize throttling for region drag
-    let throttleInterval;
-    if (isRegionDragging) {
-      throttleInterval = 1; // 🚀 **1000FPS** for ultra-smooth region drag - maximum performance
-    } else if (debugInfo.isDraggingConfirmed) {
-      throttleInterval = 2; // 500fps cho handle drag - improved from 2ms
-    } else if (debugInfo.isDragging) {
-      throttleInterval = 4; // 250fps cho drag confirmation 
-    } else {
-      throttleInterval = 8; // 120fps cho hover
-    }
-    
-    // 🔧 **DEBUG ULTRA-SMOOTH**: Log throttling cho region drag
-    if (isRegionDragging && Math.random() < 0.005) { // 0.5% sampling
-      console.log(`🚀 [RegionDragThrottle] ULTRA-SMOOTH mode:`, {
-        mode: 'REGION_DRAG_1000FPS',
-        interval: throttleInterval + 'ms',
-        fps: '1000fps',
-        performance: 'MAXIMUM_SMOOTHNESS'
-      });
-    }
-    
-    if (now - lastMouseTimeRef.current < throttleInterval) return;
-    lastMouseTimeRef.current = now;
-    
-    const canvas = canvasRef.current;
-    if (!canvas || duration <= 0) return;
-    
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    
-    // 🆕 AUDIO CONTEXT: Prepare context for audio sync
-    const audioContext = {
-      audioRef,
-      setCurrentTime,
-      isPlaying
-    };
-    
-    // 🎯 Use InteractionManager for smart handling WITH audio sync
-    const result = manager.handleMouseMove(
-      x, canvas.width, duration, startTime, endTime, audioContext
-    );
-    
-    // 🆕 **ENHANCED VALIDATION**: Chỉ process action nếu logic hợp lệ
-    const processAction = () => {
-      switch (result.action) {
-        case 'updateRegion':
-          // 🆕 **STRICT VALIDATION**: CHỈ update region nếu đã confirmed drag
-          if (result.isDraggingConfirmed) {
-            console.log(`📊 [MouseMove] VALIDATED region update:`, {
-              isDraggingConfirmed: result.isDraggingConfirmed,
-              significant: result.significant,
-              audioSynced: result.audioSynced,
-              realTimeSync: result.realTimeSync,
-              isRegionDrag: result.isRegionDrag || false,
-              ultraSmooth: result.ultraSmooth || false // 🆕 **ULTRA-SMOOTH FLAG**
-            });
-            
-            // 🆕 **REGION DRAG ACTIVATION**: Set drag state when region drag is activated
-            if (result.isRegionDrag && isDragging !== 'region') {
-              console.log(`🔄 [MouseMove] ACTIVATING region drag mode`);
-              setIsDragging('region');
-            }
-            
-            if (result.startTime !== undefined) setStartTime(result.startTime);
-            if (result.endTime !== undefined) setEndTime(result.endTime);
-            
-            // 🆕 **ULTRA-SMOOTH SYNC STATUS**: Enhanced logging for region drag
-            if (result.ultraSmooth && result.realTimeSync && result.audioSynced) {
-              console.log(`🚀 [MouseMove] ULTRA-SMOOTH region drag with continuous sync - maximum performance mode`);
-            } else if (result.realTimeSync && result.audioSynced) {
-              console.log(`🎯 [MouseMove] REAL-TIME cursor sync active - ultra-smooth mode`);
-            } else if (!result.audioSynced && audioRef.current && !isPlaying) {
-              // 🔄 **FALLBACK SYNC**: Manual sync nếu real-time sync không hoạt động
-              let syncTime;
-              if (result.isRegionDrag) {
-                // 🎯 **REGION DRAG FALLBACK**: Always sync to region start for region drag
-                syncTime = result.startTime; // Use region start for region drag
-                console.log(`🔄 [MouseMove] Fallback REGION sync to START: ${syncTime.toFixed(2)}s`);
-              } else {
-                // 🎯 **HANDLE DRAG FALLBACK**: Standard logic for handle drag
-                syncTime = result.startTime !== undefined ? result.startTime : 
-                          result.endTime !== undefined ? Math.max(0, result.endTime - 3.0) : null;
-                console.log(`🔄 [MouseMove] Fallback HANDLE sync to: ${syncTime?.toFixed(2)}s`);
-              }
-              
-              if (syncTime !== null) {
-                audioRef.current.currentTime = syncTime;
-                setCurrentTime(syncTime);
-              }
-            }
-          } else {
-            // 🚫 **BLOCKED UPDATE**: Log bị chặn update
-            console.warn(`🚫 [MouseMove] BLOCKED region update - drag not confirmed:`, {
-              action: result.action,
-              reason: result.reason || 'drag_not_confirmed',
-              isDraggingConfirmed: result.isDraggingConfirmed || false
-            });
-          }
-          break;
-          
-        case 'updateHover':
-          // 🆕 **ULTRA-SMOOTH HOVER**: Process hover immediately với improved performance
-          setHoveredHandle(result.handle);
-          
-          // 🔧 **DEBUG HOVER**: Log smooth hover updates occasionally
-          if (Math.random() < 0.01) { // 1% sampling
-            console.log(`👆 [MouseMove] ULTRA-SMOOTH hover update:`, {
-              handle: result.handle,
-              throttleInterval,
-              fps: Math.round(1000 / throttleInterval),
-              mode: isRegionDragging ? 'REGION_DRAG_1000FPS' : 'SMOOTH_120FPS'
-            });
-          }
-          break;
-          
-        default:
-          // 🔇 **SILENT**: Không action, không log spam
-          break;
-      }
-    };
-    
-    // 🚀 **IMMEDIATE PROCESSING**: Process ALL actions immediately cho ultra-smooth response
-    if (result.significant && result.isDraggingConfirmed) {
-      processAction(); // Immediate for confirmed dragging với real-time sync
-    } else if (result.action === 'updateHover') {
-      processAction(); // 🚀 **IMMEDIATE HOVER**: Process hover immediately - no async delay
-    } else if (result.action !== 'none') {
-      if (window.requestIdleCallback) {
-        window.requestIdleCallback(processAction);
-      } else {
-        setTimeout(processAction, 0);
-      }
-    }
-  }, [canvasRef, duration, startTime, endTime, setStartTime, setEndTime, setHoveredHandle, audioRef, setCurrentTime, isPlaying, isDragging]); // 🆕 **ADDED isDragging**: For region drag detection
-
-  const handleCanvasMouseUp = useCallback(() => {
-    const manager = interactionManagerRef.current;
-    
-    // 🆕 AUDIO CONTEXT: Prepare context for final sync
-    const audioContext = {
-      audioRef,
-      setCurrentTime,
-      isPlaying
-    };
-    
-    // 🎯 Use InteractionManager for smart handling WITH final audio sync
-    const result = manager.handleMouseUp(startTime, endTime, audioContext);
-    
-    // 🎯 Process action based on result
-    const processAction = () => {
-      switch (result.action) {
-        case 'completeDrag':
-          setIsDragging(null);
-          // 🆕 **CURSOR REMOVED**: Let WaveformCanvas handle cursor logic
-          // canvas.style.cursor = result.cursor; ← REMOVED
-          
-          // 🎯 Save history after drag completion
-          if (result.saveHistory) {
-            setTimeout(() => {
-              saveState({ startTime, endTime, fadeIn, fadeOut });
-            }, 100);
-          }
-          break;
-          
-        default:
-          setIsDragging(null);
-          // 🆕 **CURSOR REMOVED**: Let WaveformCanvas handle cursor logic
-          // if (canvas) canvas.style.cursor = result.cursor; ← REMOVED
-          break;
-      }
-      
-      // 🆕 **EXECUTE DELAYED JUMP**: Execute pending jump nếu không có drag movement
-      if (result.executePendingJump && result.pendingJumpTime !== null) {
-        console.log(`⚡ [MouseUp] EXECUTING delayed jump to: ${result.pendingJumpTime.toFixed(2)}s (safe - no drag detected)`);
-        
-        // 🚀 **IMMEDIATE CURSOR SYNC**: Jump cursor now that it's safe
-        jumpToTime(result.pendingJumpTime);
-        
-        // 🚀 **FORCE IMMEDIATE UPDATE**: Đảm bảo cursor update ngay lập tức
-        if (audioRef.current) {
-          audioRef.current.currentTime = result.pendingJumpTime;
-          setCurrentTime(result.pendingJumpTime);
-          console.log(`✅ [MouseUp] Delayed jump executed successfully: ${result.pendingJumpTime.toFixed(2)}s`);
-        }
-      } else if (result.executePendingJump === false) {
-        console.log(`🚫 [MouseUp] Delayed jump canceled - drag was detected (anti-shock protection worked)`);
-      }
-      
-      // 🆕 **EXECUTE DELAYED HANDLE UPDATE**: Execute pending handle update nếu không có drag movement
-      if (result.executePendingHandleUpdate && result.pendingHandleUpdate !== null) {
-        const updateData = result.pendingHandleUpdate;
-        console.log(`⚡ [MouseUp] EXECUTING delayed handle update: ${updateData.type} to ${updateData.newTime.toFixed(2)}s (safe - no drag detected)`);
-        
-        if (updateData.type === 'start') {
-          // 🚀 **UPDATE START HANDLE**: Update start time and sync cursor
-          setStartTime(updateData.newTime);
-          
-          // 🚀 **IMMEDIATE CURSOR SYNC**: Sync audio cursor to new start position
-          if (audioRef.current) {
-            audioRef.current.currentTime = updateData.newTime;
-            setCurrentTime(updateData.newTime);
-            console.log(`✅ [MouseUp] Start handle updated and cursor synced to: ${updateData.newTime.toFixed(2)}s`);
-          }
-          
-          // 🚀 **SAVE HISTORY**: Save state after handle update
-          setTimeout(() => {
-            saveState({ startTime: updateData.newTime, endTime, fadeIn, fadeOut });
-          }, 100);
-          
-        } else if (updateData.type === 'end') {
-          // 🚀 **UPDATE END HANDLE**: Update end time and sync cursor with preview
-          setEndTime(updateData.newTime);
-          
-          // 🚀 **IMMEDIATE CURSOR SYNC**: Sync to preview position (3s before end)
-          if (audioRef.current) {
-            const previewTime = Math.max(0, updateData.newTime - 3.0);
-            audioRef.current.currentTime = previewTime;
-            setCurrentTime(previewTime);
-            console.log(`✅ [MouseUp] End handle updated and cursor synced to preview: ${previewTime.toFixed(2)}s (3s before ${updateData.newTime.toFixed(2)}s)`);
-          }
-          
-          // 🚀 **SAVE HISTORY**: Save state after handle update
-          setTimeout(() => {
-            saveState({ startTime, endTime: updateData.newTime, fadeIn, fadeOut });
-          }, 100);
-        }
-      } else if (result.executePendingHandleUpdate === false) {
-        console.log(`🚫 [MouseUp] Delayed handle update canceled - drag was detected (anti-shock protection worked)`);
-      }
-    };
-    
-    // 🎯 BATCH UPDATES
-    if (window.requestIdleCallback) {
-      window.requestIdleCallback(processAction);
-    } else {
-      setTimeout(processAction, 0);
-    }
-  }, [canvasRef, startTime, endTime, fadeIn, fadeOut, saveState, setIsDragging, audioRef, setCurrentTime, isPlaying, jumpToTime]);
-
-  const handleCanvasMouseLeave = useCallback(() => {
-    const manager = interactionManagerRef.current;
-    
-    // 🎯 Use InteractionManager for smart handling
-    const result = manager.handleMouseLeave();
-    
-    // 🎯 Process action based on result
-    const processAction = () => {
-      if (result.action === 'clearHover') {
-        setHoveredHandle(null);
-        // 🆕 **CURSOR REMOVED**: Let WaveformCanvas handle cursor logic
-        // if (canvas) canvas.style.cursor = result.cursor; ← REMOVED
-      }
-    };
-    
-    // 🎯 DEBOUNCED UPDATES for mouse leave
-    if (window.requestIdleCallback) {
-      window.requestIdleCallback(processAction);
-    } else {
-      setTimeout(processAction, 0);
-    }
-  }, [canvasRef, setHoveredHandle]);
-
-  // 🎯 OPTIMIZED: Time change handlers with better debouncing
-  const handleStartTimeChange = useCallback((newTime) => {
-    const clampedTime = clamp(newTime, 0, endTime);
-    setStartTime(clampedTime);
-    
-    // 🆕 DEBOUNCED HISTORY SAVE: Only save after user stops changing
-    const saveTimeout = setTimeout(() => {
-      saveState({ startTime: clampedTime, endTime, fadeIn, fadeOut });
-    }, 300); // 300ms delay
-    
-    return () => clearTimeout(saveTimeout);
-  }, [endTime, setStartTime, saveState, fadeIn, fadeOut]);
-
-  const handleEndTimeChange = useCallback((newTime) => {
-    const clampedTime = clamp(newTime, startTime, duration);
-    setEndTime(clampedTime);
-    
-    // 🆕 DEBOUNCED HISTORY SAVE: Only save after user stops changing
-    const saveTimeout = setTimeout(() => {
-      saveState({ startTime, endTime: clampedTime, fadeIn, fadeOut });
-    }, 300); // 300ms delay
-    
-    return () => clearTimeout(saveTimeout);
-  }, [startTime, duration, setEndTime, saveState, fadeIn, fadeOut]);
+  }, [isPlaying, setFadeActive, isWebAudioSupported]); // 🔥 **OPTIMIZED DEPS**: Removed excessive deps
 
   // History handlers
   const handleUndo = useCallback(() => {
@@ -831,29 +454,37 @@ const MP3CutterMain = React.memo(() => {
     jumpToTime(endTime);
   }, [jumpToTime, endTime]);
 
-  // 🆕 **REAL-TIME FADE HANDLERS**: Apply fade effects ngay lập tức khi user change sliders
+  // 🆕 **OPTIMIZED FADE HANDLERS**: Apply fade effects với optimized debouncing
   const handleFadeInChange = useCallback((newFadeIn) => {
     setFadeIn(newFadeIn);
     
-    // 🚀 **IMMEDIATE FADE CONFIG UPDATE**: Update config ngay lập tức cho real-time effects
-    updateFadeConfig({
-      fadeIn: newFadeIn,
-      fadeOut,
-      startTime,
-      endTime
-    });
+    // 🚀 **DEBOUNCED CONFIG UPDATE**: Debounce config updates để tránh excessive calls
+    const updateTimeout = setTimeout(() => {
+      updateFadeConfig({
+        fadeIn: newFadeIn,
+        fadeOut,
+        startTime,
+        endTime
+      });
+    }, 50); // 50ms debounce for smooth real-time updates
+    
+    return () => clearTimeout(updateTimeout);
   }, [fadeOut, startTime, endTime, updateFadeConfig]);
 
   const handleFadeOutChange = useCallback((newFadeOut) => {
     setFadeOut(newFadeOut);
     
-    // 🚀 **IMMEDIATE FADE CONFIG UPDATE**: Update config ngay lập tức cho real-time effects
-    updateFadeConfig({
-      fadeIn,
-      fadeOut: newFadeOut,
-      startTime,
-      endTime
-    });
+    // 🚀 **DEBOUNCED CONFIG UPDATE**: Debounce config updates để tránh excessive calls
+    const updateTimeout = setTimeout(() => {
+      updateFadeConfig({
+        fadeIn,
+        fadeOut: newFadeOut,
+        startTime,
+        endTime
+      });
+    }, 50); // 50ms debounce for smooth real-time updates
+    
+    return () => clearTimeout(updateTimeout);
   }, [fadeIn, startTime, endTime, updateFadeConfig]);
 
   // Drag and drop handler
@@ -916,21 +547,17 @@ const MP3CutterMain = React.memo(() => {
       }
     };
 
-    // 🆕 OPTIMIZED: Use requestIdleCallback for non-critical state updates
+    // 🆕 OPTIMIZED: Use debounced updates for non-critical state changes
     const handlePlay = () => {
-      if (window.requestIdleCallback) {
-        window.requestIdleCallback(() => setIsPlaying(true));
-      } else {
-        setTimeout(() => setIsPlaying(true), 0);
-      }
+      // 🚀 **DEBOUNCED STATE UPDATE**: Debounce để tránh conflicts
+      const updateTimeout = setTimeout(() => setIsPlaying(true), 16); // 1 frame delay
+      return () => clearTimeout(updateTimeout);
     };
     
     const handlePause = () => {
-      if (window.requestIdleCallback) {
-        window.requestIdleCallback(() => setIsPlaying(false));
-      } else {
-        setTimeout(() => setIsPlaying(false), 0);
-      }
+      // 🚀 **DEBOUNCED STATE UPDATE**: Debounce để tránh conflicts  
+      const updateTimeout = setTimeout(() => setIsPlaying(false), 16); // 1 frame delay
+      return () => clearTimeout(updateTimeout);
     };
 
     // 🔥 **ULTRA-LIGHT ERROR HANDLING**: Minimal error processing
@@ -991,9 +618,9 @@ const MP3CutterMain = React.memo(() => {
       audio.removeEventListener('error', handleError);
       }
     };
-  }, [audioFile?.name, setCurrentTime, setDuration, setIsPlaying, setEndTime, fileValidation, setAudioError]); // 🔥 **OPTIMIZED DEPS**
+  }, [audioFile?.name, audioRef, setCurrentTime, setDuration, setIsPlaying, setEndTime, fileValidation, setAudioError]); // 🔥 **FIXED DEPS**: Added missing audioRef
 
-  // 🔥 **SIMPLE ANIMATION LOOP**: Đơn giản hóa animation cho cursor updates
+  // 🔥 **CURSOR UPDATE ANIMATION**: Simple animation loop với proper cleanup
   useEffect(() => {
     let animationId = null;
     
@@ -1024,12 +651,13 @@ const MP3CutterMain = React.memo(() => {
       animationId = requestAnimationFrame(updateCursor);
     }
     
+    // 🚨 **CRITICAL CLEANUP**: Prevent memory leaks
     return () => {
       if (animationId) {
         cancelAnimationFrame(animationId);
       }
     };
-  }, [isPlaying, startTime, endTime]);
+  }, [isPlaying, startTime, endTime, audioRef, setCurrentTime, setIsPlaying]); // 🔥 **FIXED DEPS**: Added missing audioRef, setCurrentTime, setIsPlaying
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-pink-50">
@@ -1069,32 +697,12 @@ const MP3CutterMain = React.memo(() => {
       </div>
 
       <div className="container mx-auto px-6 py-6">
-        {/* 🎯 NEW: Global Error Display */}
-        {(connectionError || uploadError) && (
-          <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-4">
-            <div className="flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <h3 className="text-sm font-semibold text-red-800 mb-1">
-                  {connectionError ? 'Connection Error' : 'Upload Error'}
-                </h3>
-                <p className="text-sm text-red-700">
-                  {connectionError || uploadError}
-                </p>
-                {connectionError && (
-                  <div className="mt-2">
-                    <button
-                      onClick={() => testConnection()}
-                      className="text-xs bg-red-100 hover:bg-red-200 text-red-700 px-3 py-1 rounded transition-colors"
-                    >
-                      Retry Connection
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
+        {/* 🎯 CONNECTION & UPLOAD ERRORS */}
+        <ConnectionErrorAlert
+          connectionError={connectionError}
+          uploadError={uploadError}
+          onRetryConnection={() => testConnection()}
+        />
 
         {/* 🆕 NEW: Audio Error Alert */}
         <AudioErrorAlert
@@ -1104,79 +712,14 @@ const MP3CutterMain = React.memo(() => {
 
         {!audioFile ? (
           /* Upload Section */
-          <div 
-            className={`upload-section border-2 border-dashed rounded-2xl p-16 text-center backdrop-blur-sm transition-all duration-300 ${
-              isConnected === false 
-                ? 'border-red-300 bg-red-50/60 hover:border-red-400' 
-                : 'border-indigo-300 bg-white/60 hover:border-indigo-400 hover:bg-white/80'
-            }`}
+          <FileUploadSection
+            isConnected={isConnected}
+            isUploading={isUploading}
+            uploadProgress={uploadProgress}
+            compatibilityReport={compatibilityReport}
+            onFileUpload={handleFileUpload}
             onDrop={handleDrop}
-            onDragOver={(e) => e.preventDefault()}
-          >
-            <Upload className={`mx-auto mb-4 w-16 h-16 ${
-              isConnected === false ? 'text-red-400' : 'text-indigo-400'
-            }`} />
-            <h3 className="text-xl font-semibold mb-2 text-slate-800">
-              {isConnected === false ? 'Backend Offline' : 'Upload Audio File'}
-            </h3>
-            <p className="text-slate-600 mb-6">
-              {isConnected === false 
-                ? 'Please start the backend server to upload files' 
-                : 'Drag & drop your audio file here or click to browse'
-              }
-            </p>
-            
-            {/* 🆕 COMPATIBILITY INFO */}
-            {compatibilityReport && (
-              <div className="mb-6">
-                <div className="text-sm text-slate-600 mb-2">Supported Formats:</div>
-                <div className="flex flex-wrap justify-center gap-2">
-                  {Object.values(compatibilityReport.universal)
-                    .filter(format => format.support.level === 'high')
-                    .map((format, index) => (
-                      <span 
-                        key={index}
-                        className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded"
-                      >
-                        {format.displayName}
-                      </span>
-                    ))}
-                </div>
-              </div>
-            )}
-            
-            {/* 🎯 Upload Progress Display */}
-            {isUploading && (
-              <div className="mb-4">
-                <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
-                  <div 
-                    className="bg-indigo-500 h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${uploadProgress || 0}%` }}
-                  />
-                </div>
-                <p className="text-sm text-slate-600">Uploading... {uploadProgress || 0}%</p>
-              </div>
-            )}
-            
-            <input
-              type="file"
-              accept="audio/*"
-              onChange={(e) => handleFileUpload(e.target.files[0])}
-              className="hidden"
-              id="file-upload"
-              disabled={isUploading || isConnected === false}
-            />
-            <label
-              htmlFor="file-upload"
-              className={`inline-flex items-center px-6 py-3 rounded-xl cursor-pointer transition-all duration-200 shadow-lg hover:shadow-xl font-medium ${
-                isUploading || isConnected === false
-                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white hover:from-indigo-600 hover:to-purple-600'
-              }`}
-            >
-              {isUploading ? 'Uploading...' : isConnected === false ? 'Backend Offline' : 'Choose File'}
-            </label>
-          </div>
+          />
         ) : (
           /* Audio Editor */
           <div className="space-y-4">
