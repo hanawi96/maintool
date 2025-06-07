@@ -86,6 +86,14 @@ export class InteractionManager {
     this.regionDragStartTime = null;           // Reference time cho region drag
     this.regionDragOffset = 0;                 // Offset từ click position đến region start
     
+    // 🆕 **PENDING JUMP**: Support cho delayed cursor movement
+    this.pendingJumpTime = null;               // Time to jump to after mouse up (if no drag)
+    this.hasPendingJump = false;               // Flag to track pending jump
+    
+    // 🆕 **PENDING HANDLE UPDATES**: Support cho delayed handle movement
+    this.pendingHandleUpdate = null;           // {type: 'start'|'end', newTime: number, reason: string}
+    this.hasPendingHandleUpdate = false;       // Flag to track pending handle update
+    
     // 🆕 NEW: Audio sync manager for cursor synchronization
     this.audioSyncManager = createAudioSyncManager();
     
@@ -94,7 +102,7 @@ export class InteractionManager {
     
     // 🎯 Debug tracking
     this.debugId = Math.random().toString(36).substr(2, 6);
-    console.log(`🎮 [InteractionManager] Created with ID: ${this.debugId} (MODERN HANDLES)`);
+    console.log(`🎮 [InteractionManager] Created with ID: ${this.debugId} (MODERN HANDLES + DELAYED JUMP)`);
     console.log(`🔄 [AudioSync] Connected to InteractionManager ${this.debugId}`);
     console.log(`🎯 [SmartClick] Connected to InteractionManager ${this.debugId}`);
   }
@@ -151,7 +159,11 @@ export class InteractionManager {
         };
         
       case CLICK_ACTIONS.JUMP_TO_TIME:
-        console.log(`⏯️ [${this.debugId}] Click in selection, jumping to time`);
+        console.log(`⏯️ [${this.debugId}] Click in selection, DELAYING jump until mouse up (anti-shock)`);
+        
+        // 🆕 **DELAY CURSOR MOVEMENT**: Store pending jump thay vì jump ngay để tránh shock khi drag
+        this.pendingJumpTime = smartAction.seekTime;
+        this.hasPendingJump = true;
         
         // 🆕 **REGION DRAG POTENTIAL**: Check if this click can potentially become region drag
         if (smartAction.regionDragPotential && this.smartClickManager.preferences.enableRegionDrag) {
@@ -168,33 +180,73 @@ export class InteractionManager {
             regionStart: startTime.toFixed(2) + 's',
             regionEnd: endTime.toFixed(2) + 's',
             offset: this.regionDragOffset.toFixed(2) + 's',
-            note: 'Will become region drag if movement detected'
+            pendingJump: this.pendingJumpTime.toFixed(2) + 's',
+            note: 'Will become region drag if movement detected, or jump on mouse up'
           });
+        } else {
+          console.log(`⏳ [${this.debugId}] PENDING jump to: ${this.pendingJumpTime.toFixed(2)}s (will execute on mouse up if no drag)`);
         }
         
         return {
-          action: 'jumpToTime',
+          action: 'pendingJump', // 🆕 **NEW ACTION**: Indicate pending jump instead of immediate
           time: smartAction.seekTime,
-          regionDragPotential: smartAction.regionDragPotential || false // 🆕 **PASS FLAG**: Pass potential flag
+          regionDragPotential: smartAction.regionDragPotential || false,
+          pendingJumpTime: this.pendingJumpTime // 🆕 **PASS PENDING TIME**: For debugging
         };
         
       case CLICK_ACTIONS.UPDATE_START:
-        console.log(`📍 [${this.debugId}] Smart update: Moving start to ${smartAction.newStartTime.toFixed(2)}s`);
-        return {
-          action: 'updateStart',
-          startTime: smartAction.newStartTime,
+        console.log(`📍 [${this.debugId}] DELAYING start handle update until mouse up (anti-shock)`);
+        
+        // 🆕 **DELAY HANDLE MOVEMENT**: Store pending update thay vì update ngay để tránh shock khi drag
+        this.pendingHandleUpdate = {
+          type: 'start',
+          newTime: smartAction.newStartTime,
+          oldTime: startTime,
           endTime: smartAction.newEndTime,
-          cursor: smartAction.cursor,
+          reason: smartAction.reason
+        };
+        this.hasPendingHandleUpdate = true;
+        
+        console.log(`⏳ [${this.debugId}] PENDING start handle update:`, {
+          from: startTime.toFixed(2) + 's',
+          to: smartAction.newStartTime.toFixed(2) + 's',
+          reason: smartAction.reason,
+          note: 'Will execute on mouse up if no drag'
+        });
+        
+        return {
+          action: 'pendingHandleUpdate', // 🆕 **NEW ACTION**: Indicate pending handle update
+          handleType: 'start',
+          newTime: smartAction.newStartTime,
+          oldTime: startTime,
           reason: smartAction.reason
         };
         
       case CLICK_ACTIONS.UPDATE_END:
-        console.log(`📍 [${this.debugId}] Smart update: Moving end to ${smartAction.newEndTime.toFixed(2)}s`);
-        return {
-          action: 'updateEnd',
+        console.log(`📍 [${this.debugId}] DELAYING end handle update until mouse up (anti-shock)`);
+        
+        // 🆕 **DELAY HANDLE MOVEMENT**: Store pending update thay vì update ngay để tránh shock khi drag
+        this.pendingHandleUpdate = {
+          type: 'end',
+          newTime: smartAction.newEndTime,
+          oldTime: endTime,
           startTime: smartAction.newStartTime,
-          endTime: smartAction.newEndTime,
-          cursor: smartAction.cursor,
+          reason: smartAction.reason
+        };
+        this.hasPendingHandleUpdate = true;
+        
+        console.log(`⏳ [${this.debugId}] PENDING end handle update:`, {
+          from: endTime.toFixed(2) + 's',
+          to: smartAction.newEndTime.toFixed(2) + 's',
+          reason: smartAction.reason,
+          note: 'Will execute on mouse up if no drag'
+        });
+        
+        return {
+          action: 'pendingHandleUpdate', // 🆕 **NEW ACTION**: Indicate pending handle update
+          handleType: 'end',
+          newTime: smartAction.newEndTime,
+          oldTime: endTime,
           reason: smartAction.reason
         };
         
@@ -267,6 +319,20 @@ export class InteractionManager {
       if (pixelsMoved >= this.dragMoveThreshold || timeSinceMouseDown > 100) {
         this.isDraggingConfirmed = true;
         
+        // 🆕 **CANCEL PENDING JUMP**: Cancel pending jump khi confirm drag để tránh jump đột ngột
+        if (this.hasPendingJump) {
+          console.log(`🚫 [${this.debugId}] CANCELING pending jump (${this.pendingJumpTime.toFixed(2)}s) - drag movement detected`);
+          this.pendingJumpTime = null;
+          this.hasPendingJump = false;
+        }
+        
+        // 🆕 **CANCEL PENDING HANDLE UPDATE**: Cancel pending handle update khi confirm drag để tránh shock
+        if (this.hasPendingHandleUpdate) {
+          console.log(`🚫 [${this.debugId}] CANCELING pending handle update (${this.pendingHandleUpdate.type}: ${this.pendingHandleUpdate.newTime.toFixed(2)}s) - drag movement detected`);
+          this.pendingHandleUpdate = null;
+          this.hasPendingHandleUpdate = false;
+        }
+        
         // 🆕 **REGION DRAG ACTIVATION**: If no active handle but have region drag potential, activate region drag
         if (!this.activeHandle && this.regionDragStartTime !== null && !this.isDraggingRegion) {
           this.isDraggingRegion = true; // 🔧 **ACTIVATE REGION DRAG**: Convert potential to actual region drag
@@ -275,7 +341,7 @@ export class InteractionManager {
             timeSinceMouseDown: timeSinceMouseDown.toFixed(0) + 'ms',
             threshold: this.dragMoveThreshold + 'px',
             regionDragOffset: this.regionDragOffset.toFixed(2) + 's',
-            note: 'Region drag activated from mouse movement detection'
+            note: 'Region drag activated from mouse movement detection - pending jump canceled'
           });
         } else {
           console.log(`✅ [${this.debugId}] Drag CONFIRMED (MODERN):`, {
@@ -283,7 +349,8 @@ export class InteractionManager {
             timeSinceMouseDown: timeSinceMouseDown.toFixed(0) + 'ms',
             threshold: this.dragMoveThreshold + 'px',
             handleType: this.activeHandle || 'region',
-            isDraggingRegion: this.isDraggingRegion
+            isDraggingRegion: this.isDraggingRegion,
+            pendingJumpCanceled: true
           });
         }
       }
@@ -314,34 +381,32 @@ export class InteractionManager {
           offset: this.regionDragOffset.toFixed(2) + 's'
         });
         
-        // 🎯 **CONTINUOUS REGION SYNC**: Continuous sync về region với intelligent target
+        // 🎯 **SIMPLIFIED REGION SYNC**: Always sync to region start as requested
         let audioSynced = false;
         if (audioContext) {
           const { audioRef, setCurrentTime, isPlaying } = audioContext;
           
-          // 🆕 **INTELLIGENT REGION SYNC TARGET**: Sync về position tốt nhất trong region
-          let targetSyncTime;
-          const regionMiddle = adjustedStartTime + (regionDuration / 2);
+          // 🆕 **REGION START SYNC**: Always sync to start of region for consistent behavior
+          const targetSyncTime = adjustedStartTime; // 🎯 **SIMPLIFIED**: Always use region start
           
-          // 🎯 **ADAPTIVE SYNC STRATEGY**: Choose best sync target based on region size
-          if (regionDuration < 1.0) {
-            // 🎯 **SHORT REGION**: Sync to start for short regions (easier to follow)
-            targetSyncTime = adjustedStartTime;
-          } else if (regionDuration < 3.0) {
-            // 🎯 **MEDIUM REGION**: Sync to middle for medium regions
-            targetSyncTime = regionMiddle;
-          } else {
-            // 🎯 **LONG REGION**: Sync slightly after start for long regions (better preview)
-            targetSyncTime = adjustedStartTime + Math.min(1.0, regionDuration * 0.2);
-          }
+          console.log(`🔄 [${this.debugId}] ULTRA-SMOOTH region drag (MODERN):`, {
+            from: `${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s`,
+            to: `${adjustedStartTime.toFixed(2)}s - ${adjustedEndTime.toFixed(2)}s`,
+            duration: regionDuration.toFixed(2) + 's',
+            mouseTime: roundedTime.toFixed(2) + 's',
+            offset: this.regionDragOffset.toFixed(2) + 's',
+            syncTarget: `${targetSyncTime.toFixed(2)}s (ALWAYS_START)` // 🆕 **CLEAR SYNC TARGET**
+          });
           
-          // 🚀 **ULTRA-SMOOTH REAL-TIME SYNC**: Force immediate sync with no throttling
+          // 🚀 **ULTRA-SMOOTH REAL-TIME SYNC**: Force immediate sync with no throttling - always to start
           audioSynced = this.audioSyncManager.realTimeSync(
             targetSyncTime, audioRef, setCurrentTime, 'region', true, adjustedStartTime // force = true
           );
           
           if (audioSynced) {
-            console.log(`🎯 [${this.debugId}] CONTINUOUS region sync: ${targetSyncTime.toFixed(2)}s (strategy: ${regionDuration < 1.0 ? 'start' : regionDuration < 3.0 ? 'middle' : 'adaptive'})`);
+            console.log(`🎯 [${this.debugId}] CONTINUOUS region sync to START: ${targetSyncTime.toFixed(2)}s (simplified strategy: ALWAYS_START)`);
+          } else {
+            console.warn(`⚠️ [${this.debugId}] Region sync FAILED - real-time sync unsuccessful for START: ${targetSyncTime.toFixed(2)}s`);
           }
         }
         
@@ -483,13 +548,17 @@ export class InteractionManager {
     const wasConfirmedDrag = this.isDraggingConfirmed;
     const draggedHandle = this.activeHandle;
     const wasRegionDrag = this.isDraggingRegion;
+    const hasPendingJump = this.hasPendingJump; // 🆕 **PENDING JUMP**: Check before reset
+    const pendingJumpTime = this.pendingJumpTime; // 🆕 **STORE VALUE**: Store before reset
     
     if (wasDragging) {
       console.log(`🫳 [${this.debugId}] Drag completed (MODERN):`, {
         handle: this.activeHandle,
         confirmed: wasConfirmedDrag,
         regionDrag: wasRegionDrag,
-        finalRegion: `${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s`
+        finalRegion: `${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s`,
+        hadPendingJump: hasPendingJump,
+        pendingJumpCanceled: wasConfirmedDrag // 🆕 **CANCELED IF DRAG**: Jump bị hủy nếu có drag
       });
       
       // 🆕 FINAL AUDIO SYNC: Different logic for region vs handle drag
@@ -497,15 +566,14 @@ export class InteractionManager {
         const { audioRef, setCurrentTime, isPlaying } = audioContext;
         
         if (wasRegionDrag) {
-          // 🔄 **REGION DRAG COMPLETION**: Sync to middle of new region
-          const regionDuration = endTime - startTime;
-          const regionMiddle = startTime + (regionDuration / 2);
+          // 🔄 **REGION DRAG COMPLETION**: Sync to START of new region as requested (not middle)
+          const targetSyncTime = startTime; // 🎯 **SYNC TO START**: Always use startTime for region completion
           
           this.audioSyncManager.completeDragSync(
-            'region', regionMiddle, audioRef, setCurrentTime, isPlaying, startTime
+            'region', targetSyncTime, audioRef, setCurrentTime, isPlaying, startTime
           );
           
-          console.log(`🔄 [${this.debugId}] Region drag completed - synced to middle: ${regionMiddle.toFixed(2)}s`);
+          console.log(`🔄 [${this.debugId}] Region drag completed - synced to START: ${targetSyncTime.toFixed(2)}s (not middle as before)`);
         } else if (draggedHandle) {
           // 🎯 **HANDLE DRAG COMPLETION**: Standard handle sync with intelligent boundary checking
           const finalTime = draggedHandle === HANDLE_TYPES.START ? startTime : endTime;
@@ -533,12 +601,47 @@ export class InteractionManager {
     this.regionDragStartTime = null;
     this.regionDragOffset = 0;
     
+    // 🆕 **EXECUTE PENDING JUMP**: Execute delayed jump nếu không có confirmed drag
+    let executePendingJump = false;
+    let executePendingHandleUpdate = false; // 🆕 **PENDING HANDLE UPDATE**: Track pending handle update execution
+    let pendingHandleUpdateData = null;     // 🆕 **STORE DATA**: Store before reset
+    
+    if (hasPendingJump && !wasConfirmedDrag && pendingJumpTime !== null) {
+      executePendingJump = true;
+      console.log(`⚡ [${this.debugId}] EXECUTING delayed jump to: ${pendingJumpTime.toFixed(2)}s (no drag detected - safe to jump)`);
+    } else if (hasPendingJump && wasConfirmedDrag) {
+      console.log(`🚫 [${this.debugId}] CANCELED delayed jump to: ${pendingJumpTime?.toFixed(2)}s (drag was confirmed - anti-shock protection)`);
+    }
+    
+    // 🆕 **EXECUTE PENDING HANDLE UPDATE**: Execute delayed handle update nếu không có confirmed drag
+    if (this.hasPendingHandleUpdate && !wasConfirmedDrag && this.pendingHandleUpdate !== null) {
+      executePendingHandleUpdate = true;
+      pendingHandleUpdateData = { ...this.pendingHandleUpdate }; // Store copy before reset
+      console.log(`⚡ [${this.debugId}] EXECUTING delayed handle update: ${pendingHandleUpdateData.type} to ${pendingHandleUpdateData.newTime.toFixed(2)}s (no drag detected - safe to update)`);
+    } else if (this.hasPendingHandleUpdate && wasConfirmedDrag) {
+      console.log(`🚫 [${this.debugId}] CANCELED delayed handle update: ${this.pendingHandleUpdate?.type} to ${this.pendingHandleUpdate?.newTime?.toFixed(2)}s (drag was confirmed - anti-shock protection)`);
+    }
+    
+    // 🆕 **RESET PENDING JUMP**: Reset pending jump state
+    this.pendingJumpTime = null;
+    this.hasPendingJump = false;
+    
+    // 🆕 **RESET PENDING HANDLE UPDATES**: Reset pending handle update state
+    this.pendingHandleUpdate = null;
+    this.hasPendingHandleUpdate = false;
+    
     return {
       action: wasDragging ? 'completeDrag' : 'none',
       saveHistory: wasConfirmedDrag, // 🆕 **CHỈ SAVE** khi đã confirmed drag
       cursor: this.lastHoveredHandle ? 'grab' : 'pointer', // 🔧 **FIXED**: Default pointer instead of crosshair
       audioSynced: wasDragging && audioContext && (draggedHandle || wasRegionDrag) && wasConfirmedDrag,
-      wasRegionDrag: wasRegionDrag // 🆕 **FLAG**: Thông báo đã hoàn thành region drag
+      wasRegionDrag: wasRegionDrag, // 🆕 **FLAG**: Thông báo đã hoàn thành region drag
+      // 🆕 **PENDING JUMP RESULT**: Return pending jump info
+      executePendingJump: executePendingJump,
+      pendingJumpTime: executePendingJump ? pendingJumpTime : null,
+      // 🆕 **PENDING HANDLE UPDATE**: Return pending handle update info
+      executePendingHandleUpdate: executePendingHandleUpdate,
+      pendingHandleUpdate: pendingHandleUpdateData
     };
   }
   
@@ -579,6 +682,12 @@ export class InteractionManager {
       isDraggingRegion: this.isDraggingRegion,
       regionDragStartTime: this.regionDragStartTime,
       regionDragOffset: this.regionDragOffset,
+      // 🆕 **PENDING JUMP DEBUG**
+      hasPendingJump: this.hasPendingJump,
+      pendingJumpTime: this.pendingJumpTime,
+      // 🆕 **PENDING HANDLE UPDATES**: Support cho delayed handle movement
+      hasPendingHandleUpdate: this.hasPendingHandleUpdate,
+      pendingHandleUpdate: this.pendingHandleUpdate,
       // 🆕 **MODERN HANDLES FLAG**
       modernHandles: true,
       handleWidth: WAVEFORM_CONFIG.MODERN_HANDLE_WIDTH
@@ -589,7 +698,7 @@ export class InteractionManager {
    * 🎯 Reset manager state
    */
   reset() {
-    console.log(`🔄 [${this.debugId}] Resetting interaction state (MODERN)`);
+    console.log(`🔄 [${this.debugId}] Resetting interaction state (MODERN + DELAYED JUMP)`);
     this.state = INTERACTION_STATES.IDLE;
     this.activeHandle = HANDLE_TYPES.NONE;
     this.lastHoveredHandle = HANDLE_TYPES.NONE;
@@ -605,6 +714,14 @@ export class InteractionManager {
     this.isDraggingRegion = false;
     this.regionDragStartTime = null;
     this.regionDragOffset = 0;
+    
+    // 🆕 **RESET PENDING JUMP**: Reset pending jump state
+    this.pendingJumpTime = null;
+    this.hasPendingJump = false;
+    
+    // 🆕 **RESET PENDING HANDLE UPDATES**: Reset pending handle update state
+    this.pendingHandleUpdate = null;
+    this.hasPendingHandleUpdate = false;
     
     // 🆕 RESET AUDIO SYNC: Reset sync manager state
     if (this.audioSyncManager) {

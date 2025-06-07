@@ -685,15 +685,15 @@ const WaveformCanvas = React.memo(({
       drawCrispHandle(endX, false, isEndActive);
     }
     
-    // 5. 🔥 **CLEAN CURSOR**: Slim 2px cursor as requested
+    // 5. 🔥 **COMPACT CURSOR**: Reduced size by 50% as requested by user
     if (duration > 0 && currentTime >= 0) {
       const cursorX = (currentTime / duration) * width;
       
-      // 🔥 **SLIM CURSOR LINE**: Clean 2px line for all states
+      // 🔥 **ULTRA-SLIM CURSOR LINE**: Reduced from 2px to 1px (50% smaller as requested)
       ctx.strokeStyle = isPlaying ? '#f59e0b' : '#f97316';
-      ctx.lineWidth = 2; // ← Fixed 2px as requested
+      ctx.lineWidth = 1; // 🆕 **REDUCED SIZE**: Changed from 2px to 1px (50% reduction)
       ctx.shadowColor = isPlaying ? '#f59e0b' : '#f97316';
-      ctx.shadowBlur = isPlaying ? 2 : 1; // Subtle shadow
+      ctx.shadowBlur = isPlaying ? 1 : 0.5; // Reduced shadow blur proportionally
       
       ctx.beginPath();
       ctx.moveTo(cursorX, 0);
@@ -701,19 +701,30 @@ const WaveformCanvas = React.memo(({
       ctx.stroke();
       ctx.shadowBlur = 0;
       
-      // 🔥 **COMPACT CURSOR TRIANGLE**: Smaller, cleaner triangle
-      const triangleSize = 4; // Reduced from 6/5 to 4
+      // 🔥 **MINI CURSOR TRIANGLE**: Reduced from 4px to 2px (50% smaller as requested)
+      const triangleSize = 2; // 🆕 **REDUCED SIZE**: Changed from 4px to 2px (50% reduction)
       ctx.fillStyle = isPlaying ? '#f59e0b' : '#f97316';
       ctx.shadowColor = isPlaying ? '#f59e0b' : '#f97316';
-      ctx.shadowBlur = isPlaying ? 1 : 0;
+      ctx.shadowBlur = isPlaying ? 0.5 : 0; // Reduced shadow blur
       
       ctx.beginPath();
       ctx.moveTo(cursorX - triangleSize, 0);
       ctx.lineTo(cursorX + triangleSize, 0);
-      ctx.lineTo(cursorX, triangleSize * 1.5); // Slightly shorter triangle
+      ctx.lineTo(cursorX, triangleSize * 1.5); // Proportionally smaller triangle
       ctx.closePath();
       ctx.fill();
       ctx.shadowBlur = 0;
+      
+      // 🔧 **DEBUG COMPACT CURSOR**: Log size reduction occasionally
+      if (Math.random() < 0.002) { // 0.2% sampling
+        console.log(`🔥 [CompactCursor] Rendered 50% smaller cursor:`, {
+          lineWidth: '1px (was 2px)',
+          triangleSize: '2px (was 4px)',
+          position: cursorX.toFixed(1) + 'px',
+          time: currentTime.toFixed(2) + 's',
+          isPlaying
+        });
+      }
     }
 
     // 6. 🆕 **HOVER TIME LINE**: Thin 1px line showing hover position

@@ -113,9 +113,9 @@ export class AudioSyncManager {
         });
       }
     } else if (handleType === 'region') {
-      // 🆕 **REGION SYNC**: newTime đã là middle của region, không cần offset
-      targetTime = newTime;
-      console.log(`🔄 [${this.debugId}] Region sync - using middle position: ${targetTime.toFixed(2)}s`);
+      // 🆕 **REGION START SYNC**: newTime is already startTime - no offset needed
+      targetTime = newTime; // 🎯 **SIMPLIFIED**: newTime is already startTime for region
+      console.log(`🔄 [${this.debugId}] Region sync - using START position: ${targetTime.toFixed(2)}s (always start)`);
     }
     
     const timeDifference = Math.abs(targetTime - currentAudioTime);
@@ -186,10 +186,10 @@ export class AudioSyncManager {
       const wasThrottled = this._isThrottled(handleType);
       this.lastSyncTime = 0; // Reset throttle
       
-      // 🆕 **REGION SYNC**: Không cần offset cho region (finalTime đã là middle)
+      // 🆕 **REGION SYNC**: Region drag completion - sync to start not middle
       if (handleType === 'region') {
-        console.log(`🔄 [${this.debugId}] Region drag completion - sync to middle: ${finalTime.toFixed(2)}s`);
-        this.syncAudioCursor(finalTime, audioRef, setCurrentTime, isPlaying, 'region', startTime);
+        console.log(`🔄 [${this.debugId}] Region drag completion - sync to START: ${startTime.toFixed(2)}s (not middle as before)`);
+        this.syncAudioCursor(startTime, audioRef, setCurrentTime, isPlaying, 'region', startTime); // 🎯 **SYNC TO START**: Use startTime instead of finalTime
       } else {
         // 🔥 **INTELLIGENT SYNC**: Pass startTime for boundary checking in end handle sync
         this.syncAudioCursor(finalTime, audioRef, setCurrentTime, isPlaying, handleType, startTime);
@@ -351,10 +351,10 @@ export class AudioSyncManager {
         }
       }
     } else if (handleType === 'region') {
-      // 🆕 **REGION SYNC**: Không cần offset, newTime đã là middle của region
-      targetTime = newTime;
+      // 🆕 **REGION START SYNC**: Always sync to region start as requested by user
+      targetTime = startTime; // 🎯 **SIMPLIFIED**: Use startTime instead of newTime (which was middle)
       if (Math.random() < 0.01) { // 1% sampling for region drag
-        console.log(`🚀 [RealTimeSync] ULTRA-SMOOTH region sync to: ${targetTime.toFixed(2)}s (500fps throttling)`);
+        console.log(`🚀 [RealTimeSync] REGION START sync to: ${targetTime.toFixed(2)}s (always start - not middle) (500fps throttling)`);
       }
     }
     

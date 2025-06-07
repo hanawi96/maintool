@@ -511,26 +511,21 @@ const MP3CutterMain = React.memo(() => {
           }
           break;
           
-        case 'jumpToTime':
-          // 🚀 **IMMEDIATE CURSOR SYNC**: Update cursor ngay lập tức khi jump - NO DELAY
-          console.log(`⚡ [ClickToJump] IMMEDIATE jumping audio cursor to: ${result.time.toFixed(2)}s`);
-          jumpToTime(result.time);
+        case 'pendingJump':
+          // 🆕 **DELAYED JUMP**: Setup pending jump để tránh shock khi drag region
+          console.log(`⏳ [PendingJump] DELAYED jump setup to: ${result.time.toFixed(2)}s (anti-shock protection)`);
           
           // 🆕 **REGION DRAG POTENTIAL**: Setup potential region drag if flagged
           if (result.regionDragPotential) {
-            console.log(`🔄 [ClickToJump] Setting up region drag potential - will activate on movement`);
+            console.log(`🔄 [PendingJump] Setting up region drag potential - will activate on movement or jump on mouse up`);
             // 🔧 **NO DRAG STATE YET**: Don't set isDragging until movement detected
             // setIsDragging will be handled by mouse move when region drag is confirmed
+          } else {
+            console.log(`⏳ [PendingJump] Simple pending jump - will execute on mouse up if no drag: ${result.pendingJumpTime.toFixed(2)}s`);
           }
           
-          // 🚀 **FORCE IMMEDIATE UPDATE**: Đảm bảo cursor update ngay lập tức - NO ASYNC
-          if (audioRef.current) {
-            audioRef.current.currentTime = result.time;
-            setCurrentTime(result.time);
-            console.log(`⚡ [ClickToJump] IMMEDIATE audio cursor synced to: ${result.time.toFixed(2)}s`);
-          } else {
-            console.warn(`⚠️ [ClickToJump] No audio element available for cursor sync`);
-          }
+          // 🚫 **NO IMMEDIATE CURSOR MOVEMENT**: Do NOT jump cursor now - wait for mouse up
+          console.log(`🚫 [PendingJump] Cursor LOCKED at current position until mouse up (anti-shock for region drag)`);
           break;
           
         case 'createSelection':
@@ -548,51 +543,28 @@ const MP3CutterMain = React.memo(() => {
           // 🆕 **CURSOR REMOVED**: Let WaveformCanvas handle cursor logic
           // canvas.style.cursor = result.cursor; ← REMOVED
           
-          // 🆕 **IMMEDIATE CURSOR SYNC**: Sync to region middle for smooth start
+          // 🆕 **IMMEDIATE CURSOR SYNC**: Sync to region START for consistent behavior (not middle)
           if (audioRef.current && result.regionData) {
             const { originalStart, originalEnd } = result.regionData;
             const regionDuration = originalEnd - originalStart;
-            const regionMiddle = originalStart + (regionDuration / 2);
             
-            console.log(`🎯 [RegionDrag] Initial sync to region middle: ${regionMiddle.toFixed(2)}s`);
-            audioRef.current.currentTime = regionMiddle;
-            setCurrentTime(regionMiddle);
+            console.log(`🎯 [RegionDrag] Initial sync to region START: ${originalStart.toFixed(2)}s (not middle as before)`);
+            audioRef.current.currentTime = originalStart; // 🎯 **SYNC TO START**: Use originalStart instead of middle
+            setCurrentTime(originalStart);
           }
           break;
           
-        case 'updateStart':
-          setStartTime(result.startTime);
-          // 🆕 **CURSOR REMOVED**: Let WaveformCanvas handle cursor logic
-          // canvas.style.cursor = result.cursor; ← REMOVED
+        case 'pendingHandleUpdate':
+          // 🆕 **DELAYED HANDLE UPDATE**: Setup pending handle update để tránh shock khi drag
+          console.log(`⏳ [PendingHandleUpdate] DELAYED ${result.handleType} handle update setup:`, {
+            from: result.oldTime.toFixed(2) + 's',
+            to: result.newTime.toFixed(2) + 's',
+            reason: result.reason,
+            note: 'Will execute on mouse up if no drag'
+          });
           
-          // 🔥 **IMMEDIATE CURSOR SYNC**: Sync audio cursor ngay lập tức
-          if (audioRef.current) {
-            audioRef.current.currentTime = result.startTime;
-            setCurrentTime(result.startTime);
-          }
-          
-          // 🆕 SAVE HISTORY: Save state after smart update
-          setTimeout(() => {
-            saveState({ startTime: result.startTime, endTime, fadeIn, fadeOut });
-          }, 100);
-          break;
-          
-        case 'updateEnd':
-          setEndTime(result.endTime);
-          // 🆕 **CURSOR REMOVED**: Let WaveformCanvas handle cursor logic
-          // canvas.style.cursor = result.cursor; ← REMOVED
-          
-          // 🔥 **IMMEDIATE CURSOR SYNC**: Sync to preview position (3s before end)
-          if (audioRef.current) {
-            const previewTime = Math.max(0, result.endTime - 3.0);
-            audioRef.current.currentTime = previewTime;
-            setCurrentTime(previewTime);
-          }
-          
-          // 🆕 SAVE HISTORY: Save state after smart update
-          setTimeout(() => {
-            saveState({ startTime, endTime: result.endTime, fadeIn, fadeOut });
-          }, 100);
+          // 🚫 **NO IMMEDIATE HANDLE MOVEMENT**: Do NOT move handle now - wait for mouse up
+          console.log(`🚫 [PendingHandleUpdate] Handle LOCKED at current position until mouse up (anti-shock for handle update)`);
           break;
           
         case 'none':
@@ -689,11 +661,19 @@ const MP3CutterMain = React.memo(() => {
               console.log(`🎯 [MouseMove] REAL-TIME cursor sync active - ultra-smooth mode`);
             } else if (!result.audioSynced && audioRef.current && !isPlaying) {
               // 🔄 **FALLBACK SYNC**: Manual sync nếu real-time sync không hoạt động
-              const syncTime = result.startTime !== undefined ? result.startTime : 
-                              result.endTime !== undefined ? Math.max(0, result.endTime - 3.0) : null;
+              let syncTime;
+              if (result.isRegionDrag) {
+                // 🎯 **REGION DRAG FALLBACK**: Always sync to region start for region drag
+                syncTime = result.startTime; // Use region start for region drag
+                console.log(`🔄 [MouseMove] Fallback REGION sync to START: ${syncTime.toFixed(2)}s`);
+              } else {
+                // 🎯 **HANDLE DRAG FALLBACK**: Standard logic for handle drag
+                syncTime = result.startTime !== undefined ? result.startTime : 
+                          result.endTime !== undefined ? Math.max(0, result.endTime - 3.0) : null;
+                console.log(`🔄 [MouseMove] Fallback HANDLE sync to: ${syncTime?.toFixed(2)}s`);
+              }
               
               if (syncTime !== null) {
-                console.log(`🔄 [MouseMove] Fallback audio sync to ${syncTime.toFixed(2)}s`);
                 audioRef.current.currentTime = syncTime;
                 setCurrentTime(syncTime);
               }
@@ -779,6 +759,65 @@ const MP3CutterMain = React.memo(() => {
           // if (canvas) canvas.style.cursor = result.cursor; ← REMOVED
           break;
       }
+      
+      // 🆕 **EXECUTE DELAYED JUMP**: Execute pending jump nếu không có drag movement
+      if (result.executePendingJump && result.pendingJumpTime !== null) {
+        console.log(`⚡ [MouseUp] EXECUTING delayed jump to: ${result.pendingJumpTime.toFixed(2)}s (safe - no drag detected)`);
+        
+        // 🚀 **IMMEDIATE CURSOR SYNC**: Jump cursor now that it's safe
+        jumpToTime(result.pendingJumpTime);
+        
+        // 🚀 **FORCE IMMEDIATE UPDATE**: Đảm bảo cursor update ngay lập tức
+        if (audioRef.current) {
+          audioRef.current.currentTime = result.pendingJumpTime;
+          setCurrentTime(result.pendingJumpTime);
+          console.log(`✅ [MouseUp] Delayed jump executed successfully: ${result.pendingJumpTime.toFixed(2)}s`);
+        }
+      } else if (result.executePendingJump === false) {
+        console.log(`🚫 [MouseUp] Delayed jump canceled - drag was detected (anti-shock protection worked)`);
+      }
+      
+      // 🆕 **EXECUTE DELAYED HANDLE UPDATE**: Execute pending handle update nếu không có drag movement
+      if (result.executePendingHandleUpdate && result.pendingHandleUpdate !== null) {
+        const updateData = result.pendingHandleUpdate;
+        console.log(`⚡ [MouseUp] EXECUTING delayed handle update: ${updateData.type} to ${updateData.newTime.toFixed(2)}s (safe - no drag detected)`);
+        
+        if (updateData.type === 'start') {
+          // 🚀 **UPDATE START HANDLE**: Update start time and sync cursor
+          setStartTime(updateData.newTime);
+          
+          // 🚀 **IMMEDIATE CURSOR SYNC**: Sync audio cursor to new start position
+          if (audioRef.current) {
+            audioRef.current.currentTime = updateData.newTime;
+            setCurrentTime(updateData.newTime);
+            console.log(`✅ [MouseUp] Start handle updated and cursor synced to: ${updateData.newTime.toFixed(2)}s`);
+          }
+          
+          // 🚀 **SAVE HISTORY**: Save state after handle update
+          setTimeout(() => {
+            saveState({ startTime: updateData.newTime, endTime, fadeIn, fadeOut });
+          }, 100);
+          
+        } else if (updateData.type === 'end') {
+          // 🚀 **UPDATE END HANDLE**: Update end time and sync cursor with preview
+          setEndTime(updateData.newTime);
+          
+          // 🚀 **IMMEDIATE CURSOR SYNC**: Sync to preview position (3s before end)
+          if (audioRef.current) {
+            const previewTime = Math.max(0, updateData.newTime - 3.0);
+            audioRef.current.currentTime = previewTime;
+            setCurrentTime(previewTime);
+            console.log(`✅ [MouseUp] End handle updated and cursor synced to preview: ${previewTime.toFixed(2)}s (3s before ${updateData.newTime.toFixed(2)}s)`);
+          }
+          
+          // 🚀 **SAVE HISTORY**: Save state after handle update
+          setTimeout(() => {
+            saveState({ startTime, endTime: updateData.newTime, fadeIn, fadeOut });
+          }, 100);
+        }
+      } else if (result.executePendingHandleUpdate === false) {
+        console.log(`🚫 [MouseUp] Delayed handle update canceled - drag was detected (anti-shock protection worked)`);
+      }
     };
     
     // 🎯 BATCH UPDATES
@@ -787,7 +826,7 @@ const MP3CutterMain = React.memo(() => {
     } else {
       setTimeout(processAction, 0);
     }
-  }, [canvasRef, startTime, endTime, fadeIn, fadeOut, saveState, setIsDragging, audioRef, setCurrentTime, isPlaying]);
+  }, [canvasRef, startTime, endTime, fadeIn, fadeOut, saveState, setIsDragging, audioRef, setCurrentTime, isPlaying, jumpToTime]);
 
   const handleCanvasMouseLeave = useCallback(() => {
     const canvas = canvasRef.current;
