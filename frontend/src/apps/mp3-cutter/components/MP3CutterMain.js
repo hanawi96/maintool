@@ -460,12 +460,12 @@ const MP3CutterMain = React.memo(() => {
     
     // 🚀 **DEBOUNCED CONFIG UPDATE**: Debounce config updates để tránh excessive calls
     const updateTimeout = setTimeout(() => {
-      updateFadeConfig({
-        fadeIn: newFadeIn,
-        fadeOut,
-        startTime,
-        endTime
-      });
+    updateFadeConfig({
+      fadeIn: newFadeIn,
+      fadeOut,
+      startTime,
+      endTime
+    });
     }, 50); // 50ms debounce for smooth real-time updates
     
     return () => clearTimeout(updateTimeout);
@@ -476,12 +476,12 @@ const MP3CutterMain = React.memo(() => {
     
     // 🚀 **DEBOUNCED CONFIG UPDATE**: Debounce config updates để tránh excessive calls
     const updateTimeout = setTimeout(() => {
-      updateFadeConfig({
-        fadeIn,
-        fadeOut: newFadeOut,
-        startTime,
-        endTime
-      });
+    updateFadeConfig({
+      fadeIn,
+      fadeOut: newFadeOut,
+      startTime,
+      endTime
+    });
     }, 50); // 50ms debounce for smooth real-time updates
     
     return () => clearTimeout(updateTimeout);
