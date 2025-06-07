@@ -28,16 +28,16 @@ export const FADE_CONFIG = {
 };
 
 export const WAVEFORM_CONFIG = {
-  SAMPLE_COUNT: 500,
-  HEIGHT: 180,
+  SAMPLE_COUNT: 2000,
+  HEIGHT: 200,
   HANDLE_WIDTH: 10,        // 🎯 **LEGACY HANDLE WIDTH**: Kept for compatibility
   HANDLE_HEIGHT: 20,       // 🎯 **LEGACY HANDLE HEIGHT**: Kept for compatibility
-  MODERN_HANDLE_WIDTH: 4,  // 🆕 **MODERN HANDLE WIDTH**: Thin modern handles (4px)
+  MODERN_HANDLE_WIDTH: 3,  // Mảnh hơn nữa (giảm từ 4px xuống 3px)
   
   // 🎯 RESPONSIVE: Adaptive configuration for different screen sizes
   RESPONSIVE: {
     MIN_WIDTH: 250,           // Minimum canvas width (px)
-    MIN_BAR_WIDTH: 1.5,       // Minimum bar width for visibility (px)
+    MIN_BAR_WIDTH: 1,         // Giảm xuống 1px cho thanh nhỏ hơn
     MOBILE_BREAKPOINT: 600,   // Mobile breakpoint (px)
     TOUCH_TOLERANCE: 15,      // Touch area tolerance on mobile (px)
     
