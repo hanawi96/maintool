@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { AUDIO_FORMATS } from '../../utils/constants';
 
-const FormatPresets = ({ selectedFormat, onFormatChange }) => {
-  console.log('🎵 [FormatPresets] Rendering with selectedFormat:', selectedFormat);
+// 🚀 **MEMOIZED COMPONENT**: Prevent unnecessary re-renders
+const FormatPresets = memo(({ selectedFormat, onFormatChange }) => {
+  // 🔧 **DEBUG PERFORMANCE**: Log render để track performance
+  console.log('🎵 [FormatPresets] RENDER:', selectedFormat, performance.now());
   
   return (
     <div className="mb-3">
@@ -14,48 +16,59 @@ const FormatPresets = ({ selectedFormat, onFormatChange }) => {
             <button
               key={format.value}
               onClick={() => {
-                console.log('🎵 [FormatPresets] Format changed:', format.value);
+                // 🔧 **DEBUG CLICK**: Track click response time
+                const startTime = performance.now();
+                console.log(`🚀 [FormatSelector] INSTANT CLICK START: ${format.value}`, startTime);
                 onFormatChange(format.value);
+                console.log(`⚡ [FormatSelector] CLICK PROCESSED: ${format.value}`, performance.now() - startTime, 'ms');
               }}
               onMouseEnter={() => {
-                // 🔧 **DEBUG PERFORMANCE**: Log hover start để verify siêu mượt performance  
-                console.log(`🚀 [FormatSelector] ULTRA-SMOOTH hover START: ${format.value}`);
-              }}
-              onMouseLeave={() => {
-                // 🔧 **DEBUG PERFORMANCE**: Log hover end để verify smooth transitions
-                console.log(`⚡ [FormatSelector] ULTRA-SMOOTH hover END: ${format.value}`);
+                // 🔧 **DEBUG HOVER**: Track hover response time  
+                console.log(`🚀 [FormatSelector] INSTANT HOVER: ${format.value}`, performance.now());
               }}
               className={`
                 px-2 py-1.5 rounded-md text-xs font-semibold text-center
                 min-h-[40px] flex flex-col justify-center border-2
-                transform transition-colors transition-border transition-transform
-                duration-75 ease-out will-change-transform
                 ${isSelected 
-                  ? 'bg-indigo-500 text-white border-indigo-500 shadow-md scale-105' 
-                  : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-600 hover:scale-[1.02]'
+                  ? 'bg-indigo-500 text-white border-indigo-500 shadow-md' 
+                  : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-600'
                 }
               `}
               title={`${format.label} - ${format.description}`}
               style={{
-                // 🚀 **ULTRA-SMOOTH OPTIMIZATION**: Hardware acceleration + optimized transitions
+                // 🚀 **MAXIMUM PERFORMANCE**: Optimized inline styles to override everything
+                willChange: 'transform, background-color, border-color',
+                transform: isSelected ? 'translateZ(0) scale(1.05)' : 'translateZ(0)',
                 backfaceVisibility: 'hidden',
-                transformStyle: 'preserve-3d',
-                transition: 'background-color 50ms ease-out, border-color 50ms ease-out, color 50ms ease-out, transform 75ms ease-out'
+                contain: 'layout style paint',
+                // 🔥 **INSTANT TRANSITIONS**: Ultra-fast for immediate response
+                transition: 'background-color 15ms ease-out, border-color 15ms ease-out, color 15ms ease-out, transform 30ms ease-out',
+                // 🆕 **ELIMINATE ALL DELAYS**: Zero delay for instant response
+                transitionDelay: '0ms',
+                animation: 'none'
               }}
             >
               <div className="font-bold">{format.label}</div>
-              <div className={`text-[10px] leading-tight transition-colors duration-50 ease-out ${
+              <div className={`text-[10px] leading-tight ${
                 isSelected ? 'text-indigo-100' : 'text-slate-400'
-              }`}>
+              }`}
+                style={{
+                  // 🚀 **INSTANT TEXT TRANSITION**: Match button transition speed
+                  transition: 'color 15ms ease-out',
+                  transitionDelay: '0ms'
+                }}
+              >
                 {format.description}
               </div>
             </button>
           );
         })}
       </div>
-
     </div>
   );
-};
+});
+
+// 🔧 **DISPLAY NAME**: For React DevTools debugging
+FormatPresets.displayName = 'FormatPresets';
 
 export default FormatPresets;
