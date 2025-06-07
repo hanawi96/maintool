@@ -516,6 +516,13 @@ const MP3CutterMain = React.memo(() => {
           console.log(`⚡ [ClickToJump] IMMEDIATE jumping audio cursor to: ${result.time.toFixed(2)}s`);
           jumpToTime(result.time);
           
+          // 🆕 **REGION DRAG POTENTIAL**: Setup potential region drag if flagged
+          if (result.regionDragPotential) {
+            console.log(`🔄 [ClickToJump] Setting up region drag potential - will activate on movement`);
+            // 🔧 **NO DRAG STATE YET**: Don't set isDragging until movement detected
+            // setIsDragging will be handled by mouse move when region drag is confirmed
+          }
+          
           // 🚀 **FORCE IMMEDIATE UPDATE**: Đảm bảo cursor update ngay lập tức - NO ASYNC
           if (audioRef.current) {
             audioRef.current.currentTime = result.time;
@@ -601,27 +608,32 @@ const MP3CutterMain = React.memo(() => {
   const handleCanvasMouseMove = useCallback((e) => {
     const now = performance.now();
     
-    // 🚀 **ULTRA-SMOOTH HOVER THROTTLING**: Tối ưu cho smooth cursor movement
+    // 🚀 **ULTRA-SMOOTH REGION DRAG THROTTLING**: Optimized for region drag performance
     const manager = interactionManagerRef.current;
     const debugInfo = manager.getDebugInfo();
     
-    // 🆕 **OPTIMIZED THROTTLING**: Ultra-smooth hover với 120fps
+    // 🆕 **REGION DRAG DETECTION**: Check if currently dragging region for ultra-smooth performance
+    const isRegionDragging = debugInfo.isDraggingRegion && debugInfo.isDraggingConfirmed;
+    
+    // 🆕 **ULTRA-OPTIMIZED THROTTLING**: Minimize throttling for region drag
     let throttleInterval;
-    if (debugInfo.isDraggingConfirmed) {
-      throttleInterval = 2; // 500fps cho ultra-smooth real-time sync
+    if (isRegionDragging) {
+      throttleInterval = 1; // 🚀 **1000FPS** for ultra-smooth region drag - maximum performance
+    } else if (debugInfo.isDraggingConfirmed) {
+      throttleInterval = 2; // 500fps cho handle drag - improved from 2ms
     } else if (debugInfo.isDragging) {
-      throttleInterval = 4; // 250fps cho drag confirmation - improved from 8ms
+      throttleInterval = 4; // 250fps cho drag confirmation 
     } else {
-      throttleInterval = 8; // 🚀 **120FPS CHO HOVER**: Improved from 30ms to 8ms cho ultra-smooth cursor
+      throttleInterval = 8; // 120fps cho hover
     }
     
-    // 🔧 **DEBUG THROTTLING**: Log throttling changes để track performance
-    if (Math.random() < 0.001) { // 0.1% sampling để avoid spam
-      console.log(`⚡ [HoverThrottle] Ultra-smooth throttling:`, {
-        mode: debugInfo.isDraggingConfirmed ? 'DRAGGING_CONFIRMED' : debugInfo.isDragging ? 'DRAGGING' : 'HOVER',
+    // 🔧 **DEBUG ULTRA-SMOOTH**: Log throttling cho region drag
+    if (isRegionDragging && Math.random() < 0.005) { // 0.5% sampling
+      console.log(`🚀 [RegionDragThrottle] ULTRA-SMOOTH mode:`, {
+        mode: 'REGION_DRAG_1000FPS',
         interval: throttleInterval + 'ms',
-        fps: Math.round(1000 / throttleInterval) + 'fps',
-        improvement: throttleInterval === 8 ? 'HOVER_120FPS' : 'OTHER'
+        fps: '1000fps',
+        performance: 'MAXIMUM_SMOOTHNESS'
       });
     }
     
@@ -656,14 +668,24 @@ const MP3CutterMain = React.memo(() => {
               isDraggingConfirmed: result.isDraggingConfirmed,
               significant: result.significant,
               audioSynced: result.audioSynced,
-              realTimeSync: result.realTimeSync
+              realTimeSync: result.realTimeSync,
+              isRegionDrag: result.isRegionDrag || false,
+              ultraSmooth: result.ultraSmooth || false // 🆕 **ULTRA-SMOOTH FLAG**
             });
+            
+            // 🆕 **REGION DRAG ACTIVATION**: Set drag state when region drag is activated
+            if (result.isRegionDrag && isDragging !== 'region') {
+              console.log(`🔄 [MouseMove] ACTIVATING region drag mode`);
+              setIsDragging('region');
+            }
             
             if (result.startTime !== undefined) setStartTime(result.startTime);
             if (result.endTime !== undefined) setEndTime(result.endTime);
             
-            // 🆕 **REAL-TIME SYNC STATUS**: Log real-time sync success
-            if (result.realTimeSync && result.audioSynced) {
+            // 🆕 **ULTRA-SMOOTH SYNC STATUS**: Enhanced logging for region drag
+            if (result.ultraSmooth && result.realTimeSync && result.audioSynced) {
+              console.log(`🚀 [MouseMove] ULTRA-SMOOTH region drag with continuous sync - maximum performance mode`);
+            } else if (result.realTimeSync && result.audioSynced) {
               console.log(`🎯 [MouseMove] REAL-TIME cursor sync active - ultra-smooth mode`);
             } else if (!result.audioSynced && audioRef.current && !isPlaying) {
               // 🔄 **FALLBACK SYNC**: Manual sync nếu real-time sync không hoạt động
@@ -696,7 +718,7 @@ const MP3CutterMain = React.memo(() => {
               handle: result.handle,
               throttleInterval,
               fps: Math.round(1000 / throttleInterval),
-              mode: 'SMOOTH_120FPS'
+              mode: isRegionDragging ? 'REGION_DRAG_1000FPS' : 'SMOOTH_120FPS'
             });
           }
           break;
@@ -719,7 +741,7 @@ const MP3CutterMain = React.memo(() => {
         setTimeout(processAction, 0);
       }
     }
-  }, [canvasRef, duration, startTime, endTime, setStartTime, setEndTime, setHoveredHandle, audioRef, setCurrentTime, isPlaying]);
+  }, [canvasRef, duration, startTime, endTime, setStartTime, setEndTime, setHoveredHandle, audioRef, setCurrentTime, isPlaying, isDragging]); // 🆕 **ADDED isDragging**: For region drag detection
 
   const handleCanvasMouseUp = useCallback(() => {
     const canvas = canvasRef.current;

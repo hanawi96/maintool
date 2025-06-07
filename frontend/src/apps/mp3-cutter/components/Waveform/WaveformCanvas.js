@@ -41,8 +41,8 @@ const WaveformCanvas = React.memo(({
   // 🔥 **OPTIMIZED**: Removed all debug logging refs to prevent spam
   const setupCompleteRef = useRef(false);
 
-  // 🆕 **CURSOR INTELLIGENCE**: Smart cursor management based on hover position
-  const currentCursorRef = useRef('crosshair');
+  // 🆕 **CURSOR INTELLIGENCE**: Detect cursor type based on mouse position
+  const currentCursorRef = useRef('pointer'); // 🔧 **FIXED**: Default to pointer instead of crosshair
   const lastCursorUpdateRef = useRef(0);
 
   // 🆕 **SIMPLIFIED HOVER TOOLTIP**: Chỉ lưu mouse position và time đơn giản
@@ -59,39 +59,68 @@ const WaveformCanvas = React.memo(({
 
   // 🆕 **CURSOR INTELLIGENCE**: Detect cursor type based on mouse position
   const detectCursorType = useCallback((mouseX, canvasWidth) => {
-    if (!canvasWidth || duration === 0) return 'crosshair';
+    if (!canvasWidth || duration === 0) return 'pointer'; // 🔧 **FIXED**: Default pointer instead of crosshair
 
-    // 🔧 **DEBUG REDUCED**: Only log significant cursor detections to reduce console spam
-    const shouldLog = currentCursorRef.current === 'crosshair' || Math.random() < 0.1; // 10% sampling
+    // 🔧 **DEBUG ENHANCED**: Enhanced logging for cursor detection
+    const shouldLog = currentCursorRef.current !== 'pointer' || Math.random() < 0.05; // 5% sampling for better debugging
     if (shouldLog) {
-      console.log(`🖱️ [CursorDetect] Analyzing position ${mouseX.toFixed(1)}px of ${canvasWidth}px`);
+      console.log(`🖱️ [CursorDetect] Analyzing position ${mouseX.toFixed(1)}px of ${canvasWidth}px (duration: ${duration.toFixed(2)}s)`);
     }
 
     // 🎯 **HANDLE DETECTION**: Check if hovering over handles first (highest priority)
-    const { MODERN_HANDLE_WIDTH } = WAVEFORM_CONFIG; // 🆕 **MODERN HANDLE CONFIG**
+    const { MODERN_HANDLE_WIDTH } = WAVEFORM_CONFIG;
     const responsiveHandleWidth = canvasWidth < WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT ? 
-      Math.max(6, MODERN_HANDLE_WIDTH * 0.8) : MODERN_HANDLE_WIDTH; // 🎯 **ADJUSTED FOR MODERN HANDLES**
+      Math.max(6, MODERN_HANDLE_WIDTH * 0.8) : MODERN_HANDLE_WIDTH;
     
     const startX = (startTime / duration) * canvasWidth;
     const endX = (endTime / duration) * canvasWidth;
-    const tolerance = Math.max(responsiveHandleWidth / 2 + 8, WAVEFORM_CONFIG.RESPONSIVE.TOUCH_TOLERANCE); // 🎯 **INCREASED TOLERANCE**
+    const tolerance = Math.max(responsiveHandleWidth / 2 + 8, WAVEFORM_CONFIG.RESPONSIVE.TOUCH_TOLERANCE);
     
-    // 🔍 **HANDLE HOVER DETECTION**
+    // 🔍 **HANDLE HOVER DETECTION** (Highest Priority)
     if (startTime < endTime) { // Only check handles if there's a valid selection
       if (Math.abs(mouseX - startX) <= tolerance) {
-        if (shouldLog) console.log(`🎯 [CursorDetect] START HANDLE at ${startX.toFixed(1)}px`);
+        if (shouldLog) console.log(`🎯 [CursorDetect] START HANDLE detected at ${startX.toFixed(1)}px - ew-resize cursor`);
         return 'ew-resize'; // ← Handle resize cursor
       }
       if (Math.abs(mouseX - endX) <= tolerance) {
-        if (shouldLog) console.log(`🎯 [CursorDetect] END HANDLE at ${endX.toFixed(1)}px`);
+        if (shouldLog) console.log(`🎯 [CursorDetect] END HANDLE detected at ${endX.toFixed(1)}px - ew-resize cursor`);
         return 'ew-resize'; // ← Handle resize cursor
       }
     }
 
-    // 🎯 **DEFAULT CURSOR**: Normal crosshair for selection
-    if (shouldLog) console.log(`🎯 [CursorDetect] Normal selection area - crosshair cursor`);
-    return 'crosshair';
-  }, [duration, startTime, endTime]);
+    // 🆕 **DRAG STATE DETECTION**: Check if currently dragging region to show move cursor
+    if (isDragging === 'region') {
+      const timeAtPosition = (mouseX / canvasWidth) * duration;
+      const isInsideRegion = timeAtPosition >= startTime && timeAtPosition <= endTime;
+      
+      if (isInsideRegion) {
+        if (shouldLog) console.log(`🔄 [CursorDetect] DRAGGING REGION - move cursor active`, {
+          mousePosition: mouseX.toFixed(1) + 'px',
+          timeAtPosition: timeAtPosition.toFixed(2) + 's', 
+          regionStart: startTime.toFixed(2) + 's',
+          regionEnd: endTime.toFixed(2) + 's',
+          cursorType: 'move (4-directional arrow)',
+          dragState: 'ACTIVE_REGION_DRAG',
+          isDragging: isDragging
+        });
+        return 'move'; // 🔄 **ACTIVE DRAG CURSOR**: 4-directional arrow when actually dragging region
+      }
+    }
+
+    // 🎯 **DEFAULT CURSOR**: Pointer for all normal interactions (including region hover)
+    if (shouldLog) {
+      const timeAtPosition = (mouseX / canvasWidth) * duration;
+      const isInsideRegion = timeAtPosition >= startTime && timeAtPosition <= endTime && startTime < endTime;
+      console.log(`🎯 [CursorDetect] Normal interaction - pointer cursor`, {
+        mousePosition: mouseX.toFixed(1) + 'px',
+        timeAtPosition: timeAtPosition.toFixed(2) + 's',
+        isInsideRegion: isInsideRegion,
+        cursorType: 'pointer (hover or normal interaction)',
+        note: isInsideRegion ? 'Inside region but not dragging - showing pointer as requested' : 'Outside region'
+      });
+    }
+    return 'pointer'; // 🔧 **FIXED**: Always pointer for hover, move only when actually dragging
+  }, [duration, startTime, endTime, isDragging]);
 
   // 🚀 **ULTRA-SMOOTH CURSOR UPDATE**: Update cursor with reduced throttling
   const updateCursor = useCallback((mouseX) => {
@@ -112,10 +141,21 @@ const WaveformCanvas = React.memo(({
       canvas.style.cursor = newCursor;
       currentCursorRef.current = newCursor;
       
-      // 🔧 **CURSOR CHANGE LOG**: Only log actual cursor changes
-      console.log(`🖱️ [CursorUpdate] Changed to ${newCursor} at ${mouseX.toFixed(1)}px`);
+      // 🔧 **ENHANCED CURSOR CHANGE LOG**: More detailed logging for debugging
+      const timeAtPosition = duration > 0 ? (mouseX / canvasWidth) * duration : 0;
+      const isInRegion = timeAtPosition >= startTime && timeAtPosition <= endTime && startTime < endTime;
+      
+      console.log(`🖱️ [CursorUpdate] Changed to '${newCursor}' at ${mouseX.toFixed(1)}px (${timeAtPosition.toFixed(2)}s)`, {
+        cursor: newCursor,
+        position: mouseX.toFixed(1) + 'px',
+        timeAtPosition: timeAtPosition.toFixed(2) + 's',
+        isInRegion: isInRegion,
+        hasValidSelection: startTime < endTime,
+        selectionRange: `${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s`,
+        debugInfo: isDragging ? `Currently dragging: ${isDragging}` : 'Not dragging'
+      });
     }
-  }, [canvasRef, detectCursorType]);
+  }, [canvasRef, detectCursorType, duration, startTime, endTime, isDragging]);
 
   // 🔧 **PERFORMANCE OPTIMIZATION**: Format time and duration with memoization
   const formatTime = useCallback((seconds) => {
@@ -208,7 +248,16 @@ const WaveformCanvas = React.memo(({
       return;
     }
 
-    // 🆕 **HANDLE DETECTION**: Check if hovering over handles to hide cursor line
+    // 🚫 **HIDE DURING REGION DRAG**: Hide hover tooltip completely when dragging region
+    if (isDragging === 'region') {
+      setHoverTooltip(null);
+      if (Math.random() < 0.02) { // 2% sampling
+        console.log(`🚫 [HoverTooltip] HIDDEN during region drag - maintaining clean UI`);
+      }
+      return;
+    }
+
+    // 🎯 **HANDLE DETECTION**: Check if hovering over handles to hide cursor line
     const { MODERN_HANDLE_WIDTH } = WAVEFORM_CONFIG;
     const responsiveHandleWidth = canvasWidth < WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT ? 
       Math.max(6, MODERN_HANDLE_WIDTH * 0.8) : MODERN_HANDLE_WIDTH;
@@ -241,7 +290,7 @@ const WaveformCanvas = React.memo(({
     if (Math.random() < 0.005) { // 0.5% sampling
       console.log(`✅ [HoverTooltip] Smooth update: ${clampedTime.toFixed(3)}s at ${mouseX.toFixed(1)}px`);
     }
-  }, [duration, formatTime, startTime, endTime]);
+  }, [duration, formatTime, startTime, endTime, isDragging]);
 
   // 🆕 **ENHANCED MOUSE MOVE HANDLER**: Ultra-smooth processing
   const handleEnhancedMouseMove = useCallback((e) => {
@@ -271,12 +320,12 @@ const WaveformCanvas = React.memo(({
       onMouseLeave(e);
     }
 
-    // 🆕 **RESET CURSOR**: Reset to default when leaving canvas
+    // 🆕 **RESET CURSOR**: Reset to pointer when leaving canvas (keeping consistent with waveform cursor)
     const canvas = canvasRef.current;
     if (canvas && !isDragging) {
-      canvas.style.cursor = 'default';
-      currentCursorRef.current = 'default';
-      console.log(`🫥 [CursorUpdate] Mouse left canvas - reset to default cursor`);
+      canvas.style.cursor = 'pointer'; // 🔧 **FIXED**: Reset to pointer instead of default
+      currentCursorRef.current = 'pointer';
+      console.log(`🫥 [CursorUpdate] Mouse left canvas - reset to pointer cursor`);
     }
 
     // 🆕 **HIDE TOOLTIP**: Hide hover tooltip when leaving canvas
@@ -727,11 +776,19 @@ const WaveformCanvas = React.memo(({
 
   // 🚀 **SMOOTH HOVER LINE**: Trigger redraw khi hover tooltip thay đổi
   useEffect(() => {
+    // 🚫 **SKIP REDRAW DURING REGION DRAG**: Don't redraw hover line when dragging region
+    if (isDragging === 'region') {
+      if (Math.random() < 0.02) { // 2% sampling
+        console.log(`🚫 [HoverLine] Skipping redraw during region drag - maintaining clean UI`);
+      }
+      return; // Exit early for region drag
+    }
+    
     if (hoverTooltip && hoverTooltip.visible && renderData) {
       // 🚀 **IMMEDIATE HOVER REDRAW**: Redraw ngay lập tức khi hover position changes
       requestRedraw();
     }
-  }, [hoverTooltip, renderData, requestRedraw]);
+  }, [hoverTooltip, renderData, requestRedraw, isDragging]); // 🆕 **ADDED isDragging**: Track drag state
 
   // 🔥 **RESPONSIVE CURSOR**: High-frequency cursor updates for smooth movement
   useEffect(() => {

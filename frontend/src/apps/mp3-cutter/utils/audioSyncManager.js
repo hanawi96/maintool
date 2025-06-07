@@ -9,7 +9,8 @@ export class AudioSyncManager {
   constructor() {
     this.isEnabled = true;
     this.lastSyncTime = 0;
-    this.syncThrottleInterval = 50; // 20fps for smooth sync
+    this.syncThrottleInterval = 16; // 🚀 **IMPROVED**: 60fps instead of 20fps for ultra-smooth sync
+    this.regionDragThrottleInterval = 2; // 🆕 **ULTRA-SMOOTH REGION DRAG**: 500fps for region drag
     this.debugId = Math.random().toString(36).substr(2, 6);
     
     // 🎯 Sync preferences
@@ -21,12 +22,16 @@ export class AudioSyncManager {
       endHandleOffset: 3.0     // 🆕 NEW: Offset seconds for end handle (seek 3s before end)
     };
     
-    console.log(`🔄 [AudioSyncManager] Created with ID: ${this.debugId}`, this.preferences);
+    console.log(`🔄 [AudioSyncManager] Created with ULTRA-SMOOTH settings:`, {
+      ...this.preferences,
+      standardThrottle: this.syncThrottleInterval + 'ms (60fps)',
+      regionDragThrottle: this.regionDragThrottleInterval + 'ms (500fps)'
+    });
   }
   
   /**
    * 🎯 Check if should sync audio cursor with handle position
-   * @param {string} handleType - 'start' or 'end'
+   * @param {string} handleType - 'start' or 'end' or 'region'
    * @param {boolean} isPlaying - Current audio playing state
    * @param {number} newTime - New time position from dragging
    * @returns {boolean} Whether to sync
@@ -37,22 +42,24 @@ export class AudioSyncManager {
     // 🎯 SMART SYNC RULES
     const rules = {
       isValidHandle: handleType === 'start' && this.preferences.syncStartHandle ||
-                     handleType === 'end' && this.preferences.syncEndHandle,
+                     handleType === 'end' && this.preferences.syncEndHandle ||
+                     handleType === 'region', // 🆕 **REGION SUPPORT**: Always allow region sync
       isValidTime: newTime >= 0 && !isNaN(newTime),
       isPlayingRule: !this.preferences.syncOnlyWhenPlaying || isPlaying,
-      isThrottled: this._isThrottled()
+      isThrottled: this._isThrottled(handleType) // 🆕 **INTELLIGENT THROTTLING**: Pass handleType
     };
     
     const shouldSync = rules.isValidHandle && rules.isValidTime && 
                       rules.isPlayingRule && !rules.isThrottled;
     
-    // 🆕 DEBUG: Log sync decision
-    if (rules.isValidHandle && rules.isValidTime) {
+    // 🆕 DEBUG: Log sync decision with improved logging for region drag
+    if (rules.isValidHandle && rules.isValidTime && Math.random() < (handleType === 'region' ? 0.01 : 0.05)) {
       console.log(`🔄 [${this.debugId}] Sync decision for ${handleType}:`, {
         shouldSync,
         isPlaying,
         newTime: newTime.toFixed(2) + 's',
-        rules
+        rules,
+        throttleMode: handleType === 'region' ? 'ULTRA_SMOOTH_500FPS' : 'STANDARD_60FPS'
       });
     }
     
@@ -176,7 +183,7 @@ export class AudioSyncManager {
       console.log(`🏁 [${this.debugId}] Completing ${handleType} drag sync to ${finalTime.toFixed(2)}s`);
       
       // 🎯 FORCE FINAL SYNC: Ignore throttling for completion
-      const wasThrottled = this._isThrottled();
+      const wasThrottled = this._isThrottled(handleType);
       this.lastSyncTime = 0; // Reset throttle
       
       // 🆕 **REGION SYNC**: Không cần offset cho region (finalTime đã là middle)
@@ -212,12 +219,30 @@ export class AudioSyncManager {
   
   /**
    * 🎯 Check if sync is throttled
+   * @param {string} handleType - Type of handle/operation being synced  
    * @returns {boolean} Whether sync is currently throttled
    * @private
    */
-  _isThrottled() {
+  _isThrottled(handleType = 'standard') {
     const now = performance.now();
-    return (now - this.lastSyncTime) < this.syncThrottleInterval;
+    const timeSinceLastSync = now - this.lastSyncTime;
+    
+    // 🆕 **ULTRA-SMOOTH REGION DRAG**: Use different throttling for region drag
+    if (handleType === 'region') {
+      const isThrottled = timeSinceLastSync < this.regionDragThrottleInterval;
+      if (Math.random() < 0.01) { // 1% sampling
+        console.log(`🚀 [${this.debugId}] Region drag throttle check:`, {
+          timeSinceLastSync: timeSinceLastSync.toFixed(1) + 'ms',
+          threshold: this.regionDragThrottleInterval + 'ms',
+          isThrottled,
+          performance: 'ULTRA_SMOOTH_500FPS'
+        });
+      }
+      return isThrottled;
+    }
+    
+    // 🎯 **STANDARD THROTTLING**: For other operations
+    return timeSinceLastSync < this.syncThrottleInterval;
   }
   
   /**
@@ -296,7 +321,7 @@ export class AudioSyncManager {
     // 🔥 **FORCE MODE**: Skip throttling for ultra-smooth dragging
     if (force) {
       this.lastSyncTime = 0;
-    } else if (this._isThrottled()) {
+    } else if (this._isThrottled(handleType)) { // 🆕 **SMART THROTTLING**: Pass handleType for intelligent throttling
       return false; // Skip if throttled and not forced
     }
     
@@ -309,27 +334,36 @@ export class AudioSyncManager {
       if (regionDuration < 1.0) {
         // 🚫 **SMALL REGION**: Region < 1s → cursor stays at startTime
         targetTime = startTime;
-        console.log(`🚫 [RealTimeSync] SMALL REGION (${regionDuration.toFixed(2)}s < 1s) → cursor locked to startTime: ${startTime.toFixed(2)}s`);
+        if (Math.random() < 0.02) { // 2% sampling to avoid spam
+          console.log(`🚫 [RealTimeSync] SMALL REGION (${regionDuration.toFixed(2)}s < 1s) → cursor locked to startTime: ${startTime.toFixed(2)}s`);
+        }
       } else {
         // 🎯 **NORMAL REGION**: Apply offset but ensure cursor doesn't go before startTime  
         const proposedTime = newTime - this.preferences.endHandleOffset;
         targetTime = Math.max(startTime, proposedTime); // ✅ Never go before startTime
         
-        console.log(`🎯 [RealTimeSync] NORMAL REGION (${regionDuration.toFixed(2)}s ≥ 1s):`, {
-          proposedTime: proposedTime.toFixed(2) + 's',
-          finalTargetTime: targetTime.toFixed(2) + 's',
-          boundaryProtected: proposedTime < startTime ? 'YES (clamped to startTime)' : 'NO'
-        });
+        if (Math.random() < 0.02) { // 2% sampling
+          console.log(`🎯 [RealTimeSync] NORMAL REGION (${regionDuration.toFixed(2)}s ≥ 1s):`, {
+            proposedTime: proposedTime.toFixed(2) + 's',
+            finalTargetTime: targetTime.toFixed(2) + 's',
+            boundaryProtected: proposedTime < startTime ? 'YES (clamped to startTime)' : 'NO'
+          });
+        }
       }
     } else if (handleType === 'region') {
       // 🆕 **REGION SYNC**: Không cần offset, newTime đã là middle của region
       targetTime = newTime;
+      if (Math.random() < 0.01) { // 1% sampling for region drag
+        console.log(`🚀 [RealTimeSync] ULTRA-SMOOTH region sync to: ${targetTime.toFixed(2)}s (500fps throttling)`);
+      }
     }
     
-    // 🔥 **MICRO-OPTIMIZATION**: Skip if change is too small (< 1ms)
+    // 🔥 **MICRO-OPTIMIZATION**: Skip if change is too small (< 1ms) but allow for region drag
     const currentAudioTime = audioRef.current.currentTime;
     const timeDifference = Math.abs(targetTime - currentAudioTime);
-    if (timeDifference < 0.001 && !force) {
+    const minChange = handleType === 'region' ? 0.0005 : 0.001; // 🆕 **ULTRA-SENSITIVE**: Lower threshold for region drag
+    
+    if (timeDifference < minChange && !force) {
       return false;
     }
     

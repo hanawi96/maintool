@@ -88,7 +88,7 @@ export class SmartClickManager {
       newEndTime: endTime,
       seekTime: null,
       handle: null,
-      cursor: 'crosshair',
+      cursor: 'pointer',
       reason: 'Unknown'
     };
     
@@ -114,15 +114,18 @@ export class SmartClickManager {
         break;
         
       case CLICK_ZONES.INSIDE_SELECTION:
-        // 🆕 **FIXED LOGIC**: Click trong region luôn jump to time, không drag
-        // Chỉ drag region khi thực sự có dragging movement được detect
+        // 🆕 **ENHANCED LOGIC**: Click trong region có thể jump hoặc enable drag potential
+        // Default action là JUMP_TO_TIME, nhưng cần chuẩn bị cho region drag potential
         actionDetails.action = CLICK_ACTIONS.JUMP_TO_TIME;
         actionDetails.seekTime = clickTime;
         actionDetails.cursor = 'pointer';
         actionDetails.reason = 'Jumping to clicked position within selection';
         
-        // 🔧 **DEBUG INFO**: Log jump action
-        console.log(`⏯️ [${this.debugId}] INSIDE_SELECTION click → JUMP_TO_TIME: ${clickTime.toFixed(2)}s`);
+        // 🆕 **REGION DRAG POTENTIAL**: Mark để có thể trigger region drag khi có movement
+        actionDetails.regionDragPotential = true; // 🔧 **ENABLE REGION DRAG**: Flag để interactionManager biết có thể drag region
+        
+        // 🔧 **DEBUG INFO**: Log jump action with drag potential
+        console.log(`⏯️ [${this.debugId}] INSIDE_SELECTION click → JUMP_TO_TIME with region drag potential: ${clickTime.toFixed(2)}s`);
         break;
         
       case CLICK_ZONES.BEFORE_START:
@@ -135,7 +138,7 @@ export class SmartClickManager {
           actionDetails.action = CLICK_ACTIONS.CREATE_SELECTION;
           actionDetails.newStartTime = clickTime;
           actionDetails.newEndTime = clickTime;
-          actionDetails.cursor = 'crosshair';
+          actionDetails.cursor = 'pointer';
           actionDetails.reason = 'Creating new selection';
         }
         break;
@@ -150,7 +153,7 @@ export class SmartClickManager {
           actionDetails.action = CLICK_ACTIONS.CREATE_SELECTION;
           actionDetails.newStartTime = clickTime;
           actionDetails.newEndTime = clickTime;
-          actionDetails.cursor = 'crosshair';
+          actionDetails.cursor = 'pointer';
           actionDetails.reason = 'Creating new selection';
         }
         break;
