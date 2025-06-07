@@ -1,6 +1,5 @@
 import React from 'react';
 import { Scissors } from 'lucide-react';
-import FormatSelector from './FormatSelector';
 import CutDownload from './CutDownload';
 
 const Export = ({ 
@@ -22,11 +21,6 @@ const Export = ({
       </h3>
       
       <div className="space-y-3">
-        <FormatSelector
-          selectedFormat={outputFormat}
-          onFormatChange={onFormatChange}
-        />
-        
         <CutDownload
           audioFile={audioFile}
           startTime={startTime}
@@ -35,6 +29,7 @@ const Export = ({
           fadeIn={fadeIn}
           fadeOut={fadeOut}
           playbackRate={playbackRate}
+          onFormatChange={onFormatChange}
           disabled={disabled}
         />
       </div>

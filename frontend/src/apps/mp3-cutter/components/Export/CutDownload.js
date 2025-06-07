@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Download, Scissors, Loader, AlertCircle, Save } from 'lucide-react';
 import { audioApi } from '../../services/audioApi';
 import { formatTime } from '../../utils/timeFormatter';
+import FormatPresets from './FormatSelector';
 
 const CutDownload = ({ 
   audioFile, 
@@ -11,6 +12,7 @@ const CutDownload = ({
   fadeIn, 
   fadeOut,
   playbackRate = 1,
+  onFormatChange,
   disabled = false 
 }) => {
   const [isProcessing, setIsProcessing] = useState(false);
@@ -33,14 +35,12 @@ const CutDownload = ({
     if (!audioFile?.filename) {
       const error = 'Please upload an audio file first';
       setProcessingError(error);
-      alert(error);
       return;
     }
 
     if (startTime >= endTime) {
       const error = 'Please select a valid time range (start time must be less than end time)';
       setProcessingError(error);
-      alert(error);
       return;
     }
 
@@ -48,7 +48,6 @@ const CutDownload = ({
     if (duration < 0.1) {
       const error = 'Selected audio segment is too short (minimum 0.1 seconds)';
       setProcessingError(error);
-      alert(error);
       return;
     }
 
@@ -70,9 +69,10 @@ const CutDownload = ({
         quality: 'high'
       };
 
-      console.log('📊 [CutDownload] CUT-ONLY parameters with SPEED:', {
+      console.log('📊 [CutDownload] CUT-ONLY parameters with SPEED and FORMAT:', {
         ...cutParams,
-        speedApplied: playbackRate !== 1 ? `${playbackRate}x speed` : 'normal speed'
+        speedApplied: playbackRate !== 1 ? `${playbackRate}x speed` : 'normal speed',
+        formatSelected: outputFormat
       });
       setProcessingProgress(25);
 
@@ -107,19 +107,7 @@ const CutDownload = ({
       setProcessedFile(processedFileInfo);
       setProcessingProgress(100);
 
-      // 🎉 **SUCCESS MESSAGE**: Show success without auto download
-      const successMessage = [
-        'Audio cut successfully!',
-        `Duration: ${formatTime(processedFileInfo.duration)}`,
-        processedFileInfo.playbackRate !== 1 ? `Speed: ${processedFileInfo.playbackRate}x` : '',
-        processedFileInfo.fileSize ? 
-          `Size: ${(processedFileInfo.fileSize / 1024 / 1024).toFixed(2)} MB` : '',
-        '', // Empty line
-        'Click "Save" button to download'
-      ].filter(Boolean).join('\n');
-
-      alert(successMessage);
-      
+      // 🎉 **SUCCESS - NO ALERT**: Silent success, just ready for download
       console.log('🎉 [CutDownload] CUT-ONLY completed successfully - ready for download:', processedFileInfo);
       
     } catch (error) {
@@ -140,7 +128,6 @@ const CutDownload = ({
       }
       
       setProcessingError(userError);
-      alert(`Error: ${userError}`);
       
     } finally {
       setIsProcessing(false);
@@ -153,7 +140,6 @@ const CutDownload = ({
     if (!processedFile) {
       const error = 'No processed file available. Please cut audio first.';
       setProcessingError(error);
-      alert(error);
       return;
     }
 
@@ -163,7 +149,7 @@ const CutDownload = ({
       const downloadUrl = audioApi.getDownloadUrl(processedFile.filename);
       console.log('📥 [CutDownload] Triggering download:', downloadUrl);
       
-      // 🎯 **ENHANCED DOWNLOAD**: Better filename với speed info
+      // 🎯 **ENHANCED DOWNLOAD**: Better filename với speed info và format
       const speedSuffix = processedFile.playbackRate !== 1 ? `_${processedFile.playbackRate}x` : '';
       const timestamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
       const downloadFilename = `cut_audio${speedSuffix}_${timestamp}.${processedFile.outputFormat || 'mp3'}`;
@@ -179,23 +165,17 @@ const CutDownload = ({
       console.log('✅ [CutDownload] Download triggered successfully:', {
         filename: downloadFilename,
         originalFile: processedFile.filename,
-        speed: processedFile.playbackRate !== 1 ? `${processedFile.playbackRate}x` : 'normal'
+        speed: processedFile.playbackRate !== 1 ? `${processedFile.playbackRate}x` : 'normal',
+        format: processedFile.outputFormat
       });
 
-      // 🎉 **DOWNLOAD SUCCESS MESSAGE**
-      const downloadMessage = [
-        'Download started!',
-        `File: ${downloadFilename}`,
-        processedFile.playbackRate !== 1 ? `Speed: ${processedFile.playbackRate}x` : ''
-      ].filter(Boolean).join('\n');
-
-      alert(downloadMessage);
+      // 🎉 **DOWNLOAD SUCCESS - NO ALERT**: Silent download success
+      console.log('📥 [CutDownload] Download completed silently');
       
     } catch (downloadError) {
       console.error('❌ [CutDownload] Download failed:', downloadError);
       const error = `Download failed: ${downloadError.message}`;
       setProcessingError(error);
-      alert(`Error: ${error}`);
     }
   };
 
@@ -260,6 +240,12 @@ const CutDownload = ({
 
   return (
     <div className="space-y-3">
+      {/* 🆕 **FORMAT PRESETS**: Above Cut button */}
+      <FormatPresets
+        selectedFormat={outputFormat}
+        onFormatChange={onFormatChange}
+      />
+
       {isProcessing && (
         <div className="w-full bg-gray-200 rounded-full h-2">
           <div 
@@ -336,6 +322,7 @@ const CutDownload = ({
             <div className="text-green-700 bg-green-50 rounded px-2 py-1 mt-2">
               ✅ Ready to download: {(processedFile.fileSize / 1024 / 1024).toFixed(2)} MB
               {processedFile.playbackRate !== 1 && ` at ${processedFile.playbackRate}x speed`}
+              <span className="font-semibold"> ({processedFile.outputFormat?.toUpperCase()})</span>
             </div>
           )}
         </div>

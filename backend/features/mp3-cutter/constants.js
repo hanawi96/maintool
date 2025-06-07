@@ -12,7 +12,7 @@ export const MP3_CONFIG = {
     ],
     
     SUPPORTED_OUTPUT_FORMATS: [
-      'mp3', 'wav', 'aac', 'ogg'
+      'mp3', 'wav', 'aac', 'ogg', 'flac', 'm4a', 'm4r'
     ],
     
     // Quality settings
@@ -21,19 +21,28 @@ export const MP3_CONFIG = {
         mp3: { bitrate: '128k', codec: 'libmp3lame' },
         wav: { bitrate: null, codec: 'pcm_s16le' },
         aac: { bitrate: '128k', codec: 'aac' },
-        ogg: { bitrate: '128k', codec: 'libvorbis' }
+        ogg: { bitrate: '128k', codec: 'libvorbis' },
+        flac: { bitrate: null, codec: 'flac' },
+        m4a: { bitrate: '128k', codec: 'aac' },
+        m4r: { bitrate: '128k', codec: 'aac' }
       },
       medium: {
         mp3: { bitrate: '192k', codec: 'libmp3lame' },
         wav: { bitrate: null, codec: 'pcm_s24le' },
         aac: { bitrate: '192k', codec: 'aac' },
-        ogg: { bitrate: '192k', codec: 'libvorbis' }
+        ogg: { bitrate: '192k', codec: 'libvorbis' },
+        flac: { bitrate: null, codec: 'flac' },
+        m4a: { bitrate: '192k', codec: 'aac' },
+        m4r: { bitrate: '192k', codec: 'aac' }
       },
       high: {
         mp3: { bitrate: '320k', codec: 'libmp3lame' },
         wav: { bitrate: null, codec: 'pcm_s32le' },
         aac: { bitrate: '256k', codec: 'aac' },
-        ogg: { bitrate: '256k', codec: 'libvorbis' }
+        ogg: { bitrate: '256k', codec: 'libvorbis' },
+        flac: { bitrate: null, codec: 'flac' },
+        m4a: { bitrate: '256k', codec: 'aac' },
+        m4r: { bitrate: '256k', codec: 'aac' }
       }
     },
     
@@ -83,5 +92,6 @@ export const MP3_CONFIG = {
     'ogg': 'audio/ogg',
     'flac': 'audio/flac',
     'm4a': 'audio/mp4',
+    'm4r': 'audio/mp4',
     'wma': 'audio/x-ms-wma'
   };

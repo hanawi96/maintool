@@ -1,8 +1,11 @@
 export const AUDIO_FORMATS = {
-  MP3: { value: 'mp3', label: 'MP3 (High Quality)', mime: 'audio/mpeg' },
-  WAV: { value: 'wav', label: 'WAV (Lossless)', mime: 'audio/wav' },
-  M4A: { value: 'm4a', label: 'M4A (AAC)', mime: 'audio/mp4' },
-  OGG: { value: 'ogg', label: 'OGG (Vorbis)', mime: 'audio/ogg' }
+  MP3: { value: 'mp3', label: 'MP3', mime: 'audio/mpeg', description: 'High Quality' },
+  M4A: { value: 'm4a', label: 'M4A', mime: 'audio/mp4', description: 'AAC Audio' },
+  M4R: { value: 'm4r', label: 'M4R', mime: 'audio/mp4', description: 'iPhone Ringtone' },
+  FLAC: { value: 'flac', label: 'FLAC', mime: 'audio/flac', description: 'Lossless' },
+  WAV: { value: 'wav', label: 'WAV', mime: 'audio/wav', description: 'Uncompressed' },
+  AAC: { value: 'aac', label: 'AAC', mime: 'audio/aac', description: 'Advanced Audio' },
+  OGG: { value: 'ogg', label: 'OGG', mime: 'audio/ogg', description: 'Open Source' }
 };
 
 export const QUALITY_SETTINGS = {
