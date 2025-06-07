@@ -298,7 +298,7 @@ const CutDownload = ({
       variant: 'ready',
       icon: Save,
       text: `Save ${outputFormat?.toUpperCase()}`,
-      className: 'bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white transform hover:scale-105'
+      className: 'bg-green-500 hover:bg-green-600 text-white transform hover:scale-105 shadow-md hover:shadow-lg'
     };
   };
 
@@ -376,8 +376,8 @@ const CutDownload = ({
         </div>
       )}
 
-      {/* ✅ **SUCCESS DISPLAY**: Hiển thị thông tin file đã xử lý */}
-      {processedFile && !processingError && (
+      {/* ✅ **SUCCESS DISPLAY**: Chỉ hiển thị khi format khớp */}
+      {processedFile && !processingError && processedFile.outputFormat === outputFormat && (
         <div className="bg-green-50 border border-green-200 rounded-lg p-3">
           <div className="flex items-center gap-2 text-green-700 mb-2">
             <Save className="w-4 h-4" />

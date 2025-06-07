@@ -336,24 +336,14 @@ const UnifiedControlBar = React.memo(({
 
   return (
     <div className="unified-control-bar bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-      {/* 🎯 **MAIN CONTROL ROW** - Responsive single row layout với increased height */}
+      {/* 🎯 **MAIN CONTROL ROW** - Updated layout: Time Selector floated left */}
       <div className="flex items-center gap-1 flex-wrap xl:flex-nowrap">
         
         {/* 1. Play Controls (Left) - Always visible */}
         {PlayControlsSection}
         
-        {/* 2. Volume Control - Hidden on very small screens */}
-        <div className="hidden sm:flex">
-          {VolumeControlSection}
-        </div>
-        
-        {/* 3. Speed Control - Hidden on small screens */}
-        <div className="hidden md:flex">
-          {SpeedControlSection}
-        </div>
-        
-        {/* 4. Time Selector (Center - Expandable) - Main content area */}
-        <div className="flex-1 px-4 min-w-0">
+        {/* 2. Time Selector (Left Float) - Moved to left side như các controls khác */}
+        <div className="px-4 border-r border-slate-300/50">
           <CompactTimeSelector
             startTime={startTime}
             endTime={endTime}
@@ -363,7 +353,20 @@ const UnifiedControlBar = React.memo(({
           />
         </div>
         
-        {/* 5. History Controls (Right) - Always visible */}
+        {/* 3. Volume Control - Hidden on very small screens */}
+        <div className="hidden sm:flex">
+          {VolumeControlSection}
+        </div>
+        
+        {/* 4. Speed Control - Hidden on small screens */}
+        <div className="hidden md:flex">
+          {SpeedControlSection}
+        </div>
+        
+        {/* 5. Spacer - Push history to right */}
+        <div className="flex-1"></div>
+        
+        {/* 6. History Controls (Right) - Always visible */}
         {HistoryControlsSection}
       </div>
       
