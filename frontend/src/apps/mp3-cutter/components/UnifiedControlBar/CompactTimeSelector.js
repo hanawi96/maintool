@@ -17,13 +17,17 @@ const ArrowTimeInput = React.memo(({ value, onChange, label, max, min = 0, isSta
     return `${minutes.toString().padStart(2, '0')}.${seconds.toString().padStart(2, '0')}.${centiseconds.toString().padStart(2, '0')}`;
   }, [value]);
 
-  // 🎯 **SMART DISABLE LOGIC**: Logic disable thông minh dựa trên vị trí và giới hạn cho step 0.1s
+  // 🎯 **SMART DISABLE LOGIC**: Logic disable với INTEGER ARITHMETIC cho consistency
   const canIncrease = useMemo(() => {
     if (isEndTime && Math.abs(value - duration) < 0.01) {
       // End time đã ở cuối duration, không thể tăng thêm
       return false;
     }
-    return value + 0.1 <= max; // Kiểm tra có thể tăng 0.1s không
+    
+    // 🔥 **INTEGER CHECK**: Sử dụng centiseconds để kiểm tra chính xác
+    const currentCentiseconds = Math.round(value * 100);
+    const maxCentiseconds = Math.round(max * 100);
+    return currentCentiseconds + 10 <= maxCentiseconds; // Check if can add 10cs (0.1s)
   }, [value, max, isEndTime, duration]);
 
   const canDecrease = useMemo(() => {
@@ -31,10 +35,14 @@ const ArrowTimeInput = React.memo(({ value, onChange, label, max, min = 0, isSta
       // Start time đã ở 0, không thể giảm thêm
       return false;
     }
-    return value - 0.1 >= min; // Kiểm tra có thể giảm 0.1s không
+    
+    // 🔥 **INTEGER CHECK**: Sử dụng centiseconds để kiểm tra chính xác
+    const currentCentiseconds = Math.round(value * 100);
+    const minCentiseconds = Math.round(min * 100);
+    return currentCentiseconds - 10 >= minCentiseconds; // Check if can subtract 10cs (0.1s)
   }, [value, min, isStartTime]);
 
-  // 🎯 **ARROW HANDLERS**: Tăng/giảm 0.1s với validation thông minh
+  // 🎯 **ARROW HANDLERS**: Tăng/giảm 0.1s CHÍNH XÁC với integer arithmetic
   const handleArrowUp = useCallback((e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -44,10 +52,22 @@ const ArrowTimeInput = React.memo(({ value, onChange, label, max, min = 0, isSta
       return;
     }
     
-    const newValue = Math.min(max, Math.round((value + 0.1) * 100) / 100); // Tăng 0.1s
+    // 🔥 **INTEGER ARITHMETIC**: Tránh floating point precision errors
+    const currentCentiseconds = Math.round(value * 100); // Convert to centiseconds (integer)
+    const newCentiseconds = currentCentiseconds + 10; // Add exactly 10 centiseconds (0.1s)
+    const maxCentiseconds = Math.round(max * 100);
     
-    // 🔥 **DEBUG LOG**: Log arrow operations với step 0.1s
-    console.log(`⬆️ [ArrowTimeInput] ${label} UP (+0.1s): ${value.toFixed(2)}s → ${newValue.toFixed(2)}s`);
+    // Clamp to max và convert back to seconds
+    const clampedCentiseconds = Math.min(newCentiseconds, maxCentiseconds);
+    const newValue = clampedCentiseconds / 100; // Convert back to seconds
+    
+    // 🔥 **ENHANCED DEBUG**: Show exact centiseconds calculation  
+    console.log(`⬆️ [ArrowTimeInput] ${label} UP precision:`, {
+      original: `${value.toFixed(2)}s (${currentCentiseconds}cs)`,
+      step: '+10cs (+0.10s)',
+      result: `${newValue.toFixed(2)}s (${clampedCentiseconds}cs)`,
+      exact_diff: `+${(newValue - value).toFixed(2)}s`
+    });
     
     onChange(newValue);
   }, [value, max, onChange, label, canIncrease]);
@@ -61,10 +81,22 @@ const ArrowTimeInput = React.memo(({ value, onChange, label, max, min = 0, isSta
       return;
     }
     
-    const newValue = Math.max(min, Math.round((value - 0.1) * 100) / 100); // Giảm 0.1s
+    // 🔥 **INTEGER ARITHMETIC**: Tránh floating point precision errors
+    const currentCentiseconds = Math.round(value * 100); // Convert to centiseconds (integer)
+    const newCentiseconds = currentCentiseconds - 10; // Subtract exactly 10 centiseconds (0.1s)
+    const minCentiseconds = Math.round(min * 100);
     
-    // 🔥 **DEBUG LOG**: Log arrow operations với step 0.1s
-    console.log(`⬇️ [ArrowTimeInput] ${label} DOWN (-0.1s): ${value.toFixed(2)}s → ${newValue.toFixed(2)}s`);
+    // Clamp to min và convert back to seconds
+    const clampedCentiseconds = Math.max(newCentiseconds, minCentiseconds);
+    const newValue = clampedCentiseconds / 100; // Convert back to seconds
+    
+    // 🔥 **ENHANCED DEBUG**: Show exact centiseconds calculation
+    console.log(`⬇️ [ArrowTimeInput] ${label} DOWN precision:`, {
+      original: `${value.toFixed(2)}s (${currentCentiseconds}cs)`,
+      step: '-10cs (-0.10s)',
+      result: `${newValue.toFixed(2)}s (${clampedCentiseconds}cs)`,
+      exact_diff: `${(newValue - value).toFixed(2)}s`
+    });
     
     onChange(newValue);
   }, [value, min, onChange, label, canDecrease]);
@@ -82,7 +114,7 @@ const ArrowTimeInput = React.memo(({ value, onChange, label, max, min = 0, isSta
     }, 0);
   }, [formattedTime]);
 
-  // 🎯 COMMIT: Validate and commit changes với format mới
+  // 🎯 COMMIT: Validate and commit changes với INTEGER ARITHMETIC
   const handleCommit = useCallback(() => {
     let newValue = value; // Default to current value
     
@@ -95,19 +127,30 @@ const ArrowTimeInput = React.memo(({ value, onChange, label, max, min = 0, isSta
         const seconds = parseInt(timeParts[1]) || 0;
         const centiseconds = parseInt(timeParts[2]) || 0;
         
-        newValue = minutes * 60 + seconds + centiseconds / 100;
+        // 🔥 **INTEGER CALCULATION**: Tính bằng centiseconds rồi chia 100
+        const totalCentiseconds = minutes * 6000 + seconds * 100 + centiseconds;
+        newValue = totalCentiseconds / 100; // Convert to seconds
         
-        // Validate range
-        newValue = Math.max(min, Math.min(newValue, max));
-        newValue = Math.round(newValue * 100) / 100; // Round to 0.01s precision
+        // Validate range với INTEGER ARITHMETIC
+        const minCentiseconds = Math.round(min * 100);
+        const maxCentiseconds = Math.round(max * 100);
+        const clampedCentiseconds = Math.max(minCentiseconds, Math.min(totalCentiseconds, maxCentiseconds));
+        newValue = clampedCentiseconds / 100;
+        
       } else if (timeParts.length === 2) {
         // Support MM.SS format
         const minutes = parseInt(timeParts[0]) || 0;
         const seconds = parseInt(timeParts[1]) || 0;
         
-        newValue = minutes * 60 + seconds;
-        newValue = Math.max(min, Math.min(newValue, max));
-        newValue = Math.round(newValue * 100) / 100;
+        // 🔥 **INTEGER CALCULATION**: Tính bằng centiseconds  
+        const totalCentiseconds = minutes * 6000 + seconds * 100;
+        newValue = totalCentiseconds / 100;
+        
+        // Validate range với INTEGER ARITHMETIC
+        const minCentiseconds = Math.round(min * 100);
+        const maxCentiseconds = Math.round(max * 100);
+        const clampedCentiseconds = Math.max(minCentiseconds, Math.min(totalCentiseconds, maxCentiseconds));
+        newValue = clampedCentiseconds / 100;
       }
     } catch (error) {
       console.warn(`⚠️ [ArrowTimeInput] Parse error for ${label}:`, error);
@@ -115,8 +158,15 @@ const ArrowTimeInput = React.memo(({ value, onChange, label, max, min = 0, isSta
       newValue = value;
     }
     
-    // 🔥 **DEBUG LOG**: Log manual edits
-    console.log(`✏️ [ArrowTimeInput] ${label} manual edit:`, `${value.toFixed(2)}s → ${newValue.toFixed(2)}s`);
+    // 🔥 **DEBUG LOG**: Log manual edits với centiseconds detail
+    const oldCs = Math.round(value * 100);
+    const newCs = Math.round(newValue * 100);
+    console.log(`✏️ [ArrowTimeInput] ${label} manual edit precision:`, {
+      input: tempValue,
+      original: `${value.toFixed(2)}s (${oldCs}cs)`,
+      result: `${newValue.toFixed(2)}s (${newCs}cs)`,
+      exact_diff: `${(newValue - value).toFixed(2)}s`
+    });
     
     onChange(newValue);
     setIsEditing(false);
@@ -191,7 +241,7 @@ const ArrowTimeInput = React.memo(({ value, onChange, label, max, min = 0, isSta
         <button
           onClick={handleArrowUp}
           disabled={!canIncrease}
-          className="px-2 py-1 hover:bg-indigo-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors focus:outline-none focus:bg-indigo-100 rounded-sm"
+          className="px-2 py-1 hover:bg-indigo-50 my-0.5 disabled:opacity-30 disabled:cursor-not-allowed transition-colors focus:outline-none focus:bg-indigo-100 rounded-sm"
           title={canIncrease ? `Increase ${label} by 0.1s` : `Cannot increase ${label} further`}
         >
           <div className="w-0 h-0 border-l-[6px] border-r-[6px] border-b-[6px] border-l-transparent border-r-transparent border-b-slate-600 mx-auto"></div>
@@ -201,7 +251,7 @@ const ArrowTimeInput = React.memo(({ value, onChange, label, max, min = 0, isSta
         <button
           onClick={handleArrowDown}
           disabled={!canDecrease}
-          className="px-2 py-1 hover:bg-indigo-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors focus:outline-none focus:bg-indigo-100 rounded-sm"
+          className="px-2 py-1 hover:bg-indigo-50 my-0.5 disabled:opacity-30 disabled:cursor-not-allowed transition-colors focus:outline-none focus:bg-indigo-100 rounded-sm"
           title={canDecrease ? `Decrease ${label} by 0.1s` : `Cannot decrease ${label} further`}
         >
           <div className="w-0 h-0 border-l-[6px] border-r-[6px] border-t-[6px] border-l-transparent border-r-transparent border-t-slate-600 mx-auto"></div>
