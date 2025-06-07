@@ -59,10 +59,11 @@ export const useFileUpload = () => {
       // Backend URL can be used for other purposes if needed
       setAudioFile(prev => ({
         ...prev,
+        filename: result.data?.file?.filename || result.data?.filename || result.filename || prev.name,
         fileId: result.data?.fileId || result.fileId,
         serverData: result.data || result,
-        duration: result.data?.duration || result.duration,
-        size: result.data?.size || result.size,
+        duration: result.data?.duration || result.duration || result.data?.audio?.duration,
+        size: result.data?.size || result.size || result.data?.file?.size,
         serverUrl: result.data?.url || result.url, // Keep server URL separate
         uploadedAt: Date.now()
       }));

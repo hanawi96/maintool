@@ -6,7 +6,8 @@ import {
   validateUpload,
   validateAudioFile,
   validateCutParams,
-  validateWaveformParams
+  validateWaveformParams,
+  validateFileId
 } from './validation.js';
 
 const router = express.Router();
@@ -36,6 +37,15 @@ router.post('/cut',
   validateAudioFile,
   validateCutParams,
   MP3Controller.cut
+);
+
+/**
+ * @route POST /api/mp3-cutter/cut-by-fileid
+ * @desc Cut audio file by fileId (từ file đã upload trước đó)
+ */
+router.post('/cut-by-fileid',
+  validateFileId,
+  MP3Controller.cutByFileId
 );
 
 /**
@@ -72,6 +82,12 @@ router.get('/formats', MP3Controller.getSupportedFormats);
  * @desc Get service statistics
  */
 router.get('/stats', MP3Controller.getStats);
+
+/**
+ * @route GET /api/mp3-cutter/debug
+ * @desc Debug file system (development only)
+ */
+router.get('/debug', MP3Controller.debugFiles);
 
 /**
  * @route GET /api/mp3-cutter

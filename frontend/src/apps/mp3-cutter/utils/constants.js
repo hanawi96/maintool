@@ -53,5 +53,6 @@ export const WAVEFORM_CONFIG = {
 export const API_ENDPOINTS = {
   UPLOAD: '/api/mp3-cutter/upload',
   CUT: '/api/mp3-cutter/cut',
+  CUT_BY_FILEID: '/api/mp3-cutter/cut-by-fileid',
   DOWNLOAD: '/api/mp3-cutter/download'
 };

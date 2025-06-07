@@ -251,5 +251,53 @@ export const audioApi = {
       console.error('❌ [healthCheck] Backend health check failed:', errorDetails);
       throw new Error(`Backend health check failed: ${errorMessage}`);
     }
+  },
+
+  // 🆕 **CUT AUDIO BY FILE ID**: Cut audio bằng fileId đã upload trước đó - HIỆU QUẢ HỠN
+  async cutAudioByFileId(params) {
+    console.log('✂️ [cutAudioByFileId] Starting cut by fileId:', params);
+
+    // 🔍 **VALIDATE PARAMS**: Kiểm tra params có đủ không
+    if (!params.fileId) {
+      throw new Error('fileId is required for cut operation');
+    }
+
+    const cutUrl = `${API_BASE_URL}${API_ENDPOINTS.CUT_BY_FILEID}`;
+    console.log('✂️ [cutAudioByFileId] Cut URL:', cutUrl);
+    
+    let response;
+    try {
+      response = await fetch(cutUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(params)
+      });
+      
+      console.log('📡 [cutAudioByFileId] Response received:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok
+      });
+      
+    } catch (networkError) {
+      console.error('🌐 [cutAudioByFileId] Network error:', networkError);
+      throw new Error(`Network error: ${networkError.message}. Please check if backend is running on ${API_BASE_URL}`);
+    }
+
+    if (!response.ok) {
+      await handleApiError(response, 'Cut by FileId');
+    }
+    
+    // 🎯 Safe JSON parsing
+    try {
+      const result = await safeJsonParse(response);
+      console.log('✅ [cutAudioByFileId] Cut successful:', result);
+      return result;
+    } catch (parseError) {
+      console.error('❌ [cutAudioByFileId] Response parsing failed:', parseError);
+      throw new Error(`Cut response parsing failed: ${parseError.message}`);
+    }
   }
 };

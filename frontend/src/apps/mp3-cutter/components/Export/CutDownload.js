@@ -24,7 +24,7 @@ const CutDownload = ({
     setProcessingProgress(0);
 
     // 🎯 Validate inputs
-    if (!audioFile?.fileId) {
+    if (!audioFile?.filename) {
       const error = 'Please upload an audio file first';
       setProcessingError(error);
       alert(error);
@@ -53,7 +53,7 @@ const CutDownload = ({
       console.log('🎯 [CutDownload] Validated inputs, starting cut operation...');
       
       const cutParams = {
-        fileId: audioFile.fileId,
+        fileId: audioFile.filename,
         startTime,
         endTime,
         outputFormat: outputFormat || 'mp3',
@@ -65,25 +65,24 @@ const CutDownload = ({
       console.log('📊 [CutDownload] Cut parameters:', cutParams);
       setProcessingProgress(25);
 
-      // 🎯 Call enhanced API with better error handling
-      const result = await audioApi.cutAudio(cutParams);
+      const result = await audioApi.cutAudioByFileId(cutParams);
       setProcessingProgress(75);
 
       console.log('✅ [CutDownload] Cut operation successful:', result);
 
-      // 🎯 Validate result structure
       if (!result || !result.success) {
         throw new Error(result?.error || 'Cut operation failed - invalid response');
       }
 
-      const outputFile = result.data?.outputFile || result.outputFile;
+      const outputFile = result.data?.output?.filename || result.output?.filename || result.data?.outputFile;
       if (!outputFile) {
+        console.error('❌ [CutDownload] Missing output file in response:', result);
         throw new Error('No output file received from server');
       }
 
+      console.log('📁 [CutDownload] Output file determined:', outputFile);
       setProcessingProgress(90);
 
-      // 🎯 Generate download URL and trigger download
       try {
         const downloadUrl = audioApi.getDownloadUrl(outputFile);
         console.log('📥 [CutDownload] Triggering download:', downloadUrl);
@@ -92,22 +91,28 @@ const CutDownload = ({
         link.href = downloadUrl;
         link.download = `cut_audio_${Date.now()}.${outputFormat || 'mp3'}`;
         
-        // 🎯 Add to DOM temporarily for Firefox compatibility
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
         
         setProcessingProgress(100);
 
-        // 🎯 Show success message with details
+        const successInfo = {
+          duration: result.data?.output?.duration || result.output?.duration || duration,
+          fileSize: result.data?.output?.size || result.output?.size,
+          filename: outputFile
+        };
+
         const successMessage = [
           'Audio cut successfully!',
-          `Duration: ${formatTime(result.data?.duration || result.duration || duration)}`,
-          result.data?.fileSize || result.fileSize ? 
-            `Size: ${((result.data?.fileSize || result.fileSize) / 1024 / 1024).toFixed(2)} MB` : ''
+          `Duration: ${formatTime(successInfo.duration)}`,
+          successInfo.fileSize ? 
+            `Size: ${(successInfo.fileSize / 1024 / 1024).toFixed(2)} MB` : ''
         ].filter(Boolean).join('\n');
 
         alert(successMessage);
+        
+        console.log('🎉 [CutDownload] Cut and download completed successfully:', successInfo);
         
       } catch (downloadError) {
         console.error('❌ [CutDownload] Download failed:', downloadError);
@@ -117,7 +122,6 @@ const CutDownload = ({
     } catch (error) {
       console.error('❌ [CutDownload] Cut operation failed:', error);
       
-      // 🎯 Provide user-friendly error messages
       let userError = error.message;
       
       if (error.message.includes('Network error')) {
@@ -137,7 +141,6 @@ const CutDownload = ({
       
     } finally {
       setIsProcessing(false);
-      // Reset progress after a delay to show completion
       setTimeout(() => setProcessingProgress(0), 2000);
     }
   };
@@ -183,7 +186,6 @@ const CutDownload = ({
 
   return (
     <div className="space-y-3">
-      {/* 🎯 Processing Progress Bar */}
       {isProcessing && (
         <div className="w-full bg-gray-200 rounded-full h-2">
           <div 
@@ -193,7 +195,6 @@ const CutDownload = ({
         </div>
       )}
       
-      {/* 🎯 Error Display */}
       {processingError && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-3">
           <div className="flex items-center gap-2">
@@ -203,7 +204,6 @@ const CutDownload = ({
         </div>
       )}
 
-      {/* 🎯 Enhanced Cut & Download Button */}
       <button
         onClick={handleCutAndExport}
         disabled={disabled || !audioFile || isProcessing}
@@ -222,7 +222,7 @@ const CutDownload = ({
       </button>
       
       {/* 🎯 Cut Info Display */}
-      {audioFile && startTime < endTime && (
+      {audioFile && startTime !== undefined && endTime !== undefined && startTime < endTime && (
         <div className="text-xs text-gray-600 text-center space-y-1">
           <div>
             Cut: {formatTime(startTime)} → {formatTime(endTime)}

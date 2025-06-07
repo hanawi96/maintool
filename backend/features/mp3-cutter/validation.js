@@ -83,3 +83,54 @@ export const validateWaveformParams = (req, res, next) => {
   req.waveformParams = { samples };
   next();
 };
+
+// 🆕 **VALIDATE FILE ID**: Validate fileId cho cut-by-fileid endpoint
+export const validateFileId = (req, res, next) => {
+  const { fileId, startTime, endTime, fadeIn = 0, fadeOut = 0 } = req.body;
+  
+  // 🔍 **VALIDATE FILE ID**: Kiểm tra fileId có tồn tại
+  if (!fileId || typeof fileId !== 'string') {
+    return res.status(400).json({ 
+      success: false,
+      error: 'fileId is required and must be a string' 
+    });
+  }
+  
+  // 🔍 **VALIDATE CUT PARAMS**: Validate các parameters như validateCutParams
+  const start = parseFloat(startTime);
+  const end = parseFloat(endTime);
+  
+  if (isNaN(start) || isNaN(end) || start >= end) {
+    return res.status(400).json({ 
+      success: false,
+      error: 'Invalid time range: startTime must be less than endTime' 
+    });
+  }
+  
+  // 🔍 **VALIDATE FADE PARAMS**: Validate fade parameters
+  const fadeInValue = parseFloat(fadeIn);
+  const fadeOutValue = parseFloat(fadeOut);
+  
+  if (isNaN(fadeInValue) || isNaN(fadeOutValue) || fadeInValue < 0 || fadeOutValue < 0) {
+    return res.status(400).json({ 
+      success: false,
+      error: 'Fade values must be non-negative numbers' 
+    });
+  }
+  
+  // 🆕 **SET REQUEST DATA**: Set validated data to request
+  req.fileId = fileId;
+  req.cutParams = {
+    startTime: start,
+    endTime: end,
+    fadeIn: fadeInValue,
+    fadeOut: fadeOutValue
+  };
+  
+  console.log('✅ [validateFileId] Validation passed:', {
+    fileId,
+    cutParams: req.cutParams
+  });
+  
+  next();
+};
