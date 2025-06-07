@@ -1880,113 +1880,130 @@ const MP3CutterMain = React.memo(() => {
       };
     };
 
+    // 🆕 **FADE EFFECTS TEST**: Test và demonstrate fade visual effects
+    window.testFadeEffects = (fadeInDuration = 2.0, fadeOutDuration = 3.0) => {
+      console.log(`🎨 [FadeEffectsTest] Testing fade visual effects`);
+      
+      if (!audioFile || !duration) {
+        console.error('❌ [FadeEffectsTest] No audio file loaded');
+        return { error: 'No audio file loaded' };
+      }
+      
+      // 🎯 **CURRENT STATE**: Log current fade configuration
+      const currentState = {
+        currentFadeIn: fadeIn + 's',
+        currentFadeOut: fadeOut + 's',
+        currentSelection: `${startTime.toFixed(2)}s → ${endTime.toFixed(2)}s`,
+        selectionDuration: (endTime - startTime).toFixed(2) + 's'
+      };
+      
+      console.log(`🎨 [FadeEffectsTest] Current state:`, currentState);
+      
+      // 🆕 **APPLY TEST FADE**: Set test fade values
+      console.log(`🎨 [FadeEffectsTest] Applying test fade: In=${fadeInDuration}s, Out=${fadeOutDuration}s`);
+      setFadeIn(fadeInDuration);
+      setFadeOut(fadeOutDuration);
+      
+      // 🎯 **VISUAL EXPLANATION**: Explain what should happen
+      const visualExpectation = {
+        fadeInEffect: {
+          duration: fadeInDuration + 's',
+          timeRange: `${startTime.toFixed(2)}s → ${(startTime + fadeInDuration).toFixed(2)}s`,
+          visualBehavior: 'Waveform bars start THẤP (10% height) → gradually increase to CAO (100% height)',
+          smoothCurve: 'Ease-out curve for natural fade in'
+        },
+        fadeOutEffect: {
+          duration: fadeOutDuration + 's',
+          timeRange: `${(endTime - fadeOutDuration).toFixed(2)}s → ${endTime.toFixed(2)}s`,
+          visualBehavior: 'Waveform bars start CAO (100% height) → gradually decrease to THẤP (10% height)',
+          smoothCurve: 'Ease-in curve for natural fade out'
+        },
+        normalRegion: {
+          timeRange: `${(startTime + fadeInDuration).toFixed(2)}s → ${(endTime - fadeOutDuration).toFixed(2)}s`,
+          visualBehavior: 'Waveform bars maintain normal height (100% height)',
+          note: 'No fade effect applied in this region'
+        }
+      };
+      
+      console.log(`🎨 [FadeEffectsTest] Visual expectations:`, visualExpectation);
+      
+      // 🎯 **SAVE TO HISTORY**: Save fade changes
+      setTimeout(() => {
+        saveState({ startTime, endTime, fadeIn: fadeInDuration, fadeOut: fadeOutDuration });
+        console.log(`✅ [FadeEffectsTest] Fade effects applied and saved to history`);
+      }, 100);
+      
+      // 🔧 **USAGE INSTRUCTIONS**: How to see the effects
+      const instructions = [
+        '1. Look at the waveform - you should see fade effects immediately',
+        '2. Fade In region: bars gradually increase in height from start',
+        '3. Fade Out region: bars gradually decrease in height toward end',
+        '4. Middle region: bars maintain normal height',
+        '5. Use FadeControls sliders to adjust fade durations in real-time',
+        '6. Call testFadeEffects(0, 0) to disable fade effects'
+      ];
+      
+      console.log(`📖 [FadeEffectsTest] Instructions:`, instructions);
+      
+      return {
+        applied: true,
+        fadeIn: fadeInDuration + 's',
+        fadeOut: fadeOutDuration + 's',
+        selectionRange: `${startTime.toFixed(2)}s → ${endTime.toFixed(2)}s`,
+        visualExpectation,
+        instructions
+      };
+    };
+
+    // 🆕 **FADE PRESET TESTS**: Quick fade presets for testing
+    window.testFadePresets = () => {
+      console.log(`🎨 [FadePresets] Testing common fade presets`);
+      
+      const presets = {
+        gentle: { fadeIn: 1.0, fadeOut: 1.0, description: 'Gentle 1s fade in/out' },
+        standard: { fadeIn: 2.0, fadeOut: 2.0, description: 'Standard 2s fade in/out' },
+        dramatic: { fadeIn: 3.0, fadeOut: 3.0, description: 'Dramatic 3s fade in/out' },
+        fadeInOnly: { fadeIn: 2.5, fadeOut: 0, description: 'Fade in only (2.5s)' },
+        fadeOutOnly: { fadeIn: 0, fadeOut: 2.5, description: 'Fade out only (2.5s)' },
+        asymmetric: { fadeIn: 1.5, fadeOut: 3.5, description: 'Quick fade in, slow fade out' },
+        none: { fadeIn: 0, fadeOut: 0, description: 'No fade effects' }
+      };
+      
+      console.log(`🎨 [FadePresets] Available presets:`, presets);
+      
+      const applyPreset = (presetName) => {
+        const preset = presets[presetName];
+        if (!preset) {
+          console.error(`❌ [FadePresets] Unknown preset: ${presetName}`);
+          return;
+        }
+        
+        console.log(`🎨 [FadePresets] Applying preset: ${presetName} - ${preset.description}`);
+        setFadeIn(preset.fadeIn);
+        setFadeOut(preset.fadeOut);
+        
+        setTimeout(() => {
+          saveState({ startTime, endTime, fadeIn: preset.fadeIn, fadeOut: preset.fadeOut });
+          console.log(`✅ [FadePresets] Preset '${presetName}' applied successfully`);
+        }, 100);
+      };
+      
+      // 🎯 **ATTACH PRESET FUNCTIONS**: Make preset functions globally available
+      Object.keys(presets).forEach(presetName => {
+        window[`applyFade${presetName.charAt(0).toUpperCase() + presetName.slice(1)}`] = () => applyPreset(presetName);
+      });
+      
+      console.log(`🎨 [FadePresets] Preset functions available:`, 
+        Object.keys(presets).map(name => `applyFade${name.charAt(0).toUpperCase() + name.slice(1)}()`)
+      );
+      
+      return { presets, applyPreset };
+    };
+
     // 🚀 **NEW: CURSOR RESPONSIVENESS TEST**: Quick click responsiveness test
     window.testClickResponsiveness = () => {
       console.log(`⚡ [ClickResponsivenessTest] Testing immediate click-to-cursor response`);
       
-      const canvas = document.querySelector('canvas');
-      if (!canvas || !duration) {
-        console.error('❌ [ClickResponsivenessTest] No canvas or audio duration');
-        return { error: 'Canvas or audio not available' };
-      }
-      
-      const testClicks = [
-        { position: 0.2, expectedTime: duration * 0.2 },
-        { position: 0.5, expectedTime: duration * 0.5 },
-        { position: 0.8, expectedTime: duration * 0.8 }
-      ];
-      
-      const results = [];
-      
-      testClicks.forEach((testClick, index) => {
-        const startTime = performance.now();
-        
-        // 🎯 **SIMULATE CLICK**: Simulate click at position
-        const targetTime = testClick.expectedTime;
-        const beforeTime = audioRef.current?.currentTime || 0;
-        
-        // Test immediate jump
-        jumpToTime(targetTime);
-        
-        const endTime = performance.now();
-        const afterTime = audioRef.current?.currentTime || 0;
-        const responseTime = endTime - startTime;
-        
-        const result = {
-          test: `Click ${index + 1}`,
-          targetTime: targetTime.toFixed(2) + 's',
-          beforeCursor: beforeTime.toFixed(2) + 's',
-          afterCursor: afterTime.toFixed(2) + 's',
-          responseTime: responseTime.toFixed(2) + 'ms',
-          accuracy: Math.abs(afterTime - targetTime) < 0.1 ? '✅ ACCURATE' : '❌ INACCURATE',
-          speed: responseTime < 1 ? '🚀 INSTANT' : 
-                responseTime < 5 ? '⚡ FAST' : 
-                responseTime < 10 ? '✅ GOOD' : '⚠️ SLOW'
-        };
-        
-        results.push(result);
-        console.log(`⚡ [ClickTest${index + 1}] ${result.speed}: ${result.responseTime} response`);
-      });
-      
-      const averageResponseTime = results.reduce((sum, r) => sum + parseFloat(r.responseTime), 0) / results.length;
-      const summary = {
-        totalTests: results.length,
-        averageResponseTime: averageResponseTime.toFixed(2) + 'ms',
-        allAccurate: results.every(r => r.accuracy.includes('✅')),
-        overallPerformance: averageResponseTime < 1 ? '🚀 EXCELLENT' :
-                           averageResponseTime < 3 ? '⚡ VERY GOOD' :
-                           averageResponseTime < 5 ? '✅ GOOD' : '⚠️ NEEDS IMPROVEMENT',
-        improvements: [
-          '🚀 120fps animation loop (was 60fps)',
-          '⚡ Removed requestIdleCallback delays',
-          '🎯 Direct audio.currentTime updates',
-          '🔥 Synchronous state updates'
-        ]
-      };
-      
-      console.log(`⚡ [ClickResponsivenessTest] Summary:`, summary);
-      console.log(`⚡ [ClickResponsivenessTest] Detailed results:`, results);
-      
-      return { summary, results };
-    };
-
-    return () => {
-      delete window.mp3CutterSetSelection;
-      delete window.mp3CutterConfigureAutoReturn;
-      delete window.mp3CutterGetAutoReturnStatus;
-      delete window.mp3CutterInteractionDebug;
-      delete window.mp3CutterValidateDragSystem;
-      delete window.mp3CutterStartInteractionMonitor;
-      delete window.mp3CutterStopInteractionMonitor;
-      delete window.mp3CutterStartSyncMonitor;
-      delete window.mp3CutterStopSyncMonitor;
-      delete window.mp3CutterTestSyncPerformance;
-      
-      // 🆕 **REGION DRAG CLEANUP**: Cleanup region drag functions
-      delete window.mp3CutterConfigureRegionDrag;
-      delete window.mp3CutterGetRegionDragStatus;
-      delete window.mp3CutterTestRegionDrag;
-      
-      // 🆕 **TOOLTIP SYSTEM CLEANUP**: Cleanup tooltip test functions
-      delete window.mp3CutterTestTooltipSystem;
-      delete window.mp3CutterTestTooltipStyling;
-      delete window.mp3CutterTestScrollbarRemoval;
-      
-      // 🆕 **DIFFERENTIATED POSITIONING CLEANUP**: Cleanup new positioning test functions
-      delete window.mp3CutterTestDifferentiatedTooltips;
-      delete window.mp3CutterValidatePortalTooltips;
-      delete window.mp3CutterTestTextOnlyTooltip;
-      
-      // 🆕 **NEW DESIGN TESTS CLEANUP**: Cleanup new design test functions
-      delete window.testTextOnlyHoverTooltip;
-      delete window.testClickBehavior;
-      delete window.testSelectionDurationPosition;
-      
-      // 🚀 **CURSOR PERFORMANCE TESTS CLEANUP**: Cleanup cursor performance test functions
-      delete window.testCursorPerformance;
-      delete window.testClickResponsiveness;
-      
-      // 🚫 **TEST CLICK HANDLER CLEANUP**: Remove test click handler if exists
       const canvas = document.querySelector('canvas');
       if (canvas && window.testClickHandler) {
         canvas.removeEventListener('click', window.testClickHandler);
@@ -2175,6 +2192,11 @@ const MP3CutterMain = React.memo(() => {
               isDragging={isDragging}
               isPlaying={isPlaying}
               volume={volume}
+              
+              // 🆕 **FADE EFFECTS**: Visual fade in/out effects trên waveform
+              fadeIn={fadeIn}   // Fade in duration - bars sẽ hiển thị thấp → cao dần trong khoảng này
+              fadeOut={fadeOut} // Fade out duration - bars sẽ hiển thị cao → thấp dần trong khoảng này
+              
               onMouseDown={handleCanvasMouseDown}
               onMouseMove={handleCanvasMouseMove}
               onMouseUp={handleCanvasMouseUp}

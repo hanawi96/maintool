@@ -14,6 +14,11 @@ const WaveformCanvas = React.memo(({
   isDragging,
   isPlaying,
   volume = 1, // 🆕 **VOLUME PROP**: Volume level (0-1) for responsive bars
+  
+  // 🆕 **FADE EFFECTS**: Visual fade in/out effects cho waveform bars
+  fadeIn = 0,   // Fade in duration (seconds) - sóng âm thấp → cao dần
+  fadeOut = 0,  // Fade out duration (seconds) - sóng âm cao → thấp dần
+  
   onMouseDown,
   onMouseMove,
   onMouseUp,
@@ -504,7 +509,7 @@ const WaveformCanvas = React.memo(({
     return waveformData;
   }, [waveformData, canvasRef]);
 
-  // 🔥 **STABLE RENDER DATA**: Giảm re-calculation và logging với volume support
+  // 🔥 **STABLE RENDER DATA**: Giảm re-calculation và logging với volume support + fade effects
   const renderData = useMemo(() => {    
     if (!adaptiveWaveformData.length || duration === 0) {
       return null;
@@ -519,6 +524,10 @@ const WaveformCanvas = React.memo(({
     const stableDuration = Math.round(duration * 10) / 10;   // 0.1s precision
     const stableVolume = Math.round(animatedVolume * 1000) / 1000; // 🆕 **USE STATE** instead of ref
     
+    // 🆕 **STABLE FADE VALUES**: Include fade values in render data với precision
+    const stableFadeIn = Math.round(fadeIn * 10) / 10;  // 0.1s precision
+    const stableFadeOut = Math.round(fadeOut * 10) / 10; // 0.1s precision
+    
     const data = {
       waveformData: adaptiveWaveformData,
       duration: stableDuration,
@@ -528,14 +537,19 @@ const WaveformCanvas = React.memo(({
       isDragging,
       canvasWidth,
       volume: stableVolume, // 🆕 **ANIMATED VOLUME**: Use animation ref for smooth transitions
-      dataHash: `${adaptiveWaveformData.length}-${stableDuration}-${stableStartTime}-${stableEndTime}-${hoveredHandle || 'none'}-${isDragging || 'none'}-${canvasWidth}-${stableVolume}`
+      
+      // 🆕 **FADE EFFECTS**: Include fade values để tính toán fade effect
+      fadeIn: stableFadeIn,   // Fade in duration
+      fadeOut: stableFadeOut, // Fade out duration
+      
+      dataHash: `${adaptiveWaveformData.length}-${stableDuration}-${stableStartTime}-${stableEndTime}-${hoveredHandle || 'none'}-${isDragging || 'none'}-${canvasWidth}-${stableVolume}-${stableFadeIn}-${stableFadeOut}`
     };
     
     // 🔥 **UPDATE REF**: Update ref without logging to prevent spam
     lastRenderDataRef.current = data;
     
     return data;
-  }, [adaptiveWaveformData, duration, startTime, endTime, hoveredHandle, isDragging, canvasRef, animatedVolume]);
+  }, [adaptiveWaveformData, duration, startTime, endTime, hoveredHandle, isDragging, canvasRef, animatedVolume, fadeIn, fadeOut]);
 
   // 🎯 ENHANCED: Drawing function with performance optimizations
   const drawWaveform = useCallback(() => {
@@ -560,8 +574,8 @@ const WaveformCanvas = React.memo(({
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, width, height);
     
-    // 2. 🎯 RESPONSIVE WAVEFORM BARS với Volume Scaling
-    const { waveformData, duration, startTime, endTime, volume: currentVolume } = renderData;
+    // 2. 🎯 RESPONSIVE WAVEFORM BARS với Volume Scaling + Fade Effects
+    const { waveformData, duration, startTime, endTime, volume: currentVolume, fadeIn: currentFadeIn, fadeOut: currentFadeOut } = renderData;
     const centerY = height / 2;
     
     // 🎯 SMART BAR WIDTH CALCULATION
@@ -587,44 +601,80 @@ const WaveformCanvas = React.memo(({
       lastVolumeLogRef.current = currentVolume;
     }
     
+    // 🆕 **FADE EFFECTS LOGGING**: Log fade configuration khi đang active
+    let fadeEffectsActive = false;
+    if (currentFadeIn > 0 || currentFadeOut > 0) {
+      fadeEffectsActive = true;
+      // 🔧 **OCCASIONAL FADE LOGGING**: Log fade effects occasionally để tránh spam
+      if (Math.random() < 0.01) { // 1% sampling
+        console.log(`🎨 [FadeEffects] Active fade configuration:`, {
+          fadeIn: currentFadeIn > 0 ? currentFadeIn.toFixed(1) + 's' : 'off',
+          fadeOut: currentFadeOut > 0 ? currentFadeOut.toFixed(1) + 's' : 'off',
+          selectionRange: `${startTime.toFixed(2)}s → ${endTime.toFixed(2)}s`,
+          fadeInRange: currentFadeIn > 0 ? `${startTime.toFixed(2)}s → ${(startTime + currentFadeIn).toFixed(2)}s` : 'none',
+          fadeOutRange: currentFadeOut > 0 ? `${(endTime - currentFadeOut).toFixed(2)}s → ${endTime.toFixed(2)}s` : 'none'
+        });
+      }
+    }
+    
     // 🎯 PERFORMANCE: Batch draw operations
     ctx.save();
     
     if (useOptimizedSpacing) {
-      // 🎯 SMALL SCREENS: Fill entire width with evenly spaced bars
+      // 🎯 SMALL SCREENS: Fill entire width with evenly spaced bars + fade effects
       const totalBarSpace = width;
       const spacing = totalBarSpace / waveformData.length;
       
       for (let i = 0; i < waveformData.length; i++) {
         const value = waveformData[i];
         const baseBarHeight = Math.max(3, (value * height) / 2); // Increased minimum from 2px to 3px
-        const scaledBarHeight = baseBarHeight * finalVolumeMultiplier; // 🆕 **ENHANCED VOLUME SCALING**
-        const x = i * spacing;
+        
+        // 🎯 **CALCULATE TIME**: Time position của bar này
         const barTime = (i / waveformData.length) * duration;
+        
+        // 🆕 **APPLY FADE EFFECT**: Tính toán fade multiplier cho bar này
+        const fadeMultiplier = fadeEffectsActive ? 
+          calculateFadeMultiplier(barTime, startTime, endTime, currentFadeIn, currentFadeOut) : 1.0;
+        
+        // 🆕 **COMBINED SCALING**: Volume scaling + Fade effect
+        const volumeScaledHeight = baseBarHeight * finalVolumeMultiplier;
+        const finalBarHeight = volumeScaledHeight * fadeMultiplier; // 🎨 **FADE + VOLUME**
+        
+        const x = i * spacing;
         
         // Selection-based coloring
         const isInSelection = barTime >= startTime && barTime <= endTime;
         ctx.fillStyle = isInSelection ? '#8b5cf6' : '#cbd5e1';
         
-        // Draw bar with guaranteed visibility and volume scaling
-        ctx.fillRect(Math.floor(x), centerY - scaledBarHeight, minBarWidth, scaledBarHeight * 2);
+        // Draw bar with guaranteed visibility + volume scaling + fade effects
+        ctx.fillRect(Math.floor(x), centerY - finalBarHeight, minBarWidth, finalBarHeight * 2);
       }
     } else {
-      // 🎯 LARGE SCREENS: Normal spacing with calculated bar width
+      // 🎯 LARGE SCREENS: Normal spacing with calculated bar width + fade effects
       for (let i = 0; i < waveformData.length; i++) {
         const value = waveformData[i];
         const baseBarHeight = Math.max(3, (value * height) / 2); // Increased minimum from 2px to 3px
-        const scaledBarHeight = baseBarHeight * finalVolumeMultiplier; // 🆕 **ENHANCED VOLUME SCALING**
-        const x = i * barWidth;
+        
+        // 🎯 **CALCULATE TIME**: Time position của bar này
         const barTime = (i / waveformData.length) * duration;
+        
+        // 🆕 **APPLY FADE EFFECT**: Tính toán fade multiplier cho bar này
+        const fadeMultiplier = fadeEffectsActive ? 
+          calculateFadeMultiplier(barTime, startTime, endTime, currentFadeIn, currentFadeOut) : 1.0;
+        
+        // 🆕 **COMBINED SCALING**: Volume scaling + Fade effect
+        const volumeScaledHeight = baseBarHeight * finalVolumeMultiplier;
+        const finalBarHeight = volumeScaledHeight * fadeMultiplier; // 🎨 **FADE + VOLUME**
+        
+        const x = i * barWidth;
         
         // Selection-based coloring
         const isInSelection = barTime >= startTime && barTime <= endTime;
         ctx.fillStyle = isInSelection ? '#8b5cf6' : '#cbd5e1';
         
-        // Draw bar with optimized width and volume scaling
+        // Draw bar with optimized width + volume scaling + fade effects
         const drawWidth = Math.max(1, barWidth - 0.3);
-        ctx.fillRect(Math.floor(x), centerY - scaledBarHeight, drawWidth, scaledBarHeight * 2);
+        ctx.fillRect(Math.floor(x), centerY - finalBarHeight, drawWidth, finalBarHeight * 2);
       }
     }
     ctx.restore();
@@ -1000,6 +1050,76 @@ const WaveformCanvas = React.memo(({
       requestRedraw();
     }
   }, [animatedVolume, renderData, requestRedraw]);
+
+  // 🆕 **FADE EFFECT CALCULATOR**: Tính toán fade multiplier cho từng bar dựa theo thời gian
+  const calculateFadeMultiplier = useCallback((barTime, selectionStartTime, selectionEndTime, fadeInDuration, fadeOutDuration) => {
+    // 🎯 **NO FADE**: Nếu không có fade effect, return 1.0 (full height)
+    if (fadeInDuration === 0 && fadeOutDuration === 0) {
+      return 1.0;
+    }
+    
+    // 🎯 **OUTSIDE SELECTION**: Nếu bar nằm ngoài selection, không áp dụng fade
+    if (barTime < selectionStartTime || barTime > selectionEndTime) {
+      return 1.0;
+    }
+    
+    const selectionDuration = selectionEndTime - selectionStartTime;
+    const timeInSelection = barTime - selectionStartTime; // Time elapsed in selection (0 to selectionDuration)
+    const timeFromEnd = selectionEndTime - barTime; // Time remaining in selection (selectionDuration to 0)
+    
+    let fadeMultiplier = 1.0; // Default: full height
+    
+    // 🔥 **FADE IN EFFECT**: 3 giây đầu từ thấp → cao dần
+    if (fadeInDuration > 0 && timeInSelection <= fadeInDuration) {
+      // 🎯 **SMOOTH CURVE**: Sử dụng ease-out curve cho fade in tự nhiên
+      const fadeInProgress = timeInSelection / fadeInDuration; // 0.0 → 1.0
+      const easedProgress = 1 - Math.pow(1 - fadeInProgress, 2); // Ease-out curve for smooth fade
+      
+      // 🎯 **FADE RANGE**: 0.1 (10% height) → 1.0 (100% height)
+      const minFadeHeight = 0.1; // Minimum height tại đầu fade in (10%)
+      fadeMultiplier = Math.min(fadeMultiplier, minFadeHeight + (easedProgress * (1.0 - minFadeHeight)));
+      
+      // 🔧 **DEBUG FADE IN**: Log fade in calculation occasionally
+      if (Math.random() < 0.001) { // 0.1% sampling để tránh spam
+        console.log(`🔥 [FadeIn] Bar at ${barTime.toFixed(2)}s: progress=${fadeInProgress.toFixed(3)}, multiplier=${fadeMultiplier.toFixed(3)}`);
+      }
+    }
+    
+    // 🔥 **FADE OUT EFFECT**: 3 giây cuối từ cao → thấp dần
+    if (fadeOutDuration > 0 && timeFromEnd <= fadeOutDuration) {
+      // 🎯 **SMOOTH CURVE**: Sử dụng ease-in curve cho fade out tự nhiên
+      const fadeOutProgress = timeFromEnd / fadeOutDuration; // 1.0 → 0.0 (remaining time ratio)
+      const easedProgress = Math.pow(fadeOutProgress, 2); // Ease-in curve for smooth fade
+      
+      // 🎯 **FADE RANGE**: 1.0 (100% height) → 0.1 (10% height)
+      const minFadeHeight = 0.1; // Minimum height tại cuối fade out (10%)
+      const fadeOutMultiplier = minFadeHeight + (easedProgress * (1.0 - minFadeHeight));
+      fadeMultiplier = Math.min(fadeMultiplier, fadeOutMultiplier);
+      
+      // 🔧 **DEBUG FADE OUT**: Log fade out calculation occasionally
+      if (Math.random() < 0.001) { // 0.1% sampling để tránh spam
+        console.log(`🔥 [FadeOut] Bar at ${barTime.toFixed(2)}s: remaining=${timeFromEnd.toFixed(2)}s, progress=${fadeOutProgress.toFixed(3)}, multiplier=${fadeMultiplier.toFixed(3)}`);
+      }
+    }
+    
+    // 🎯 **CLAMP RESULT**: Đảm bảo fade multiplier trong range hợp lệ
+    return Math.max(0.05, Math.min(1.0, fadeMultiplier)); // Minimum 5% height, maximum 100% height
+  }, []);
+
+  // 🆕 **FADE EFFECT LOGGER**: Log khi fade values thay đổi để debug
+  useEffect(() => {
+    if (fadeIn > 0 || fadeOut > 0) {
+      console.log(`🎨 [FadeEffects] Fade configuration updated:`, {
+        fadeIn: fadeIn.toFixed(1) + 's',
+        fadeOut: fadeOut.toFixed(1) + 's',
+        startTime: startTime.toFixed(2) + 's',
+        endTime: endTime.toFixed(2) + 's',
+        selectionDuration: (endTime - startTime).toFixed(2) + 's',
+        fadeInRange: fadeIn > 0 ? `${startTime.toFixed(2)}s → ${(startTime + fadeIn).toFixed(2)}s` : 'none',
+        fadeOutRange: fadeOut > 0 ? `${(endTime - fadeOut).toFixed(2)}s → ${endTime.toFixed(2)}s` : 'none'
+      });
+    }
+  }, [fadeIn, fadeOut, startTime, endTime]);
 
   return (
     <div className="relative" style={{ minWidth: `${WAVEFORM_CONFIG.RESPONSIVE.MIN_WIDTH}px` }}>

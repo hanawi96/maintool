@@ -15,6 +15,10 @@ const Waveform = ({
   isPlaying,
   volume = 1,
   
+  // 🆕 **FADE EFFECTS**: Visual fade in/out effects cho waveform
+  fadeIn = 0,   // Fade in duration (seconds)
+  fadeOut = 0,  // Fade out duration (seconds)
+  
   // Canvas handlers
   onMouseDown,
   onMouseMove,
@@ -74,6 +78,8 @@ const Waveform = ({
             isDragging={isDragging}
             isPlaying={isPlaying}
             volume={volume}
+            fadeIn={fadeIn}
+            fadeOut={fadeOut}
             onMouseDown={onMouseDown}
             onMouseMove={onMouseMove}
             onMouseUp={onMouseUp}
