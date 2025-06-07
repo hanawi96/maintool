@@ -43,6 +43,20 @@ const CutDownload = ({
     }
   }, [progress, clearProgress]);
 
+  // 🔍 **DEBUG FORMAT CHANGES**: Log khi format thay đổi
+  useEffect(() => {
+    console.log('🎯 [CutDownload] Format changed:', {
+      newFormat: outputFormat,
+      hasProcessedFile: !!processedFile,
+      processedFormat: processedFile?.outputFormat,
+      willNeedRecut: processedFile && processedFile.outputFormat !== outputFormat
+    });
+    
+    if (processedFile && processedFile.outputFormat !== outputFormat) {
+      console.log('⚠️ [CutDownload] Format mismatch detected - user will need to recut or switch back');
+    }
+  }, [outputFormat, processedFile]);
+
   // 🆕 **CUT ONLY FUNCTION**: Cut audio với speed nhưng KHÔNG auto download
   const handleCutOnly = async () => {
     console.log('✂️ [CutDownload] Starting CUT-ONLY process with WebSocket progress...');
@@ -235,9 +249,18 @@ const CutDownload = ({
     };
   };
 
-  // 🆕 **DOWNLOAD BUTTON STATE**: State for download/save button
+  // 🆕 **DOWNLOAD BUTTON STATE**: State for download/save button WITH FORMAT COMPATIBILITY
   const getDownloadButtonState = () => {
+    console.log('🔍 [getDownloadButtonState] Checking download button state:', {
+      hasProcessedFile: !!processedFile,
+      processedFormat: processedFile?.outputFormat,
+      currentFormat: outputFormat,
+      formatMatch: processedFile?.outputFormat === outputFormat
+    });
+
+    // 🚫 **NO PROCESSED FILE**: Chưa có file nào được xử lý
     if (!processedFile) {
+      console.log('🚫 [getDownloadButtonState] No processed file - button disabled');
       return {
         variant: 'disabled',
         icon: Save,
@@ -246,10 +269,35 @@ const CutDownload = ({
       };
     }
 
+    // 🔍 **FORMAT COMPATIBILITY CHECK**: Kiểm tra format có khớp không
+    const isFormatMatch = processedFile.outputFormat === outputFormat;
+    
+    if (!isFormatMatch) {
+      console.log('🚫 [getDownloadButtonState] Format mismatch - button disabled:', {
+        processedFormat: processedFile.outputFormat,
+        selectedFormat: outputFormat,
+        message: `Switch back to ${processedFile.outputFormat?.toUpperCase()} to download, or cut again with ${outputFormat?.toUpperCase()}`
+      });
+      
+      return {
+        variant: 'disabled',
+        icon: Save,
+        text: `Save (${processedFile.outputFormat?.toUpperCase()})`,
+        className: 'bg-yellow-200 text-yellow-700 cursor-not-allowed border-2 border-yellow-400',
+        tooltip: `Switch back to ${processedFile.outputFormat?.toUpperCase()} format to download existing file`
+      };
+    }
+
+    // ✅ **FORMAT MATCH**: Có file và format khớp - enable button
+    console.log('✅ [getDownloadButtonState] Format matches - button enabled:', {
+      format: outputFormat?.toUpperCase(),
+      fileReady: true
+    });
+
     return {
       variant: 'ready',
       icon: Save,
-      text: 'Save',
+      text: `Save ${outputFormat?.toUpperCase()}`,
       className: 'bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white transform hover:scale-105'
     };
   };
@@ -310,6 +358,7 @@ const CutDownload = ({
             transition-all duration-200 disabled:cursor-not-allowed
             ${downloadButtonState.className}
           `}
+          title={downloadButtonState.tooltip || `Download processed ${outputFormat?.toUpperCase()} file`}
         >
           <downloadButtonState.icon className="w-4 h-4" />
           {downloadButtonState.text}
