@@ -240,16 +240,16 @@ const CutDownload = ({
     if (!processedFile) {
       return {
         variant: 'disabled',
-        icon: Download,
-        text: 'Cut First',
+        icon: Save,
+        text: 'Save',
         className: 'bg-gray-300 text-gray-500 cursor-not-allowed'
       };
     }
 
     return {
       variant: 'ready',
-      icon: Download,
-      text: 'Download',
+      icon: Save,
+      text: 'Save',
       className: 'bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white transform hover:scale-105'
     };
   };
