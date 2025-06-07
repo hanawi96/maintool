@@ -96,13 +96,13 @@ const WaveformCanvas = React.memo(({
     }
 
     // 🎯 **HANDLE DETECTION**: Check if hovering over handles first (highest priority)
-    const { HANDLE_WIDTH } = WAVEFORM_CONFIG;
+    const { MODERN_HANDLE_WIDTH } = WAVEFORM_CONFIG; // 🆕 **MODERN HANDLE CONFIG**
     const responsiveHandleWidth = canvasWidth < WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT ? 
-      Math.max(8, HANDLE_WIDTH * 0.8) : HANDLE_WIDTH;
+      Math.max(6, MODERN_HANDLE_WIDTH * 0.8) : MODERN_HANDLE_WIDTH; // 🎯 **ADJUSTED FOR MODERN HANDLES**
     
     const startX = (startTime / duration) * canvasWidth;
     const endX = (endTime / duration) * canvasWidth;
-    const tolerance = Math.max(responsiveHandleWidth / 2, WAVEFORM_CONFIG.RESPONSIVE.TOUCH_TOLERANCE);
+    const tolerance = Math.max(responsiveHandleWidth / 2 + 8, WAVEFORM_CONFIG.RESPONSIVE.TOUCH_TOLERANCE); // 🎯 **INCREASED TOLERANCE**
     
     // 🔍 **HANDLE HOVER DETECTION**
     if (startTime < endTime) { // Only check handles if there's a valid selection
@@ -336,13 +336,13 @@ const WaveformCanvas = React.memo(({
     }
 
     // 🆕 **HANDLE DETECTION**: Check if hovering over handles to hide cursor line
-    const { HANDLE_WIDTH } = WAVEFORM_CONFIG;
+    const { MODERN_HANDLE_WIDTH } = WAVEFORM_CONFIG; // 🆕 **MODERN HANDLE CONFIG**
     const responsiveHandleWidth = canvasWidth < WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT ? 
-      Math.max(8, HANDLE_WIDTH * 0.8) : HANDLE_WIDTH;
+      Math.max(6, MODERN_HANDLE_WIDTH * 0.8) : MODERN_HANDLE_WIDTH; // 🎯 **ADJUSTED FOR MODERN HANDLES**
     
     const startX = (startTime / duration) * canvasWidth;
     const endX = (endTime / duration) * canvasWidth;
-    const tolerance = Math.max(responsiveHandleWidth / 2, WAVEFORM_CONFIG.RESPONSIVE.TOUCH_TOLERANCE);
+    const tolerance = Math.max(responsiveHandleWidth / 2 + 8, WAVEFORM_CONFIG.RESPONSIVE.TOUCH_TOLERANCE); // 🎯 **INCREASED TOLERANCE**
     
     // 🚫 **HIDE CURSOR LINE**: When hovering over handles
     if (startTime < endTime) { // Only check handles if there's a valid selection
@@ -701,37 +701,58 @@ const WaveformCanvas = React.memo(({
       ctx.setLineDash([]);
     }
     
-    // 4. 🎯 Handles - responsive sizing
+    // 4. 🎯 **MODERN HANDLES**: Modern vertical bar design inspired by competitor
     if (startTime < endTime) {
-      const { HANDLE_WIDTH, HANDLE_HEIGHT } = WAVEFORM_CONFIG;
+      const { MODERN_HANDLE_WIDTH } = WAVEFORM_CONFIG;
       const { hoveredHandle, isDragging } = renderData;
       const startX = (startTime / duration) * width;
       const endX = (endTime / duration) * width;
-      const handleY = (height - HANDLE_HEIGHT) / 2;
       
-      // 🎯 RESPONSIVE HANDLE SIZE (smaller on mobile)
+      // 🎯 **RESPONSIVE MODERN HANDLE SIZE**: Slightly smaller on mobile
       const responsiveHandleWidth = width < WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT ? 
-        Math.max(8, HANDLE_WIDTH * 0.8) : HANDLE_WIDTH;
+        Math.max(3, MODERN_HANDLE_WIDTH * 0.75) : MODERN_HANDLE_WIDTH;
       
-      // Left handle
-      const leftHandleX = startX - responsiveHandleWidth / 2;
-      const isLeftActive = hoveredHandle === 'start' || isDragging === 'start';
+      // 🎯 **ULTRA-CRISP HANDLE STYLING**: Hoàn toàn sắc nét, không mờ nhòe
+      const drawCrispHandle = (x, isLeft, isActive) => {
+        // 🔥 **PIXEL-PERFECT CENTER**: Làm tròn hoàn toàn để tránh sub-pixel
+        const centerX = Math.round(x);
+        
+        // 🎯 **BRAND COLORS**: Màu sắc sắc nét, không hiệu ứng
+        const baseColor = isLeft ? '#14b8a6' : '#f97316'; // Teal & Orange
+        const activeColor = isLeft ? '#0d9488' : '#ea580c'; // Darker when active
+        const fillColor = isActive ? activeColor : baseColor;
+        
+        // 🔥 **ULTRA-SHARP RECTANGLE**: Sử dụng fillRect thay vì roundRect
+        // Loại bỏ hoàn toàn rounded corners để có cạnh sắc nét 100%
+        const handleX = Math.round(centerX - responsiveHandleWidth / 2);
+        const handleY = 0;
+        const handleWidth = responsiveHandleWidth;
+        const handleHeight = height;
+        
+        // 🎯 **SINGLE LAYER RENDERING**: Chỉ vẽ một lớp duy nhất
+        ctx.fillStyle = fillColor;
+        ctx.fillRect(handleX, handleY, handleWidth, handleHeight);
+        
+        // 🔧 **DEBUG ULTRA-CRISP**: Log rendering info với throttling
+        if (Math.random() < 0.01) { // 1% sampling để tránh spam console
+          console.log(`🔥 [UltraCrispHandle] ${isLeft ? 'START' : 'END'} handle:`, {
+            position: `${centerX}px (pixel-perfect)`,
+            dimensions: `${handleWidth}px × ${handleHeight}px`,
+            color: fillColor,
+            active: isActive,
+            rendering: 'ULTRA_CRISP_SINGLE_LAYER',
+            sharpness: '100% - NO_BLUR_NO_GLOW_NO_ROUNDED'
+          });
+        }
+      };
       
-      ctx.fillStyle = isLeftActive ? '#6366f1' : '#e2e8f0';
-      ctx.fillRect(leftHandleX, handleY, responsiveHandleWidth, HANDLE_HEIGHT);
-      ctx.strokeStyle = isLeftActive ? '#4f46e5' : '#94a3b8';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(leftHandleX, handleY, responsiveHandleWidth, HANDLE_HEIGHT);
+      // 🎯 **DRAW START HANDLE**: Crisp left handle with teal brand color
+      const isStartActive = hoveredHandle === 'start' || isDragging === 'start';
+      drawCrispHandle(startX, true, isStartActive);
       
-      // Right handle
-      const rightHandleX = endX - responsiveHandleWidth / 2;
-      const isRightActive = hoveredHandle === 'end' || isDragging === 'end';
-      
-      ctx.fillStyle = isRightActive ? '#ec4899' : '#e2e8f0';
-      ctx.fillRect(rightHandleX, handleY, responsiveHandleWidth, HANDLE_HEIGHT);
-      ctx.strokeStyle = isRightActive ? '#db2777' : '#94a3b8';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(rightHandleX, handleY, responsiveHandleWidth, HANDLE_HEIGHT);
+      // 🎯 **DRAW END HANDLE**: Crisp right handle with orange brand color
+      const isEndActive = hoveredHandle === 'end' || isDragging === 'end';
+      drawCrispHandle(endX, false, isEndActive);
     }
     
     // 5. 🔥 **CLEAN CURSOR**: Slim 2px cursor as requested
@@ -1043,7 +1064,7 @@ const WaveformCanvas = React.memo(({
     return createPortal(children, tooltipPortalTargetRef.current);
   }, []);
 
-  // �� **VOLUME ANIMATION REDRAW**: Trigger redraw during volume animation
+  // 🔥 **VOLUME ANIMATION REDRAW**: Trigger redraw during volume animation
   useEffect(() => {
     // 🎯 **SMOOTH ANIMATION REDRAW**: Request redraw when animated volume changes
     if (renderData) {
@@ -1223,7 +1244,7 @@ const WaveformCanvas = React.memo(({
               left: `${tooltipPositions.startHandle.absoluteX}px`,
               top: `${tooltipPositions.startHandle.absoluteY}px`,
               transform: 'translateX(-50%)',
-              backgroundColor: 'rgba(20, 184, 166, 0.95)', // Cyan color như đối thủ
+              backgroundColor: 'rgba(20, 184, 166, 0.95)', // Teal color for start handle
               color: 'white',
               transition: 'none',
               whiteSpace: 'nowrap',
@@ -1245,7 +1266,7 @@ const WaveformCanvas = React.memo(({
               left: `${tooltipPositions.endHandle.absoluteX}px`,
               top: `${tooltipPositions.endHandle.absoluteY}px`,
               transform: 'translateX(-50%)',
-              backgroundColor: 'rgba(20, 184, 166, 0.95)', // Cyan color như đối thủ
+              backgroundColor: 'rgba(249, 115, 22, 0.95)', // Orange color for end handle  
               color: 'white',
               transition: 'none',
               whiteSpace: 'nowrap',

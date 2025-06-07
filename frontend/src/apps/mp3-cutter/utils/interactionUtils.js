@@ -20,7 +20,7 @@ export const HANDLE_TYPES = {
 };
 
 /**
- * 🎯 Smart handle detection with responsive sizing
+ * 🎯 Smart handle detection with responsive sizing - UPDATED FOR MODERN HANDLES
  * @param {number} x - Mouse X position relative to canvas
  * @param {number} canvasWidth - Canvas width in pixels
  * @param {number} duration - Audio duration in seconds
@@ -31,19 +31,19 @@ export const HANDLE_TYPES = {
 export const detectHandle = (x, canvasWidth, duration, startTime, endTime) => {
   if (duration === 0) return null;
   
-  // 🎯 RESPONSIVE: Use same handle width calculation as WaveformCanvas
-  const baseHandleWidth = WAVEFORM_CONFIG.HANDLE_WIDTH;
+  // 🎯 **MODERN HANDLE DETECTION**: Use modern handle width configuration
+  const baseHandleWidth = WAVEFORM_CONFIG.MODERN_HANDLE_WIDTH; // 🆕 **MODERN HANDLES**: 4px instead of 10px
   const mobileBreakpoint = WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT;
   const touchTolerance = WAVEFORM_CONFIG.RESPONSIVE.TOUCH_TOLERANCE;
   
   const responsiveHandleWidth = canvasWidth < mobileBreakpoint ? 
-    Math.max(8, baseHandleWidth * 0.8) : baseHandleWidth;
+    Math.max(3, baseHandleWidth * 0.75) : baseHandleWidth; // 🎯 **ADJUSTED FOR MODERN**: Smaller mobile handles
   
   const startX = (startTime / duration) * canvasWidth;
   const endX = (endTime / duration) * canvasWidth;
   
-  // 🎯 Enhanced tolerance for better UX
-  const tolerance = Math.max(responsiveHandleWidth / 2, touchTolerance);
+  // 🎯 **ENHANCED TOLERANCE**: Larger tolerance for better UX with thin handles
+  const tolerance = Math.max(responsiveHandleWidth / 2 + 8, touchTolerance); // 🆕 **+8px**: Better interaction area
   
   // Check start handle first (priority for overlapping cases)
   if (Math.abs(x - startX) <= tolerance) return HANDLE_TYPES.START;
@@ -94,7 +94,7 @@ export class InteractionManager {
     
     // 🎯 Debug tracking
     this.debugId = Math.random().toString(36).substr(2, 6);
-    console.log(`🎮 [InteractionManager] Created with ID: ${this.debugId}`);
+    console.log(`🎮 [InteractionManager] Created with ID: ${this.debugId} (MODERN HANDLES)`);
     console.log(`🔄 [AudioSync] Connected to InteractionManager ${this.debugId}`);
     console.log(`🎯 [SmartClick] Connected to InteractionManager ${this.debugId}`);
   }
@@ -111,12 +111,13 @@ export class InteractionManager {
     this.lastMousePosition = { x, y: 0 };
     this.isDraggingConfirmed = false;
     
-    console.log(`🖱️ [${this.debugId}] Mouse down:`, {
+    console.log(`🖱️ [${this.debugId}] Mouse down (MODERN):`, {
       x: x.toFixed(1),
       time: clickTime.toFixed(2) + 's',
       handle: handle || 'none',
       currentRegion: `${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s`,
-      timestamp: this.mouseDownTimestamp
+      timestamp: this.mouseDownTimestamp,
+      modernHandles: true
     });
     
     // 🆕 NEW: Use SmartClickManager for intelligent click analysis
@@ -134,7 +135,7 @@ export class InteractionManager {
         this.dragStartTime = smartAction.handle === HANDLE_TYPES.START ? startTime : endTime;
         // 🆕 **NOTE**: isDraggingConfirmed still false until movement detected
         
-        console.log(`🫳 [${this.debugId}] Potential drag start for ${smartAction.handle} handle (awaiting movement confirmation)`);
+        console.log(`🫳 [${this.debugId}] Potential drag start for ${smartAction.handle} handle (MODERN - awaiting movement confirmation)`);
         
         return {
           action: 'startDrag',
@@ -244,7 +245,7 @@ export class InteractionManager {
       // 🆕 **CONFIRM DRAG**: Chỉ confirm drag khi di chuyển đủ xa HOẶC đủ lâu
       if (pixelsMoved >= this.dragMoveThreshold || timeSinceMouseDown > 100) {
         this.isDraggingConfirmed = true;
-        console.log(`✅ [${this.debugId}] Drag CONFIRMED:`, {
+        console.log(`✅ [${this.debugId}] Drag CONFIRMED (MODERN):`, {
           pixelsMoved: pixelsMoved.toFixed(1),
           timeSinceMouseDown: timeSinceMouseDown.toFixed(0) + 'ms',
           threshold: this.dragMoveThreshold + 'px'
@@ -269,7 +270,7 @@ export class InteractionManager {
         const adjustedStartTime = Math.max(0, Math.min(newStartTime, duration - regionDuration));
         const adjustedEndTime = adjustedStartTime + regionDuration;
         
-        console.log(`🔄 [${this.debugId}] CONFIRMED region drag:`, {
+        console.log(`🔄 [${this.debugId}] CONFIRMED region drag (MODERN):`, {
           from: `${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s`,
           to: `${adjustedStartTime.toFixed(2)}s - ${adjustedEndTime.toFixed(2)}s`,
           duration: regionDuration.toFixed(2) + 's',
@@ -306,7 +307,7 @@ export class InteractionManager {
       } else if (this.activeHandle === HANDLE_TYPES.START) {
         const newStartTime = Math.min(roundedTime, endTime - 0.1);
         if (Math.abs(newStartTime - startTime) > 0.01) {
-          console.log(`⏮️ [${this.debugId}] CONFIRMED dragging start: ${startTime.toFixed(2)}s → ${newStartTime.toFixed(2)}s`);
+          console.log(`⏮️ [${this.debugId}] CONFIRMED dragging start (MODERN): ${startTime.toFixed(2)}s → ${newStartTime.toFixed(2)}s`);
           
           // 🆕 **REAL-TIME CURSOR SYNC**: Cursor theo real-time khi drag start handle  
           let audioSynced = false;
@@ -336,7 +337,7 @@ export class InteractionManager {
       } else if (this.activeHandle === HANDLE_TYPES.END) {
         const newEndTime = Math.max(roundedTime, startTime + 0.1);
         if (Math.abs(newEndTime - endTime) > 0.01) {
-          console.log(`⏭️ [${this.debugId}] CONFIRMED dragging end: ${endTime.toFixed(2)}s → ${newEndTime.toFixed(2)}s`);
+          console.log(`⏭️ [${this.debugId}] CONFIRMED dragging end (MODERN): ${endTime.toFixed(2)}s → ${newEndTime.toFixed(2)}s`);
           
           // 🆕 **REAL-TIME CURSOR SYNC**: Cursor theo real-time khi drag end handle với intelligent offset
           let audioSynced = false;
@@ -380,7 +381,7 @@ export class InteractionManager {
       const handle = detectHandle(x, canvasWidth, duration, startTime, endTime);
       
       if (handle !== this.lastHoveredHandle) {
-        console.log(`👆 [${this.debugId}] Hover changed: ${this.lastHoveredHandle || 'none'} → ${handle || 'none'} (NO REGION CHANGE)`);
+        console.log(`👆 [${this.debugId}] Hover changed (MODERN): ${this.lastHoveredHandle || 'none'} → ${handle || 'none'} (NO REGION CHANGE)`);
         this.lastHoveredHandle = handle;
         this.state = handle ? INTERACTION_STATES.HOVERING : INTERACTION_STATES.IDLE;
         
@@ -424,7 +425,7 @@ export class InteractionManager {
     const wasRegionDrag = this.isDraggingRegion;
     
     if (wasDragging) {
-      console.log(`🫳 [${this.debugId}] Drag completed:`, {
+      console.log(`🫳 [${this.debugId}] Drag completed (MODERN):`, {
         handle: this.activeHandle,
         confirmed: wasConfirmedDrag,
         regionDrag: wasRegionDrag,
@@ -485,7 +486,7 @@ export class InteractionManager {
    * 🎯 Handle mouse leave event
    */
   handleMouseLeave() {
-    console.log(`🫥 [${this.debugId}] Mouse left canvas`);
+    console.log(`🫥 [${this.debugId}] Mouse left canvas (MODERN)`);
     
     const wasDragging = this.state === INTERACTION_STATES.DRAGGING;
     
@@ -517,7 +518,10 @@ export class InteractionManager {
       // 🆕 **REGION DRAG DEBUG**
       isDraggingRegion: this.isDraggingRegion,
       regionDragStartTime: this.regionDragStartTime,
-      regionDragOffset: this.regionDragOffset
+      regionDragOffset: this.regionDragOffset,
+      // 🆕 **MODERN HANDLES FLAG**
+      modernHandles: true,
+      handleWidth: WAVEFORM_CONFIG.MODERN_HANDLE_WIDTH
     };
   }
   
@@ -525,7 +529,7 @@ export class InteractionManager {
    * 🎯 Reset manager state
    */
   reset() {
-    console.log(`🔄 [${this.debugId}] Resetting interaction state`);
+    console.log(`🔄 [${this.debugId}] Resetting interaction state (MODERN)`);
     this.state = INTERACTION_STATES.IDLE;
     this.activeHandle = HANDLE_TYPES.NONE;
     this.lastHoveredHandle = HANDLE_TYPES.NONE;
@@ -598,7 +602,7 @@ export class InteractionManager {
   }
   
   /**
-   * 🎯 Get handle at position (legacy compatibility)
+   * 🎯 Get handle at position (legacy compatibility) - UPDATED FOR MODERN HANDLES
    */
   getHandleAtPosition(x, canvasWidth, duration, startTime, endTime) {
     return detectHandle(x, canvasWidth, duration || 0, startTime || 0, endTime || 0);
@@ -606,4 +610,4 @@ export class InteractionManager {
 }
 
 // 🎯 Global interaction manager instance
-export const createInteractionManager = () => new InteractionManager(); 
+export const createInteractionManager = () => new InteractionManager();
