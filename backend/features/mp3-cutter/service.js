@@ -91,9 +91,17 @@ export class MP3Service {
    * 🆕 **CUT AUDIO BY FILE ID**: Cut audio file bằng fileId đã upload trước đó
    */
   static async cutAudioByFileId(fileId, cutParams) {
-    const { startTime, endTime, fadeIn, fadeOut } = cutParams;
+    const { startTime, endTime, fadeIn, fadeOut, playbackRate = 1 } = cutParams; // 🆕 **SPEED SUPPORT**
     
     console.log('🔍 [cutAudioByFileId] Looking for file:', fileId);
+    console.log('🎛️ [cutAudioByFileId] Cut params received:', {
+      startTime,
+      endTime,
+      fadeIn,
+      fadeOut,
+      playbackRate, // 🔧 **DEBUG**: Log playback rate
+      speedChange: playbackRate !== 1 ? `${playbackRate}x speed` : 'normal speed'
+    });
     
     // 🔍 **FIND INPUT FILE**: Tìm file đã upload theo fileId với absolute path
     const inputPath = path.resolve(MP3_CONFIG.PATHS.UPLOADS, fileId);
@@ -115,17 +123,20 @@ export class MP3Service {
     // 🔍 **GET FILE STATS**: Lấy thông tin file để tính duration estimate
     const inputStats = await fs.stat(inputPath);
     
-    // 🆕 **GENERATE OUTPUT FILENAME**: Tạo filename cho file output
+    // 🆕 **GENERATE OUTPUT FILENAME**: Tạo filename cho file output với speed indicator
     const timestamp = Date.now();
     const random = Math.random().toString(36).substring(2, 6);
     const originalName = path.parse(fileId).name; // Lấy tên gốc không có extension
-    const outputFilename = `cut_${originalName}_${timestamp}_${random}.mp3`;
+    const speedSuffix = playbackRate !== 1 ? `_${playbackRate}x` : ''; // 🆕 **SPEED SUFFIX**
+    const outputFilename = `cut_${originalName}${speedSuffix}_${timestamp}_${random}.mp3`;
     const outputPath = path.resolve(MP3_CONFIG.PATHS.PROCESSED, outputFilename);
     
     console.log('📁 [cutAudioByFileId] File paths:', {
       input: inputPath,
       output: outputPath,
-      outputFilename
+      outputFilename,
+      playbackRate,
+      speedSuffix: speedSuffix || 'none'
     });
     
     // 🔧 **ENSURE OUTPUT DIR**: Đảm bảo thư mục output tồn tại với absolute path
@@ -133,20 +144,28 @@ export class MP3Service {
     await fs.mkdir(outputDir, { recursive: true });
     console.log('📁 [cutAudioByFileId] Output directory ensured:', outputDir);
     
-    console.log('✂️ [cutAudioByFileId] Starting cut operation:', {
+    console.log('✂️ [cutAudioByFileId] Starting cut operation with speed:', {
       input: inputPath,
       output: outputPath,
-      cutParams
+      cutParams: { ...cutParams, playbackRate },
+      ffmpegWillReceive: { startTime, endTime, fadeIn, fadeOut, playbackRate, format: 'mp3', quality: 'medium' }
     });
     
-    // 🚀 **CUT AUDIO**: Thực hiện cut audio với FFmpeg
+    // 🚀 **CUT AUDIO WITH SPEED**: Thực hiện cut audio với FFmpeg và speed change
     const cutResult = await MP3Utils.cutAudio(inputPath, outputPath, {
       startTime, 
       endTime, 
       fadeIn, 
       fadeOut, 
+      playbackRate, // 🆕 **PASS SPEED**: Truyền playback rate to FFmpeg
       format: 'mp3', 
       quality: 'medium'
+    });
+    
+    console.log('🎬 [cutAudioByFileId] FFmpeg processing completed:', {
+      success: cutResult.success,
+      playbackRateApplied: cutResult.settings?.playbackRate,
+      ffmpegCommand: 'check FFmpeg logs above'
     });
     
     // 🔍 **VERIFY OUTPUT FILE**: Kiểm tra file output đã được tạo
@@ -175,7 +194,9 @@ export class MP3Service {
       outputFilename,
       outputPath,
       outputSize: outputStats.size,
-      duration: endTime - startTime
+      duration: endTime - startTime,
+      playbackRate,
+      speedProcessed: playbackRate !== 1 ? `${playbackRate}x speed applied` : 'normal speed'
     });
     
     // 🎯 **RETURN STANDARDIZED RESULT**: Trả về kết quả với format chuẩn
@@ -197,7 +218,124 @@ export class MP3Service {
         endTime, 
         fadeIn, 
         fadeOut,
-        actualDuration: cutResult.settings?.duration || (endTime - startTime)
+        playbackRate, // 🆕 **INCLUDE SPEED**: Include playback rate in response
+        actualDuration: cutResult.settings?.duration || (endTime - startTime),
+        speedApplied: playbackRate !== 1 ? `${playbackRate}x` : 'normal' // 🔧 **DEBUG**: Confirm speed applied
+      },
+      urls: {
+        download: `/api/mp3-cutter/download/${outputFilename}`
+      },
+      processedAt: new Date().toISOString()
+    };
+  }
+
+  /**
+   * 🆕 **CHANGE AUDIO SPEED BY FILE ID**: Chỉ thay đổi tốc độ audio, không cắt đoạn
+   */
+  static async changeAudioSpeedByFileId(fileId, speedParams) {
+    const { playbackRate = 1, outputFormat = 'mp3', quality = 'medium' } = speedParams;
+    
+    console.log('⚡ [changeAudioSpeedByFileId] Looking for file:', fileId);
+    
+    // 🔍 **FIND INPUT FILE**: Tìm file đã upload theo fileId với absolute path
+    const inputPath = path.resolve(MP3_CONFIG.PATHS.UPLOADS, fileId);
+    console.log('⚡ [changeAudioSpeedByFileId] Input path (absolute):', inputPath);
+    
+    try {
+      // 🔍 **CHECK FILE EXISTS**: Kiểm tra file có tồn tại
+      await fs.access(inputPath);
+      console.log('✅ [changeAudioSpeedByFileId] Input file found:', inputPath);
+    } catch (error) {
+      console.error('❌ [changeAudioSpeedByFileId] Input file not found:', {
+        fileId,
+        inputPath,
+        error: error.message
+      });
+      throw new Error(`File not found: ${fileId}. Please upload the file again.`);
+    }
+    
+    // 🔍 **GET FILE STATS**: Lấy thông tin file
+    const inputStats = await fs.stat(inputPath);
+    
+    // 🆕 **GENERATE OUTPUT FILENAME**: Tạo filename cho file output với speed
+    const timestamp = Date.now();
+    const random = Math.random().toString(36).substring(2, 6);
+    const originalName = path.parse(fileId).name;
+    const speedSuffix = `_${playbackRate}x`;
+    const outputFilename = `speed_${originalName}${speedSuffix}_${timestamp}_${random}.${outputFormat}`;
+    const outputPath = path.resolve(MP3_CONFIG.PATHS.PROCESSED, outputFilename);
+    
+    console.log('📁 [changeAudioSpeedByFileId] File paths:', {
+      input: inputPath,
+      output: outputPath,
+      outputFilename,
+      playbackRate
+    });
+    
+    // 🔧 **ENSURE OUTPUT DIR**: Đảm bảo thư mục output tồn tại
+    const outputDir = path.resolve(MP3_CONFIG.PATHS.PROCESSED);
+    await fs.mkdir(outputDir, { recursive: true });
+    console.log('📁 [changeAudioSpeedByFileId] Output directory ensured:', outputDir);
+    
+    console.log('⚡ [changeAudioSpeedByFileId] Starting speed change:', {
+      input: inputPath,
+      output: outputPath,
+      speedParams: { playbackRate, outputFormat, quality }
+    });
+    
+    // 🚀 **CHANGE SPEED**: Thực hiện thay đổi tốc độ với FFmpeg
+    const speedResult = await MP3Utils.changeAudioSpeed(inputPath, outputPath, {
+      playbackRate,
+      format: outputFormat,
+      quality
+    });
+    
+    // 🔍 **VERIFY OUTPUT FILE**: Kiểm tra file output đã được tạo
+    try {
+      await fs.access(outputPath);
+      console.log('✅ [changeAudioSpeedByFileId] Output file created successfully:', outputPath);
+    } catch (error) {
+      console.error('❌ [changeAudioSpeedByFileId] Output file not created:', {
+        outputPath,
+        error: error.message
+      });
+      throw new Error(`Speed change failed: Output file not created`);
+    }
+    
+    // 🔍 **GET OUTPUT STATS**: Lấy thông tin file output
+    const outputStats = await fs.stat(outputPath);
+    
+    // 🧹 **AUTO CLEANUP**: Tự động xóa file sau 24 giờ
+    setTimeout(() => {
+      fs.unlink(outputPath).catch(() => {
+        console.log('📁 [changeAudioSpeedByFileId] Auto cleanup completed for:', outputFilename);
+      });
+    }, 24 * 60 * 60 * 1000);
+    
+    console.log('✅ [changeAudioSpeedByFileId] Speed change completed successfully:', {
+      outputFilename,
+      outputPath,
+      outputSize: outputStats.size,
+      playbackRate
+    });
+    
+    // 🎯 **RETURN STANDARDIZED RESULT**: Trả về kết quả với format chuẩn
+    return {
+      input: {
+        filename: fileId,
+        originalName: originalName,
+        path: inputPath,
+        size: inputStats.size
+      },
+      output: {
+        filename: outputFilename,
+        path: outputPath,
+        size: outputStats.size
+      },
+      processing: { 
+        playbackRate,
+        outputFormat,
+        quality
       },
       urls: {
         download: `/api/mp3-cutter/download/${outputFilename}`

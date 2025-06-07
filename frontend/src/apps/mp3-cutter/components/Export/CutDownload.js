@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Download, Scissors, Loader, AlertCircle } from 'lucide-react';
+import { Download, Scissors, Loader, AlertCircle, Save } from 'lucide-react';
 import { audioApi } from '../../services/audioApi';
 import { formatTime } from '../../utils/timeFormatter';
 
@@ -10,18 +10,24 @@ const CutDownload = ({
   outputFormat, 
   fadeIn, 
   fadeOut,
+  playbackRate = 1,
   disabled = false 
 }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingError, setProcessingError] = useState(null);
   const [processingProgress, setProcessingProgress] = useState(0);
+  
+  // 🆕 **NEW STATE**: Track processed file information for download
+  const [processedFile, setProcessedFile] = useState(null);
 
-  const handleCutAndExport = async () => {
-    console.log('✂️ [CutDownload] Starting cut and export process...');
+  // 🆕 **CUT ONLY FUNCTION**: Cut audio với speed nhưng KHÔNG auto download
+  const handleCutOnly = async () => {
+    console.log('✂️ [CutDownload] Starting CUT-ONLY process (no auto download)...');
     
-    // 🎯 Reset previous errors
+    // 🎯 Reset previous state
     setProcessingError(null);
     setProcessingProgress(0);
+    setProcessedFile(null); // Clear previous processed file
 
     // 🎯 Validate inputs
     if (!audioFile?.filename) {
@@ -50,8 +56,9 @@ const CutDownload = ({
     setProcessingProgress(10);
 
     try {
-      console.log('🎯 [CutDownload] Validated inputs, starting cut operation...');
+      console.log('🎯 [CutDownload] Validated inputs, starting CUT-ONLY operation...');
       
+      // 🔧 **CRITICAL**: Đảm bảo playbackRate được truyền đúng
       const cutParams = {
         fileId: audioFile.filename,
         startTime,
@@ -59,16 +66,20 @@ const CutDownload = ({
         outputFormat: outputFormat || 'mp3',
         fadeIn: fadeIn || 0,
         fadeOut: fadeOut || 0,
+        playbackRate: playbackRate, // 🚨 **KEY FIX**: Truyền đúng speed setting
         quality: 'high'
       };
 
-      console.log('📊 [CutDownload] Cut parameters:', cutParams);
+      console.log('📊 [CutDownload] CUT-ONLY parameters with SPEED:', {
+        ...cutParams,
+        speedApplied: playbackRate !== 1 ? `${playbackRate}x speed` : 'normal speed'
+      });
       setProcessingProgress(25);
 
       const result = await audioApi.cutAudioByFileId(cutParams);
       setProcessingProgress(75);
 
-      console.log('✅ [CutDownload] Cut operation successful:', result);
+      console.log('✅ [CutDownload] CUT-ONLY operation successful:', result);
 
       if (!result || !result.success) {
         throw new Error(result?.error || 'Cut operation failed - invalid response');
@@ -83,44 +94,36 @@ const CutDownload = ({
       console.log('📁 [CutDownload] Output file determined:', outputFile);
       setProcessingProgress(90);
 
-      try {
-        const downloadUrl = audioApi.getDownloadUrl(outputFile);
-        console.log('📥 [CutDownload] Triggering download:', downloadUrl);
-        
-        const link = document.createElement('a');
-        link.href = downloadUrl;
-        link.download = `cut_audio_${Date.now()}.${outputFormat || 'mp3'}`;
-        
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
-        setProcessingProgress(100);
+      // 🆕 **SAVE PROCESSED FILE INFO**: Store info for later download
+      const processedFileInfo = {
+        filename: outputFile,
+        duration: result.data?.output?.duration || result.output?.duration || duration,
+        fileSize: result.data?.output?.size || result.output?.size,
+        playbackRate: cutParams.playbackRate,
+        outputFormat: cutParams.outputFormat,
+        processedAt: new Date().toISOString()
+      };
 
-        const successInfo = {
-          duration: result.data?.output?.duration || result.output?.duration || duration,
-          fileSize: result.data?.output?.size || result.output?.size,
-          filename: outputFile
-        };
+      setProcessedFile(processedFileInfo);
+      setProcessingProgress(100);
 
-        const successMessage = [
-          'Audio cut successfully!',
-          `Duration: ${formatTime(successInfo.duration)}`,
-          successInfo.fileSize ? 
-            `Size: ${(successInfo.fileSize / 1024 / 1024).toFixed(2)} MB` : ''
-        ].filter(Boolean).join('\n');
+      // 🎉 **SUCCESS MESSAGE**: Show success without auto download
+      const successMessage = [
+        'Audio cut successfully!',
+        `Duration: ${formatTime(processedFileInfo.duration)}`,
+        processedFileInfo.playbackRate !== 1 ? `Speed: ${processedFileInfo.playbackRate}x` : '',
+        processedFileInfo.fileSize ? 
+          `Size: ${(processedFileInfo.fileSize / 1024 / 1024).toFixed(2)} MB` : '',
+        '', // Empty line
+        'Click "Save" button to download'
+      ].filter(Boolean).join('\n');
 
-        alert(successMessage);
-        
-        console.log('🎉 [CutDownload] Cut and download completed successfully:', successInfo);
-        
-      } catch (downloadError) {
-        console.error('❌ [CutDownload] Download failed:', downloadError);
-        throw new Error(`Download failed: ${downloadError.message}`);
-      }
+      alert(successMessage);
+      
+      console.log('🎉 [CutDownload] CUT-ONLY completed successfully - ready for download:', processedFileInfo);
       
     } catch (error) {
-      console.error('❌ [CutDownload] Cut operation failed:', error);
+      console.error('❌ [CutDownload] CUT-ONLY operation failed:', error);
       
       let userError = error.message;
       
@@ -145,11 +148,63 @@ const CutDownload = ({
     }
   };
 
-  const getButtonState = () => {
+  // 🆕 **DOWNLOAD FUNCTION**: Download processed file
+  const handleDownload = async () => {
+    if (!processedFile) {
+      const error = 'No processed file available. Please cut audio first.';
+      setProcessingError(error);
+      alert(error);
+      return;
+    }
+
+    console.log('📥 [CutDownload] Starting download for processed file:', processedFile);
+
+    try {
+      const downloadUrl = audioApi.getDownloadUrl(processedFile.filename);
+      console.log('📥 [CutDownload] Triggering download:', downloadUrl);
+      
+      // 🎯 **ENHANCED DOWNLOAD**: Better filename với speed info
+      const speedSuffix = processedFile.playbackRate !== 1 ? `_${processedFile.playbackRate}x` : '';
+      const timestamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
+      const downloadFilename = `cut_audio${speedSuffix}_${timestamp}.${processedFile.outputFormat || 'mp3'}`;
+      
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = downloadFilename;
+      
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      console.log('✅ [CutDownload] Download triggered successfully:', {
+        filename: downloadFilename,
+        originalFile: processedFile.filename,
+        speed: processedFile.playbackRate !== 1 ? `${processedFile.playbackRate}x` : 'normal'
+      });
+
+      // 🎉 **DOWNLOAD SUCCESS MESSAGE**
+      const downloadMessage = [
+        'Download started!',
+        `File: ${downloadFilename}`,
+        processedFile.playbackRate !== 1 ? `Speed: ${processedFile.playbackRate}x` : ''
+      ].filter(Boolean).join('\n');
+
+      alert(downloadMessage);
+      
+    } catch (downloadError) {
+      console.error('❌ [CutDownload] Download failed:', downloadError);
+      const error = `Download failed: ${downloadError.message}`;
+      setProcessingError(error);
+      alert(`Error: ${error}`);
+    }
+  };
+
+  // 🆕 **CUT BUTTON STATE**: Updated logic for cut-only button
+  const getCutButtonState = () => {
     if (disabled || !audioFile) {
       return {
         variant: 'disabled',
-        icon: Download,
+        icon: Scissors,
         text: 'No Audio File',
         className: 'bg-gray-300 text-gray-500 cursor-not-allowed'
       };
@@ -159,7 +214,7 @@ const CutDownload = ({
       return {
         variant: 'processing',
         icon: Loader,
-        text: `Processing... ${processingProgress}%`,
+        text: `Cutting... ${processingProgress}%`,
         className: 'bg-blue-500 text-white'
       };
     }
@@ -173,16 +228,40 @@ const CutDownload = ({
       };
     }
     
+    // 🆕 **SPEED AWARE BUTTON**: Show speed in button text
+    const speedText = playbackRate !== 1 ? ` (${playbackRate}x)` : '';
+    
     return {
       variant: 'ready',
       icon: Scissors,
-      text: 'Cut & Download',
+      text: `Cut${speedText}`,
       className: 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white transform hover:scale-105'
     };
   };
 
-  const buttonState = getButtonState();
-  const IconComponent = buttonState.icon;
+  // 🆕 **DOWNLOAD BUTTON STATE**: State for download/save button
+  const getDownloadButtonState = () => {
+    if (!processedFile) {
+      return {
+        variant: 'disabled',
+        icon: Save,
+        text: 'Save (Cut First)',
+        className: 'bg-gray-300 text-gray-500 cursor-not-allowed'
+      };
+    }
+    
+    const speedText = processedFile.playbackRate !== 1 ? ` (${processedFile.playbackRate}x)` : '';
+    
+    return {
+      variant: 'ready',
+      icon: Download,
+      text: `Save${speedText}`,
+      className: 'bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 text-white transform hover:scale-105'
+    };
+  };
+
+  const cutButtonState = getCutButtonState();
+  const downloadButtonState = getDownloadButtonState();
 
   return (
     <div className="space-y-3">
@@ -204,24 +283,41 @@ const CutDownload = ({
         </div>
       )}
 
+      {/* 🆕 **CUT BUTTON**: Cut-only button (replaces "Cut & Download") */}
       <button
-        onClick={handleCutAndExport}
+        onClick={handleCutOnly}
         disabled={disabled || !audioFile || isProcessing}
         className={`
           w-full py-3 px-6 rounded-lg font-semibold text-sm
           flex items-center justify-center gap-2
           transition-all duration-200 ease-in-out
           shadow-lg hover:shadow-xl
-          ${buttonState.className}
+          ${cutButtonState.className}
         `}
       >
-        <IconComponent 
+        <cutButtonState.icon 
           className={`w-5 h-5 ${isProcessing ? 'animate-spin' : ''}`} 
         />
-        {buttonState.text}
+        {cutButtonState.text}
       </button>
-      
-      {/* 🎯 Cut Info Display */}
+
+      {/* 🆕 **DOWNLOAD/SAVE BUTTON**: Replaces speed-only button */}
+      <button
+        onClick={handleDownload}
+        disabled={!processedFile}
+        className={`
+          w-full py-2.5 px-6 rounded-lg font-semibold text-sm
+          flex items-center justify-center gap-2
+          transition-all duration-200 ease-in-out
+          shadow-md hover:shadow-lg
+          ${downloadButtonState.className}
+        `}
+      >
+        <downloadButtonState.icon className="w-4 h-4" />
+        {downloadButtonState.text}
+      </button>
+
+      {/* 🆕 **ENHANCED INFO DISPLAY**: Show current settings and processed file info */}
       {audioFile && startTime !== undefined && endTime !== undefined && startTime < endTime && (
         <div className="text-xs text-gray-600 text-center space-y-1">
           <div>
@@ -230,12 +326,23 @@ const CutDownload = ({
           <div>
             Duration: {formatTime(endTime - startTime)} | 
             Format: {outputFormat?.toUpperCase() || 'MP3'}
+            {playbackRate !== 1 && (
+              <span> | Speed: {playbackRate}x</span>
+            )}
             {(fadeIn > 0 || fadeOut > 0) && (
               <span> | Fade: {fadeIn > 0 ? `In ${fadeIn}s` : ''}
               {fadeIn > 0 && fadeOut > 0 ? ', ' : ''}
               {fadeOut > 0 ? `Out ${fadeOut}s` : ''}</span>
             )}
           </div>
+          
+          {/* 🆕 **PROCESSED FILE STATUS**: Show status of processed file */}
+          {processedFile && (
+            <div className="text-green-700 bg-green-50 rounded px-2 py-1 mt-2">
+              ✅ Ready to download: {(processedFile.fileSize / 1024 / 1024).toFixed(2)} MB
+              {processedFile.playbackRate !== 1 && ` at ${processedFile.playbackRate}x speed`}
+            </div>
+          )}
         </div>
       )}
     </div>

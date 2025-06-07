@@ -11,6 +11,7 @@ const Export = ({
   endTime, 
   fadeIn, 
   fadeOut,
+  playbackRate = 1,
   disabled = false 
 }) => {
   return (
@@ -33,6 +34,7 @@ const Export = ({
           outputFormat={outputFormat}
           fadeIn={fadeIn}
           fadeOut={fadeOut}
+          playbackRate={playbackRate}
           disabled={disabled}
         />
       </div>

@@ -108,6 +108,57 @@ export class MP3Controller {
   }
 
   /**
+   * 🆕 **CHANGE SPEED BY FILE ID**: Thay đổi tốc độ audio file bằng fileId
+   */
+  static async changeSpeedByFileId(req, res) {
+    try {
+      console.log('⚡ [changeSpeedByFileId] Starting speed change by fileId:', {
+        fileId: req.fileId,
+        speedParams: req.speedParams
+      });
+
+      const result = await MP3Service.changeAudioSpeedByFileId(req.fileId, req.speedParams);
+
+      console.log('✅ [changeSpeedByFileId] Speed change successful:', {
+        outputFilename: result.output.filename,
+        playbackRate: result.processing.playbackRate
+      });
+
+      res.json({
+        success: true,
+        message: 'Audio speed changed successfully',
+        data: result,
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      console.error('❌ [changeSpeedByFileId] Speed change failed:', error);
+      
+      // 🎯 **DETAILED ERROR RESPONSE**: Provide more specific error info
+      let statusCode = 500;
+      let errorMessage = error.message;
+      
+      if (error.message.includes('File not found') || error.message.includes('ENOENT')) {
+        statusCode = 404;
+        errorMessage = 'Original audio file not found. Please upload the file again.';
+      } else if (error.message.includes('Invalid playback rate')) {
+        statusCode = 400;
+        errorMessage = 'Invalid playback rate. Please use values between 0.25x and 4x.';
+      } else if (error.message.includes('FFmpeg') || error.message.includes('Speed change failed')) {
+        statusCode = 500;
+        errorMessage = 'Audio speed change failed. Please try again with a different file.';
+      }
+      
+      res.status(statusCode).json({
+        success: false,
+        error: errorMessage,
+        originalError: error.message,
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+
+  /**
    * Generate waveform data for audio file
    */
   static async waveform(req, res) {

@@ -299,5 +299,57 @@ export const audioApi = {
       console.error('❌ [cutAudioByFileId] Response parsing failed:', parseError);
       throw new Error(`Cut response parsing failed: ${parseError.message}`);
     }
+  },
+
+  // 🆕 **CHANGE AUDIO SPEED BY FILE ID**: Thay đổi tốc độ audio bằng fileId
+  async changeAudioSpeedByFileId(params) {
+    console.log('⚡ [changeAudioSpeedByFileId] Starting speed change by fileId:', params);
+
+    // 🔍 **VALIDATE PARAMS**: Kiểm tra params có đủ không
+    if (!params.fileId) {
+      throw new Error('fileId is required for speed change operation');
+    }
+
+    if (!params.playbackRate || params.playbackRate < 0.25 || params.playbackRate > 4) {
+      throw new Error('playbackRate must be between 0.25x and 4x');
+    }
+
+    const speedUrl = `${API_BASE_URL}${API_ENDPOINTS.CHANGE_SPEED_BY_FILEID}`;
+    console.log('⚡ [changeAudioSpeedByFileId] Speed URL:', speedUrl);
+    
+    let response;
+    try {
+      response = await fetch(speedUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(params)
+      });
+      
+      console.log('📡 [changeAudioSpeedByFileId] Response received:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok
+      });
+      
+    } catch (networkError) {
+      console.error('🌐 [changeAudioSpeedByFileId] Network error:', networkError);
+      throw new Error(`Network error: ${networkError.message}. Please check if backend is running on ${API_BASE_URL}`);
+    }
+
+    if (!response.ok) {
+      await handleApiError(response, 'Change Speed by FileId');
+    }
+    
+    // 🎯 Safe JSON parsing
+    try {
+      const result = await safeJsonParse(response);
+      console.log('✅ [changeAudioSpeedByFileId] Speed change successful:', result);
+      return result;
+    } catch (parseError) {
+      console.error('❌ [changeAudioSpeedByFileId] Response parsing failed:', parseError);
+      throw new Error(`Speed change response parsing failed: ${parseError.message}`);
+    }
   }
 };

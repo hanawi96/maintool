@@ -53,8 +53,20 @@ export class MP3Utils {
       fadeIn = 0,
       fadeOut = 0,
       format = 'mp3',
-      quality = 'medium'
+      quality = 'medium',
+      playbackRate = 1
     } = options;
+
+    console.log('🎬 [cutAudio] Starting cut operation with options:', {
+      startTime,
+      endTime,
+      fadeIn,
+      fadeOut,
+      format,
+      quality,
+      playbackRate,
+      speedChangeRequested: playbackRate !== 1
+    });
 
     return new Promise((resolve, reject) => {
       try {
@@ -74,9 +86,58 @@ export class MP3Utils {
         // Build audio filters
         const filters = [];
         
+        // 🆕 **SPEED/TEMPO FILTER**: Thay đổi tốc độ phát với atempo
+        if (playbackRate && playbackRate !== 1) {
+          console.log(`⚡ [cutAudio] Applying speed change: ${playbackRate}x`);
+          console.log(`🔧 [cutAudio] Speed filter logic: playbackRate=${playbackRate}, type=${typeof playbackRate}`);
+          
+          // 🎯 **ATEMPO CHAINING**: FFmpeg atempo chỉ hỗ trợ 0.5-2.0, cần chain cho giá trị cực
+          let currentRate = playbackRate;
+          const originalRate = playbackRate;
+          
+          if (currentRate >= 0.5 && currentRate <= 2.0) {
+            // 🎯 **SINGLE ATEMPO**: Tốc độ trong khoảng hỗ trợ
+            const atempoFilter = `atempo=${currentRate.toFixed(3)}`;
+            filters.push(atempoFilter);
+            console.log(`🎯 [cutAudio] SINGLE atempo filter: ${atempoFilter}`);
+          } else if (currentRate > 2.0) {
+            // 🎯 **CHAIN FOR FAST**: Tốc độ > 2x cần chain nhiều atempo
+            console.log(`🔗 [cutAudio] CHAINING for fast speed > 2x:`, { originalRate: currentRate });
+            while (currentRate > 2.0) {
+              filters.push(`atempo=2`);
+              currentRate /= 2;
+              console.log(`🔗 [cutAudio] Added atempo=2, remaining rate: ${currentRate}`);
+            }
+            if (currentRate > 1.01) { // Tránh rounding error
+              const finalFilter = `atempo=${currentRate.toFixed(3)}`;
+              filters.push(finalFilter);
+              console.log(`🔗 [cutAudio] Final atempo filter: ${finalFilter}`);
+            }
+          } else if (currentRate < 0.5) {
+            // 🎯 **CHAIN FOR SLOW**: Tốc độ < 0.5x cần chain nhiều atempo  
+            console.log(`🔗 [cutAudio] CHAINING for slow speed < 0.5x:`, { originalRate: currentRate });
+            while (currentRate < 0.5) {
+              filters.push(`atempo=0.5`);
+              currentRate *= 2;
+              console.log(`🔗 [cutAudio] Added atempo=0.5, remaining rate: ${currentRate}`);
+            }
+            if (currentRate < 0.99) { // Tránh rounding error
+              const finalFilter = `atempo=${currentRate.toFixed(3)}`;
+              filters.push(finalFilter);
+              console.log(`🔗 [cutAudio] Final atempo filter: ${finalFilter}`);
+            }
+          }
+          
+          console.log(`✅ [cutAudio] Speed filters completed for ${originalRate}x:`, filters.filter(f => f.startsWith('atempo')));
+        } else {
+          console.log(`🚫 [cutAudio] No speed change applied (playbackRate=${playbackRate})`);
+        }
+        
         // Add fade in effect
         if (fadeIn > 0) {
-          filters.push(`afade=t=in:st=0:d=${fadeIn}`);
+          const fadeInFilter = `afade=t=in:st=0:d=${fadeIn}`;
+          filters.push(fadeInFilter);
+          console.log(`🎵 [cutAudio] Added fade in filter: ${fadeInFilter}`);
         }
         
         // Add fade out effect
@@ -84,13 +145,18 @@ export class MP3Utils {
           const segmentDuration = endTime ? (endTime - startTime) : null;
           if (segmentDuration) {
             const fadeOutStart = Math.max(0, segmentDuration - fadeOut);
-            filters.push(`afade=t=out:st=${fadeOutStart}:d=${fadeOut}`);
+            const fadeOutFilter = `afade=t=out:st=${fadeOutStart}:d=${fadeOut}`;
+            filters.push(fadeOutFilter);
+            console.log(`🎵 [cutAudio] Added fade out filter: ${fadeOutFilter}`);
           }
         }
 
         // Apply filters if any
         if (filters.length > 0) {
+          console.log(`🎛️ [cutAudio] Applying ${filters.length} filters:`, filters.join(', '));
           command = command.audioFilters(filters);
+        } else {
+          console.log(`🚫 [cutAudio] No filters to apply`);
         }
 
         // Set output quality based on format and quality preset
@@ -102,7 +168,12 @@ export class MP3Utils {
         command
           .output(outputPath)
           .on('start', (commandLine) => {
-            console.log('FFmpeg command:', commandLine);
+            console.log('🚀 [cutAudio] FFmpeg command starting:', commandLine);
+            console.log('🔍 [cutAudio] Command analysis:', {
+              hasAtempo: commandLine.includes('atempo'),
+              atempoCount: (commandLine.match(/atempo/g) || []).length,
+              fullCommand: commandLine
+            });
           })
           .on('progress', (progress) => {
             if (progressCallback) {
@@ -114,10 +185,26 @@ export class MP3Utils {
             }
           })
           .on('error', (error) => {
-            console.error('FFmpeg error:', error);
+            console.error('❌ [cutAudio] FFmpeg error:', error);
+            console.error('❌ [cutAudio] FFmpeg error context:', {
+              inputPath,
+              outputPath,
+              playbackRate,
+              filters,
+              errorMessage: error.message
+            });
             reject(new Error(`Audio cutting failed: ${error.message}`));
           })
           .on('end', () => {
+            console.log('✅ [cutAudio] FFmpeg processing completed successfully');
+            console.log('🎉 [cutAudio] Final result summary:', {
+              inputPath,
+              outputPath,
+              playbackRateApplied: playbackRate,
+              filtersApplied: filters,
+              speedSuccess: playbackRate !== 1 ? `${playbackRate}x speed applied` : 'normal speed'
+            });
+            
             resolve({
               success: true,
               outputPath,
@@ -128,6 +215,95 @@ export class MP3Utils {
                 duration: endTime - startTime,
                 fadeIn,
                 fadeOut,
+                playbackRate,
+                format,
+                quality,
+                filtersApplied: filters // 🔧 **DEBUG**: Include applied filters in result
+              }
+            });
+          })
+          .run();
+
+      } catch (error) {
+        console.error('❌ [cutAudio] Setup failed:', error);
+        reject(new Error(`Failed to setup audio cutting: ${error.message}`));
+      }
+    });
+  }
+
+  /**
+   * 🆕 **CHANGE AUDIO SPEED**: Chỉ thay đổi tốc độ không cắt đoạn
+   */
+  static async changeAudioSpeed(inputPath, outputPath, options = {}) {
+    const {
+      playbackRate = 1,
+      format = 'mp3',
+      quality = 'medium'
+    } = options;
+
+    console.log(`⚡ [changeAudioSpeed] Changing speed to ${playbackRate}x:`, {
+      input: inputPath,
+      output: outputPath,
+      playbackRate
+    });
+
+    return new Promise((resolve, reject) => {
+      try {
+        let command = ffmpeg(inputPath);
+        const filters = [];
+        
+        // 🎯 **SPEED ONLY**: Chỉ xử lý tốc độ
+        if (playbackRate && playbackRate !== 1) {
+          let currentRate = playbackRate;
+          
+          if (currentRate >= 0.5 && currentRate <= 2.0) {
+            filters.push(`atempo=${currentRate.toFixed(3)}`);
+          } else if (currentRate > 2.0) {
+            while (currentRate > 2.0) {
+              filters.push(`atempo=2`);
+              currentRate /= 2;
+            }
+            if (currentRate > 1.01) {
+              filters.push(`atempo=${currentRate.toFixed(3)}`);
+            }
+          } else if (currentRate < 0.5) {
+            while (currentRate < 0.5) {
+              filters.push(`atempo=0.5`);
+              currentRate *= 2;
+            }
+            if (currentRate < 0.99) {
+              filters.push(`atempo=${currentRate.toFixed(3)}`);
+            }
+          }
+        }
+
+        if (filters.length > 0) {
+          console.log(`🎛️ [changeAudioSpeed] Applying tempo filters:`, filters.join(', '));
+          command = command.audioFilters(filters);
+        }
+
+        command = this.setOutputQuality(command, format, quality);
+
+        command
+          .output(outputPath)
+          .on('start', (commandLine) => {
+            console.log('⚡ [changeAudioSpeed] FFmpeg command:', commandLine);
+          })
+          .on('progress', (progress) => {
+            console.log(`⚡ [changeAudioSpeed] Progress: ${Math.round(progress.percent || 0)}%`);
+          })
+          .on('error', (error) => {
+            console.error('❌ [changeAudioSpeed] FFmpeg error:', error);
+            reject(new Error(`Speed change failed: ${error.message}`));
+          })
+          .on('end', () => {
+            console.log('✅ [changeAudioSpeed] Speed change completed successfully');
+            resolve({
+              success: true,
+              outputPath,
+              inputPath,
+              settings: {
+                playbackRate,
                 format,
                 quality
               }
@@ -136,7 +312,8 @@ export class MP3Utils {
           .run();
 
       } catch (error) {
-        reject(new Error(`Failed to setup audio cutting: ${error.message}`));
+        console.error('❌ [changeAudioSpeed] Setup failed:', error);
+        reject(new Error(`Failed to setup speed change: ${error.message}`));
       }
     });
   }

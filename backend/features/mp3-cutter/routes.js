@@ -7,7 +7,8 @@ import {
   validateAudioFile,
   validateCutParams,
   validateWaveformParams,
-  validateFileId
+  validateFileId,
+  validateSpeedParams
 } from './validation.js';
 
 const router = express.Router();
@@ -46,6 +47,16 @@ router.post('/cut',
 router.post('/cut-by-fileid',
   validateFileId,
   MP3Controller.cutByFileId
+);
+
+/**
+ * @route POST /api/mp3-cutter/change-speed-by-fileid
+ * @desc Change audio playback speed by fileId (thay đổi tốc độ từ file đã upload)
+ */
+router.post('/change-speed-by-fileid',
+  validateFileId,
+  validateSpeedParams,
+  MP3Controller.changeSpeedByFileId
 );
 
 /**

@@ -1432,23 +1432,17 @@ const MP3CutterMain = React.memo(() => {
                 />
 
             {/* Effects and Export */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
               <div className="fade-controls">
                 <FadeControls
                   fadeIn={fadeIn}
                   fadeOut={fadeOut}
+                  maxDuration={duration}
                   onFadeInChange={handleFadeInChange}
                   onFadeOutChange={handleFadeOutChange}
-                  // 🆕 **DRAG CALLBACKS**: Xử lý drag events để control history saving
-                  onFadeInDragStart={handleFadeInDragStart}
-                  onFadeInDragEnd={handleFadeInDragEnd}
-                  onFadeOutDragStart={handleFadeOutDragStart}
-                  onFadeOutDragEnd={handleFadeOutDragEnd}
-                  // 🆕 **PRESET CALLBACK**: Handle preset application với single history save
-                  onPresetApply={handleFadePresetApply}
-                  isWebAudioSupported={isWebAudioSupported}
-                  realTimeFadeActive={fadeConfig.isActive}
-                  connectionState={connectionState}
+                  onDragStart={handleFadeInDragStart}
+                  onDragEnd={handleFadeInDragEnd}
+                  disabled={!audioFile}
                 />
               </div>
 
@@ -1461,7 +1455,8 @@ const MP3CutterMain = React.memo(() => {
                   endTime={endTime}
                   fadeIn={fadeIn}
                   fadeOut={fadeOut}
-                  disabled={!audioFile || isConnected === false}
+                  playbackRate={playbackRate}
+                  disabled={!audioFile}
                 />
               </div>
             </div>

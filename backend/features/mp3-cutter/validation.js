@@ -58,7 +58,7 @@ export const validateAudioFile = async (req, res, next) => {
 };
 
 export const validateCutParams = (req, res, next) => {
-  const { startTime, endTime, fadeIn = 0, fadeOut = 0 } = req.body;
+  const { startTime, endTime, fadeIn = 0, fadeOut = 0, playbackRate = 1 } = req.body;
   const duration = req.audioInfo?.duration || 0;
   
   const start = parseFloat(startTime);
@@ -68,11 +68,19 @@ export const validateCutParams = (req, res, next) => {
     return res.status(400).json({ error: 'Invalid time range' });
   }
   
+  const rate = parseFloat(playbackRate);
+  if (isNaN(rate) || rate < 0.25 || rate > 4) {
+    return res.status(400).json({ 
+      error: 'Invalid playback rate. Must be between 0.25x and 4x' 
+    });
+  }
+  
   req.cutParams = {
     startTime: start,
     endTime: end,
     fadeIn: parseFloat(fadeIn),
-    fadeOut: parseFloat(fadeOut)
+    fadeOut: parseFloat(fadeOut),
+    playbackRate: rate
   };
   
   next();
@@ -86,7 +94,7 @@ export const validateWaveformParams = (req, res, next) => {
 
 // 🆕 **VALIDATE FILE ID**: Validate fileId cho cut-by-fileid endpoint
 export const validateFileId = (req, res, next) => {
-  const { fileId, startTime, endTime, fadeIn = 0, fadeOut = 0 } = req.body;
+  const { fileId, startTime, endTime, fadeIn = 0, fadeOut = 0, playbackRate = 1 } = req.body;
   
   // 🔍 **VALIDATE FILE ID**: Kiểm tra fileId có tồn tại
   if (!fileId || typeof fileId !== 'string') {
@@ -118,19 +126,71 @@ export const validateFileId = (req, res, next) => {
     });
   }
   
-  // 🆕 **SET REQUEST DATA**: Set validated data to request
+  // 🔧 **FIX: VALIDATE PLAYBACK RATE**: Validate tốc độ phát như trong validateCutParams
+  const rate = parseFloat(playbackRate);
+  if (isNaN(rate) || rate < 0.25 || rate > 4) {
+    console.log('❌ [validateFileId] Invalid playback rate:', { 
+      provided: playbackRate, 
+      parsed: rate, 
+      isNaN: isNaN(rate) 
+    });
+    return res.status(400).json({ 
+      success: false,
+      error: 'Invalid playback rate. Must be between 0.25x and 4x' 
+    });
+  }
+  
+  // 🆕 **SET REQUEST DATA**: Set validated data to request với đầy đủ params
   req.fileId = fileId;
   req.cutParams = {
     startTime: start,
     endTime: end,
     fadeIn: fadeInValue,
-    fadeOut: fadeOutValue
+    fadeOut: fadeOutValue,
+    playbackRate: rate
   };
   
-  console.log('✅ [validateFileId] Validation passed:', {
+  console.log('✅ [validateFileId] Validation passed with SPEED SUPPORT:', {
     fileId,
-    cutParams: req.cutParams
+    cutParams: req.cutParams,
+    speedIncluded: req.cutParams.playbackRate !== 1 ? `${req.cutParams.playbackRate}x` : 'normal'
   });
+  
+  next();
+};
+
+/**
+ * 🆕 **VALIDATE SPEED PARAMS**: Validation cho speed change requests
+ */
+export const validateSpeedParams = (req, res, next) => {
+  const { playbackRate = 1, outputFormat = 'mp3', quality = 'medium' } = req.body;
+  
+  const rate = parseFloat(playbackRate);
+  if (isNaN(rate) || rate < 0.25 || rate > 4) {
+    return res.status(400).json({ 
+      error: 'Invalid playback rate. Must be between 0.25x and 4x' 
+    });
+  }
+  
+  const validFormats = ['mp3', 'wav', 'aac', 'ogg'];
+  if (!validFormats.includes(outputFormat.toLowerCase())) {
+    return res.status(400).json({ 
+      error: `Invalid output format. Must be one of: ${validFormats.join(', ')}` 
+    });
+  }
+  
+  const validQualities = ['low', 'medium', 'high'];
+  if (!validQualities.includes(quality.toLowerCase())) {
+    return res.status(400).json({ 
+      error: `Invalid quality. Must be one of: ${validQualities.join(', ')}` 
+    });
+  }
+  
+  req.speedParams = {
+    playbackRate: rate,
+    outputFormat: outputFormat.toLowerCase(),
+    quality: quality.toLowerCase()
+  };
   
   next();
 };
