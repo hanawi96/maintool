@@ -6,6 +6,7 @@ import { useAudioPlayer } from '../hooks/useAudioPlayer';
 import { useWaveform } from '../hooks/useWaveform';
 import { useHistory } from '../hooks/useHistory';
 import { useFileUpload } from '../hooks/useFileUpload';
+import { useRealTimeFadeEffects } from '../hooks/useRealTimeFadeEffects';
 
 // Import components
 import FileInfo from './FileInfo';
@@ -108,6 +109,17 @@ const MP3CutterMain = React.memo(() => {
 
   const { saveState, undo, redo, canUndo, canRedo, historyIndex, historyLength } = useHistory();
 
+  // 🆕 **REAL-TIME FADE EFFECTS**: Hook để apply fade effects real-time khi nhạc đang phát
+  const {
+    connectAudioElement,
+    updateFadeConfig,
+    setFadeActive,
+    fadeConfig,
+    isWebAudioSupported,
+    getConnectionDebugInfo, // 🆕 **DEBUG API**: Function để debug connection issues
+    connectionState // 🆕 **CONNECTION STATE**: Track connection status
+  } = useRealTimeFadeEffects();
+
   // 🔥 **MINIMAL STATE**
   const [fadeIn, setFadeIn] = useState(0);
   const [fadeOut, setFadeOut] = useState(0);
@@ -138,13 +150,13 @@ const MP3CutterMain = React.memo(() => {
 
   // 🔥 **ESSENTIAL SETUP ONLY**
   useEffect(() => {
-  if (!interactionManagerRef.current) {
-    interactionManagerRef.current = createInteractionManager();
+    if (!interactionManagerRef.current) {
+      interactionManagerRef.current = createInteractionManager();
       
       // 🔧 **REGISTER WITH DEBUG SYSTEM**
       if (window.mp3CutterInteractionDebug) {
         window.mp3CutterInteractionDebug.registerManager(interactionManagerRef.current);
-  }
+      }
 
       console.log('🎮 [MP3CutterMain] InteractionManager initialized and registered');
     }
@@ -346,6 +358,99 @@ const MP3CutterMain = React.memo(() => {
     // 🔥 **ULTRA-LIGHT PERFORMANCE TRACKING**: Minimal performance tracking
     trackPerformance('state_update');
   }, [isPlaying, startTime, endTime, trackPerformance]);
+
+  // 🆕 **WEB AUDIO SETUP**: Connect audio element với Web Audio API cho real-time fade effects
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio || !audioFile?.url || !isWebAudioSupported) return;
+    
+    // 🎯 **CONNECT AUDIO** với Web Audio graph
+    const setupWebAudio = async () => {
+      try {
+        console.log('🔌 [MP3CutterMain] Setting up Web Audio connection...');
+        const success = await connectAudioElement(audio);
+        if (success) {
+          console.log('✅ [MP3CutterMain] Web Audio API connected for real-time fade effects');
+          
+          // 🆕 **LOG DEBUG INFO**: Log connection details for troubleshooting
+          const debugInfo = getConnectionDebugInfo();
+          console.log('🔍 [MP3CutterMain] Web Audio connection debug:', {
+            connectionState: debugInfo.connectionState,
+            gainNodeReady: debugInfo.hasGainNode,
+            audioContextState: debugInfo.audioContextState,
+            audioElementReady: debugInfo.debugState.audioElementReady
+          });
+        } else {
+          console.warn('⚠️ [MP3CutterMain] Failed to connect Web Audio API');
+          
+          // 🆕 **DEBUG FAILED CONNECTION**: Log detailed info về failed connection
+          const debugInfo = getConnectionDebugInfo();
+          console.error('❌ [MP3CutterMain] Web Audio connection failed debug:', debugInfo);
+        }
+      } catch (error) {
+        console.error('❌ [MP3CutterMain] Web Audio setup failed:', error);
+        
+        // 🆕 **ERROR STATE DEBUG**: Log error state details
+        const debugInfo = getConnectionDebugInfo();
+        console.error('🚨 [MP3CutterMain] Error state debug:', debugInfo);
+      }
+    };
+    
+    // 🆕 **DELAY SETUP**: Delay setup slightly để đảm bảo audio element ready
+    const setupTimeout = setTimeout(setupWebAudio, 100);
+    
+    return () => clearTimeout(setupTimeout);
+  }, [audioFile?.url, connectAudioElement, isWebAudioSupported, getConnectionDebugInfo]);
+
+  // 🆕 **FADE CONFIG SYNC**: Update fade configuration when fadeIn/fadeOut/selection changes
+  useEffect(() => {
+    updateFadeConfig({
+      fadeIn,
+      fadeOut,
+      startTime,
+      endTime
+    });
+    
+    // 🔧 **DEBUG FADE CONFIG**: Log fade config updates với connection state
+    if (fadeIn > 0 || fadeOut > 0) {
+      console.log('🎨 [MP3CutterMain] Real-time fade config updated:', {
+        fadeIn: fadeIn.toFixed(1) + 's',
+        fadeOut: fadeOut.toFixed(1) + 's',
+        selection: `${startTime.toFixed(2)}s → ${endTime.toFixed(2)}s`,
+        connectionState, // 🆕 **CONNECTION STATE**: Include connection state in debug
+        webAudioReady: connectionState === 'connected'
+      });
+    }
+  }, [fadeIn, fadeOut, startTime, endTime, updateFadeConfig, connectionState]);
+
+  // 🆕 **PLAYBACK STATE SYNC**: Start/stop fade effects khi playback state thay đổi
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio || !isWebAudioSupported) return;
+    
+    setFadeActive(isPlaying, audio);
+    
+    // 🔧 **DEBUG PLAYBACK**: Log playback state changes cho fade effects với connection status
+    if (fadeConfig.isActive) {
+      console.log(`🎬 [MP3CutterMain] Fade effects ${isPlaying ? 'STARTED' : 'STOPPED'}`, {
+        connectionState,
+        fadeActive: fadeConfig.isActive,
+        webAudioReady: connectionState === 'connected',
+        audioPlaying: isPlaying
+      });
+      
+      // 🆕 **TROUBLESHOOT STOPPED EFFECTS**: Log debug info khi effects bị stop
+      if (!isPlaying) {
+        const debugInfo = getConnectionDebugInfo();
+        console.log('🔍 [MP3CutterMain] Fade effects stopped - debug info:', {
+          connectionState: debugInfo.connectionState,
+          isAnimating: debugInfo.isAnimating,
+          gainValue: debugInfo.gainValue,
+          audioContextState: debugInfo.audioContextState
+        });
+      }
+    }
+  }, [isPlaying, setFadeActive, fadeConfig.isActive, isWebAudioSupported, connectionState, getConnectionDebugInfo]);
 
   // 🎯 ULTRA-LIGHT: Mouse handlers using InteractionManager
   const handleCanvasMouseDown = useCallback((e) => {
@@ -733,6 +838,57 @@ const MP3CutterMain = React.memo(() => {
     // 🔥 **TRACK PERFORMANCE**: Track jump actions
     trackPerformance('jump_to_end');
   }, [jumpToTime, endTime, trackPerformance]);
+
+  // 🆕 **REAL-TIME FADE HANDLERS**: Apply fade effects ngay lập tức khi user change sliders
+  const handleFadeInChange = useCallback((newFadeIn) => {
+    console.log(`🎛️ [MP3CutterMain] User changed fadeIn: ${fadeIn.toFixed(1)}s → ${newFadeIn.toFixed(1)}s (playing: ${isPlaying})`);
+    setFadeIn(newFadeIn);
+    
+    // 🚀 **IMMEDIATE FADE CONFIG UPDATE**: Update config ngay lập tức cho real-time effects
+    updateFadeConfig({
+      fadeIn: newFadeIn,
+      fadeOut,
+      startTime,
+      endTime
+    });
+    
+    // 🔧 **DEBUG REAL-TIME**: Log real-time fade updates với playback state
+    console.log(`🎨 [FadeHandler] REAL-TIME fadeIn update: ${newFadeIn.toFixed(1)}s`, {
+      isPlaying,
+      connectionState,
+      willUpdateImmediately: isPlaying && connectionState === 'connected'
+    });
+    
+    // 🎯 **DEBOUNCED HISTORY SAVE**: Save state after short delay
+    setTimeout(() => {
+      saveState({ startTime, endTime, fadeIn: newFadeIn, fadeOut });
+    }, 300);
+  }, [fadeOut, startTime, endTime, updateFadeConfig, saveState, isPlaying, connectionState]);
+
+  const handleFadeOutChange = useCallback((newFadeOut) => {
+    console.log(`🎛️ [MP3CutterMain] User changed fadeOut: ${fadeOut.toFixed(1)}s → ${newFadeOut.toFixed(1)}s (playing: ${isPlaying})`);
+    setFadeOut(newFadeOut);
+    
+    // 🚀 **IMMEDIATE FADE CONFIG UPDATE**: Update config ngay lập tức cho real-time effects
+    updateFadeConfig({
+      fadeIn,
+      fadeOut: newFadeOut,
+      startTime,
+      endTime
+    });
+    
+    // 🔧 **DEBUG REAL-TIME**: Log real-time fade updates với playback state
+    console.log(`🎨 [FadeHandler] REAL-TIME fadeOut update: ${newFadeOut.toFixed(1)}s`, {
+      isPlaying,
+      connectionState,
+      willUpdateImmediately: isPlaying && connectionState === 'connected'
+    });
+    
+    // 🎯 **DEBOUNCED HISTORY SAVE**: Save state after short delay
+    setTimeout(() => {
+      saveState({ startTime, endTime, fadeIn, fadeOut: newFadeOut });
+    }, 300);
+  }, [fadeIn, startTime, endTime, updateFadeConfig, saveState, isPlaying, connectionState]);
 
   // Drag and drop handler
   const handleDrop = useCallback((e) => {
@@ -1220,8 +1376,11 @@ const MP3CutterMain = React.memo(() => {
                 <FadeControls
                   fadeIn={fadeIn}
                   fadeOut={fadeOut}
-                  onFadeInChange={setFadeIn}
-                  onFadeOutChange={setFadeOut}
+                  onFadeInChange={handleFadeInChange}
+                  onFadeOutChange={handleFadeOutChange}
+                  isWebAudioSupported={isWebAudioSupported}
+                  realTimeFadeActive={fadeConfig.isActive}
+                  connectionState={connectionState}
                 />
               </div>
 
