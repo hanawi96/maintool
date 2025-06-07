@@ -629,17 +629,28 @@ const MP3CutterMain = React.memo(() => {
         const audioCurrentTime = audioRef.current.currentTime;
         setCurrentTime(audioCurrentTime);
         
-        // Auto-return logic
+        // 🎯 **ENHANCED AUTO-RETURN LOGIC**: Xử lý khi đến cuối region
         if (endTime > startTime && audioCurrentTime >= endTime - 0.05) {
           const autoReturnEnabled = getAutoReturnSetting();
           
           if (autoReturnEnabled && audioRef.current) {
+            // ✅ **LOOP MODE**: Auto-return BẬT → loop về startTime và tiếp tục phát
+            console.log(`🔄 [AutoReturn] LOOP mode - returning to start: ${startTime.toFixed(2)}s`);
             audioRef.current.currentTime = startTime;
             setCurrentTime(startTime);
+            // Continue playing (không pause)
+            
           } else if (audioRef.current) {
+            // ✅ **STOP MODE**: Auto-return TẮT → pause và quay cursor về startTime
+            console.log(`⏹️ [AutoReturn] STOP mode - pausing and returning to start: ${startTime.toFixed(2)}s`);
             audioRef.current.pause();
             setIsPlaying(false);
-            return;
+            
+            // 🎯 **CURSOR RESET**: Quay cursor về startTime như yêu cầu
+            audioRef.current.currentTime = startTime;
+            setCurrentTime(startTime);
+            
+            return; // Exit update loop
           }
         }
         
@@ -657,7 +668,7 @@ const MP3CutterMain = React.memo(() => {
         cancelAnimationFrame(animationId);
       }
     };
-  }, [isPlaying, startTime, endTime, audioRef, setCurrentTime, setIsPlaying]); // 🔥 **FIXED DEPS**: Added missing audioRef, setCurrentTime, setIsPlaying
+  }, [isPlaying, startTime, endTime, audioRef, setCurrentTime, setIsPlaying]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-pink-50">
