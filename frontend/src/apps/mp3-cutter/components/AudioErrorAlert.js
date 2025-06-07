@@ -62,7 +62,7 @@ const AudioErrorAlert = ({
   };
 
   return (
-    <div className={getErrorStyling()}>
+    <div className={`audio-error-alert ${getErrorStyling()}`}>
       <div className="flex items-start gap-3">
         {getErrorIcon()}
         

@@ -2,6 +2,120 @@
 @tailwind components;
 @tailwind utilities;
 
+/* 🎯 **GLOBAL FONT SIZE ENHANCEMENT** - Tăng font chữ cho toàn bộ dự án */
+/* Tăng base font size từ 16px lên 17px (6.25% tăng) */
+html {
+  font-size: 17px; /* Increased from default 16px */
+}
+
+/* 🔤 **ENHANCED TYPOGRAPHY** - Improved font sizes throughout the app */
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  
+  /* Enhanced base font size */
+  font-size: 0.9rem; /* Equivalent to ~15.3px with 17px base */
+  line-height: 1.5;
+}
+
+/* 🎯 **ENHANCED TEXT SIZES** - Override Tailwind defaults for better readability */
+.text-xs {
+  font-size: 0.8rem !important; /* ~13.6px instead of 12px */
+  line-height: 1.25rem !important;
+}
+
+.text-sm {
+  font-size: 0.9rem !important; /* ~15.3px instead of 14px */
+  line-height: 1.375rem !important;
+}
+
+.text-base {
+  font-size: 1rem !important; /* ~17px instead of 16px */
+  line-height: 1.5rem !important;
+}
+
+.text-lg {
+  font-size: 1.15rem !important; /* ~19.55px instead of 18px */
+  line-height: 1.75rem !important;
+}
+
+.text-xl {
+  font-size: 1.3rem !important; /* ~22.1px instead of 20px */
+  line-height: 1.875rem !important;
+}
+
+/* 🚫 **EXCLUDE UNIFIED CONTROL BAR** - Keep its enhanced sizing intact */
+.unified-control-bar,
+.unified-control-bar * {
+  font-size: revert !important; /* Reset to component-specific sizing */
+}
+
+/* 🎯 **COMPONENT-SPECIFIC ENHANCEMENTS** - Target specific components for better UX */
+
+/* File Info Display */
+.file-info-display {
+  font-size: 0.9rem !important;
+}
+
+.file-info-display .text-xs {
+  font-size: 0.8rem !important;
+}
+
+.file-info-display .text-sm {
+  font-size: 0.9rem !important;
+}
+
+/* Audio Error Alert */
+.audio-error-alert .text-xs {
+  font-size: 0.8rem !important;
+}
+
+.audio-error-alert .text-sm {
+  font-size: 0.9rem !important;
+}
+
+/* Export Controls */
+.export-controls .text-xs {
+  font-size: 0.8rem !important;
+}
+
+/* Fade Controls */
+.fade-controls .text-xs {
+  font-size: 0.8rem !important;
+}
+
+.fade-controls .text-sm {
+  font-size: 0.9rem !important;
+}
+
+/* Waveform Tooltips */
+.waveform-tooltip {
+  font-size: 0.75rem !important; /* Keep tooltips compact but still larger */
+}
+
+/* Upload Section */
+.upload-section .text-lg {
+  font-size: 1.2rem !important;
+}
+
+.upload-section .text-base {
+  font-size: 1rem !important;
+}
+
+/* Button Text Enhancement */
+button {
+  font-size: inherit; /* Use parent font size, which is now enhanced */
+}
+
+/* Input Enhancement */
+input, textarea, select {
+  font-size: inherit; /* Use parent font size, which is now enhanced */
+}
+
 /* Custom styles cho MP3 Cutter */
 body {
   margin: 0;
