@@ -240,23 +240,6 @@ const CompactTimeSelector = React.memo(({
     }
   }, [duration, startTime, endTime]);
 
-  // 🎯 SELECTION DURATION: Memoized calculation với 0.01s precision
-  const selectionDuration = useMemo(() => {
-    const dur = endTime - startTime;
-    return Math.round(dur * 100) / 100; // 0.01s precision
-  }, [startTime, endTime]);
-
-  // 🎯 **UPDATED DURATION FORMAT**: Consistent với format mới
-  const formattedDuration = useMemo(() => {
-    if (selectionDuration < 60) {
-      return `${selectionDuration.toFixed(2)}s`;
-    } else {
-      const minutes = Math.floor(selectionDuration / 60);
-      const seconds = selectionDuration % 60;
-      return `${minutes}m ${seconds.toFixed(2)}s`;
-    }
-  }, [selectionDuration]);
-
   return (
     <div className="flex items-center justify-center gap-4 flex-wrap">
       {/* Start Time với Smart Disable Logic */}
@@ -271,11 +254,6 @@ const CompactTimeSelector = React.memo(({
           isStartTime={true}
           duration={duration}
         />
-      </div>
-
-      {/* Separator with duration - Updated format */}
-      <div className="text-sm text-purple-700 font-semibold px-2 py-1 bg-purple-50 rounded border">
-        {formattedDuration}
       </div>
 
       {/* End Time với Smart Disable Logic */}
