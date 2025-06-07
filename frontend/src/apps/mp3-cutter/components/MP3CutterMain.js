@@ -406,15 +406,15 @@ const MP3CutterMain = React.memo(() => {
           break;
           
         case 'jumpToTime':
-          // 🔥 **IMMEDIATE CURSOR SYNC**: Update cursor ngay lập tức khi jump
-          console.log(`⏯️ [ClickToJump] Jumping audio cursor to: ${result.time.toFixed(2)}s`);
+          // 🚀 **IMMEDIATE CURSOR SYNC**: Update cursor ngay lập tức khi jump - NO DELAY
+          console.log(`⚡ [ClickToJump] IMMEDIATE jumping audio cursor to: ${result.time.toFixed(2)}s`);
           jumpToTime(result.time);
           
-          // 🔥 **FORCE CURSOR UPDATE**: Đảm bảo cursor update ngay
+          // 🚀 **FORCE IMMEDIATE UPDATE**: Đảm bảo cursor update ngay lập tức - NO ASYNC
           if (audioRef.current) {
             audioRef.current.currentTime = result.time;
             setCurrentTime(result.time);
-            console.log(`✅ [ClickToJump] Audio cursor synced successfully to: ${result.time.toFixed(2)}s`);
+            console.log(`⚡ [ClickToJump] IMMEDIATE audio cursor synced to: ${result.time.toFixed(2)}s`);
           } else {
             console.warn(`⚠️ [ClickToJump] No audio element available for cursor sync`);
           }
@@ -488,12 +488,8 @@ const MP3CutterMain = React.memo(() => {
       }
     };
     
-    // 🎯 BATCH UPDATES: Use requestIdleCallback for better performance
-    if (window.requestIdleCallback) {
-      window.requestIdleCallback(processAction);
-    } else {
-      setTimeout(processAction, 0);
-    }
+    // 🚀 **IMMEDIATE PROCESSING**: Process action ngay lập tức cho ultra-fast cursor response
+    processAction(); // ← Removed all async delays (requestIdleCallback/setTimeout) for immediate cursor movement
   }, [canvasRef, duration, startTime, endTime, jumpToTime, setStartTime, setEndTime, setIsDragging, audioRef, setCurrentTime, saveState, fadeIn, fadeOut]);
 
   const handleCanvasMouseMove = useCallback((e) => {
@@ -744,9 +740,9 @@ const MP3CutterMain = React.memo(() => {
     if (files.length > 0) handleFileUpload(files[0]);
   }, [handleFileUpload]);
 
-  // 🔥 **ULTRA-LIGHT ANIMATION LOOP**: Tối ưu hiệu suất tối đa
+  // 🔥 **ULTRA-FAST ANIMATION LOOP**: Tối ưu hiệu suất tối đa cho cursor responsiveness
   useEffect(() => {
-    console.log('🎬 [Animation] Setting up ultra-light animation system...');
+    console.log('🚀 [Animation] Setting up ultra-fast animation system for immediate cursor response...');
     
     let animationActive = false;
     let currentAnimationId = null;
@@ -763,8 +759,8 @@ const MP3CutterMain = React.memo(() => {
         return;
       }
       
-      // 🔥 **ULTRA-LIGHT THROTTLING**: 60fps for cursor updates
-      const frameInterval = 16; // 60fps
+      // 🚀 **ULTRA-FAST THROTTLING**: 120fps for ultra-smooth cursor updates (8ms)
+      const frameInterval = 8; // 120fps instead of 60fps for smoother cursor
       
       if (timestamp - lastUpdateTimeRef.current < frameInterval) {
         if (animationActive && playing) {
@@ -775,10 +771,10 @@ const MP3CutterMain = React.memo(() => {
       
       lastUpdateTimeRef.current = timestamp;
       
-      // 🔥 **CURSOR UPDATE**: Lấy thời gian từ audio element
+      // 🔥 **IMMEDIATE CURSOR UPDATE**: Lấy thời gian từ audio element và update ngay
       const audioCurrentTime = audioRef.current.currentTime;
       
-      // 🔥 **SMOOTH STATE UPDATE**: Update React state cho UI
+      // 🚀 **SYNCHRONOUS STATE UPDATE**: Update React state ngay lập tức, không async
       setCurrentTime(audioCurrentTime);
       
       // 🔥 **AUTO-RETURN**: Kiểm tra nếu đến cuối selection
@@ -827,7 +823,7 @@ const MP3CutterMain = React.memo(() => {
       }
     };
     
-    // 🔥 **TRIGGER LISTENER**: Listen for trigger changes
+    // 🔥 **IMMEDIATE TRIGGER**: Listen for trigger changes
     const checkAndTrigger = () => {
       const currentState = animationStateRef.current;
       if (currentState.isPlaying && audioRef.current && !audioRef.current.paused) {
@@ -837,8 +833,8 @@ const MP3CutterMain = React.memo(() => {
       }
     };
     
-    // 🔥 **OPTIMIZED TRIGGER**: Check mỗi 50ms thay vì 100ms để responsive hơn
-    const triggerInterval = setInterval(checkAndTrigger, 50);
+    // 🚀 **ULTRA-RESPONSIVE TRIGGER**: Check mỗi 16ms thay vì 50ms để ultra-responsive
+    const triggerInterval = setInterval(checkAndTrigger, 16); // 60fps trigger checking
     
     // 🔥 **INITIAL CHECK**: Kiểm tra ngay lập tức
     checkAndTrigger();
@@ -1462,6 +1458,498 @@ const MP3CutterMain = React.memo(() => {
       }
     };
     
+    // 🆕 **HOVER TOOLTIP DEBUG**: Debug hover tooltip visibility và styling
+    window.debugHoverTooltip = () => {
+      console.log(`🔍 [HoverTooltipDebug] Diagnosing hover tooltip visibility issues`);
+      
+      const canvas = document.querySelector('canvas');
+      const portalContainer = document.getElementById('waveform-tooltips-portal');
+      
+      if (!canvas) {
+        console.error('❌ [HoverTooltipDebug] Canvas not found');
+        return { error: 'Canvas not found' };
+      }
+      
+      const canvasRect = canvas.getBoundingClientRect();
+      const hoverTooltips = Array.from(portalContainer?.children || [])
+        .filter(tooltip => tooltip.textContent && !tooltip.textContent.includes(':') && !tooltip.style.backgroundColor?.includes('20, 184, 166'));
+      
+      const diagnosis = {
+        canvas: {
+          found: true,
+          rect: {
+            left: canvasRect.left.toFixed(1),
+            top: canvasRect.top.toFixed(1),
+            width: canvasRect.width.toFixed(1),
+            height: canvasRect.height.toFixed(1)
+          },
+          scrollOffset: {
+            x: window.scrollX.toFixed(1),
+            y: window.scrollY.toFixed(1)
+          }
+        },
+        portalContainer: {
+          exists: !!portalContainer,
+          children: portalContainer?.children?.length || 0,
+          style: {
+            position: portalContainer?.style?.position || 'not set',
+            zIndex: portalContainer?.style?.zIndex || 'not set',
+            pointerEvents: portalContainer?.style?.pointerEvents || 'not set'
+          }
+        },
+        hoverTooltips: {
+          count: hoverTooltips.length,
+          details: hoverTooltips.map((tooltip, index) => {
+            const computedStyle = window.getComputedStyle(tooltip);
+            return {
+              index,
+              content: tooltip.textContent,
+              visible: computedStyle.visibility !== 'hidden' && computedStyle.display !== 'none',
+              position: {
+                left: tooltip.style.left,
+                top: tooltip.style.top,
+                transform: tooltip.style.transform
+              },
+              styling: {
+                backgroundColor: tooltip.style.backgroundColor,
+                color: tooltip.style.color,
+                zIndex: tooltip.style.zIndex,
+                opacity: computedStyle.opacity,
+                fontWeight: tooltip.style.fontWeight
+              },
+              contrast: {
+                background: tooltip.style.backgroundColor,
+                textColor: tooltip.style.color,
+                textShadow: tooltip.style.textShadow || 'none',
+                webkitTextStroke: tooltip.style.WebkitTextStroke || 'none'
+              }
+            };
+          })
+        },
+        potentialIssues: {
+          noHoverTooltips: hoverTooltips.length === 0 ? 'ISSUE: No hover tooltips found' : 'OK',
+          portalMissing: !portalContainer ? 'ISSUE: Portal container missing' : 'OK',
+          zIndexLow: portalContainer?.style?.zIndex !== '999999' ? 'ISSUE: Portal z-index not maximum' : 'OK',
+          positioning: 'Check if mouse events are triggering hover state updates'
+        }
+      };
+      
+      console.log(`🔍 [HoverTooltipDebug] Complete diagnosis:`, diagnosis);
+      return diagnosis;
+    };
+
+    // 🆕 **FORCE SHOW HOVER TOOLTIP**: Force display hover tooltip for testing
+    window.forceShowHoverTooltip = (testX = 100, testTime = 5.5) => {
+      console.log(`🎯 [ForceHoverTooltip] Force showing hover tooltip at x=${testX}, time=${testTime}s`);
+      
+      const canvas = document.querySelector('canvas');
+      const portalContainer = document.getElementById('waveform-tooltips-portal');
+      
+      if (!canvas || !portalContainer) {
+        console.error('❌ [ForceHoverTooltip] Canvas or portal container not found');
+        return false;
+      }
+      
+      const canvasRect = canvas.getBoundingClientRect();
+      const formatTime = (time) => {
+        const minutes = Math.floor(time / 60);
+        const seconds = time % 60;
+        return `${minutes.toString().padStart(2, '0')}:${seconds.toFixed(1).padStart(4, '0')}`;
+      };
+      
+      // 🎯 **CREATE TEST TOOLTIP**: Create a test hover tooltip
+      const testTooltip = document.createElement('div');
+      testTooltip.id = 'test-hover-tooltip';
+      testTooltip.className = 'pointer-events-none text-xs px-2 py-1 rounded font-medium';
+      testTooltip.textContent = formatTime(testTime);
+      
+      Object.assign(testTooltip.style, {
+        position: 'absolute',
+        left: `${canvasRect.left + testX + window.scrollX}px`,
+        top: `${canvasRect.top + window.scrollY - 15}px`,
+        transform: 'translateX(-50%)',
+        backgroundColor: 'rgba(15, 23, 42, 0.95)',
+        color: 'white',
+        whiteSpace: 'nowrap',
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.4)',
+        backdropFilter: 'blur(6px)',
+        fontWeight: '700',
+        textShadow: '0 1px 3px rgba(255, 255, 255, 0.9), 0 -1px 2px rgba(0, 0, 0, 0.8)',
+        WebkitTextStroke: '0.5px rgba(255, 255, 255, 0.8)',
+        zIndex: '2147483646'
+      });
+      
+      // 🚫 **REMOVE EXISTING TEST**: Remove any existing test tooltip
+      const existingTest = document.getElementById('test-hover-tooltip');
+      if (existingTest) {
+        existingTest.remove();
+      }
+      
+      // 🎯 **APPEND TO PORTAL**: Add to portal container
+      portalContainer.appendChild(testTooltip);
+      
+      console.log(`✅ [ForceHoverTooltip] Test tooltip created and should be visible at position:`, {
+        left: testTooltip.style.left,
+        top: testTooltip.style.top,
+        content: testTooltip.textContent,
+        styling: {
+          backgroundColor: testTooltip.style.backgroundColor,
+          color: testTooltip.style.color,
+          zIndex: testTooltip.style.zIndex
+        }
+      });
+      
+      // 🎯 **AUTO REMOVE**: Remove after 3 seconds
+      setTimeout(() => {
+        if (document.getElementById('test-hover-tooltip')) {
+          testTooltip.remove();
+          console.log(`🗑️ [ForceHoverTooltip] Test tooltip removed after 3 seconds`);
+        }
+      }, 3000);
+      
+      return true;
+    };
+
+    // 🆕 **TOGGLE HOVER DEBUG**: Bật/tắt debug logging cho hover events
+    window.toggleHoverDebug = (enable = true) => {
+      window.hoverDebugEnabled = enable;
+      
+      if (enable) {
+        console.log(`📝 [HoverDebug] ENABLED - Hover events will be logged`);
+        
+        // 🎯 **MONITOR MOUSE EVENTS**: Log mouse move events over canvas
+        const canvas = document.querySelector('canvas');
+        if (canvas) {
+          window.hoverDebugMouseHandler = (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            
+            console.log(`🖱️ [HoverDebug] Mouse at canvas position: x=${mouseX.toFixed(1)}, y=${mouseY.toFixed(1)}`);
+          };
+          
+          canvas.addEventListener('mousemove', window.hoverDebugMouseHandler);
+          console.log(`🎯 [HoverDebug] Mouse move monitor attached to canvas`);
+        }
+      } else {
+        console.log(`📝 [HoverDebug] DISABLED - Hover debug logging stopped`);
+        
+        // 🚫 **REMOVE MOUSE MONITOR**: Stop logging mouse events
+        const canvas = document.querySelector('canvas');
+        if (canvas && window.hoverDebugMouseHandler) {
+          canvas.removeEventListener('mousemove', window.hoverDebugMouseHandler);
+          delete window.hoverDebugMouseHandler;
+          console.log(`🚫 [HoverDebug] Mouse move monitor removed`);
+        }
+      }
+      
+      return { enabled: enable, status: enable ? 'Debug mode ON' : 'Debug mode OFF' };
+    };
+
+    // 🆕 **TEST TEXT-ONLY HOVER TOOLTIP**: Test new text-only design
+    window.testTextOnlyHoverTooltip = () => {
+      console.log(`🎨 [TextOnlyTest] Testing new text-only hover tooltip design`);
+      
+      const canvas = document.querySelector('canvas');
+      const portalContainer = document.getElementById('waveform-tooltips-portal');
+      
+      if (!canvas || !portalContainer) {
+        console.error('❌ [TextOnlyTest] Canvas or portal container not found');
+        return { error: 'Canvas or portal not found' };
+      }
+      
+      const canvasRect = canvas.getBoundingClientRect();
+      const testDesign = {
+        oldDesign: {
+          backgroundColor: 'rgba(15, 23, 42, 0.95)',
+          position: 'canvas.top - 15px',
+          style: 'Background with blur effects'
+        },
+        newDesign: {
+          backgroundColor: 'NONE (transparent)',
+          position: 'canvas.top - 5px',
+          style: 'Text-only with enhanced shadows',
+          improvements: [
+            'No background for cleaner look',
+            'Closer to waveform (5px vs 15px)',
+            'Stronger text shadows for visibility',
+            'Smaller font size for subtlety',
+            'Enhanced text stroke for contrast'
+          ]
+        },
+        visualChanges: {
+          backgroundRemoved: 'All background, shadow, blur effects removed',
+          positionAdjusted: '15px → 5px above canvas (closer)',
+          textEnhanced: 'Stronger shadows and stroke for visibility',
+          debugIndicator: 'Only visible in debug mode'
+        },
+        testPositions: {
+          canvasTop: canvasRect.top.toFixed(1) + 'px',
+          newTooltipY: (canvasRect.top - 5).toFixed(1) + 'px',
+          oldTooltipY: (canvasRect.top - 15).toFixed(1) + 'px',
+          positionDifference: '10px closer to waveform'
+        }
+      };
+      
+      console.log(`🎨 [TextOnlyTest] Design comparison:`, testDesign);
+      return testDesign;
+    };
+
+    // 🆕 **TEST CLICK BEHAVIOR**: Test hover tooltip hiding on click
+    window.testClickBehavior = () => {
+      console.log(`🖱️ [ClickTest] Testing hover tooltip hiding on click behavior`);
+      
+      const canvas = document.querySelector('canvas');
+      if (!canvas) {
+        console.error('❌ [ClickTest] Canvas not found');
+        return { error: 'Canvas not found' };
+      }
+      
+      const testBehavior = {
+        currentBehavior: {
+          onHover: 'Show hover tooltip and cursor line',
+          onClick: 'Hide hover tooltip and cursor line immediately',
+          onMouseLeave: 'Hide hover tooltip with 50ms delay'
+        },
+        implementation: {
+          mouseDown: 'Enhanced handler calls original + hides hover',
+          clearTimeout: 'Cancels pending hover timeouts',
+          setState: 'Sets hoverPosition to null immediately',
+          debugLogging: 'Logs click behavior when debug enabled'
+        },
+        testInstructions: [
+          '1. Hover over waveform to show tooltip',
+          '2. Click anywhere on waveform',
+          '3. Tooltip should disappear immediately',
+          '4. Enable debug: toggleHoverDebug(true)',
+          '5. Repeat test to see debug logs'
+        ]
+      };
+      
+      console.log(`🖱️ [ClickTest] Behavior specification:`, testBehavior);
+      
+      // 🎯 **SIMULATE CLICK TEST**: Add click listener for testing
+      const testClickHandler = (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        
+        console.log(`🧪 [ClickTest] SIMULATED CLICK at canvas position: x=${x.toFixed(1)}, y=${y.toFixed(1)}`);
+        console.log(`✅ [ClickTest] Hover tooltip should be hidden now`);
+      };
+      
+      // 🚫 **REMOVE EXISTING TEST LISTENER**: Prevent multiple listeners
+      if (window.testClickHandler) {
+        canvas.removeEventListener('click', window.testClickHandler);
+      }
+      
+      // 🎯 **ADD TEST LISTENER**: Add test click listener
+      canvas.addEventListener('click', testClickHandler);
+      window.testClickHandler = testClickHandler;
+      
+      console.log(`🎯 [ClickTest] Test click listener added - click on canvas to test`);
+      
+      return testBehavior;
+    };
+
+    // 🆕 **TEST SELECTION DURATION POSITION**: Test closer-to-bottom positioning
+    window.testSelectionDurationPosition = () => {
+      console.log(`📍 [SelectionDurationTest] Testing closer-to-bottom positioning`);
+      
+      const canvas = document.querySelector('canvas');
+      const portalContainer = document.getElementById('waveform-tooltips-portal');
+      
+      if (!canvas) {
+        console.error('❌ [SelectionDurationTest] Canvas not found');
+        return { error: 'Canvas not found' };
+      }
+      
+      const canvasRect = canvas.getBoundingClientRect();
+      const canvasHeight = 150; // WAVEFORM_CONFIG.HEIGHT
+      
+      const positioningTest = {
+        oldPosition: {
+          calculation: 'canvas.top + height - 35px',
+          distanceFromBottom: '35px',
+          absoluteY: (canvasRect.top + canvasHeight - 35).toFixed(1) + 'px'
+        },
+        newPosition: {
+          calculation: 'canvas.top + height - 20px', 
+          distanceFromBottom: '20px (closer)',
+          absoluteY: (canvasRect.top + canvasHeight - 20).toFixed(1) + 'px'
+        },
+        improvement: {
+          closerToBottom: '15px closer to waveform bottom',
+          visualImpact: 'More integrated with waveform data',
+          readability: 'Still readable but less intrusive'
+        },
+        currentSelection: {
+          startTime: startTime.toFixed(2) + 's',
+          endTime: endTime.toFixed(2) + 's',
+          duration: (endTime - startTime).toFixed(2) + 's',
+          hasValidSelection: startTime < endTime,
+          shouldShowTooltip: startTime < endTime && (endTime - startTime) > 0.1
+        },
+        canvasInfo: {
+          top: canvasRect.top.toFixed(1) + 'px',
+          height: canvasHeight + 'px',
+          bottom: (canvasRect.top + canvasHeight).toFixed(1) + 'px'
+        }
+      };
+      
+      console.log(`📍 [SelectionDurationTest] Position analysis:`, positioningTest);
+      return positioningTest;
+    };
+
+    // 🚀 **NEW: CURSOR PERFORMANCE TEST**: Test ultra-fast cursor movement
+    window.testCursorPerformance = (testDuration = 5) => {
+      console.log(`🚀 [CursorPerformanceTest] Testing ultra-fast cursor movement for ${testDuration}s`);
+      
+      if (!audioRef.current || !duration) {
+        console.error('❌ [CursorPerformanceTest] No audio or duration available');
+        return { error: 'No audio loaded' };
+      }
+      
+      const startTestTime = performance.now();
+      let updateCount = 0;
+      let lagDetected = 0;
+      const updates = [];
+      
+      const performanceTest = () => {
+        const testProgress = updateCount / (testDuration * 60); // Assuming 60 updates per second
+        if (testProgress >= 1) {
+          // 🎯 **TEST COMPLETED**: Analyze results
+          const endTestTime = performance.now();
+          const totalTestTime = endTestTime - startTestTime;
+          const averageUpdateTime = updates.reduce((a, b) => a + b, 0) / updates.length;
+          
+          const results = {
+            testDuration: (totalTestTime / 1000).toFixed(2) + 's',
+            totalUpdates: updateCount,
+            averageUpdateTime: averageUpdateTime.toFixed(2) + 'ms',
+            lagDetections: lagDetected,
+            performance: {
+              rating: lagDetected === 0 ? '🚀 EXCELLENT' : 
+                     lagDetected < 5 ? '✅ GOOD' : 
+                     lagDetected < 15 ? '⚠️ AVERAGE' : '❌ POOR',
+              updateRate: (updateCount / (totalTestTime / 1000)).toFixed(1) + ' updates/sec',
+              targetRate: '60-120 updates/sec',
+              improvements: lagDetected > 0 ? [
+                '🔥 Animation loop optimized to 120fps',
+                '🚀 Removed async delays in click handlers',
+                '⚡ Direct state updates without batching',
+                '🎯 Immediate audio.currentTime sync'
+              ] : ['✅ Performance is optimal']
+            }
+          };
+          
+          console.log(`🚀 [CursorPerformanceTest] Results:`, results);
+          return results;
+        }
+        
+        // 🎯 **PERFORMANCE UPDATE**: Test cursor jump
+        const updateStartTime = performance.now();
+        const randomTime = Math.random() * duration;
+        
+        // Test cursor jump performance
+        jumpToTime(randomTime);
+        
+        const updateEndTime = performance.now();
+        const updateDuration = updateEndTime - updateStartTime;
+        updates.push(updateDuration);
+        
+        // 🚫 **LAG DETECTION**: Detect if update took too long
+        if (updateDuration > 5) { // More than 5ms is considered lag
+          lagDetected++;
+          console.warn(`⚠️ [CursorPerformanceTest] Lag detected: ${updateDuration.toFixed(2)}ms for jump to ${randomTime.toFixed(2)}s`);
+        }
+        
+        updateCount++;
+        
+        // 🔄 **CONTINUE TEST**: Schedule next update
+        setTimeout(performanceTest, 16); // 60fps test rate
+      };
+      
+      console.log(`🚀 [CursorPerformanceTest] Starting ${testDuration}s test with random cursor jumps...`);
+      performanceTest();
+      
+      return {
+        testStarted: true,
+        duration: testDuration + 's',
+        note: 'Test running - results will be logged when complete'
+      };
+    };
+
+    // 🚀 **NEW: CURSOR RESPONSIVENESS TEST**: Quick click responsiveness test
+    window.testClickResponsiveness = () => {
+      console.log(`⚡ [ClickResponsivenessTest] Testing immediate click-to-cursor response`);
+      
+      const canvas = document.querySelector('canvas');
+      if (!canvas || !duration) {
+        console.error('❌ [ClickResponsivenessTest] No canvas or audio duration');
+        return { error: 'Canvas or audio not available' };
+      }
+      
+      const testClicks = [
+        { position: 0.2, expectedTime: duration * 0.2 },
+        { position: 0.5, expectedTime: duration * 0.5 },
+        { position: 0.8, expectedTime: duration * 0.8 }
+      ];
+      
+      const results = [];
+      
+      testClicks.forEach((testClick, index) => {
+        const startTime = performance.now();
+        
+        // 🎯 **SIMULATE CLICK**: Simulate click at position
+        const targetTime = testClick.expectedTime;
+        const beforeTime = audioRef.current?.currentTime || 0;
+        
+        // Test immediate jump
+        jumpToTime(targetTime);
+        
+        const endTime = performance.now();
+        const afterTime = audioRef.current?.currentTime || 0;
+        const responseTime = endTime - startTime;
+        
+        const result = {
+          test: `Click ${index + 1}`,
+          targetTime: targetTime.toFixed(2) + 's',
+          beforeCursor: beforeTime.toFixed(2) + 's',
+          afterCursor: afterTime.toFixed(2) + 's',
+          responseTime: responseTime.toFixed(2) + 'ms',
+          accuracy: Math.abs(afterTime - targetTime) < 0.1 ? '✅ ACCURATE' : '❌ INACCURATE',
+          speed: responseTime < 1 ? '🚀 INSTANT' : 
+                responseTime < 5 ? '⚡ FAST' : 
+                responseTime < 10 ? '✅ GOOD' : '⚠️ SLOW'
+        };
+        
+        results.push(result);
+        console.log(`⚡ [ClickTest${index + 1}] ${result.speed}: ${result.responseTime} response`);
+      });
+      
+      const averageResponseTime = results.reduce((sum, r) => sum + parseFloat(r.responseTime), 0) / results.length;
+      const summary = {
+        totalTests: results.length,
+        averageResponseTime: averageResponseTime.toFixed(2) + 'ms',
+        allAccurate: results.every(r => r.accuracy.includes('✅')),
+        overallPerformance: averageResponseTime < 1 ? '🚀 EXCELLENT' :
+                           averageResponseTime < 3 ? '⚡ VERY GOOD' :
+                           averageResponseTime < 5 ? '✅ GOOD' : '⚠️ NEEDS IMPROVEMENT',
+        improvements: [
+          '🚀 120fps animation loop (was 60fps)',
+          '⚡ Removed requestIdleCallback delays',
+          '🎯 Direct audio.currentTime updates',
+          '🔥 Synchronous state updates'
+        ]
+      };
+      
+      console.log(`⚡ [ClickResponsivenessTest] Summary:`, summary);
+      console.log(`⚡ [ClickResponsivenessTest] Detailed results:`, results);
+      
+      return { summary, results };
+    };
+
     return () => {
       delete window.mp3CutterSetSelection;
       delete window.mp3CutterConfigureAutoReturn;
@@ -1488,6 +1976,22 @@ const MP3CutterMain = React.memo(() => {
       delete window.mp3CutterTestDifferentiatedTooltips;
       delete window.mp3CutterValidatePortalTooltips;
       delete window.mp3CutterTestTextOnlyTooltip;
+      
+      // 🆕 **NEW DESIGN TESTS CLEANUP**: Cleanup new design test functions
+      delete window.testTextOnlyHoverTooltip;
+      delete window.testClickBehavior;
+      delete window.testSelectionDurationPosition;
+      
+      // 🚀 **CURSOR PERFORMANCE TESTS CLEANUP**: Cleanup cursor performance test functions
+      delete window.testCursorPerformance;
+      delete window.testClickResponsiveness;
+      
+      // 🚫 **TEST CLICK HANDLER CLEANUP**: Remove test click handler if exists
+      const canvas = document.querySelector('canvas');
+      if (canvas && window.testClickHandler) {
+        canvas.removeEventListener('click', window.testClickHandler);
+        delete window.testClickHandler;
+      }
       
       // 🔧 **MONITOR CLEANUP**: Cleanup running monitors
       if (window.mp3CutterInteractionMonitorId) {

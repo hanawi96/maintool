@@ -281,7 +281,7 @@ const WaveformCanvas = React.memo(({
       selectionDuration: showSelectionDuration ? {
         x: selectionCenterX, // Canvas relative position
         absoluteX: absoluteSelectionCenterX, // Absolute position for portal
-        absoluteY: tooltipBaseY + WAVEFORM_CONFIG.HEIGHT - 35, // Inside waveform (unchanged)
+        absoluteY: tooltipBaseY + WAVEFORM_CONFIG.HEIGHT - 20, // 🆕 **CLOSER TO BOTTOM**: 20px từ đáy thay vì 35px
         duration: selectionDuration,
         visible: true,
         formattedDuration: formatDuration(selectionDuration)
@@ -294,11 +294,12 @@ const WaveformCanvas = React.memo(({
         startHandle: showStartHandle ? `${absoluteStartX.toFixed(1)}px absolute, Y: ${handlesTooltipY.toFixed(1)}px BELOW (${formatTime(startTime)})` : 'hidden',
         endHandle: showEndHandle ? `${absoluteEndX.toFixed(1)}px absolute, Y: ${handlesTooltipY.toFixed(1)}px BELOW (${formatTime(endTime)})` : 'hidden',
         cursor: showCursor ? `${absoluteCursorX.toFixed(1)}px absolute, Y: ${cursorTooltipY.toFixed(1)}px ABOVE (${formatTime(currentTime)})` : 'hidden',
-        selectionDuration: showSelectionDuration ? `${absoluteSelectionCenterX.toFixed(1)}px absolute - INSIDE WAVEFORM` : 'hidden',
+        selectionDuration: showSelectionDuration ? `${absoluteSelectionCenterX.toFixed(1)}px absolute - INSIDE WAVEFORM (20px from bottom)` : 'hidden',
         positioning: {
           handlesY: `${handlesTooltipY.toFixed(1)}px (canvas + ${WAVEFORM_CONFIG.HEIGHT} + 5px)`,
           cursorY: `${cursorTooltipY.toFixed(1)}px (canvas - 30px)`,
-          differentiatedMode: 'ENABLED - Handles BELOW, Cursor ABOVE'
+          selectionDurationY: `${(tooltipBaseY + WAVEFORM_CONFIG.HEIGHT - 20).toFixed(1)}px (canvas + ${WAVEFORM_CONFIG.HEIGHT} - 20px)`, // 🆕 **UPDATED POSITION**
+          differentiatedMode: 'ENABLED - Handles BELOW, Cursor ABOVE, Selection INSIDE (closer to bottom)'
         },
         canvasRect: {
           left: canvasRect.left.toFixed(1),
@@ -312,16 +313,20 @@ const WaveformCanvas = React.memo(({
 
   }, [canvasRef, duration, startTime, endTime, currentTime, formatTime, formatDuration, updateCanvasPosition]);
 
-  // 🆕 **HOVER TIME TRACKER**: Track mouse position and calculate time
+  // 🆕 **HOVER TIME TRACKER**: Track mouse position and calculate time với enhanced debug
   const updateHoverTime = useCallback((mouseX, canvasWidth) => {
     const now = performance.now();
     
-    // 🔥 **THROTTLE HOVER UPDATES**: 60fps to prevent lag
-    if (now - lastHoverUpdateRef.current < 16) return; // 60fps
+    // 🔥 **CONDITIONAL THROTTLING**: Tắt throttling khi debug mode được bật
+    const isDebugMode = window.hoverDebugEnabled;
+    if (!isDebugMode && now - lastHoverUpdateRef.current < 16) return; // 60fps throttling chỉ khi không debug
     lastHoverUpdateRef.current = now;
 
     if (!canvasWidth || duration === 0) {
       setHoverPosition(null);
+      if (isDebugMode) {
+        console.log(`❌ [HoverTime] No canvas width (${canvasWidth}) or duration (${duration}) - clearing hover position`);
+      }
       return;
     }
 
@@ -337,9 +342,10 @@ const WaveformCanvas = React.memo(({
     // 🚫 **HIDE CURSOR LINE**: When hovering over handles
     if (startTime < endTime) { // Only check handles if there's a valid selection
       if (Math.abs(mouseX - startX) <= tolerance || Math.abs(mouseX - endX) <= tolerance) {
-        // 🔧 **DEBUG HANDLE HOVER**: Log when hiding cursor line for handles
-        if (Math.random() < 0.1) { // 10% sampling
-          console.log(`🚫 [HoverTime] Hiding cursor line - hovering over handle`);
+        // 🔧 **ENHANCED DEBUG**: Log handle hover detection
+        if (isDebugMode || Math.random() < 0.1) {
+          const handleType = Math.abs(mouseX - startX) <= tolerance ? 'START' : 'END';
+          console.log(`🚫 [HoverTime] Hiding cursor line - hovering over ${handleType} handle at ${mouseX.toFixed(1)}px`);
         }
         setHoverPosition(null); // ← Hide cursor line when on handles
         return;
@@ -350,17 +356,25 @@ const WaveformCanvas = React.memo(({
     const timeAtPosition = (mouseX / canvasWidth) * duration;
     const clampedTime = Math.max(0, Math.min(timeAtPosition, duration));
     
-    // 🆕 **UPDATE HOVER POSITION**: Set hover data for tooltip and line
-    setHoverPosition({
+    // 🆕 **CREATE HOVER POSITION**: Set hover data for tooltip and line
+    const newHoverPosition = {
       x: mouseX,
       time: clampedTime,
       formattedTime: formatTime(clampedTime),
       visible: true
-    });
+    };
+    
+    setHoverPosition(newHoverPosition);
 
-    // 🔧 **DEBUG SAMPLING**: Only log occasionally to prevent spam với format mới
-    if (Math.random() < 0.05) { // 5% sampling
-      console.log(`⏰ [HoverTime] Position: ${mouseX.toFixed(1)}px → ${formatTime(clampedTime)} (precise: ${clampedTime.toFixed(3)}s)`);
+    // 🔧 **ENHANCED DEBUG LOGGING**: Chi tiết về tooltip creation
+    if (isDebugMode || Math.random() < 0.05) { // Debug mode hoặc 5% sampling
+      console.log(`✅ [HoverTime] TOOLTIP CREATED:`, {
+        position: `${mouseX.toFixed(1)}px of ${canvasWidth}px`,
+        time: `${clampedTime.toFixed(3)}s`,
+        formattedTime: newHoverPosition.formattedTime,
+        visible: newHoverPosition.visible,
+        debugMode: isDebugMode ? 'ENABLED' : 'sampling'
+      });
     }
   }, [duration, formatTime, startTime, endTime]);
 
@@ -412,6 +426,33 @@ const WaveformCanvas = React.memo(({
     }, 50);
     
   }, [onMouseLeave, canvasRef, isDragging]);
+
+  // 🆕 **ENHANCED MOUSE DOWN HANDLER**: Add hover tooltip hiding on click
+  const handleEnhancedMouseDown = useCallback((e) => {
+    // 🎯 **CALL ORIGINAL HANDLER**: Maintain existing functionality first
+    if (onMouseDown) {
+      onMouseDown(e);
+    }
+
+    // 🆕 **HIDE HOVER TOOLTIP ON CLICK**: Hide hover tooltip và cursor line when user clicks
+    const isDebugMode = window.hoverDebugEnabled;
+    if (isDebugMode) {
+      console.log(`🖱️ [ClickBehavior] Mouse down detected - hiding hover tooltip and cursor line`);
+    }
+
+    // 🚫 **IMMEDIATE HIDE**: Clear hover position immediately on click
+    setHoverPosition(null);
+    
+    // 🚫 **CLEAR HOVER TIMEOUT**: Cancel any pending hover timeout
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = null;
+    }
+
+    if (isDebugMode) {
+      console.log(`✅ [ClickBehavior] Hover tooltip and cursor line hidden successfully`);
+    }
+  }, [onMouseDown]);
 
   // 🔥 **OPTIMIZED ADAPTIVE DATA**: Giảm logging và chỉ log khi cần
   const adaptiveWaveformData = useMemo(() => {
@@ -964,7 +1005,7 @@ const WaveformCanvas = React.memo(({
     <div className="relative" style={{ minWidth: `${WAVEFORM_CONFIG.RESPONSIVE.MIN_WIDTH}px` }}>
       <canvas
         ref={canvasRef}
-        onMouseDown={onMouseDown}
+        onMouseDown={handleEnhancedMouseDown}
         onMouseMove={handleEnhancedMouseMove}
         onMouseUp={onMouseUp}
         onMouseLeave={handleEnhancedMouseLeave}
@@ -977,29 +1018,82 @@ const WaveformCanvas = React.memo(({
         }}
       />
       
-      {/* 🆕 **TIME TOOLTIP**: Hover time display - Updated format (RELATIVE POSITIONING) */}
-      {hoverPosition && hoverPosition.visible && (
-        <div
-          className="absolute pointer-events-none text-xs px-2 py-1 rounded font-medium"
-          style={{
-            left: `${hoverPosition.x}px`,
-            top: '-8px', // 8px above canvas
-            transform: 'translateX(-50%)',
-            backgroundColor: 'rgba(71, 85, 105, 0.95)', // Slate color
-            color: 'white',
-            transition: 'none', // No transition for immediate response
-            whiteSpace: 'nowrap',
-            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
-            backdropFilter: 'blur(4px)',
-            zIndex: 30 // 🎯 **HIGH Z-INDEX**: Đảm bảo nổi trên cùng
-          }}
-        >
-          {hoverPosition.formattedTime}
-        </div>
-      )}
-
-      {/* 🆕 **PORTAL TOOLTIPS**: All handles and cursor tooltips render via portal (ABSOLUTE POSITIONING) */}
+      {/* 🆕 **PORTAL TOOLTIPS**: All tooltips including HOVER TIME render via portal */}
       <TooltipPortal>
+        {/* 🆕 **HOVER TIME TOOLTIP**: Portal-rendered hover tooltip - TEXT ONLY DESIGN */}
+        {hoverPosition && hoverPosition.visible && (() => {
+          // 🔧 **DEBUG TOOLTIP RENDER**: Log khi tooltip được render
+          const isDebugMode = window.hoverDebugEnabled;
+          if (isDebugMode) {
+            console.log(`🎨 [HoverTooltipRender] Rendering hover tooltip (TEXT-ONLY design):`, {
+              hoverPosition,
+              visible: hoverPosition.visible,
+              x: hoverPosition.x,
+              time: hoverPosition.time,
+              formattedTime: hoverPosition.formattedTime,
+              design: 'NO_BACKGROUND'
+            });
+          }
+          
+          return (
+            <div
+              className="pointer-events-none text-xs font-bold"
+              style={{
+                position: 'absolute',
+                left: `${(() => {
+                  // 🎯 **REAL-TIME CANVAS RECT**: Update canvas position immediately for hover tooltips
+                  const canvas = canvasRef.current;
+                  if (!canvas) return 0;
+                  const rect = canvas.getBoundingClientRect();
+                  canvasRectRef.current = rect; // Update ref immediately
+                  const leftPos = rect.left + hoverPosition.x + window.scrollX;
+                  if (isDebugMode) {
+                    console.log(`📍 [HoverTooltipRender] Left position: canvas.left=${rect.left.toFixed(1)} + hover.x=${hoverPosition.x.toFixed(1)} + scrollX=${window.scrollX} = ${leftPos.toFixed(1)}px`);
+                  }
+                  return leftPos;
+                })()}px`,
+                top: `${(() => {
+                  // 🎯 **ADJUSTED POSITION**: 5px above canvas thay vì 15px
+                  const canvas = canvasRef.current;
+                  if (!canvas) return 0;
+                  const rect = canvasRectRef.current || canvas.getBoundingClientRect();
+                  const topPos = rect.top + window.scrollY - 5; // 🆕 **5PX ABOVE**: Closer to waveform
+                  if (isDebugMode) {
+                    console.log(`📍 [HoverTooltipRender] Top position: canvas.top=${rect.top.toFixed(1)} + scrollY=${window.scrollY} - 5px = ${topPos.toFixed(1)}px (ADJUSTED)`);
+                  }
+                  return topPos;
+                })()}px`,
+                transform: 'translateX(-50%)',
+                // 🚫 **NO BACKGROUND**: Removed all background styling cho clean text-only design
+                color: 'rgba(30, 41, 59, 0.95)', // Dark text for good contrast on light backgrounds
+                transition: 'none',
+                whiteSpace: 'nowrap',
+                fontWeight: '700', // 🎯 **BOLD FONT**: Better visibility without background
+                fontSize: '11px', // Slightly smaller for cleaner look
+                // 🎯 **ENHANCED TEXT SHADOW**: Strong shadow cho visibility on any background
+                textShadow: '0 1px 4px rgba(255, 255, 255, 0.9), 0 -1px 2px rgba(0, 0, 0, 0.8), 1px 0 3px rgba(255, 255, 255, 0.8), -1px 0 3px rgba(255, 255, 255, 0.8)',
+                WebkitTextStroke: '0.5px rgba(255, 255, 255, 0.9)', // 🆕 **STRONGER TEXT STROKE**: Extra contrast without background
+                zIndex: 2147483646 // 🎯 **MAXIMUM Z-INDEX**: Near maximum for visibility
+              }}
+            >
+              {hoverPosition.formattedTime}
+              {/* 🔧 **DEBUG INDICATOR**: Visual indicator to confirm tooltip is showing - smaller for text-only design */}
+              {isDebugMode && (
+                <span style={{ 
+                  position: 'absolute', 
+                  top: '-3px', 
+                  right: '-6px', 
+                  width: '3px', 
+                  height: '3px', 
+                  backgroundColor: '#10b981', 
+                  borderRadius: '50%',
+                  opacity: 0.7
+                }} />
+              )}
+            </div>
+          );
+        })()}
+
         {/* 🏷️ **START HANDLE TOOLTIP**: Portal-rendered tooltip cho left handle */}
         {tooltipPositions.startHandle && tooltipPositions.startHandle.visible && (
           <div
@@ -1044,22 +1138,24 @@ const WaveformCanvas = React.memo(({
           </div>
         )}
 
-        {/* 🏷️ **CURSOR TOOLTIP**: Portal-rendered tooltip cho cursor line */}
+        {/* 🏷️ **CURSOR TOOLTIP**: Portal-rendered tooltip cho cursor line - TEXT ONLY DESIGN */}
         {tooltipPositions.cursor && tooltipPositions.cursor.visible && (
           <div
-            className="pointer-events-none text-xs px-2 py-1 rounded font-medium"
+            className="pointer-events-none text-xs font-bold"
             style={{
               position: 'absolute',
               left: `${tooltipPositions.cursor.absoluteX}px`,
               top: `${tooltipPositions.cursor.absoluteY}px`,
               transform: 'translateX(-50%)',
-              backgroundColor: 'rgba(255, 255, 255, 0.95)', // Trắng như đối thủ
-              color: 'rgba(30, 41, 59, 0.9)', // Dark text
+              // 🚫 **NO BACKGROUND**: Removed all background styling cho clean text-only design
+              color: 'rgba(30, 41, 59, 0.95)', // Dark text for good contrast on light backgrounds
               transition: 'none',
               whiteSpace: 'nowrap',
-              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.4)',
-              backdropFilter: 'blur(6px)',
-              border: '1px solid rgba(148, 163, 184, 0.3)',
+              fontWeight: '700', // 🎯 **BOLD FONT**: Better visibility without background
+              fontSize: '11px', // Consistent size with hover tooltip
+              // 🎯 **ENHANCED TEXT SHADOW**: Strong shadow cho visibility on any background
+              textShadow: '0 1px 4px rgba(255, 255, 255, 0.9), 0 -1px 2px rgba(0, 0, 0, 0.8), 1px 0 3px rgba(255, 255, 255, 0.8), -1px 0 3px rgba(255, 255, 255, 0.8)',
+              WebkitTextStroke: '0.5px rgba(255, 255, 255, 0.9)', // 🆕 **STRONGER TEXT STROKE**: Extra contrast without background
               zIndex: 999999 // 🆕 **PORTAL Z-INDEX**: Highest possible z-index via portal
             }}
           >
@@ -1083,7 +1179,7 @@ const WaveformCanvas = React.memo(({
               // 🎯 **TEXT SHADOW**: Subtle text shadow for readability on waveform background
               textShadow: '0 1px 2px rgba(255, 255, 255, 0.8), 0 -1px 1px rgba(0, 0, 0, 0.2)',
               fontWeight: '600', // Slightly bolder for better visibility
-              zIndex: 999999 // 🆕 **PORTAL Z-INDEX**: Highest possible z-index via portal
+              zIndex: 999999 // 🆕 **PORTAL Z-INDEX**: Highest possible z-index via portall
             }}
           >
             {tooltipPositions.selectionDuration.formattedDuration}

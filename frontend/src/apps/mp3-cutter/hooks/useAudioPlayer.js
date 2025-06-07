@@ -57,10 +57,27 @@ export const useAudioPlayer = () => {
     }
     
     const clampedTime = Math.max(0, Math.min(duration, time));
-    console.log('🎯 [useAudioPlayer] Jump to:', clampedTime.toFixed(2));
+    console.log('🚀 [useAudioPlayer] IMMEDIATE Jump to:', clampedTime.toFixed(2));
     
+    // 🔥 **IMMEDIATE SYNC**: Update audio và state ngay lập tức không delay
     audio.currentTime = clampedTime;
+    
+    // 🔥 **SYNCHRONOUS STATE UPDATE**: Update state ngay lập tức thay vì async
     setCurrentTime(clampedTime);
+    
+    // 🚀 **FORCE IMMEDIATE REDRAW**: Trigger redraw ngay lập tức cho visual feedback
+    if (window.requestAnimationFrame) {
+      window.requestAnimationFrame(() => {
+        // 🎯 **DOUBLE UPDATE**: Đảm bảo state được sync hoàn toàn
+        if (audioRef.current && Math.abs(audioRef.current.currentTime - clampedTime) > 0.01) {
+          audioRef.current.currentTime = clampedTime;
+          setCurrentTime(clampedTime);
+          console.log('🔄 [useAudioPlayer] Double-sync completed for smooth cursor');
+        }
+      });
+    }
+    
+    console.log('✅ [useAudioPlayer] IMMEDIATE cursor sync completed:', clampedTime.toFixed(2));
   }, [duration]);
 
   const updateVolume = useCallback((newVolume) => {
