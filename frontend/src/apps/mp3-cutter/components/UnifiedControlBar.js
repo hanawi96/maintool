@@ -202,7 +202,7 @@ const UnifiedControlBar = React.memo(({
             value={volume}
             onChange={handleVolumeChange}
             disabled={disabled}
-            className="w-16 sm:w-20 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed volume-slider"
+            className="w-18 sm:w-22 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed volume-slider"
             title={`Volume: ${Math.round(volume * 100)}%`}
             style={{
               background: `linear-gradient(to right, #6366f1 0%, #6366f1 ${volume * 100}%, #e2e8f0 ${volume * 100}%, #e2e8f0 100%)`
@@ -210,8 +210,8 @@ const UnifiedControlBar = React.memo(({
           />
         </div>
 
-        {/* Volume Percentage - Compact */}
-        <span className="text-xs font-mono text-slate-700 w-7 text-right">
+        {/* Volume Percentage - Enhanced font */}
+        <span className="text-sm font-mono text-slate-700 w-8 text-right">
           {Math.round(volume * 100)}%
         </span>
       </div>
@@ -237,7 +237,7 @@ const UnifiedControlBar = React.memo(({
             value={playbackRate}
             onChange={handleSpeedChange}
             disabled={disabled}
-            className="w-16 sm:w-20 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed speed-slider"
+            className="w-18 sm:w-22 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed speed-slider"
             title={`Speed: ${playbackRate}x`}
             style={{
               background: `linear-gradient(to right, #8b5cf6 0%, #8b5cf6 ${progressPercent}%, #e2e8f0 ${progressPercent}%, #e2e8f0 100%)`
@@ -245,17 +245,17 @@ const UnifiedControlBar = React.memo(({
           />
         </div>
 
-        {/* Speed Display - Compact */}
-        <span className="text-xs font-mono text-slate-700 w-8 text-right">
+        {/* Speed Display - Enhanced font */}
+        <span className="text-sm font-mono text-slate-700 w-9 text-right">
           {playbackRate.toFixed(1)}x
         </span>
 
-        {/* Quick Reset - Only show if not 1x */}
+        {/* Quick Reset - Enhanced font */}
         {playbackRate !== 1 && (
           <button
             onClick={resetSpeed}
             disabled={disabled}
-            className="px-1.5 py-0.5 text-xs bg-purple-100 hover:bg-purple-200 text-purple-700 rounded transition-colors disabled:opacity-50"
+            className="px-2 py-1 text-sm bg-purple-100 hover:bg-purple-200 text-purple-700 rounded transition-colors disabled:opacity-50"
             title="Reset to 1x"
           >
             1x
@@ -301,9 +301,9 @@ const UnifiedControlBar = React.memo(({
   ), [canUndo, canRedo, onUndo, onRedo, historyIndex, historyLength, disabled]);
 
   return (
-    <div className="unified-control-bar bg-white border border-slate-200 rounded-xl p-3 shadow-sm">
-      {/* 🎯 **MAIN CONTROL ROW** - Responsive single row layout */}
-      <div className="flex items-center gap-0 flex-wrap xl:flex-nowrap">
+    <div className="unified-control-bar bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+      {/* 🎯 **MAIN CONTROL ROW** - Responsive single row layout với increased height */}
+      <div className="flex items-center gap-1 flex-wrap xl:flex-nowrap">
         
         {/* 1. Play Controls (Left) - Always visible */}
         {PlayControlsSection}
@@ -319,7 +319,7 @@ const UnifiedControlBar = React.memo(({
         </div>
         
         {/* 4. Time Selector (Center - Expandable) - Main content area */}
-        <div className="flex-1 px-3 min-w-0">
+        <div className="flex-1 px-4 min-w-0">
           <CompactTimeSelector
             startTime={startTime}
             endTime={endTime}
@@ -333,10 +333,10 @@ const UnifiedControlBar = React.memo(({
         {HistoryControlsSection}
       </div>
       
-      {/* 🎯 **MOBILE COLLAPSED CONTROLS** - Show hidden controls on small screens */}
-      <div className="sm:hidden mt-3 pt-3 border-t border-slate-200">
+      {/* 🎯 **MOBILE COLLAPSED CONTROLS** - Show hidden controls on small screens với improved spacing */}
+      <div className="sm:hidden mt-4 pt-4 border-t border-slate-200">
         <div className="flex items-center justify-center gap-6">
-          {/* Mobile Volume */}
+          {/* Mobile Volume - Enhanced size */}
           <div className="flex items-center gap-2">
             <Volume2 className="w-4 h-4 text-slate-600" />
             <input
@@ -347,15 +347,15 @@ const UnifiedControlBar = React.memo(({
               value={volume}
               onChange={handleVolumeChange}
               disabled={disabled}
-              className="w-16 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer disabled:opacity-50"
+              className="w-18 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer disabled:opacity-50"
               style={{
                 background: `linear-gradient(to right, #6366f1 0%, #6366f1 ${volume * 100}%, #e2e8f0 ${volume * 100}%, #e2e8f0 100%)`
               }}
             />
-            <span className="text-xs text-slate-600 w-7">{Math.round(volume * 100)}%</span>
+            <span className="text-sm text-slate-600 w-8">{Math.round(volume * 100)}%</span>
           </div>
           
-          {/* Mobile Speed */}
+          {/* Mobile Speed - Enhanced size */}
           <div className="flex items-center gap-2">
             <Zap className="w-4 h-4 text-slate-600" />
             <input
@@ -366,12 +366,12 @@ const UnifiedControlBar = React.memo(({
               value={playbackRate}
               onChange={handleSpeedChange}
               disabled={disabled}
-              className="w-16 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer disabled:opacity-50"
+              className="w-18 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer disabled:opacity-50"
               style={{
                 background: `linear-gradient(to right, #8b5cf6 0%, #8b5cf6 ${((playbackRate - 0.5) / 1.5) * 100}%, #e2e8f0 ${((playbackRate - 0.5) / 1.5) * 100}%, #e2e8f0 100%)`
               }}
             />
-            <span className="text-xs text-slate-600 w-8">{playbackRate.toFixed(1)}x</span>
+            <span className="text-sm text-slate-600 w-9">{playbackRate.toFixed(1)}x</span>
           </div>
         </div>
       </div>
