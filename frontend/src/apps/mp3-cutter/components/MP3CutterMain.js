@@ -19,6 +19,7 @@ import UnifiedControlBar from './UnifiedControlBar';
 import { clamp, validateAudioFile, getAudioErrorMessage, getFormatDisplayName, generateCompatibilityReport, createSafeAudioURL, validateAudioURL } from '../utils/audioUtils';
 import { createInteractionManager } from '../utils/interactionUtils';
 import { getAutoReturnSetting, setAutoReturnSetting } from '../utils/safeStorage';
+import { FADE_CONFIG } from '../utils/constants'; // 🆕 **IMPORT FADE CONFIG**
 
 // 🔥 **ULTRA-LIGHT AUDIO COMPONENT**: Minimized for best performance
 const SafeAudioElement = React.memo(({ 
@@ -1880,13 +1881,24 @@ const MP3CutterMain = React.memo(() => {
       };
     };
 
-    // 🆕 **FADE EFFECTS TEST**: Test và demonstrate fade visual effects
-    window.testFadeEffects = (fadeInDuration = 2.0, fadeOutDuration = 3.0) => {
-      console.log(`🎨 [FadeEffectsTest] Testing fade visual effects`);
+    // 🆕 **FADE EFFECTS TEST**: Test và demonstrate fade visual effects - UPDATED cho range 15s
+    window.testFadeEffects = (fadeInDuration = 5.0, fadeOutDuration = 8.0) => {
+      console.log(`🎨 [FadeEffectsTest] Testing fade visual effects with range 0-${FADE_CONFIG.MAX_DURATION}s`);
       
       if (!audioFile || !duration) {
         console.error('❌ [FadeEffectsTest] No audio file loaded');
         return { error: 'No audio file loaded' };
+      }
+      
+      // 🆕 **VALIDATION**: Clamp values to FADE_CONFIG.MAX_DURATION
+      const validatedFadeIn = Math.min(Math.max(0, fadeInDuration), FADE_CONFIG.MAX_DURATION);
+      const validatedFadeOut = Math.min(Math.max(0, fadeOutDuration), FADE_CONFIG.MAX_DURATION);
+      
+      if (validatedFadeIn !== fadeInDuration || validatedFadeOut !== fadeOutDuration) {
+        console.warn(`⚠️ [FadeEffectsTest] Values clamped to range 0-${FADE_CONFIG.MAX_DURATION}s:`, {
+          requested: { fadeIn: fadeInDuration, fadeOut: fadeOutDuration },
+          clamped: { fadeIn: validatedFadeIn, fadeOut: validatedFadeOut }
+        });
       }
       
       // 🎯 **CURRENT STATE**: Log current fade configuration
@@ -1894,82 +1906,108 @@ const MP3CutterMain = React.memo(() => {
         currentFadeIn: fadeIn + 's',
         currentFadeOut: fadeOut + 's',
         currentSelection: `${startTime.toFixed(2)}s → ${endTime.toFixed(2)}s`,
-        selectionDuration: (endTime - startTime).toFixed(2) + 's'
+        selectionDuration: (endTime - startTime).toFixed(2) + 's',
+        maxDuration: FADE_CONFIG.MAX_DURATION + 's'
       };
       
       console.log(`🎨 [FadeEffectsTest] Current state:`, currentState);
       
-      // 🆕 **APPLY TEST FADE**: Set test fade values
-      console.log(`🎨 [FadeEffectsTest] Applying test fade: In=${fadeInDuration}s, Out=${fadeOutDuration}s`);
-      setFadeIn(fadeInDuration);
-      setFadeOut(fadeOutDuration);
+      // 🆕 **APPLY TEST FADE**: Set validated test fade values
+      console.log(`🎨 [FadeEffectsTest] Applying validated fade: In=${validatedFadeIn}s, Out=${validatedFadeOut}s (max: ${FADE_CONFIG.MAX_DURATION}s)`);
+      setFadeIn(validatedFadeIn);
+      setFadeOut(validatedFadeOut);
       
-      // 🎯 **VISUAL EXPLANATION**: Explain what should happen
+      // 🎯 **VISUAL EXPLANATION**: Explain what should happen với enhanced info cho range 15s
       const visualExpectation = {
         fadeInEffect: {
-          duration: fadeInDuration + 's',
-          timeRange: `${startTime.toFixed(2)}s → ${(startTime + fadeInDuration).toFixed(2)}s`,
+          duration: validatedFadeIn + 's',
+          timeRange: `${startTime.toFixed(2)}s → ${(startTime + validatedFadeIn).toFixed(2)}s`,
           visualBehavior: 'Waveform bars start THẤP (10% height) → gradually increase to CAO (100% height)',
-          smoothCurve: 'Ease-out curve for natural fade in'
+          smoothCurve: 'Ease-out curve for natural fade in',
+          percentage: `${((validatedFadeIn / FADE_CONFIG.MAX_DURATION) * 100).toFixed(1)}% of max duration`
         },
         fadeOutEffect: {
-          duration: fadeOutDuration + 's',
-          timeRange: `${(endTime - fadeOutDuration).toFixed(2)}s → ${endTime.toFixed(2)}s`,
+          duration: validatedFadeOut + 's',
+          timeRange: `${(endTime - validatedFadeOut).toFixed(2)}s → ${endTime.toFixed(2)}s`,
           visualBehavior: 'Waveform bars start CAO (100% height) → gradually decrease to THẤP (10% height)',
-          smoothCurve: 'Ease-in curve for natural fade out'
+          smoothCurve: 'Ease-in curve for natural fade out',
+          percentage: `${((validatedFadeOut / FADE_CONFIG.MAX_DURATION) * 100).toFixed(1)}% of max duration`
         },
         normalRegion: {
-          timeRange: `${(startTime + fadeInDuration).toFixed(2)}s → ${(endTime - fadeOutDuration).toFixed(2)}s`,
+          timeRange: `${(startTime + validatedFadeIn).toFixed(2)}s → ${(endTime - validatedFadeOut).toFixed(2)}s`,
           visualBehavior: 'Waveform bars maintain normal height (100% height)',
           note: 'No fade effect applied in this region'
+        },
+        rangeInfo: {
+          maxDuration: FADE_CONFIG.MAX_DURATION + 's',
+          step: FADE_CONFIG.STEP + 's',
+          totalFadeTime: (validatedFadeIn + validatedFadeOut).toFixed(1) + 's'
         }
       };
       
-      console.log(`🎨 [FadeEffectsTest] Visual expectations:`, visualExpectation);
+      console.log(`🎨 [FadeEffectsTest] Visual expectations (range 0-${FADE_CONFIG.MAX_DURATION}s):`, visualExpectation);
       
-      // 🎯 **SAVE TO HISTORY**: Save fade changes
+      // 🎯 **SAVE TO HISTORY**: Save validated fade changes
       setTimeout(() => {
-        saveState({ startTime, endTime, fadeIn: fadeInDuration, fadeOut: fadeOutDuration });
+        saveState({ startTime, endTime, fadeIn: validatedFadeIn, fadeOut: validatedFadeOut });
         console.log(`✅ [FadeEffectsTest] Fade effects applied and saved to history`);
       }, 100);
       
-      // 🔧 **USAGE INSTRUCTIONS**: How to see the effects
+      // 🆕 **ENHANCED USAGE INSTRUCTIONS**: Updated instructions cho range 15s
       const instructions = [
         '1. Look at the waveform - you should see fade effects immediately',
         '2. Fade In region: bars gradually increase in height from start',
         '3. Fade Out region: bars gradually decrease in height toward end',
         '4. Middle region: bars maintain normal height',
-        '5. Use FadeControls sliders to adjust fade durations in real-time',
-        '6. Call testFadeEffects(0, 0) to disable fade effects'
+        '5. Use FadeControls sliders to adjust fade durations (0-15s) in real-time',
+        '6. Try preset buttons: Gentle(1s), Standard(3s), Dramatic(5s), Extended(8s), Maximum(15s)',
+        '7. Call testFadeEffects(0, 0) to disable fade effects',
+        '8. Call testFadeEffects(15, 15) to test maximum fade duration'
       ];
       
-      console.log(`📖 [FadeEffectsTest] Instructions:`, instructions);
+      console.log(`📖 [FadeEffectsTest] Instructions (max: ${FADE_CONFIG.MAX_DURATION}s):`, instructions);
       
       return {
         applied: true,
-        fadeIn: fadeInDuration + 's',
-        fadeOut: fadeOutDuration + 's',
+        fadeIn: validatedFadeIn + 's',
+        fadeOut: validatedFadeOut + 's',
         selectionRange: `${startTime.toFixed(2)}s → ${endTime.toFixed(2)}s`,
         visualExpectation,
-        instructions
+        instructions,
+        maxDuration: FADE_CONFIG.MAX_DURATION + 's'
       };
     };
 
-    // 🆕 **FADE PRESET TESTS**: Quick fade presets for testing
+    // 🆕 **FADE PRESET TESTS**: Quick fade presets for testing - UPDATED cho range 15s
     window.testFadePresets = () => {
-      console.log(`🎨 [FadePresets] Testing common fade presets`);
+      console.log(`🎨 [FadePresets] Testing fade presets for range 0-${FADE_CONFIG.MAX_DURATION}s`);
       
+      // 🆕 **ENHANCED PRESETS**: Sử dụng FADE_CONFIG và mở rộng cho range 15s
       const presets = {
-        gentle: { fadeIn: 1.0, fadeOut: 1.0, description: 'Gentle 1s fade in/out' },
-        standard: { fadeIn: 2.0, fadeOut: 2.0, description: 'Standard 2s fade in/out' },
-        dramatic: { fadeIn: 3.0, fadeOut: 3.0, description: 'Dramatic 3s fade in/out' },
-        fadeInOnly: { fadeIn: 2.5, fadeOut: 0, description: 'Fade in only (2.5s)' },
-        fadeOutOnly: { fadeIn: 0, fadeOut: 2.5, description: 'Fade out only (2.5s)' },
-        asymmetric: { fadeIn: 1.5, fadeOut: 3.5, description: 'Quick fade in, slow fade out' },
+        // 🎯 **BASIC PRESETS**: Các preset cơ bản
+        gentle: FADE_CONFIG.DEFAULT_PRESETS.GENTLE,
+        standard: FADE_CONFIG.DEFAULT_PRESETS.STANDARD,
+        dramatic: FADE_CONFIG.DEFAULT_PRESETS.DRAMATIC,
+        
+        // 🆕 **EXTENDED PRESETS**: Preset mới cho range 15s
+        extended: FADE_CONFIG.DEFAULT_PRESETS.EXTENDED,
+        maximum: FADE_CONFIG.DEFAULT_PRESETS.MAXIMUM,
+        
+        // 🎯 **ASYMMETRIC PRESETS**: Các preset không đối xứng
+        fadeInOnly: { fadeIn: 5.0, fadeOut: 0, description: 'Fade in only (5s)' },
+        fadeOutOnly: { fadeIn: 0, fadeOut: 5.0, description: 'Fade out only (5s)' },
+        asymmetric: { fadeIn: 3.0, fadeOut: 8.0, description: 'Quick fade in, slow fade out' },
+        
+        // 🆕 **EXTREME PRESETS**: Preset cho range 15s
+        extremeFadeIn: { fadeIn: 12.0, fadeOut: 0, description: 'Extreme fade in only (12s)' },
+        extremeFadeOut: { fadeIn: 0, fadeOut: 12.0, description: 'Extreme fade out only (12s)' },
+        extremeAsymmetric: { fadeIn: 5.0, fadeOut: 15.0, description: 'Fast fade in, maximum fade out' },
+        
+        // 🎯 **UTILITY PRESETS**: Preset tiện ích
         none: { fadeIn: 0, fadeOut: 0, description: 'No fade effects' }
       };
       
-      console.log(`🎨 [FadePresets] Available presets:`, presets);
+      console.log(`🎨 [FadePresets] Available presets (max: ${FADE_CONFIG.MAX_DURATION}s):`, presets);
       
       const applyPreset = (presetName) => {
         const preset = presets[presetName];
@@ -1978,12 +2016,25 @@ const MP3CutterMain = React.memo(() => {
           return;
         }
         
+        // 🆕 **VALIDATION**: Kiểm tra giá trị không vượt quá MAX_DURATION
+        const validatedFadeIn = Math.min(preset.fadeIn, FADE_CONFIG.MAX_DURATION);
+        const validatedFadeOut = Math.min(preset.fadeOut, FADE_CONFIG.MAX_DURATION);
+        
+        if (validatedFadeIn !== preset.fadeIn || validatedFadeOut !== preset.fadeOut) {
+          console.warn(`⚠️ [FadePresets] Preset values clamped to max ${FADE_CONFIG.MAX_DURATION}s:`, {
+            original: preset,
+            clamped: { fadeIn: validatedFadeIn, fadeOut: validatedFadeOut }
+          });
+        }
+        
         console.log(`🎨 [FadePresets] Applying preset: ${presetName} - ${preset.description}`);
-        setFadeIn(preset.fadeIn);
-        setFadeOut(preset.fadeOut);
+        console.log(`📊 [FadePresets] Values: fadeIn=${validatedFadeIn}s, fadeOut=${validatedFadeOut}s`);
+        
+        setFadeIn(validatedFadeIn);
+        setFadeOut(validatedFadeOut);
         
         setTimeout(() => {
-          saveState({ startTime, endTime, fadeIn: preset.fadeIn, fadeOut: preset.fadeOut });
+          saveState({ startTime, endTime, fadeIn: validatedFadeIn, fadeOut: validatedFadeOut });
           console.log(`✅ [FadePresets] Preset '${presetName}' applied successfully`);
         }, 100);
       };
@@ -1993,11 +2044,20 @@ const MP3CutterMain = React.memo(() => {
         window[`applyFade${presetName.charAt(0).toUpperCase() + presetName.slice(1)}`] = () => applyPreset(presetName);
       });
       
-      console.log(`🎨 [FadePresets] Preset functions available:`, 
+      // 🆕 **ENHANCED LOGGING**: Log preset functions với max duration info
+      console.log(`🎨 [FadePresets] Preset functions available (max: ${FADE_CONFIG.MAX_DURATION}s):`, 
         Object.keys(presets).map(name => `applyFade${name.charAt(0).toUpperCase() + name.slice(1)}()`)
       );
       
-      return { presets, applyPreset };
+      // 🆕 **RANGE INFO**: Log current range capabilities
+      console.log(`📊 [FadePresets] Range capabilities:`, {
+        maxDuration: FADE_CONFIG.MAX_DURATION + 's',
+        step: FADE_CONFIG.STEP + 's',
+        totalPresets: Object.keys(presets).length,
+        maxPresetValue: Math.max(...Object.values(presets).map(p => Math.max(p.fadeIn, p.fadeOut))) + 's'
+      });
+      
+      return { presets, applyPreset, maxDuration: FADE_CONFIG.MAX_DURATION };
     };
 
     // 🚀 **NEW: CURSOR RESPONSIVENESS TEST**: Quick click responsiveness test
@@ -2021,6 +2081,126 @@ const MP3CutterMain = React.memo(() => {
         delete window.mp3CutterSyncMonitorId;
       }
     };
+
+    // 🆕 **COMPREHENSIVE FADE RANGE TEST**: Test toàn bộ range 0-15s và UI responsiveness
+    window.testFade15sRange = () => {
+      console.log(`🧪 [Fade15sTest] Testing comprehensive 0-15s fade range functionality`);
+      
+      if (!audioFile || !duration) {
+        console.error('❌ [Fade15sTest] No audio file loaded');
+        return { error: 'No audio file loaded' };
+      }
+      
+      const testResults = {
+        rangeCapabilities: {
+          maxDuration: FADE_CONFIG.MAX_DURATION + 's',
+          minDuration: FADE_CONFIG.MIN_DURATION + 's',
+          step: FADE_CONFIG.STEP + 's',
+          totalRange: `${FADE_CONFIG.MIN_DURATION}-${FADE_CONFIG.MAX_DURATION}s`
+        },
+        sliderTests: [],
+        presetTests: [],
+        validationTests: []
+      };
+      
+      console.log(`🧪 [Fade15sTest] Range capabilities:`, testResults.rangeCapabilities);
+      
+      // 🎯 **TEST 1: SLIDER RANGE TEST** - Test slider min/max values
+      console.log(`🎛️ [Fade15sTest] Testing slider range 0-${FADE_CONFIG.MAX_DURATION}s...`);
+      
+      const sliderTestValues = [0, 0.5, 1, 5, 10, 15];
+      sliderTestValues.forEach(value => {
+        const clampedValue = Math.min(Math.max(value, FADE_CONFIG.MIN_DURATION), FADE_CONFIG.MAX_DURATION);
+        const isValid = value >= FADE_CONFIG.MIN_DURATION && value <= FADE_CONFIG.MAX_DURATION;
+        
+        testResults.sliderTests.push({
+          inputValue: value + 's',
+          clampedValue: clampedValue + 's',
+          isValid,
+          status: isValid ? '✅ VALID' : '⚠️ CLAMPED'
+        });
+        
+        console.log(`  ${value}s → ${clampedValue}s (${isValid ? 'VALID' : 'CLAMPED'})`);
+      });
+      
+      // 🎯 **TEST 2: PRESET FUNCTIONALITY TEST** - Test all presets
+      console.log(`🎨 [Fade15sTest] Testing all presets...`);
+      
+      Object.entries(FADE_CONFIG.DEFAULT_PRESETS).forEach(([presetName, preset]) => {
+        const isValid = preset.fadeIn <= FADE_CONFIG.MAX_DURATION && preset.fadeOut <= FADE_CONFIG.MAX_DURATION;
+        
+        testResults.presetTests.push({
+          preset: presetName,
+          values: `${preset.fadeIn}s / ${preset.fadeOut}s`,
+          totalTime: (preset.fadeIn + preset.fadeOut) + 's',
+          isValid,
+          status: isValid ? '✅ VALID' : '❌ INVALID'
+        });
+        
+        console.log(`  ${presetName}: ${preset.fadeIn}s in, ${preset.fadeOut}s out (${isValid ? 'VALID' : 'INVALID'})`);
+      });
+      
+      // 🎯 **TEST 3: BOUNDARY VALUE TEST** - Test edge cases
+      console.log(`🔬 [Fade15sTest] Testing boundary values...`);
+      
+      const boundaryTests = [
+        { fadeIn: -1, fadeOut: 0, name: 'Negative fadeIn' },
+        { fadeIn: 0, fadeOut: -1, name: 'Negative fadeOut' },
+        { fadeIn: 16, fadeOut: 0, name: 'Over max fadeIn' },
+        { fadeIn: 0, fadeOut: 16, name: 'Over max fadeOut' },
+        { fadeIn: 15, fadeOut: 15, name: 'Maximum both' },
+        { fadeIn: 0, fadeOut: 0, name: 'Minimum both' }
+      ];
+      
+      boundaryTests.forEach(test => {
+        const clampedFadeIn = Math.min(Math.max(test.fadeIn, FADE_CONFIG.MIN_DURATION), FADE_CONFIG.MAX_DURATION);
+        const clampedFadeOut = Math.min(Math.max(test.fadeOut, FADE_CONFIG.MIN_DURATION), FADE_CONFIG.MAX_DURATION);
+        const wasClamped = clampedFadeIn !== test.fadeIn || clampedFadeOut !== test.fadeOut;
+        
+        testResults.validationTests.push({
+          testName: test.name,
+          input: `${test.fadeIn}s / ${test.fadeOut}s`,
+          output: `${clampedFadeIn}s / ${clampedFadeOut}s`,
+          wasClamped,
+          status: wasClamped ? '🔧 CLAMPED' : '✅ VALID'
+        });
+        
+        console.log(`  ${test.name}: ${test.fadeIn}s/${test.fadeOut}s → ${clampedFadeIn}s/${clampedFadeOut}s ${wasClamped ? '(CLAMPED)' : '(OK)'}`);
+      });
+      
+      // 🎯 **TEST 4: UI PERCENTAGE TEST** - Test percentage calculations
+      console.log(`📊 [Fade15sTest] Testing UI percentage calculations...`);
+      
+      const percentageTests = [
+        { value: 0, expectedPercent: 0 },
+        { value: 7.5, expectedPercent: 50 },
+        { value: 15, expectedPercent: 100 }
+      ];
+      
+      percentageTests.forEach(test => {
+        const calculatedPercent = (test.value / FADE_CONFIG.MAX_DURATION) * 100;
+        const isCorrect = Math.abs(calculatedPercent - test.expectedPercent) < 0.1;
+        
+        console.log(`  ${test.value}s = ${calculatedPercent.toFixed(1)}% (expected: ${test.expectedPercent}%) ${isCorrect ? '✅' : '❌'}`);
+      });
+      
+      // 🎯 **SUMMARY**
+      const summary = {
+        totalTests: testResults.sliderTests.length + testResults.presetTests.length + testResults.validationTests.length,
+        sliderValidTests: testResults.sliderTests.filter(t => t.isValid).length,
+        presetValidTests: testResults.presetTests.filter(t => t.isValid).length,
+        validationClampedTests: testResults.validationTests.filter(t => t.wasClamped).length,
+        maxDuration: FADE_CONFIG.MAX_DURATION + 's',
+        testPassed: testResults.presetTests.every(t => t.isValid) // All presets should be valid
+      };
+      
+      console.log(`📋 [Fade15sTest] Test Summary:`, summary);
+      console.log(`🎯 [Fade15sTest] ${summary.testPassed ? '✅ ALL TESTS PASSED' : '❌ SOME TESTS FAILED'} - Ready for 15s fade range!`);
+      
+      return { testResults, summary, success: summary.testPassed };
+    };
+
+    // 🚀 **NEW: CURSOR RESPONSIVENESS TEST**: Quick click responsiveness test
   }, []); // 🔥 **EMPTY DEPS**: Setup một lần
 
   return (

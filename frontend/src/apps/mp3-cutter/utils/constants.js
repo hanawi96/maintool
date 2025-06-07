@@ -13,6 +13,20 @@ export const AUDIO_FORMATS = {
   
   export const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 2];
   
+  // 🆕 **FADE EFFECTS CONFIG**: Cấu hình cho fade in/out effects
+  export const FADE_CONFIG = {
+    MAX_DURATION: 15,      // Thời gian fade tối đa (giây) - tăng từ 5s lên 15s
+    MIN_DURATION: 0,       // Thời gian fade tối thiểu (giây)
+    STEP: 0.1,             // Bước nhảy cho slider (giây)
+    DEFAULT_PRESETS: {     // Preset mặc định cho fade effects
+      GENTLE: { fadeIn: 1.0, fadeOut: 1.0 },
+      STANDARD: { fadeIn: 3.0, fadeOut: 3.0 },
+      DRAMATIC: { fadeIn: 5.0, fadeOut: 5.0 },
+      EXTENDED: { fadeIn: 8.0, fadeOut: 8.0 },   // 🆕 **PRESET MỚI**: Cho range 15s
+      MAXIMUM: { fadeIn: 15.0, fadeOut: 15.0 }   // 🆕 **PRESET TỐI ĐA**: Full 15s
+    }
+  };
+  
   export const WAVEFORM_CONFIG = {
     SAMPLE_COUNT: 500,
     HEIGHT: 180,
