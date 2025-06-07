@@ -850,9 +850,12 @@ const MP3CutterMain = React.memo(() => {
     trackPerformance('jump_to_end');
   }, [jumpToTime, endTime, trackPerformance]);
 
+  // 🆕 **FADE DRAG TRACKING**: Track fade slider drag state để control history saving
+  const [isFadeDragging, setIsFadeDragging] = useState(false);
+
   // 🆕 **REAL-TIME FADE HANDLERS**: Apply fade effects ngay lập tức khi user change sliders
   const handleFadeInChange = useCallback((newFadeIn) => {
-    console.log(`🎛️ [MP3CutterMain] User changed fadeIn: ${fadeIn.toFixed(1)}s → ${newFadeIn.toFixed(1)}s (playing: ${isPlaying})`);
+    console.log(`🎛️ [MP3CutterMain] User changed fadeIn: ${fadeIn.toFixed(1)}s → ${newFadeIn.toFixed(1)}s (playing: ${isPlaying}, dragging: ${isFadeDragging})`);
     setFadeIn(newFadeIn);
     
     // 🚀 **IMMEDIATE FADE CONFIG UPDATE**: Update config ngay lập tức cho real-time effects
@@ -867,17 +870,16 @@ const MP3CutterMain = React.memo(() => {
     console.log(`🎨 [FadeHandler] REAL-TIME fadeIn update: ${newFadeIn.toFixed(1)}s`, {
       isPlaying,
       connectionState,
-      willUpdateImmediately: isPlaying && connectionState === 'connected'
+      willUpdateImmediately: isPlaying && connectionState === 'connected',
+      dragging: isFadeDragging
     });
     
-    // 🎯 **DEBOUNCED HISTORY SAVE**: Save state after short delay
-    setTimeout(() => {
-      saveState({ startTime, endTime, fadeIn: newFadeIn, fadeOut });
-    }, 300);
-  }, [fadeOut, startTime, endTime, updateFadeConfig, saveState, isPlaying, connectionState]);
+    // 🆕 **NO AUTO HISTORY SAVE**: Không tự động lưu history, chỉ lưu khi drag kết thúc
+    // setTimeout(() => { saveState({ startTime, endTime, fadeIn: newFadeIn, fadeOut }); }, 300); ← REMOVED
+  }, [fadeOut, startTime, endTime, updateFadeConfig, isPlaying, connectionState, isFadeDragging]);
 
   const handleFadeOutChange = useCallback((newFadeOut) => {
-    console.log(`🎛️ [MP3CutterMain] User changed fadeOut: ${fadeOut.toFixed(1)}s → ${newFadeOut.toFixed(1)}s (playing: ${isPlaying})`);
+    console.log(`🎛️ [MP3CutterMain] User changed fadeOut: ${fadeOut.toFixed(1)}s → ${newFadeOut.toFixed(1)}s (playing: ${isPlaying}, dragging: ${isFadeDragging})`);
     setFadeOut(newFadeOut);
     
     // 🚀 **IMMEDIATE FADE CONFIG UPDATE**: Update config ngay lập tức cho real-time effects
@@ -892,14 +894,62 @@ const MP3CutterMain = React.memo(() => {
     console.log(`🎨 [FadeHandler] REAL-TIME fadeOut update: ${newFadeOut.toFixed(1)}s`, {
       isPlaying,
       connectionState,
-      willUpdateImmediately: isPlaying && connectionState === 'connected'
+      willUpdateImmediately: isPlaying && connectionState === 'connected',
+      dragging: isFadeDragging
     });
     
-    // 🎯 **DEBOUNCED HISTORY SAVE**: Save state after short delay
-    setTimeout(() => {
-      saveState({ startTime, endTime, fadeIn, fadeOut: newFadeOut });
-    }, 300);
-  }, [fadeIn, startTime, endTime, updateFadeConfig, saveState, isPlaying, connectionState]);
+    // 🆕 **NO AUTO HISTORY SAVE**: Không tự động lưu history, chỉ lưu khi drag kết thúc
+    // setTimeout(() => { saveState({ startTime, endTime, fadeIn, fadeOut: newFadeOut }); }, 300); ← REMOVED
+  }, [fadeIn, startTime, endTime, updateFadeConfig, isPlaying, connectionState, isFadeDragging]);
+
+  // 🆕 **FADE DRAG HANDLERS**: Handle fade slider drag start/end
+  const handleFadeInDragStart = useCallback(() => {
+    setIsFadeDragging(true);
+    console.log(`🖱️ [MP3CutterMain] Fade In drag started - history save disabled during drag`);
+  }, []);
+
+  const handleFadeInDragEnd = useCallback((finalValue) => {
+    setIsFadeDragging(false);
+    console.log(`🖱️ [MP3CutterMain] Fade In drag ended - saving history with final value: ${finalValue.toFixed(1)}s`);
+    
+    // 🎯 **IMMEDIATE HISTORY SAVE**: Lưu history ngay lập tức khi drag kết thúc
+    saveState({ startTime, endTime, fadeIn: finalValue, fadeOut });
+  }, [startTime, endTime, fadeOut, saveState]);
+
+  const handleFadeOutDragStart = useCallback(() => {
+    setIsFadeDragging(true);
+    console.log(`🖱️ [MP3CutterMain] Fade Out drag started - history save disabled during drag`);
+  }, []);
+
+  const handleFadeOutDragEnd = useCallback((finalValue) => {
+    setIsFadeDragging(false);
+    console.log(`🖱️ [MP3CutterMain] Fade Out drag ended - saving history with final value: ${finalValue.toFixed(1)}s`);
+    
+    // 🎯 **IMMEDIATE HISTORY SAVE**: Lưu history ngay lập tức khi drag kết thúc
+    saveState({ startTime, endTime, fadeIn, fadeOut: finalValue });
+  }, [startTime, endTime, fadeIn, saveState]);
+
+  // 🆕 **PRESET HANDLER**: Handle preset application với single history entry
+  const handleFadePresetApply = useCallback((presetFadeIn, presetFadeOut) => {
+    console.log(`🎨 [MP3CutterMain] Applying fade preset: fadeIn=${presetFadeIn.toFixed(1)}s, fadeOut=${presetFadeOut.toFixed(1)}s`);
+    
+    // 🚀 **IMMEDIATE STATE UPDATE**: Update both values
+    setFadeIn(presetFadeIn);
+    setFadeOut(presetFadeOut);
+    
+    // 🚀 **IMMEDIATE CONFIG UPDATE**: Update real-time config
+    updateFadeConfig({
+      fadeIn: presetFadeIn,
+      fadeOut: presetFadeOut,
+      startTime,
+      endTime
+    });
+    
+    // 🎯 **SINGLE HISTORY SAVE**: Lưu history một lần duy nhất cho cả preset
+    saveState({ startTime, endTime, fadeIn: presetFadeIn, fadeOut: presetFadeOut });
+    
+    console.log(`💾 [MP3CutterMain] Saved history for preset application`);
+  }, [startTime, endTime, updateFadeConfig, saveState]);
 
   // Drag and drop handler
   const handleDrop = useCallback((e) => {
@@ -1389,6 +1439,13 @@ const MP3CutterMain = React.memo(() => {
                   fadeOut={fadeOut}
                   onFadeInChange={handleFadeInChange}
                   onFadeOutChange={handleFadeOutChange}
+                  // 🆕 **DRAG CALLBACKS**: Xử lý drag events để control history saving
+                  onFadeInDragStart={handleFadeInDragStart}
+                  onFadeInDragEnd={handleFadeInDragEnd}
+                  onFadeOutDragStart={handleFadeOutDragStart}
+                  onFadeOutDragEnd={handleFadeOutDragEnd}
+                  // 🆕 **PRESET CALLBACK**: Handle preset application với single history save
+                  onPresetApply={handleFadePresetApply}
                   isWebAudioSupported={isWebAudioSupported}
                   realTimeFadeActive={fadeConfig.isActive}
                   connectionState={connectionState}

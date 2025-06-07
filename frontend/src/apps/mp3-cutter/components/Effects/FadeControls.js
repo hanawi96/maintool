@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Settings, TrendingUp, TrendingDown, Zap, ZapOff } from 'lucide-react';
 import { FADE_CONFIG } from '../../utils/constants';
 
@@ -7,34 +7,124 @@ const FadeControls = ({
   fadeOut, 
   onFadeInChange, 
   onFadeOutChange, 
+  // 🆕 **DRAG CALLBACKS**: Thông báo drag state cho parent component để xử lý history
+  onFadeInDragStart,    // Callback khi bắt đầu kéo fade in slider  
+  onFadeInDragEnd,      // Callback khi kết thúc kéo fade in slider
+  onFadeOutDragStart,   // Callback khi bắt đầu kéo fade out slider
+  onFadeOutDragEnd,     // Callback khi kết thúc kéo fade out slider
+  // 🆕 **PRESET CALLBACK**: Handle preset application với single history save
+  onPresetApply,        // Callback cho preset application
   isWebAudioSupported = false,
   realTimeFadeActive = false,
   connectionState = 'disconnected' // 🆕 **CONNECTION STATE**: Web Audio connection status
 }) => {
+  // 🆕 **DRAGGING STATE**: Track whether user is currently dragging sliders
+  const [isDraggingFadeIn, setIsDraggingFadeIn] = useState(false);
+  const [isDraggingFadeOut, setIsDraggingFadeOut] = useState(false);
+  
   // 🎯 DEBUG: Log fade changes với enhanced logging cho range 15s
   const handleFadeInChange = (e) => {
     const newValue = parseFloat(e.target.value);
-    console.log(`📈 [FadeControls] Fade In changed: ${newValue}s (max: ${FADE_CONFIG.MAX_DURATION}s)`);
+    console.log(`📈 [FadeControls] Fade In changed: ${newValue}s (dragging: ${isDraggingFadeIn})`);
     onFadeInChange(newValue);
   };
 
   const handleFadeOutChange = (e) => {
     const newValue = parseFloat(e.target.value);
-    console.log(`📉 [FadeControls] Fade Out changed: ${newValue}s (max: ${FADE_CONFIG.MAX_DURATION}s)`);
+    console.log(`📉 [FadeControls] Fade Out changed: ${newValue}s (dragging: ${isDraggingFadeOut})`);
     onFadeOutChange(newValue);
   };
+
+  // 🆕 **MOUSE DOWN HANDLERS**: Start drag tracking và notify parent
+  const handleFadeInMouseDown = () => {
+    setIsDraggingFadeIn(true);
+    console.log(`🖱️ [FadeControls] Started dragging Fade In slider`);
+    // 🔗 **NOTIFY PARENT**: Thông báo parent về drag start
+    if (onFadeInDragStart) {
+      onFadeInDragStart();
+    }
+  };
+
+  const handleFadeOutMouseDown = () => {
+    setIsDraggingFadeOut(true);
+    console.log(`🖱️ [FadeControls] Started dragging Fade Out slider`);
+    // 🔗 **NOTIFY PARENT**: Thông báo parent về drag start
+    if (onFadeOutDragStart) {
+      onFadeOutDragStart();
+    }
+  };
+
+  // 🆕 **MOUSE UP HANDLERS**: End drag tracking và notify parent
+  const handleFadeInMouseUp = () => {
+    if (isDraggingFadeIn) {
+      setIsDraggingFadeIn(false);
+      console.log(`🖱️ [FadeControls] Finished dragging Fade In slider - history will be saved`);
+      // 🔗 **NOTIFY PARENT**: Thông báo parent về drag end để lưu history
+      if (onFadeInDragEnd) {
+        onFadeInDragEnd(fadeIn); // Pass current fade value for history save
+      }
+    }
+  };
+
+  const handleFadeOutMouseUp = () => {
+    if (isDraggingFadeOut) {
+      setIsDraggingFadeOut(false);
+      console.log(`🖱️ [FadeControls] Finished dragging Fade Out slider - history will be saved`);
+      // 🔗 **NOTIFY PARENT**: Thông báo parent về drag end để lưu history
+      if (onFadeOutDragEnd) {
+        onFadeOutDragEnd(fadeOut); // Pass current fade value for history save
+      }
+    }
+  };
+
+  // 🆕 **GLOBAL MOUSE UP LISTENER**: Handle mouse up outside slider for better UX
+  useEffect(() => {
+    const handleGlobalMouseUp = () => {
+      if (isDraggingFadeIn) {
+        handleFadeInMouseUp();
+      }
+      if (isDraggingFadeOut) {
+        handleFadeOutMouseUp();
+      }
+    };
+
+    // Add global mouse up listener when any slider is being dragged
+    if (isDraggingFadeIn || isDraggingFadeOut) {
+      document.addEventListener('mouseup', handleGlobalMouseUp);
+      console.log(`🌐 [FadeControls] Added global mouse up listener for drag completion`);
+    }
+
+    return () => {
+      document.removeEventListener('mouseup', handleGlobalMouseUp);
+    };
+  }, [isDraggingFadeIn, isDraggingFadeOut]);
 
   // 🆕 **DYNAMIC PERCENTAGE**: Tính progress dựa trên MAX_DURATION từ config thay vì hardcode 5
   const fadeInPercent = (fadeIn / FADE_CONFIG.MAX_DURATION) * 100;
   const fadeOutPercent = (fadeOut / FADE_CONFIG.MAX_DURATION) * 100;
 
-  // 🆕 **PRESET HANDLER**: Function để apply preset values
+  // 🆕 **OPTIMIZED PRESET HANDLER**: Function để apply preset values với single history save
   const applyPreset = (presetName) => {
     const preset = FADE_CONFIG.DEFAULT_PRESETS[presetName];
     if (preset) {
       console.log(`🎨 [FadeControls] Applying preset '${presetName}':`, preset);
-      onFadeInChange(preset.fadeIn);
-      onFadeOutChange(preset.fadeOut);
+      
+      // 🆕 **SINGLE PRESET APPLICATION**: Use preset callback thay vì individual calls
+      if (onPresetApply) {
+        onPresetApply(preset.fadeIn, preset.fadeOut);
+      } else {
+        // 🔄 **FALLBACK**: Individual calls nếu không có preset callback
+        onFadeInChange(preset.fadeIn);
+        onFadeOutChange(preset.fadeOut);
+        
+        // 🆕 **FALLBACK HISTORY SAVE**: Trigger drag end nếu có callbacks
+        if (onFadeInDragEnd) {
+          onFadeInDragEnd(preset.fadeIn);
+        }
+        if (onFadeOutDragEnd) {
+          onFadeOutDragEnd(preset.fadeOut);
+        }
+      }
     }
   };
 
@@ -135,6 +225,8 @@ const FadeControls = ({
                 step={FADE_CONFIG.STEP}
                 value={fadeIn}
                 onChange={handleFadeInChange}
+                onMouseDown={handleFadeInMouseDown}
+                onMouseUp={handleFadeInMouseUp}
                 className="fade-in-slider w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer"
                 title={`Fade In: ${fadeIn}s (Max: ${FADE_CONFIG.MAX_DURATION}s)`}
                 style={{
@@ -147,7 +239,20 @@ const FadeControls = ({
             </span>
             {fadeIn > 0 && (
               <button
-                onClick={() => onFadeInChange(0)}
+                onClick={() => {
+                  console.log(`🔄 [FadeControls] Resetting Fade In to 0`);
+                  
+                  // 🆕 **OPTIMIZED RESET**: Use preset callback for consistency
+                  if (onPresetApply) {
+                    onPresetApply(0, fadeOut); // Reset fadeIn only
+                  } else {
+                    // 🔄 **FALLBACK**: Individual call
+                    onFadeInChange(0);
+                    if (onFadeInDragEnd) {
+                      onFadeInDragEnd(0);
+                    }
+                  }
+                }}
                 className="px-2 py-1 text-xs bg-green-100 hover:bg-green-200 text-green-700 rounded transition-colors"
                 title="Reset Fade In"
               >
@@ -172,6 +277,8 @@ const FadeControls = ({
                 step={FADE_CONFIG.STEP}
                 value={fadeOut}
                 onChange={handleFadeOutChange}
+                onMouseDown={handleFadeOutMouseDown}
+                onMouseUp={handleFadeOutMouseUp}
                 className="fade-out-slider w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer"
                 title={`Fade Out: ${fadeOut}s (Max: ${FADE_CONFIG.MAX_DURATION}s)`}
                 style={{
@@ -184,7 +291,20 @@ const FadeControls = ({
             </span>
             {fadeOut > 0 && (
               <button
-                onClick={() => onFadeOutChange(0)}
+                onClick={() => {
+                  console.log(`🔄 [FadeControls] Resetting Fade Out to 0`);
+                  
+                  // 🆕 **OPTIMIZED RESET**: Use preset callback for consistency
+                  if (onPresetApply) {
+                    onPresetApply(fadeIn, 0); // Reset fadeOut only
+                  } else {
+                    // 🔄 **FALLBACK**: Individual call
+                    onFadeOutChange(0);
+                    if (onFadeOutDragEnd) {
+                      onFadeOutDragEnd(0);
+                    }
+                  }
+                }}
                 className="px-2 py-1 text-xs bg-red-100 hover:bg-red-200 text-red-700 rounded transition-colors"
                 title="Reset Fade Out"
               >
