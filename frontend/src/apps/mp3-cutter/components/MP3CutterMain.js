@@ -601,18 +601,28 @@ const MP3CutterMain = React.memo(() => {
   const handleCanvasMouseMove = useCallback((e) => {
     const now = performance.now();
     
-    // 🔥 **ULTRA-RESPONSIVE THROTTLING**: Tăng frame rate cho smooth cursor sync
+    // 🚀 **ULTRA-SMOOTH HOVER THROTTLING**: Tối ưu cho smooth cursor movement
     const manager = interactionManagerRef.current;
     const debugInfo = manager.getDebugInfo();
     
-    // 🆕 **DYNAMIC THROTTLING**: Ultra-high fps cho confirmed dragging
+    // 🆕 **OPTIMIZED THROTTLING**: Ultra-smooth hover với 120fps
     let throttleInterval;
     if (debugInfo.isDraggingConfirmed) {
       throttleInterval = 2; // 500fps cho ultra-smooth real-time sync
     } else if (debugInfo.isDragging) {
-      throttleInterval = 8; // 125fps cho drag confirmation
+      throttleInterval = 4; // 250fps cho drag confirmation - improved from 8ms
     } else {
-      throttleInterval = 30; // 33fps cho hover
+      throttleInterval = 8; // 🚀 **120FPS CHO HOVER**: Improved from 30ms to 8ms cho ultra-smooth cursor
+    }
+    
+    // 🔧 **DEBUG THROTTLING**: Log throttling changes để track performance
+    if (Math.random() < 0.001) { // 0.1% sampling để avoid spam
+      console.log(`⚡ [HoverThrottle] Ultra-smooth throttling:`, {
+        mode: debugInfo.isDraggingConfirmed ? 'DRAGGING_CONFIRMED' : debugInfo.isDragging ? 'DRAGGING' : 'HOVER',
+        interval: throttleInterval + 'ms',
+        fps: Math.round(1000 / throttleInterval) + 'fps',
+        improvement: throttleInterval === 8 ? 'HOVER_120FPS' : 'OTHER'
+      });
     }
     
     if (now - lastMouseTimeRef.current < throttleInterval) return;
@@ -677,17 +687,18 @@ const MP3CutterMain = React.memo(() => {
           break;
           
         case 'updateHover':
-          // 🆕 **SAFE HOVER**: Chỉ update visual, TUYỆT ĐỐI không touch region
-          console.log(`👆 [MouseMove] Safe hover update:`, {
-            handle: result.handle,
-            cursor: result.cursor,
-            hoverOnly: result.hoverOnly,
-            note: 'Visual feedback only, NO region change'
-          });
-          
+          // 🆕 **ULTRA-SMOOTH HOVER**: Process hover immediately với improved performance
           setHoveredHandle(result.handle);
-          // 🆕 **CURSOR REMOVED**: Let WaveformCanvas handle cursor logic
-          // canvas.style.cursor = result.cursor; ← REMOVED
+          
+          // 🔧 **DEBUG HOVER**: Log smooth hover updates occasionally
+          if (Math.random() < 0.01) { // 1% sampling
+            console.log(`👆 [MouseMove] ULTRA-SMOOTH hover update:`, {
+              handle: result.handle,
+              throttleInterval,
+              fps: Math.round(1000 / throttleInterval),
+              mode: 'SMOOTH_120FPS'
+            });
+          }
           break;
           
         default:
@@ -696,11 +707,11 @@ const MP3CutterMain = React.memo(() => {
       }
     };
     
-    // 🎯 **IMMEDIATE PROCESSING**: Immediate updates cho all confirmed dragging
+    // 🚀 **IMMEDIATE PROCESSING**: Process ALL actions immediately cho ultra-smooth response
     if (result.significant && result.isDraggingConfirmed) {
       processAction(); // Immediate for confirmed dragging với real-time sync
     } else if (result.action === 'updateHover') {
-      processAction(); // Immediate for hover feedback  
+      processAction(); // 🚀 **IMMEDIATE HOVER**: Process hover immediately - no async delay
     } else if (result.action !== 'none') {
       if (window.requestIdleCallback) {
         window.requestIdleCallback(processAction);

@@ -134,12 +134,12 @@ const WaveformCanvas = React.memo(({
 
   }, [duration, startTime, endTime]);
 
-  // 🆕 **CURSOR UPDATE HANDLER**: Update cursor with throttling for performance
+  // 🆕 **ULTRA-SMOOTH CURSOR UPDATE HANDLER**: Update cursor với minimal throttling
   const updateCursor = useCallback((mouseX) => {
     const now = performance.now();
     
-    // 🔥 **PERFORMANCE THROTTLING**: Update cursor max 60fps to prevent lag
-    if (now - lastCursorUpdateRef.current < 16) return; // 60fps throttling
+    // 🚀 **ULTRA-MINIMAL THROTTLING**: Reduced throttling để tránh conflict với MP3CutterMain
+    if (now - lastCursorUpdateRef.current < 2) return; // 🚀 **500FPS**: Reduced from 16ms to 2ms
     lastCursorUpdateRef.current = now;
 
     const canvas = canvasRef.current;
@@ -158,7 +158,11 @@ const WaveformCanvas = React.memo(({
       if (currentCursorRef.current !== draggingCursor) {
         canvas.style.cursor = draggingCursor;
         currentCursorRef.current = draggingCursor;
-        console.log(`🫳 [CursorUpdate] DRAGGING cursor: ${draggingCursor} (type: ${isDragging})`);
+        
+        // 🔧 **REDUCED DEBUG**: Chỉ log khi có thay đổi significant
+        if (Math.random() < 0.1) { // 10% sampling
+          console.log(`🫳 [CursorUpdate] ULTRA-SMOOTH dragging cursor: ${draggingCursor} (type: ${isDragging})`);
+        }
       }
       return;
     }
@@ -170,7 +174,11 @@ const WaveformCanvas = React.memo(({
     if (currentCursorRef.current !== newCursorType) {
       canvas.style.cursor = newCursorType;
       currentCursorRef.current = newCursorType;
-      console.log(`✨ [CursorUpdate] Cursor changed: ${newCursorType}`);
+      
+      // 🔧 **MINIMAL DEBUG**: Chỉ log significant cursor changes
+      if (Math.random() < 0.05) { // 5% sampling để reduce console spam
+        console.log(`✨ [CursorUpdate] ULTRA-SMOOTH cursor: ${newCursorType} (500fps throttling)`);
+      }
     }
   }, [canvasRef, isDragging, detectCursorType]);
 
@@ -197,12 +205,12 @@ const WaveformCanvas = React.memo(({
     return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${decimal}`;
   }, []);
 
-  // 🆕 **ADVANCED TOOLTIP POSITION TRACKER**: Cập nhật vị trí tất cả tooltips real-time
+  // 🎯 **ULTRA-SMOOTH TOOLTIP POSITION TRACKER**: Cập nhật vị trí tooltips với ultra-high performance
   const updateTooltipPositions = useCallback(() => {
     const now = performance.now();
     
-    // 🔥 **PERFORMANCE THROTTLING**: 60fps cho smooth tooltip movement
-    if (now - lastTooltipUpdateRef.current < 16) return; // 60fps
+    // 🚀 **ULTRA-SMOOTH THROTTLING**: Improved performance cho smooth tooltip movement
+    if (now - lastTooltipUpdateRef.current < 4) return; // 🚀 **250FPS**: Reduced from 16ms to 4ms
     lastTooltipUpdateRef.current = now;
 
     const canvas = canvasRef.current;
@@ -293,38 +301,25 @@ const WaveformCanvas = React.memo(({
       } : null
     });
 
-    // 🔧 **DEBUG TOOLTIP POSITIONS**: Log occasional để track tooltip positions với differentiated positioning
-    if (Math.random() < 0.02) { // 2% sampling
-      console.log(`🏷️ [TooltipPositions] Updated with DIFFERENTIATED positioning:`, {
-        startHandle: showStartHandle ? `${absoluteStartX.toFixed(1)}px absolute, Y: ${handlesTooltipY.toFixed(1)}px BELOW (${formatTime(startTime)})` : 'hidden',
-        endHandle: showEndHandle ? `${absoluteEndX.toFixed(1)}px absolute, Y: ${handlesTooltipY.toFixed(1)}px BELOW (${formatTime(endTime)})` : 'hidden',
-        cursor: showCursor ? `${absoluteCursorX.toFixed(1)}px absolute, Y: ${cursorTooltipY.toFixed(1)}px ABOVE (${formatTime(currentTime)})` : 'hidden',
-        selectionDuration: showSelectionDuration ? `${absoluteSelectionCenterX.toFixed(1)}px absolute - INSIDE WAVEFORM (20px from bottom)` : 'hidden',
-        positioning: {
-          handlesY: `${handlesTooltipY.toFixed(1)}px (canvas + ${WAVEFORM_CONFIG.HEIGHT} + 5px)`,
-          cursorY: `${cursorTooltipY.toFixed(1)}px (canvas - 30px)`,
-          selectionDurationY: `${(tooltipBaseY + WAVEFORM_CONFIG.HEIGHT - 20).toFixed(1)}px (canvas + ${WAVEFORM_CONFIG.HEIGHT} - 20px)`, // 🆕 **UPDATED POSITION**
-          differentiatedMode: 'ENABLED - Handles BELOW, Cursor ABOVE, Selection INSIDE (closer to bottom)'
-        },
-        canvasRect: {
-          left: canvasRect.left.toFixed(1),
-          top: canvasRect.top.toFixed(1),
-          width: canvasRect.width.toFixed(1),
-          height: canvasRect.height.toFixed(1)
-        },
-        portalMode: 'ACTIVE - Outside stacking context'
+    // 🔧 **MINIMAL DEBUG**: Reduced logging để improve performance
+    if (Math.random() < 0.005) { // 0.5% sampling (reduced from 2%)
+      console.log(`🏷️ [TooltipPositions] ULTRA-SMOOTH update (250fps):`, {
+        throttle: '4ms',
+        performance: 'ULTRA_SMOOTH_MODE',
+        tooltipCount: [showStartHandle, showEndHandle, showCursor, showSelectionDuration].filter(Boolean).length,
+        portalMode: 'ACTIVE'
       });
     }
 
   }, [canvasRef, duration, startTime, endTime, currentTime, formatTime, formatDuration, updateCanvasPosition]);
 
-  // 🆕 **HOVER TIME TRACKER**: Track mouse position and calculate time với enhanced debug
+  // 🆕 **ULTRA-SMOOTH HOVER TIME TRACKER**: Track mouse position với ultra-high performance
   const updateHoverTime = useCallback((mouseX, canvasWidth) => {
     const now = performance.now();
     
-    // 🔥 **CONDITIONAL THROTTLING**: Tắt throttling khi debug mode được bật
+    // 🚀 **MINIMAL THROTTLING**: Chỉ throttle minimal để tránh conflict với MP3CutterMain throttling
     const isDebugMode = window.hoverDebugEnabled;
-    if (!isDebugMode && now - lastHoverUpdateRef.current < 16) return; // 60fps throttling chỉ khi không debug
+    if (!isDebugMode && now - lastHoverUpdateRef.current < 4) return; // 🚀 **250FPS**: Reduced from 16ms to 4ms
     lastHoverUpdateRef.current = now;
 
     if (!canvasWidth || duration === 0) {
@@ -348,7 +343,7 @@ const WaveformCanvas = React.memo(({
     if (startTime < endTime) { // Only check handles if there's a valid selection
       if (Math.abs(mouseX - startX) <= tolerance || Math.abs(mouseX - endX) <= tolerance) {
         // 🔧 **ENHANCED DEBUG**: Log handle hover detection
-        if (isDebugMode || Math.random() < 0.1) {
+        if (isDebugMode || Math.random() < 0.05) { // 5% sampling thay vì 10%
           const handleType = Math.abs(mouseX - startX) <= tolerance ? 'START' : 'END';
           console.log(`🚫 [HoverTime] Hiding cursor line - hovering over ${handleType} handle at ${mouseX.toFixed(1)}px`);
         }
@@ -371,35 +366,35 @@ const WaveformCanvas = React.memo(({
     
     setHoverPosition(newHoverPosition);
 
-    // 🔧 **ENHANCED DEBUG LOGGING**: Chi tiết về tooltip creation
-    if (isDebugMode || Math.random() < 0.05) { // Debug mode hoặc 5% sampling
-      console.log(`✅ [HoverTime] TOOLTIP CREATED:`, {
+    // 🔧 **REDUCED DEBUG LOGGING**: Ít logging hơn để improve performance
+    if (isDebugMode || Math.random() < 0.01) { // Debug mode hoặc 1% sampling (reduced from 5%)
+      console.log(`✅ [HoverTime] ULTRA-SMOOTH tooltip:`, {
         position: `${mouseX.toFixed(1)}px of ${canvasWidth}px`,
         time: `${clampedTime.toFixed(3)}s`,
         formattedTime: newHoverPosition.formattedTime,
-        visible: newHoverPosition.visible,
-        debugMode: isDebugMode ? 'ENABLED' : 'sampling'
+        throttle: '4ms (250fps)',
+        performance: 'ULTRA_SMOOTH_MODE'
       });
     }
   }, [duration, formatTime, startTime, endTime]);
 
-  // 🆕 **ENHANCED MOUSE MOVE HANDLER**: Add cursor detection and time tracking
+  // 🆕 **ENHANCED MOUSE MOVE HANDLER**: Ultra-smooth processing
   const handleEnhancedMouseMove = useCallback((e) => {
     // 🎯 **CALL ORIGINAL HANDLER**: Maintain existing functionality
     if (onMouseMove) {
       onMouseMove(e);
     }
 
-    // 🆕 **CURSOR AND TIME INTELLIGENCE**: Update cursor and time tracking
+    // 🚀 **ULTRA-SMOOTH CURSOR AND TIME INTELLIGENCE**: No additional throttling
     const canvas = canvasRef.current;
     if (canvas) {
       const rect = canvas.getBoundingClientRect();
       const mouseX = e.clientX - rect.left;
       
-      // 🎯 **UPDATE CURSOR**: Smart cursor management
+      // 🎯 **UPDATE CURSOR**: Smart cursor management (no throttling here)
       updateCursor(mouseX);
       
-      // 🆕 **UPDATE HOVER TIME**: Time tooltip and hover line
+      // 🚀 **ULTRA-SMOOTH HOVER TIME**: Minimal throttling cho ultra-smooth cursor
       updateHoverTime(mouseX, canvas.width);
     }
   }, [onMouseMove, canvasRef, updateCursor, updateHoverTime]);
@@ -804,7 +799,7 @@ const WaveformCanvas = React.memo(({
     }
   }, [canvasRef, renderData, currentTime, isPlaying, hoverPosition]);
 
-  // 🔥 **OPTIMIZED REDRAW**: High-performance cursor animation
+  // 🚀 **ULTRA-SMOOTH REDRAW**: High-performance cursor và hover line animation
   const requestRedraw = useCallback(() => {
     // 🔥 Cancel previous frame to prevent stacking
     if (animationFrameRef.current) {
@@ -812,17 +807,30 @@ const WaveformCanvas = React.memo(({
     }
     
     animationFrameRef.current = requestAnimationFrame((timestamp) => {
-      // 🔥 **SMART PERFORMANCE**: Context-aware frame rates
+      // 🚀 **ULTRA-SMOOTH PERFORMANCE**: Context-aware frame rates với improved hover handling
       let minInterval;
       if (isDragging) {
-        minInterval = 8;   // 120fps for ultra-smooth dragging
+        minInterval = 2;   // 🚀 **500FPS** for ultra-smooth dragging (improved from 8ms)
       } else if (isPlaying) {
-        minInterval = 16;  // 60fps for smooth cursor movement
+        minInterval = 8;   // 🚀 **125FPS** for smooth cursor movement (improved from 16ms)
+      } else if (hoverPosition && hoverPosition.visible) {
+        minInterval = 4;   // 🚀 **250FPS** for ultra-smooth hover line (NEW: special case for hover)
       } else {
-        minInterval = 33;  // 30fps for static UI
+        minInterval = 16;  // 60fps for static UI (improved from 33ms)
       }
       
-      // 🔥 **SMOOTH THROTTLING**: Allow cursor updates
+      // 🔧 **DEBUG PERFORMANCE**: Log performance improvements occasionally
+      if (Math.random() < 0.001) { // 0.1% sampling
+        const mode = isDragging ? 'DRAGGING' : isPlaying ? 'PLAYING' : hoverPosition?.visible ? 'HOVERING' : 'STATIC';
+        console.log(`⚡ [RenderPerf] ULTRA-SMOOTH rendering:`, {
+          mode,
+          interval: minInterval + 'ms',
+          fps: Math.round(1000 / minInterval) + 'fps',
+          hoverActive: !!hoverPosition?.visible
+        });
+      }
+      
+      // 🚀 **SMOOTH THROTTLING**: Allow ultra-smooth updates
       if (timestamp - lastDrawTimeRef.current >= minInterval) {
         drawWaveform();
         lastDrawTimeRef.current = timestamp;
@@ -830,7 +838,25 @@ const WaveformCanvas = React.memo(({
       
       animationFrameRef.current = null;
     });
-  }, [drawWaveform, isDragging, isPlaying]);
+  }, [drawWaveform, isDragging, isPlaying, hoverPosition]);
+
+  // 🚀 **ULTRA-SMOOTH HOVER LINE**: Trigger redraw khi hover position thay đổi
+  useEffect(() => {
+    if (hoverPosition && hoverPosition.visible && renderData) {
+      // 🚀 **IMMEDIATE HOVER REDRAW**: Redraw ngay lập tức khi hover position changes
+      requestRedraw();
+      
+      // 🔧 **DEBUG HOVER REDRAW**: Log hover line triggers occasionally
+      if (Math.random() < 0.01) { // 1% sampling
+        console.log(`📍 [HoverRedraw] ULTRA-SMOOTH hover line redraw triggered:`, {
+          x: hoverPosition.x.toFixed(1) + 'px',
+          time: hoverPosition.formattedTime,
+          trigger: 'HOVER_POSITION_CHANGE',
+          performance: 'IMMEDIATE_REDRAW'
+        });
+      }
+    }
+  }, [hoverPosition, renderData, requestRedraw]);
 
   // 🔥 **RESPONSIVE CURSOR**: High-frequency cursor updates for smooth movement
   useEffect(() => {
