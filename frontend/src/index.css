@@ -220,6 +220,7 @@ body {
   appearance: none;
   outline: none;
   transition: all 0.2s ease;
+  border: none; /* 🚫 **NO BORDER**: Explicitly remove any border */
 }
 
 .fade-in-slider::-webkit-slider-thumb {
@@ -233,6 +234,16 @@ body {
   box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3);
   cursor: pointer;
   transition: all 0.2s ease;
+  outline: none; /* 🚫 **NO THUMB OUTLINE**: Remove any outline on thumb */
+}
+
+/* 🆕 **DRAGGING STATE**: Remove all borders when actively dragging */
+.fade-in-slider:active,
+.fade-in-slider:active:focus,
+.fade-in-slider[data-dragging="true"] {
+  outline: none !important;
+  box-shadow: none !important;
+  border: none !important;
 }
 
 .fade-in-slider::-webkit-slider-thumb:hover {
@@ -263,6 +274,7 @@ body {
   appearance: none;
   outline: none;
   transition: all 0.2s ease;
+  border: none; /* 🚫 **NO BORDER**: Explicitly remove any border */
 }
 
 .fade-out-slider::-webkit-slider-thumb {
@@ -276,6 +288,16 @@ body {
   box-shadow: 0 2px 6px rgba(239, 68, 68, 0.3);
   cursor: pointer;
   transition: all 0.2s ease;
+  outline: none; /* 🚫 **NO THUMB OUTLINE**: Remove any outline on thumb */
+}
+
+/* 🆕 **DRAGGING STATE**: Remove all borders when actively dragging */
+.fade-out-slider:active,
+.fade-out-slider:active:focus,
+.fade-out-slider[data-dragging="true"] {
+  outline: none !important;
+  box-shadow: none !important;
+  border: none !important;
 }
 
 .fade-out-slider::-webkit-slider-thumb:hover {
@@ -311,13 +333,30 @@ body {
   outline: none;
 }
 
-/* 🎯 Focus states for accessibility */
+/* 🎯 Focus states for accessibility - OPTIMIZED: Remove purple border for fade sliders */
 .volume-slider:focus,
-.speed-slider:focus,
-.fade-in-slider:focus,
-.fade-out-slider:focus {
+.speed-slider:focus {
   outline: 2px solid #6366f1;
   outline-offset: 2px;
+}
+
+/* 🆕 **NO BORDER FOR FADE SLIDERS**: Remove purple focus outline as requested by user */
+.fade-in-slider:focus,
+.fade-out-slider:focus {
+  outline: none; /* 🚫 **REMOVED PURPLE BORDER**: No outline when dragging fade sliders */
+  box-shadow: none; /* 🚫 **NO SHADOW BORDER**: Also remove any shadow borders */
+}
+
+/* 🆕 **ACCESSIBILITY ALTERNATIVE**: Use subtle glow instead of border for fade sliders */
+.fade-in-slider:focus-visible,
+.fade-out-slider:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.2); /* 🎨 **SUBTLE GLOW**: Very subtle green glow for fade-in */
+}
+
+.fade-out-slider:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.2); /* 🎨 **SUBTLE GLOW**: Very subtle red glow for fade-out */
 }
 
 /* 🎯 Disabled state */
@@ -339,4 +378,44 @@ body {
   cursor: not-allowed;
   transform: none;
   box-shadow: none;
+}
+
+/* 🚀 **ULTRA-SMOOTH FORMAT SELECTOR**: Optimized transitions cho format buttons */
+.grid button[title*="description"] {
+  /* 🔥 **HARDWARE ACCELERATION**: Enable GPU acceleration */
+  will-change: transform, background-color, border-color;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  
+  /* 🚀 **ULTRA-FAST TRANSITIONS**: Minimized duration cho instant response */
+  transition: background-color 50ms cubic-bezier(0.4, 0, 0.2, 1),
+              border-color 50ms cubic-bezier(0.4, 0, 0.2, 1),
+              color 50ms cubic-bezier(0.4, 0, 0.2, 1),
+              transform 75ms cubic-bezier(0.4, 0, 0.2, 1) !important;
+  
+  /* 🔧 **PERFORMANCE OPTIMIZATION**: Prevent layout shifts */
+  contain: layout style paint;
+}
+
+/* 🚀 **INSTANT HOVER**: Immediate hover response với smooth animation */
+.grid button[title*="description"]:hover {
+  /* 🔥 **IMMEDIATE TRANSFORM**: Instant scaling for ultra-responsive feel */
+  transform: translateZ(0) scale(1.02);
+  
+  /* 🚀 **SMOOTH RETURN**: Smooth return to normal state */
+  transition: background-color 30ms cubic-bezier(0.4, 0, 0.2, 1),
+              border-color 30ms cubic-bezier(0.4, 0, 0.2, 1),
+              color 30ms cubic-bezier(0.4, 0, 0.2, 1),
+              transform 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 🎯 **ACTIVE STATE**: Instant feedback on click */
+.grid button[title*="description"]:active {
+  transform: translateZ(0) scale(0.98);
+  transition: all 50ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 🔧 **SELECTED STATE**: Stable selected appearance */
+.grid button[title*="description"].bg-indigo-500 {
+  transform: translateZ(0) scale(1.05);
 }
