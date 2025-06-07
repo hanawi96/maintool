@@ -91,7 +91,15 @@ export class MP3Service {
    * 🆕 **CUT AUDIO BY FILE ID**: Cut audio file bằng fileId đã upload trước đó
    */
   static async cutAudioByFileId(fileId, cutParams, sessionId = null) {
-    const { startTime, endTime, fadeIn, fadeOut, playbackRate = 1 } = cutParams; // 🆕 **SPEED SUPPORT**
+    const { 
+      startTime, 
+      endTime, 
+      fadeIn, 
+      fadeOut, 
+      playbackRate = 1,
+      outputFormat = 'mp3', // 🆕 **OUTPUT FORMAT**: Lấy format từ cutParams
+      quality = 'high' // 🆕 **QUALITY**: Lấy quality từ cutParams
+    } = cutParams;
     
     console.log('🔍 [cutAudioByFileId] Looking for file:', fileId);
     console.log('🎛️ [cutAudioByFileId] Cut params received:', {
@@ -100,6 +108,8 @@ export class MP3Service {
       fadeIn,
       fadeOut,
       playbackRate, // 🔧 **DEBUG**: Log playback rate
+      outputFormat, // 🆕 **LOG FORMAT**: Log selected format
+      quality, // 🆕 **LOG QUALITY**: Log selected quality
       sessionId, // 🆕 **LOG SESSION ID**
       speedChange: playbackRate !== 1 ? `${playbackRate}x speed` : 'normal speed'
     });
@@ -124,12 +134,12 @@ export class MP3Service {
     // 🔍 **GET FILE STATS**: Lấy thông tin file để tính duration estimate
     const inputStats = await fs.stat(inputPath);
     
-    // 🆕 **GENERATE OUTPUT FILENAME**: Tạo filename cho file output với speed indicator
+    // 🆕 **GENERATE OUTPUT FILENAME**: Tạo filename cho file output với speed indicator VÀ FORMAT
     const timestamp = Date.now();
     const random = Math.random().toString(36).substring(2, 6);
     const originalName = path.parse(fileId).name; // Lấy tên gốc không có extension
     const speedSuffix = playbackRate !== 1 ? `_${playbackRate}x` : ''; // 🆕 **SPEED SUFFIX**
-    const outputFilename = `cut_${originalName}${speedSuffix}_${timestamp}_${random}.mp3`;
+    const outputFilename = `cut_${originalName}${speedSuffix}_${timestamp}_${random}.${outputFormat}`; // 🚨 **KEY FIX**: Sử dụng outputFormat
     const outputPath = path.resolve(MP3_CONFIG.PATHS.PROCESSED, outputFilename);
     
     console.log('📁 [cutAudioByFileId] File paths:', {
@@ -137,6 +147,8 @@ export class MP3Service {
       output: outputPath,
       outputFilename,
       playbackRate,
+      outputFormat, // 🆕 **LOG OUTPUT FORMAT**
+      quality, // 🆕 **LOG QUALITY**
       sessionId, // 🆕 **LOG SESSION ID**
       speedSuffix: speedSuffix || 'none'
     });
@@ -146,29 +158,40 @@ export class MP3Service {
     await fs.mkdir(outputDir, { recursive: true });
     console.log('📁 [cutAudioByFileId] Output directory ensured:', outputDir);
     
-    console.log('✂️ [cutAudioByFileId] Starting cut operation with speed and WebSocket:', {
+    console.log('✂️ [cutAudioByFileId] Starting cut operation with speed, format and WebSocket:', {
       input: inputPath,
       output: outputPath,
-      cutParams: { ...cutParams, playbackRate },
+      cutParams: { ...cutParams, playbackRate, outputFormat, quality },
       sessionId,
-      ffmpegWillReceive: { startTime, endTime, fadeIn, fadeOut, playbackRate, format: 'mp3', quality: 'medium', sessionId }
+      ffmpegWillReceive: { 
+        startTime, 
+        endTime, 
+        fadeIn, 
+        fadeOut, 
+        playbackRate, 
+        format: outputFormat, // 🚨 **KEY FIX**: Truyền format đúng
+        quality, // 🚨 **KEY FIX**: Truyền quality đúng
+        sessionId 
+      }
     });
     
-    // 🚀 **CUT AUDIO WITH SPEED & WEBSOCKET**: Thực hiện cut audio với FFmpeg, speed change và WebSocket progress
+    // 🚀 **CUT AUDIO WITH SPEED, FORMAT & WEBSOCKET**: Thực hiện cut audio với FFmpeg, speed change, format conversion và WebSocket progress
     const cutResult = await MP3Utils.cutAudio(inputPath, outputPath, {
       startTime, 
       endTime, 
       fadeIn, 
       fadeOut, 
       playbackRate, // 🆕 **PASS SPEED**: Truyền playback rate to FFmpeg
-      format: 'mp3', 
-      quality: 'medium',
+      format: outputFormat, // 🚨 **KEY FIX**: Truyền format đúng thay vì cứng định 'mp3'
+      quality, // 🚨 **KEY FIX**: Truyền quality đúng
       sessionId // 🆕 **PASS SESSION ID**: Truyền sessionId cho WebSocket progress
     });
     
     console.log('🎬 [cutAudioByFileId] FFmpeg processing completed:', {
       success: cutResult.success,
       playbackRateApplied: cutResult.settings?.playbackRate,
+      formatApplied: cutResult.settings?.format, // 🆕 **LOG FORMAT APPLIED**
+      qualityApplied: cutResult.settings?.quality, // 🆕 **LOG QUALITY APPLIED**
       sessionId,
       ffmpegCommand: 'check FFmpeg logs above'
     });
@@ -201,8 +224,11 @@ export class MP3Service {
       outputSize: outputStats.size,
       duration: endTime - startTime,
       playbackRate,
+      outputFormat, // 🆕 **LOG OUTPUT FORMAT**
+      quality, // 🆕 **LOG QUALITY**
       sessionId,
-      speedProcessed: playbackRate !== 1 ? `${playbackRate}x speed applied` : 'normal speed'
+      speedProcessed: playbackRate !== 1 ? `${playbackRate}x speed applied` : 'normal speed',
+      formatProcessed: `Converted to ${outputFormat.toUpperCase()}` // 🆕 **LOG FORMAT PROCESSED**
     });
     
     // 🎯 **RETURN STANDARDIZED RESULT**: Trả về kết quả với format chuẩn
@@ -214,10 +240,12 @@ export class MP3Service {
         size: inputStats.size
       },
       output: {
-        filename: outputFilename, // 🎯 **KEY FIX**: Đảm bảo trả về đúng tên field
+        filename: outputFilename, // 🎯 **KEY FIX**: Đảm bảo trả về đúng tên field với extension format đúng
         path: outputPath,
         duration: endTime - startTime,
-        size: outputStats.size
+        size: outputStats.size,
+        format: outputFormat, // 🆕 **INCLUDE FORMAT**: Include format in response
+        quality // 🆕 **INCLUDE QUALITY**: Include quality in response
       },
       processing: { 
         startTime, 
@@ -225,8 +253,11 @@ export class MP3Service {
         fadeIn, 
         fadeOut,
         playbackRate, // 🆕 **INCLUDE SPEED**: Include playback rate in response
+        outputFormat, // 🆕 **INCLUDE FORMAT**: Include format in processing info
+        quality, // 🆕 **INCLUDE QUALITY**: Include quality in processing info
         actualDuration: cutResult.settings?.duration || (endTime - startTime),
-        speedApplied: playbackRate !== 1 ? `${playbackRate}x` : 'normal' // 🔧 **DEBUG**: Confirm speed applied
+        speedApplied: playbackRate !== 1 ? `${playbackRate}x` : 'normal', // 🔧 **DEBUG**: Confirm speed applied
+        formatApplied: `${outputFormat.toUpperCase()}` // 🆕 **FORMAT DEBUG**: Confirm format applied
       },
       urls: {
         download: `/api/mp3-cutter/download/${outputFilename}`

@@ -161,8 +161,30 @@ export class MP3Utils {
           console.log(`🚫 [cutAudio] No filters to apply`);
         }
 
+        // 🔧 **FORMAT PROCESSING DEBUG**: Log format processing details
+        console.log('🎵 [cutAudio] FORMAT PROCESSING START:', {
+          format,
+          quality,
+          outputPath,
+          outputExtension: path.extname(outputPath),
+          isM4R: format === 'm4r',
+          isM4A: format === 'm4a'
+        });
+
         // Set output quality based on format and quality preset
-        command = this.setOutputQuality(command, format, quality);
+        try {
+          console.log(`🔧 [cutAudio] Calling setOutputQuality with format: ${format}, quality: ${quality}`);
+          command = this.setOutputQuality(command, format, quality);
+          console.log(`✅ [cutAudio] setOutputQuality completed successfully for ${format}`);
+        } catch (qualityError) {
+          console.error('❌ [cutAudio] setOutputQuality failed:', {
+            format,
+            quality,
+            error: qualityError.message,
+            stack: qualityError.stack
+          });
+          throw qualityError;
+        }
 
         // 🔌 **WEBSOCKET PROGRESS EMITTER**: Function để emit progress
         const emitProgress = (progressData) => {
@@ -466,13 +488,22 @@ export class MP3Utils {
    * Set output quality based on format and quality preset
    */
   static setOutputQuality(command, format, quality) {
+    console.log(`🎛️ [setOutputQuality] Setting quality for format: ${format}, quality: ${quality}`);
+    
     const qualitySettings = MP3_CONFIG.QUALITY_PRESETS[quality];
     
     if (!qualitySettings || !qualitySettings[format]) {
+      console.error(`❌ [setOutputQuality] Unsupported format/quality combination:`, {
+        format,
+        quality,
+        availableQualities: Object.keys(MP3_CONFIG.QUALITY_PRESETS),
+        availableFormats: qualitySettings ? Object.keys(qualitySettings) : 'N/A'
+      });
       throw new Error(`Unsupported format/quality combination: ${format}/${quality}`);
     }
 
     const settings = qualitySettings[format];
+    console.log(`🔧 [setOutputQuality] Using settings for ${format}:`, settings);
     
     // Set audio codec
     command = command.audioCodec(settings.codec);
@@ -482,6 +513,38 @@ export class MP3Utils {
       command = command.audioBitrate(settings.bitrate);
     }
 
+    // 🚨 **M4R SPECIAL HANDLING**: M4R needs special container format
+    if (format === 'm4r') {
+      console.log('🎵 [setOutputQuality] M4R SPECIAL HANDLING: Setting MP4 container format');
+      // 🎯 **FORCE MP4 CONTAINER**: M4R is basically AAC in MP4 container with .m4r extension
+      command = command.format('mp4');
+      
+      // 🔧 **M4R SPECIFIC OPTIONS**: Additional options for M4R compatibility
+      command = command.outputOptions([
+        '-f', 'mp4',           // Force MP4 container
+        '-movflags', '+faststart' // Optimize for playback
+      ]);
+      
+      console.log('✅ [setOutputQuality] M4R format configured with MP4 container');
+    } else if (format === 'm4a') {
+      console.log('🎵 [setOutputQuality] M4A: Setting MP4 container format');
+      // 🎯 **M4A CONTAINER**: M4A also uses MP4 container
+      command = command.format('mp4');
+      command = command.outputOptions([
+        '-f', 'mp4',
+        '-movflags', '+faststart'
+      ]);
+      console.log('✅ [setOutputQuality] M4A format configured with MP4 container');
+    } else if (format === 'flac') {
+      console.log('🎵 [setOutputQuality] FLAC: Setting FLAC container format');
+      command = command.format('flac');
+    } else if (format === 'ogg') {
+      console.log('🎵 [setOutputQuality] OGG: Setting OGG container format');
+      command = command.format('ogg');
+    }
+    // 🚫 **NO EXPLICIT FORMAT**: MP3, WAV, AAC use default container detection
+
+    console.log(`✅ [setOutputQuality] Quality configuration completed for ${format}`);
     return command;
   }
 

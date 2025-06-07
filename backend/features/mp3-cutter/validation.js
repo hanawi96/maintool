@@ -94,7 +94,16 @@ export const validateWaveformParams = (req, res, next) => {
 
 // 🆕 **VALIDATE FILE ID**: Validate fileId cho cut-by-fileid endpoint
 export const validateFileId = (req, res, next) => {
-  const { fileId, startTime, endTime, fadeIn = 0, fadeOut = 0, playbackRate = 1 } = req.body;
+  const { 
+    fileId, 
+    startTime, 
+    endTime, 
+    fadeIn = 0, 
+    fadeOut = 0, 
+    playbackRate = 1,
+    outputFormat = 'mp3',
+    quality = 'high'
+  } = req.body;
   
   // 🔍 **VALIDATE FILE ID**: Kiểm tra fileId có tồn tại
   if (!fileId || typeof fileId !== 'string') {
@@ -140,19 +149,48 @@ export const validateFileId = (req, res, next) => {
     });
   }
   
-  // 🆕 **SET REQUEST DATA**: Set validated data to request với đầy đủ params
+  // 🆕 **VALIDATE OUTPUT FORMAT**: Validate format có được hỗ trợ không
+  const supportedFormats = ['mp3', 'wav', 'aac', 'ogg', 'flac', 'm4a', 'm4r'];
+  if (!supportedFormats.includes(outputFormat.toLowerCase())) {
+    console.log('❌ [validateFileId] Invalid output format:', { 
+      provided: outputFormat,
+      supported: supportedFormats 
+    });
+    return res.status(400).json({ 
+      success: false,
+      error: `Invalid output format. Supported formats: ${supportedFormats.join(', ')}` 
+    });
+  }
+  
+  // 🆕 **VALIDATE QUALITY**: Validate quality setting
+  const supportedQualities = ['low', 'medium', 'high'];
+  if (!supportedQualities.includes(quality.toLowerCase())) {
+    console.log('❌ [validateFileId] Invalid quality:', { 
+      provided: quality,
+      supported: supportedQualities 
+    });
+    return res.status(400).json({ 
+      success: false,
+      error: `Invalid quality. Supported qualities: ${supportedQualities.join(', ')}` 
+    });
+  }
+  
+  // 🆕 **SET REQUEST DATA**: Set validated data to request với đầy đủ params bao gồm format
   req.fileId = fileId;
   req.cutParams = {
     startTime: start,
     endTime: end,
     fadeIn: fadeInValue,
     fadeOut: fadeOutValue,
-    playbackRate: rate
+    playbackRate: rate,
+    outputFormat: outputFormat.toLowerCase(),
+    quality: quality.toLowerCase()
   };
   
-  console.log('✅ [validateFileId] Validation passed with SPEED SUPPORT:', {
+  console.log('✅ [validateFileId] Validation passed with FORMAT & SPEED SUPPORT:', {
     fileId,
     cutParams: req.cutParams,
+    formatSelected: req.cutParams.outputFormat,
     speedIncluded: req.cutParams.playbackRate !== 1 ? `${req.cutParams.playbackRate}x` : 'normal'
   });
   
