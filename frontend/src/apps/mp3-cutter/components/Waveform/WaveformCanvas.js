@@ -1,6 +1,5 @@
 // 📄 src/apps/mp3-cutter/components/Waveform/WaveformCanvas.js
 import React, { useEffect, useCallback, useRef, useMemo, useState } from 'react';
-import { createPortal } from 'react-dom'; // 🆕 **PORTAL IMPORT**: For rendering tooltips outside stacking context
 import { WAVEFORM_CONFIG } from '../../utils/constants';
 
 const WaveformCanvas = React.memo(({
@@ -46,46 +45,19 @@ const WaveformCanvas = React.memo(({
   const currentCursorRef = useRef('crosshair');
   const lastCursorUpdateRef = useRef(0);
 
-  // 🆕 **TIME TOOLTIP SYSTEM**: Hover time display and cursor line
-  const [hoverPosition, setHoverPosition] = useState(null); // { x, time, visible }
+  // 🆕 **SIMPLIFIED HOVER TOOLTIP**: Chỉ lưu mouse position và time đơn giản
+  const [hoverTooltip, setHoverTooltip] = useState(null); // { x, time, formattedTime, visible }
   const lastHoverUpdateRef = useRef(0);
   const hoverTimeoutRef = useRef(null);
 
-  // 🆕 **ADVANCED TOOLTIP SYSTEM**: Handle tooltips, cursor tooltip, và selection duration tooltip
-  const [tooltipPositions, setTooltipPositions] = useState({
+  // 🆕 **HANDLE TOOLTIPS STATE**: Chỉ lưu handle tooltips (không dùng portal)
+  const [handleTooltips, setHandleTooltips] = useState({
     startHandle: null,    // { x, time, visible, formattedTime }
     endHandle: null,      // { x, time, visible, formattedTime }
-    cursor: null,         // { x, time, visible, formattedTime }
     selectionDuration: null // { x, duration, visible, formattedDuration }
   });
-  const lastTooltipUpdateRef = useRef(0);
 
-  // 🆕 **PORTAL SYSTEM**: Refs for portal-based tooltips rendering
-  const portalContainerRef = useRef(null);
-  const canvasRectRef = useRef(null);
-  const tooltipPortalTargetRef = useRef(null);
-
-  // 🆕 **CANVAS POSITION TRACKER**: Track canvas position for absolute tooltip positioning
-  const updateCanvasPosition = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return null;
-    
-    const rect = canvas.getBoundingClientRect();
-    canvasRectRef.current = rect;
-    
-    console.log(`📍 [CanvasPosition] Updated:`, {
-      x: rect.x.toFixed(1),
-      y: rect.y.toFixed(1),
-      width: rect.width.toFixed(1),
-      height: rect.height.toFixed(1),
-      scrollX: window.scrollX,
-      scrollY: window.scrollY
-    });
-    
-    return rect;
-  }, [canvasRef]);
-
-  // 🎯 **SMART CURSOR DETECTION**: Detect cursor type based on mouse position
+  // 🆕 **CURSOR INTELLIGENCE**: Detect cursor type based on mouse position
   const detectCursorType = useCallback((mouseX, canvasWidth) => {
     if (!canvasWidth || duration === 0) return 'crosshair';
 
@@ -116,125 +88,69 @@ const WaveformCanvas = React.memo(({
       }
     }
 
-    // 🔍 **REGION DETECTION**: Check if hovering inside selection region
-    if (startTime < endTime) {
-      const timeAtPosition = (mouseX / canvasWidth) * duration;
-      const isInRegion = timeAtPosition >= startTime && timeAtPosition <= endTime;
-      
-      if (isInRegion) {
-        if (shouldLog) console.log(`🔄 [CursorDetect] INSIDE REGION - time: ${timeAtPosition.toFixed(2)}s`);
-        // 🆕 **FIXED CURSOR LOGIC**: Region hover = pointer, region drag = move
-        return 'pointer'; // ← Hand cursor for region hover (changed from 'move')
-      }
-    }
-
-    // 🔍 **OUTSIDE REGION**: Default cursor for empty areas
-    if (shouldLog) console.log(`👆 [CursorDetect] OUTSIDE REGION - pointer cursor`);
-    return 'pointer'; // ← Hand cursor for clicking outside selection
-
+    // 🎯 **DEFAULT CURSOR**: Normal crosshair for selection
+    if (shouldLog) console.log(`🎯 [CursorDetect] Normal selection area - crosshair cursor`);
+    return 'crosshair';
   }, [duration, startTime, endTime]);
 
-  // 🆕 **ULTRA-SMOOTH CURSOR UPDATE HANDLER**: Update cursor với minimal throttling
+  // 🚀 **ULTRA-SMOOTH CURSOR UPDATE**: Update cursor with reduced throttling
   const updateCursor = useCallback((mouseX) => {
     const now = performance.now();
     
-    // 🚀 **ULTRA-MINIMAL THROTTLING**: Reduced throttling để tránh conflict với MP3CutterMain
-    if (now - lastCursorUpdateRef.current < 2) return; // 🚀 **500FPS**: Reduced from 16ms to 2ms
+    // 🚀 **REDUCED CURSOR THROTTLING**: Smooth cursor updates with minimal throttling
+    if (now - lastCursorUpdateRef.current < 16) return; // 60fps for cursor updates
     lastCursorUpdateRef.current = now;
 
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    // 🎯 **DRAGGING STATE OVERRIDE**: Different cursors during drag
-    if (isDragging) {
-      // 🆕 **IMPROVED DRAG CURSORS**: Specific cursors for different drag types
-      let draggingCursor;
-      if (isDragging === 'region') {
-        draggingCursor = 'move'; // ← 4-directional arrows for region drag
-      } else {
-        draggingCursor = 'grabbing'; // ← Grabbing for handle drag
-      }
+    const canvasWidth = canvas.width;
+    const newCursor = detectCursorType(mouseX, canvasWidth);
+    
+    // 🎯 **ONLY UPDATE**: When cursor actually changes để avoid DOM manipulation
+    if (newCursor !== currentCursorRef.current) {
+      canvas.style.cursor = newCursor;
+      currentCursorRef.current = newCursor;
       
-      if (currentCursorRef.current !== draggingCursor) {
-        canvas.style.cursor = draggingCursor;
-        currentCursorRef.current = draggingCursor;
-        
-        // 🔧 **REDUCED DEBUG**: Chỉ log khi có thay đổi significant
-        if (Math.random() < 0.1) { // 10% sampling
-          console.log(`🫳 [CursorUpdate] ULTRA-SMOOTH dragging cursor: ${draggingCursor} (type: ${isDragging})`);
-        }
-      }
-      return;
+      // 🔧 **CURSOR CHANGE LOG**: Only log actual cursor changes
+      console.log(`🖱️ [CursorUpdate] Changed to ${newCursor} at ${mouseX.toFixed(1)}px`);
     }
+  }, [canvasRef, detectCursorType]);
 
-    // 🎯 **DETECT NEW CURSOR TYPE**: Based on current mouse position
-    const newCursorType = detectCursorType(mouseX, canvas.width);
-    
-    // 🔄 **UPDATE ONLY IF CHANGED**: Prevent unnecessary DOM updates
-    if (currentCursorRef.current !== newCursorType) {
-      canvas.style.cursor = newCursorType;
-      currentCursorRef.current = newCursorType;
-      
-      // 🔧 **MINIMAL DEBUG**: Chỉ log significant cursor changes
-      if (Math.random() < 0.05) { // 5% sampling để reduce console spam
-        console.log(`✨ [CursorUpdate] ULTRA-SMOOTH cursor: ${newCursorType} (500fps throttling)`);
-      }
-    }
-  }, [canvasRef, isDragging, detectCursorType]);
-
-  // 🆕 **TIME FORMATTING**: Convert seconds to MM:SS.d format với decimal
-  const formatTime = useCallback((timeInSeconds) => {
-    if (timeInSeconds < 0) return '00:00.0';
-    
-    const minutes = Math.floor(timeInSeconds / 60);
-    const seconds = Math.floor(timeInSeconds % 60);
-    const decimal = Math.floor((timeInSeconds % 1) * 10); // 1 decimal place
-    
-    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${decimal}`;
+  // 🔧 **PERFORMANCE OPTIMIZATION**: Format time and duration with memoization
+  const formatTime = useCallback((seconds) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = Math.floor(seconds % 60);
+    const milliseconds = Math.floor((seconds % 1) * 1000);
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`;
   }, []);
 
-  // 🆕 **DURATION FORMATTING**: Convert seconds to MM:SS.d format cho selection duration
-  const formatDuration = useCallback((durationInSeconds) => {
-    if (durationInSeconds < 0) return '00:00.0';
-    
-    const minutes = Math.floor(durationInSeconds / 60);
-    const seconds = Math.floor(durationInSeconds % 60);
-    const decimal = Math.floor((durationInSeconds % 1) * 10); // 1 decimal place
-    
-    // 🎯 **CONSISTENT FORMAT**: Luôn dùng MM:SS.d format cho consistency
-    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${decimal}`;
+  const formatDuration = useCallback((seconds) => {
+    if (seconds >= 60) {
+      const minutes = Math.floor(seconds / 60);
+      const remainingSeconds = (seconds % 60);
+      return `${minutes}m ${remainingSeconds.toFixed(1)}s`;
+    }
+    return `${seconds.toFixed(1)}s`;
   }, []);
 
-  // 🎯 **ULTRA-SMOOTH TOOLTIP POSITION TRACKER**: Cập nhật vị trí tooltips với ultra-high performance
-  const updateTooltipPositions = useCallback(() => {
-    const now = performance.now();
-    
-    // 🚀 **ULTRA-SMOOTH THROTTLING**: Improved performance cho smooth tooltip movement
-    if (now - lastTooltipUpdateRef.current < 4) return; // 🚀 **250FPS**: Reduced from 16ms to 4ms
-    lastTooltipUpdateRef.current = now;
-
+  // 🆕 **SIMPLIFIED HANDLE TOOLTIPS**: Chỉ update handle tooltips khi cần thiết
+  const updateHandleTooltips = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas || duration === 0) {
-      setTooltipPositions({
+      setHandleTooltips({
         startHandle: null,
         endHandle: null,
-        cursor: null,
         selectionDuration: null
       });
       return;
     }
 
-    // 🆕 **UPDATE CANVAS POSITION**: Always update canvas position for portal rendering
-    const canvasRect = updateCanvasPosition();
-    if (!canvasRect) return;
-
     const canvasWidth = canvas.width;
-    const canvasHeight = canvas.height;
-
+    
     // 🎯 **CALCULATE POSITIONS**: Tính toán vị trí pixel từ time
     const startX = (startTime / duration) * canvasWidth;
     const endX = (endTime / duration) * canvasWidth;
-    const cursorX = (currentTime / duration) * canvasWidth;
     
     // 🎯 **SELECTION INFO**: Thông tin về selection
     const hasValidSelection = startTime < endTime;
@@ -244,57 +160,26 @@ const WaveformCanvas = React.memo(({
     // 🆕 **TOOLTIP VISIBILITY LOGIC**: Chỉ hiện tooltip khi cần thiết
     const showStartHandle = hasValidSelection && startX >= 0 && startX <= canvasWidth;
     const showEndHandle = hasValidSelection && endX >= 0 && endX <= canvasWidth;
-    const showCursor = currentTime >= 0 && currentTime <= duration && cursorX >= 0 && cursorX <= canvasWidth;
-    const showSelectionDuration = hasValidSelection && selectionDuration > 0.1; // Chỉ hiện nếu selection > 0.1s
+    const showSelectionDuration = hasValidSelection && selectionDuration > 0.1;
 
-    // 🆕 **ABSOLUTE POSITIONING**: Calculate absolute positions for portal rendering
-    const absoluteStartX = canvasRect.left + startX + window.scrollX;
-    const absoluteEndX = canvasRect.left + endX + window.scrollX;
-    const absoluteCursorX = canvasRect.left + cursorX + window.scrollX;
-    const absoluteSelectionCenterX = hasValidSelection ? canvasRect.left + selectionCenterX + window.scrollX : null;
-    const tooltipBaseY = canvasRect.top + window.scrollY;
-
-    // 🆕 **DIFFERENTIATED Y POSITIONING**: Different Y positions for different tooltip types
-    const handlesTooltipY = tooltipBaseY + WAVEFORM_CONFIG.HEIGHT + 5; // 🎯 **BELOW WAVEFORM**: 5px below canvas for handles
-    const cursorTooltipY = tooltipBaseY - 30; // 🎯 **ABOVE WAVEFORM**: 30px above canvas for cursor (unchanged)
-
-    // 🎯 **UPDATE TOOLTIP POSITIONS**: Cập nhật state với vị trí mới (differentiated positioning)
-    setTooltipPositions({
-      // 🏷️ **START HANDLE TOOLTIP**: Tooltip cho handle trái - BELOW waveform
+    // 🎯 **UPDATE HANDLE TOOLTIPS**: Simple relative positioning
+    setHandleTooltips({
       startHandle: showStartHandle ? {
-        x: startX, // Canvas relative position
-        absoluteX: absoluteStartX, // Absolute position for portal
-        absoluteY: handlesTooltipY, // 🆕 **BELOW CANVAS**: 5px below waveform
+        x: startX,
         time: startTime,
         visible: true,
         formattedTime: formatTime(startTime)
       } : null,
 
-      // 🏷️ **END HANDLE TOOLTIP**: Tooltip cho handle phải - BELOW waveform  
       endHandle: showEndHandle ? {
-        x: endX, // Canvas relative position
-        absoluteX: absoluteEndX, // Absolute position for portal
-        absoluteY: handlesTooltipY, // 🆕 **BELOW CANVAS**: 5px below waveform
+        x: endX,
         time: endTime,
         visible: true,
         formattedTime: formatTime(endTime)
       } : null,
 
-      // 🏷️ **CURSOR TOOLTIP**: Tooltip cho cursor line - ABOVE waveform (unchanged)
-      cursor: showCursor ? {
-        x: cursorX, // Canvas relative position
-        absoluteX: absoluteCursorX, // Absolute position for portal
-        absoluteY: cursorTooltipY, // 🎯 **ABOVE CANVAS**: Keep cursor tooltip above (unchanged)
-        time: currentTime,
-        visible: true,
-        formattedTime: formatTime(currentTime)
-      } : null,
-
-      // 🏷️ **SELECTION DURATION TOOLTIP**: Tooltip cho duration ở giữa selection (INSIDE waveform)
       selectionDuration: showSelectionDuration ? {
-        x: selectionCenterX, // Canvas relative position
-        absoluteX: absoluteSelectionCenterX, // Absolute position for portal
-        absoluteY: tooltipBaseY + WAVEFORM_CONFIG.HEIGHT - 20, // 🆕 **CLOSER TO BOTTOM**: 20px từ đáy thay vì 35px
+        x: selectionCenterX,
         duration: selectionDuration,
         visible: true,
         formattedDuration: formatDuration(selectionDuration)
@@ -302,52 +187,40 @@ const WaveformCanvas = React.memo(({
     });
 
     // 🔧 **MINIMAL DEBUG**: Reduced logging để improve performance
-    if (Math.random() < 0.005) { // 0.5% sampling (reduced from 2%)
-      console.log(`🏷️ [TooltipPositions] ULTRA-SMOOTH update (250fps):`, {
-        throttle: '4ms',
-        performance: 'ULTRA_SMOOTH_MODE',
-        tooltipCount: [showStartHandle, showEndHandle, showCursor, showSelectionDuration].filter(Boolean).length,
-        portalMode: 'ACTIVE'
+    if (Math.random() < 0.01) { // 1% sampling
+      console.log(`🏷️ [HandleTooltips] Updated:`, {
+        tooltipCount: [showStartHandle, showEndHandle, showSelectionDuration].filter(Boolean).length
       });
     }
 
-  }, [canvasRef, duration, startTime, endTime, currentTime, formatTime, formatDuration, updateCanvasPosition]);
+  }, [canvasRef, duration, startTime, endTime, formatTime, formatDuration]);
 
-  // 🆕 **ULTRA-SMOOTH HOVER TIME TRACKER**: Track mouse position với ultra-high performance
+  // 🆕 **SIMPLIFIED HOVER TIME TRACKER**: Đơn giản hóa hover tooltip
   const updateHoverTime = useCallback((mouseX, canvasWidth) => {
     const now = performance.now();
     
-    // 🚀 **MINIMAL THROTTLING**: Chỉ throttle minimal để tránh conflict với MP3CutterMain throttling
-    const isDebugMode = window.hoverDebugEnabled;
-    if (!isDebugMode && now - lastHoverUpdateRef.current < 4) return; // 🚀 **250FPS**: Reduced from 16ms to 4ms
+    // 🚀 **MINIMAL THROTTLING**: Smooth hover tooltip
+    if (now - lastHoverUpdateRef.current < 8) return; // 125fps cho smooth hover
     lastHoverUpdateRef.current = now;
 
     if (!canvasWidth || duration === 0) {
-      setHoverPosition(null);
-      if (isDebugMode) {
-        console.log(`❌ [HoverTime] No canvas width (${canvasWidth}) or duration (${duration}) - clearing hover position`);
-      }
+      setHoverTooltip(null);
       return;
     }
 
     // 🆕 **HANDLE DETECTION**: Check if hovering over handles to hide cursor line
-    const { MODERN_HANDLE_WIDTH } = WAVEFORM_CONFIG; // 🆕 **MODERN HANDLE CONFIG**
+    const { MODERN_HANDLE_WIDTH } = WAVEFORM_CONFIG;
     const responsiveHandleWidth = canvasWidth < WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT ? 
-      Math.max(6, MODERN_HANDLE_WIDTH * 0.8) : MODERN_HANDLE_WIDTH; // 🎯 **ADJUSTED FOR MODERN HANDLES**
+      Math.max(6, MODERN_HANDLE_WIDTH * 0.8) : MODERN_HANDLE_WIDTH;
     
     const startX = (startTime / duration) * canvasWidth;
     const endX = (endTime / duration) * canvasWidth;
-    const tolerance = Math.max(responsiveHandleWidth / 2 + 8, WAVEFORM_CONFIG.RESPONSIVE.TOUCH_TOLERANCE); // 🎯 **INCREASED TOLERANCE**
+    const tolerance = Math.max(responsiveHandleWidth / 2 + 8, WAVEFORM_CONFIG.RESPONSIVE.TOUCH_TOLERANCE);
     
-    // 🚫 **HIDE CURSOR LINE**: When hovering over handles
-    if (startTime < endTime) { // Only check handles if there's a valid selection
+    // 🚫 **HIDE HOVER TOOLTIP**: When hovering over handles
+    if (startTime < endTime) {
       if (Math.abs(mouseX - startX) <= tolerance || Math.abs(mouseX - endX) <= tolerance) {
-        // 🔧 **ENHANCED DEBUG**: Log handle hover detection
-        if (isDebugMode || Math.random() < 0.05) { // 5% sampling thay vì 10%
-          const handleType = Math.abs(mouseX - startX) <= tolerance ? 'START' : 'END';
-          console.log(`🚫 [HoverTime] Hiding cursor line - hovering over ${handleType} handle at ${mouseX.toFixed(1)}px`);
-        }
-        setHoverPosition(null); // ← Hide cursor line when on handles
+        setHoverTooltip(null);
         return;
       }
     }
@@ -356,25 +229,17 @@ const WaveformCanvas = React.memo(({
     const timeAtPosition = (mouseX / canvasWidth) * duration;
     const clampedTime = Math.max(0, Math.min(timeAtPosition, duration));
     
-    // 🆕 **CREATE HOVER POSITION**: Set hover data for tooltip and line
-    const newHoverPosition = {
+    // 🆕 **SIMPLE HOVER TOOLTIP**: Set hover data
+    setHoverTooltip({
       x: mouseX,
       time: clampedTime,
       formattedTime: formatTime(clampedTime),
       visible: true
-    };
-    
-    setHoverPosition(newHoverPosition);
+    });
 
-    // 🔧 **REDUCED DEBUG LOGGING**: Ít logging hơn để improve performance
-    if (isDebugMode || Math.random() < 0.01) { // Debug mode hoặc 1% sampling (reduced from 5%)
-      console.log(`✅ [HoverTime] ULTRA-SMOOTH tooltip:`, {
-        position: `${mouseX.toFixed(1)}px of ${canvasWidth}px`,
-        time: `${clampedTime.toFixed(3)}s`,
-        formattedTime: newHoverPosition.formattedTime,
-        throttle: '4ms (250fps)',
-        performance: 'ULTRA_SMOOTH_MODE'
-      });
+    // 🔧 **REDUCED DEBUG LOGGING**
+    if (Math.random() < 0.005) { // 0.5% sampling
+      console.log(`✅ [HoverTooltip] Smooth update: ${clampedTime.toFixed(3)}s at ${mouseX.toFixed(1)}px`);
     }
   }, [duration, formatTime, startTime, endTime]);
 
@@ -391,10 +256,10 @@ const WaveformCanvas = React.memo(({
       const rect = canvas.getBoundingClientRect();
       const mouseX = e.clientX - rect.left;
       
-      // 🎯 **UPDATE CURSOR**: Smart cursor management (no throttling here)
+      // 🎯 **UPDATE CURSOR**: Smart cursor management
       updateCursor(mouseX);
       
-      // 🚀 **ULTRA-SMOOTH HOVER TIME**: Minimal throttling cho ultra-smooth cursor
+      // 🚀 **SMOOTH HOVER TIME**: Update hover tooltip
       updateHoverTime(mouseX, canvas.width);
     }
   }, [onMouseMove, canvasRef, updateCursor, updateHoverTime]);
@@ -414,34 +279,28 @@ const WaveformCanvas = React.memo(({
       console.log(`🫥 [CursorUpdate] Mouse left canvas - reset to default cursor`);
     }
 
-    // 🆕 **HIDE TOOLTIP**: Hide time tooltip when leaving canvas
+    // 🆕 **HIDE TOOLTIP**: Hide hover tooltip when leaving canvas
     if (hoverTimeoutRef.current) {
       clearTimeout(hoverTimeoutRef.current);
     }
     
     // 🎯 **DELAYED HIDE**: Small delay to prevent flickering
     hoverTimeoutRef.current = setTimeout(() => {
-      setHoverPosition(null);
-      console.log(`⏰ [HoverTime] Hidden - mouse left canvas`);
+      setHoverTooltip(null);
+      console.log(`⏰ [HoverTooltip] Hidden - mouse left canvas`);
     }, 50);
     
   }, [onMouseLeave, canvasRef, isDragging]);
 
-  // 🆕 **ENHANCED MOUSE DOWN HANDLER**: Add hover tooltip hiding on click
+  // 🆕 **ENHANCED MOUSE DOWN HANDLER**: Hide hover tooltip on click
   const handleEnhancedMouseDown = useCallback((e) => {
     // 🎯 **CALL ORIGINAL HANDLER**: Maintain existing functionality first
     if (onMouseDown) {
       onMouseDown(e);
     }
 
-    // 🆕 **HIDE HOVER TOOLTIP ON CLICK**: Hide hover tooltip và cursor line when user clicks
-    const isDebugMode = window.hoverDebugEnabled;
-    if (isDebugMode) {
-      console.log(`🖱️ [ClickBehavior] Mouse down detected - hiding hover tooltip and cursor line`);
-    }
-
-    // 🚫 **IMMEDIATE HIDE**: Clear hover position immediately on click
-    setHoverPosition(null);
+    // 🆕 **HIDE HOVER TOOLTIP ON CLICK**: Clear hover tooltip when user clicks
+    setHoverTooltip(null);
     
     // 🚫 **CLEAR HOVER TIMEOUT**: Cancel any pending hover timeout
     if (hoverTimeoutRef.current) {
@@ -449,9 +308,7 @@ const WaveformCanvas = React.memo(({
       hoverTimeoutRef.current = null;
     }
 
-    if (isDebugMode) {
-      console.log(`✅ [ClickBehavior] Hover tooltip and cursor line hidden successfully`);
-    }
+    console.log(`🖱️ [ClickBehavior] Hover tooltip hidden on click`);
   }, [onMouseDown]);
 
   // 🔥 **OPTIMIZED ADAPTIVE DATA**: Giảm logging và chỉ log khi cần
@@ -504,14 +361,6 @@ const WaveformCanvas = React.memo(({
     return waveformData;
   }, [waveformData, canvasRef]);
 
-  // 🆕 **FADE ANIMATION**: Smooth fadeIn/fadeOut transitions
-  const fadeInAnimationRef = useRef(fadeIn);
-  const fadeOutAnimationRef = useRef(fadeOut);
-  const targetFadeInRef = useRef(fadeIn);
-  const targetFadeOutRef = useRef(fadeOut);
-  const [animatedFadeIn, setAnimatedFadeIn] = useState(fadeIn);
-  const [animatedFadeOut, setAnimatedFadeOut] = useState(fadeOut);
-
   // 🔥 **STABLE RENDER DATA**: Giảm re-calculation và logging với volume support + fade effects
   const renderData = useMemo(() => {    
     if (!adaptiveWaveformData.length || duration === 0) {
@@ -523,8 +372,8 @@ const WaveformCanvas = React.memo(({
     const stableEndTime = Math.round(endTime * 10) / 10;
     const stableDuration = Math.round(duration * 10) / 10;
     const stableVolume = Math.round(animatedVolume * 1000) / 1000;
-    const stableFadeIn = Math.round(animatedFadeIn * 10) / 10;
-    const stableFadeOut = Math.round(animatedFadeOut * 10) / 10;
+    const stableFadeIn = Math.round(fadeIn * 10) / 10;
+    const stableFadeOut = Math.round(fadeOut * 10) / 10;
     const data = {
       waveformData: adaptiveWaveformData,
       duration: stableDuration,
@@ -534,13 +383,54 @@ const WaveformCanvas = React.memo(({
       isDragging,
       canvasWidth,
       volume: stableVolume,
-      fadeIn: stableFadeIn,   // Dùng animatedFadeIn
-      fadeOut: stableFadeOut, // Dùng animatedFadeOut
+      fadeIn: stableFadeIn,
+      fadeOut: stableFadeOut,
       dataHash: `${adaptiveWaveformData.length}-${stableDuration}-${stableStartTime}-${stableEndTime}-${hoveredHandle || 'none'}-${isDragging || 'none'}-${canvasWidth}-${stableVolume}-${stableFadeIn}-${stableFadeOut}`
     };
     lastRenderDataRef.current = data;
     return data;
-  }, [adaptiveWaveformData, duration, startTime, endTime, hoveredHandle, isDragging, canvasRef, animatedVolume, animatedFadeIn, animatedFadeOut]);
+  }, [adaptiveWaveformData, duration, startTime, endTime, hoveredHandle, isDragging, canvasRef, animatedVolume, fadeIn, fadeOut]);
+
+  // 🆕 **FADE EFFECT CALCULATOR**: Tính toán fade multiplier cho từng bar dựa theo thời gian
+  const calculateFadeMultiplier = useCallback((barTime, selectionStart, selectionEnd, fadeInDuration, fadeOutDuration) => {
+    // 🚫 **NO FADE**: Return 1.0 if no fade configured
+    if (fadeInDuration <= 0 && fadeOutDuration <= 0) return 1.0;
+    
+    // 🚫 **OUTSIDE SELECTION**: Return 1.0 if bar is outside selection range
+    if (barTime < selectionStart || barTime > selectionEnd) return 1.0;
+    
+    const selectionDuration = selectionEnd - selectionStart;
+    
+    let fadeMultiplier = 1.0;
+    
+    // 🎨 **FADE IN EFFECT**: From selection start
+    if (fadeInDuration > 0) {
+      const fadeInEnd = selectionStart + Math.min(fadeInDuration, selectionDuration / 2);
+      if (barTime <= fadeInEnd) {
+        const fadeProgress = Math.max(0, (barTime - selectionStart) / fadeInDuration);
+        fadeMultiplier = Math.min(fadeMultiplier, fadeProgress);
+      }
+    }
+    
+    // 🎨 **FADE OUT EFFECT**: To selection end
+    if (fadeOutDuration > 0) {
+      const fadeOutStart = selectionEnd - Math.min(fadeOutDuration, selectionDuration / 2);
+      if (barTime >= fadeOutStart) {
+        const fadeProgress = Math.max(0, (selectionEnd - barTime) / fadeOutDuration);
+        fadeMultiplier = Math.min(fadeMultiplier, fadeProgress);
+      }
+    }
+    
+    // 🎯 **MINIMUM VISIBILITY**: Ensure minimum 5% height for visibility
+    const finalMultiplier = Math.max(0.05, Math.min(1.0, fadeMultiplier));
+    
+    // 🔧 **DEBUG FADE CALCULATION**: Log fade calculation occasionally
+    if (Math.random() < 0.005) { // 0.5% sampling to avoid spam
+      console.log(`🎨 [FadeCalculation] Bar at ${barTime.toFixed(2)}s: fadeIn=${fadeInDuration}s, fadeOut=${fadeOutDuration}s, multiplier=${finalMultiplier.toFixed(3)}`);
+    }
+    
+    return finalMultiplier;
+  }, []);
 
   // 🎯 ENHANCED: Drawing function with performance optimizations
   const drawWaveform = useCallback(() => {
@@ -778,8 +668,8 @@ const WaveformCanvas = React.memo(({
     }
 
     // 6. 🆕 **HOVER TIME LINE**: Thin 1px line showing hover position
-    if (hoverPosition && hoverPosition.visible && duration > 0) {
-      const hoverX = hoverPosition.x;
+    if (hoverTooltip && hoverTooltip.visible && duration > 0) {
+      const hoverX = hoverTooltip.x;
       
       // 🎯 **ULTRA-THIN HOVER LINE**: 1px line as requested
       ctx.strokeStyle = 'rgba(59, 130, 246, 0.8)'; // Blue with transparency
@@ -794,10 +684,10 @@ const WaveformCanvas = React.memo(({
       
       // 🔧 **DEBUG HOVER LINE**: Occasional logging
       if (Math.random() < 0.02) { // 2% sampling
-        console.log(`📍 [HoverLine] Drawing at ${hoverX.toFixed(1)}px for time ${hoverPosition.formattedTime}`);
+        console.log(`📍 [HoverLine] Drawing at ${hoverX.toFixed(1)}px for time ${hoverTooltip.formattedTime}`);
       }
     }
-  }, [canvasRef, renderData, currentTime, isPlaying, hoverPosition]);
+  }, [canvasRef, renderData, currentTime, isPlaying, hoverTooltip]);
 
   // 🚀 **ULTRA-SMOOTH REDRAW**: High-performance cursor và hover line animation
   const requestRedraw = useCallback(() => {
@@ -810,24 +700,19 @@ const WaveformCanvas = React.memo(({
       // 🚀 **ULTRA-SMOOTH PERFORMANCE**: Context-aware frame rates với improved hover handling
       let minInterval;
       if (isDragging) {
-        minInterval = 2;   // 🚀 **500FPS** for ultra-smooth dragging (improved from 8ms)
+        minInterval = 2;   // 🚀 **500FPS** for ultra-smooth dragging
       } else if (isPlaying) {
-        minInterval = 8;   // 🚀 **125FPS** for smooth cursor movement (improved from 16ms)
-      } else if (hoverPosition && hoverPosition.visible) {
-        minInterval = 4;   // 🚀 **250FPS** for ultra-smooth hover line (NEW: special case for hover)
+        minInterval = 8;   // 🚀 **125FPS** for smooth cursor movement
+      } else if (hoverTooltip && hoverTooltip.visible) {
+        minInterval = 8;   // 🚀 **125FPS** for smooth hover line
       } else {
-        minInterval = 16;  // 60fps for static UI (improved from 33ms)
+        minInterval = 16;  // 60fps for static UI
       }
       
       // 🔧 **DEBUG PERFORMANCE**: Log performance improvements occasionally
       if (Math.random() < 0.001) { // 0.1% sampling
-        const mode = isDragging ? 'DRAGGING' : isPlaying ? 'PLAYING' : hoverPosition?.visible ? 'HOVERING' : 'STATIC';
-        console.log(`⚡ [RenderPerf] ULTRA-SMOOTH rendering:`, {
-          mode,
-          interval: minInterval + 'ms',
-          fps: Math.round(1000 / minInterval) + 'fps',
-          hoverActive: !!hoverPosition?.visible
-        });
+        const mode = isDragging ? 'DRAGGING' : isPlaying ? 'PLAYING' : hoverTooltip?.visible ? 'HOVERING' : 'STATIC';
+        console.log(`⚡ [RenderPerf] Smooth rendering: ${mode} - ${minInterval}ms (${Math.round(1000 / minInterval)}fps)`);
       }
       
       // 🚀 **SMOOTH THROTTLING**: Allow ultra-smooth updates
@@ -838,25 +723,15 @@ const WaveformCanvas = React.memo(({
       
       animationFrameRef.current = null;
     });
-  }, [drawWaveform, isDragging, isPlaying, hoverPosition]);
+  }, [drawWaveform, isDragging, isPlaying, hoverTooltip]);
 
-  // 🚀 **ULTRA-SMOOTH HOVER LINE**: Trigger redraw khi hover position thay đổi
+  // 🚀 **SMOOTH HOVER LINE**: Trigger redraw khi hover tooltip thay đổi
   useEffect(() => {
-    if (hoverPosition && hoverPosition.visible && renderData) {
+    if (hoverTooltip && hoverTooltip.visible && renderData) {
       // 🚀 **IMMEDIATE HOVER REDRAW**: Redraw ngay lập tức khi hover position changes
       requestRedraw();
-      
-      // 🔧 **DEBUG HOVER REDRAW**: Log hover line triggers occasionally
-      if (Math.random() < 0.01) { // 1% sampling
-        console.log(`📍 [HoverRedraw] ULTRA-SMOOTH hover line redraw triggered:`, {
-          x: hoverPosition.x.toFixed(1) + 'px',
-          time: hoverPosition.formattedTime,
-          trigger: 'HOVER_POSITION_CHANGE',
-          performance: 'IMMEDIATE_REDRAW'
-        });
-      }
     }
-  }, [hoverPosition, renderData, requestRedraw]);
+  }, [hoverTooltip, renderData, requestRedraw]);
 
   // 🔥 **RESPONSIVE CURSOR**: High-frequency cursor updates for smooth movement
   useEffect(() => {
@@ -873,33 +748,29 @@ const WaveformCanvas = React.memo(({
       const timeoutId = setTimeout(requestRedraw, 0);
       return () => clearTimeout(timeoutId);
     }
-  }, [renderData, requestRedraw, isPlaying, hoverPosition]); // 🆕 **HOVER DEPENDENCY**: Include hoverPosition for hover line updates
+  }, [renderData, requestRedraw, isPlaying, hoverTooltip]);
 
-  // 🆕 **TOOLTIP POSITION UPDATES**: Trigger tooltip position updates khi cần thiết
+  // 🆕 **HANDLE TOOLTIP UPDATES**: Update handle tooltips khi cần thiết
   useEffect(() => {
-    // 🎯 **REAL-TIME UPDATES**: Update tooltip positions khi có thay đổi quan trọng
-    updateTooltipPositions();
-    
-    // 🔧 **DEBUG TOOLTIP TRIGGER**: Log khi tooltip positions được update
-    console.log(`🏷️ [TooltipTrigger] Positions updated due to time/selection changes`);
-  }, [startTime, endTime, currentTime, duration, updateTooltipPositions]);
+    updateHandleTooltips();
+  }, [startTime, endTime, currentTime, duration, updateHandleTooltips]);
 
-  // 🆕 **DRAGGING TOOLTIP UPDATES**: Update tooltips với tần suất cao khi đang drag
+  // 🆕 **DRAGGING TOOLTIP UPDATES**: Update handle tooltips với tần suất cao khi đang drag
   useEffect(() => {
     if (isDragging) {
       // 🔥 **HIGH FREQUENCY UPDATES**: Update tooltips mỗi 16ms khi đang drag để smooth
       const dragTooltipInterval = setInterval(() => {
-        updateTooltipPositions();
+        updateHandleTooltips();
       }, 16); // 60fps
 
-      console.log(`🏷️ [TooltipDragging] Started high-frequency tooltip updates for smooth dragging`);
+      console.log(`🏷️ [HandleTooltips] Started high-frequency updates for smooth dragging`);
 
       return () => {
         clearInterval(dragTooltipInterval);
-        console.log(`🏷️ [TooltipDragging] Stopped high-frequency tooltip updates`);
+        console.log(`🏷️ [HandleTooltips] Stopped high-frequency updates`);
       };
     }
-  }, [isDragging, updateTooltipPositions]);
+  }, [isDragging, updateHandleTooltips]);
 
   // 🔥 **CANVAS SETUP**: Minimal setup với reduced logging
   useEffect(() => {
@@ -956,43 +827,37 @@ const WaveformCanvas = React.memo(({
     };
   }, []);
 
-  // 🆕 **VOLUME ANIMATION SYSTEM**: Enhanced responsive volume animation
+  // 🆕 **VOLUME ANIMATION SYSTEM**: Siêu nhanh, siêu mượt cho volume changes
   useEffect(() => {
-    // 🎯 **IMMEDIATE TARGET UPDATE**: Set new target volume immediately
     targetVolumeRef.current = volume;
-    
     let animationId = null;
-    
     const animateVolume = () => {
       const current = volumeAnimationRef.current;
       const target = targetVolumeRef.current;
       const diff = target - current;
-      
+      let changed = false;
       // Siêu nhạy: threshold cực nhỏ, tốc độ lớn
       if (Math.abs(diff) > 0.0001) {
-        // Siêu nhanh, realtime
-        const adaptiveSpeed = 0.5; // Luôn rất nhanh, không phân biệt lớn nhỏ
+        const adaptiveSpeed = 0.5;
         volumeAnimationRef.current = current + diff * adaptiveSpeed;
         setAnimatedVolume(volumeAnimationRef.current);
-        animationId = requestAnimationFrame(animateVolume);
-      } else {
+        changed = true;
+      } else if (animatedVolume !== target) {
         volumeAnimationRef.current = target;
         setAnimatedVolume(target);
+        changed = true;
+      }
+      if (changed) {
+        animationId = requestAnimationFrame(animateVolume);
+      } else {
         animationId = null;
       }
     };
-    
-    // 🆕 **ALWAYS START ANIMATION**: Remove threshold, animate all changes
-    console.log(`🔊 [VolumeAnimation] Starting: ${volumeAnimationRef.current.toFixed(3)} → ${volume.toFixed(3)}`);
     animationId = requestAnimationFrame(animateVolume);
-    
-    // 🎯 **CLEANUP**: Cancel animation on unmount or volume change
     return () => {
-      if (animationId) {
-        cancelAnimationFrame(animationId);
-      }
+      if (animationId) cancelAnimationFrame(animationId);
     };
-  }, [volume]);
+  }, [volume, animatedVolume]);
 
   // 🆕 **CURSOR INITIALIZATION**: Setup intelligent cursor system when component mounts
   useEffect(() => {
@@ -1018,178 +883,6 @@ const WaveformCanvas = React.memo(({
       updateCursorForSelection();
     }
   }, [canvasRef, startTime, endTime, duration]); // Update when selection changes
-
-  // 🆕 **PORTAL CONTAINER SETUP**: Setup portal container for tooltips
-  useEffect(() => {
-    // 🎯 **CREATE PORTAL CONTAINER**: Create container at body level for tooltips
-    let portalContainer = document.getElementById('waveform-tooltips-portal');
-    if (!portalContainer) {
-      portalContainer = document.createElement('div');
-      portalContainer.id = 'waveform-tooltips-portal';
-      portalContainer.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        pointer-events: none;
-        z-index: 999999;
-        overflow: visible;
-      `;
-      document.body.appendChild(portalContainer);
-      console.log(`🚪 [Portal] Created tooltip portal container`);
-    }
-    
-    tooltipPortalTargetRef.current = portalContainer;
-    
-    // 🎯 **SCROLL & RESIZE TRACKING**: Update canvas position on scroll/resize for accurate tooltip positioning
-    const updatePositionOnScroll = () => {
-      updateCanvasPosition();
-      updateTooltipPositions();
-    };
-    
-    const updatePositionOnResize = () => {
-      setTimeout(() => {
-        updateCanvasPosition();
-        updateTooltipPositions();
-      }, 100); // Small delay for DOM to settle
-    };
-    
-    window.addEventListener('scroll', updatePositionOnScroll, { passive: true });
-    window.addEventListener('resize', updatePositionOnResize, { passive: true });
-    
-    console.log(`📍 [Portal] Setup scroll/resize tracking for tooltips`);
-    
-    // 🎯 **CLEANUP**: Remove event listeners and portal container
-    return () => {
-      window.removeEventListener('scroll', updatePositionOnScroll);
-      window.removeEventListener('resize', updatePositionOnResize);
-      
-      // Only remove portal if it exists and no other instances are using it
-      if (tooltipPortalTargetRef.current && tooltipPortalTargetRef.current.children.length === 0) {
-        document.body.removeChild(tooltipPortalTargetRef.current);
-        console.log(`🚪 [Portal] Removed tooltip portal container`);
-      }
-    };
-  }, [updateCanvasPosition, updateTooltipPositions]);
-
-  // 🆕 **TOOLTIP PORTAL COMPONENT**: Component to render tooltips via portal
-  const TooltipPortal = useCallback(({ children }) => {
-    if (!tooltipPortalTargetRef.current) return null;
-    return createPortal(children, tooltipPortalTargetRef.current);
-  }, []);
-
-  // 🔥 **VOLUME ANIMATION REDRAW**: Trigger redraw during volume animation
-  useEffect(() => {
-    // 🎯 **SMOOTH ANIMATION REDRAW**: Request redraw when animated volume changes
-    if (renderData) {
-      requestRedraw();
-    }
-  }, [animatedVolume, renderData, requestRedraw]);
-
-  // 🆕 **FADE EFFECT CALCULATOR**: Tính toán fade multiplier cho từng bar dựa theo thời gian
-  const calculateFadeMultiplier = useCallback((barTime, selectionStartTime, selectionEndTime, fadeInDuration, fadeOutDuration) => {
-    // 🎯 **NO FADE**: Nếu không có fade effect, return 1.0 (full height)
-    if (fadeInDuration === 0 && fadeOutDuration === 0) {
-      return 1.0;
-    }
-    
-    // 🎯 **OUTSIDE SELECTION**: Nếu bar nằm ngoài selection, không áp dụng fade
-    if (barTime < selectionStartTime || barTime > selectionEndTime) {
-      return 1.0;
-    }
-    
-    const selectionDuration = selectionEndTime - selectionStartTime;
-    const timeInSelection = barTime - selectionStartTime; // Time elapsed in selection (0 to selectionDuration)
-    const timeFromEnd = selectionEndTime - barTime; // Time remaining in selection (selectionDuration to 0)
-    
-    let fadeMultiplier = 1.0; // Default: full height
-    
-    // 🔥 **FADE IN EFFECT**: 3 giây đầu từ thấp → cao dần
-    if (fadeInDuration > 0 && timeInSelection <= fadeInDuration) {
-      // 🎯 **SMOOTH CURVE**: Sử dụng ease-out curve cho fade in tự nhiên
-      const fadeInProgress = timeInSelection / fadeInDuration; // 0.0 → 1.0
-      const easedProgress = 1 - Math.pow(1 - fadeInProgress, 2); // Ease-out curve for smooth fade
-      
-      // 🎯 **FADE RANGE**: 0.1 (10% height) → 1.0 (100% height)
-      const minFadeHeight = 0.1; // Minimum height tại đầu fade in (10%)
-      fadeMultiplier = Math.min(fadeMultiplier, minFadeHeight + (easedProgress * (1.0 - minFadeHeight)));
-      
-      // 🔧 **DEBUG FADE IN**: Log fade in calculation occasionally
-      if (Math.random() < 0.001) { // 0.1% sampling để tránh spam
-        console.log(`🔥 [FadeIn] Bar at ${barTime.toFixed(2)}s: progress=${fadeInProgress.toFixed(3)}, multiplier=${fadeMultiplier.toFixed(3)}`);
-      }
-    }
-    
-    // 🔥 **FADE OUT EFFECT**: 3 giây cuối từ cao → thấp dần
-    if (fadeOutDuration > 0 && timeFromEnd <= fadeOutDuration) {
-      // 🎯 **SMOOTH CURVE**: Sử dụng ease-in curve cho fade out tự nhiên
-      const fadeOutProgress = timeFromEnd / fadeOutDuration; // 1.0 → 0.0 (remaining time ratio)
-      const easedProgress = Math.pow(fadeOutProgress, 2); // Ease-in curve for smooth fade
-      
-      // 🎯 **FADE RANGE**: 1.0 (100% height) → 0.1 (10% height)
-      const minFadeHeight = 0.1; // Minimum height tại cuối fade out (10%)
-      const fadeOutMultiplier = minFadeHeight + (easedProgress * (1.0 - minFadeHeight));
-      fadeMultiplier = Math.min(fadeMultiplier, fadeOutMultiplier);
-      
-      // 🔧 **DEBUG FADE OUT**: Log fade out calculation occasionally
-      if (Math.random() < 0.001) { // 0.1% sampling để tránh spam
-        console.log(`🔥 [FadeOut] Bar at ${barTime.toFixed(2)}s: remaining=${timeFromEnd.toFixed(2)}s, progress=${fadeOutProgress.toFixed(3)}, multiplier=${fadeMultiplier.toFixed(3)}`);
-      }
-    }
-    
-    // 🎯 **CLAMP RESULT**: Đảm bảo fade multiplier trong range hợp lệ
-    return Math.max(0.05, Math.min(1.0, fadeMultiplier)); // Minimum 5% height, maximum 100% height
-  }, []);
-
-  // 🆕 **FADE ANIMATION SYSTEM**: Siêu nhanh, siêu mượt cho fadeIn/fadeOut
-  useEffect(() => {
-    targetFadeInRef.current = fadeIn;
-    targetFadeOutRef.current = fadeOut;
-    let animationId = null;
-    const animateFade = () => {
-      const currentIn = fadeInAnimationRef.current;
-      const targetIn = targetFadeInRef.current;
-      const diffIn = targetIn - currentIn;
-      const currentOut = fadeOutAnimationRef.current;
-      const targetOut = targetFadeOutRef.current;
-      const diffOut = targetOut - currentOut;
-      let changed = false;
-      // Siêu nhạy: threshold cực nhỏ, tốc độ lớn
-      if (Math.abs(diffIn) > 0.0001) {
-        const adaptiveSpeed = 0.5;
-        fadeInAnimationRef.current = currentIn + diffIn * adaptiveSpeed;
-        setAnimatedFadeIn(fadeInAnimationRef.current);
-        changed = true;
-      } else if (animatedFadeIn !== targetIn) {
-        fadeInAnimationRef.current = targetIn;
-        setAnimatedFadeIn(targetIn);
-        changed = true;
-      }
-      if (Math.abs(diffOut) > 0.0001) {
-        const adaptiveSpeed = 0.5;
-        fadeOutAnimationRef.current = currentOut + diffOut * adaptiveSpeed;
-        setAnimatedFadeOut(fadeOutAnimationRef.current);
-        changed = true;
-      } else if (animatedFadeOut !== targetOut) {
-        fadeOutAnimationRef.current = targetOut;
-        setAnimatedFadeOut(targetOut);
-        changed = true;
-      }
-      if (changed) {
-        animationId = requestAnimationFrame(animateFade);
-      } else {
-        animationId = null;
-      }
-      if (changed) {
-        console.log('[FadeAnimation] Animating fadeIn:', fadeInAnimationRef.current, '→', targetIn, '| fadeOut:', fadeOutAnimationRef.current, '→', targetOut);
-      }
-    };
-    animationId = requestAnimationFrame(animateFade);
-    return () => {
-      if (animationId) cancelAnimationFrame(animationId);
-    };
-  }, [fadeIn, fadeOut]);
 
   // 🆕 **FADE EFFECT LOGGER**: Log khi fade values thay đổi để debug
   useEffect(() => {
@@ -1219,178 +912,86 @@ const WaveformCanvas = React.memo(({
           height: WAVEFORM_CONFIG.HEIGHT,
           touchAction: 'none', // Prevent scrolling on touch devices
           overflow: 'hidden', // 🚫 **NO CANVAS SCROLLBARS**: Đảm bảo canvas không tạo scrollbar
-          // 🆕 **INTELLIGENT CURSOR**: Removed hardcoded cursor - let JavaScript handle it dynamically
         }}
       />
       
-      {/* 🆕 **PORTAL TOOLTIPS**: All tooltips including HOVER TIME render via portal */}
-      <TooltipPortal>
-        {/* 🆕 **HOVER TIME TOOLTIP**: Portal-rendered hover tooltip - TEXT ONLY DESIGN */}
-        {hoverPosition && hoverPosition.visible && (() => {
-          // 🔧 **DEBUG TOOLTIP RENDER**: Log khi tooltip được render
-          const isDebugMode = window.hoverDebugEnabled;
-          if (isDebugMode) {
-            console.log(`🎨 [HoverTooltipRender] Rendering hover tooltip (TEXT-ONLY design):`, {
-              hoverPosition,
-              visible: hoverPosition.visible,
-              x: hoverPosition.x,
-              time: hoverPosition.time,
-              formattedTime: hoverPosition.formattedTime,
-              design: 'NO_BACKGROUND'
-            });
-          }
-          
-          return (
-            <div
-              className="pointer-events-none text-xs font-bold"
-              style={{
-                position: 'absolute',
-                left: `${(() => {
-                  // 🎯 **REAL-TIME CANVAS RECT**: Update canvas position immediately for hover tooltips
-                  const canvas = canvasRef.current;
-                  if (!canvas) return 0;
-                  const rect = canvas.getBoundingClientRect();
-                  canvasRectRef.current = rect; // Update ref immediately
-                  const leftPos = rect.left + hoverPosition.x + window.scrollX;
-                  if (isDebugMode) {
-                    console.log(`📍 [HoverTooltipRender] Left position: canvas.left=${rect.left.toFixed(1)} + hover.x=${hoverPosition.x.toFixed(1)} + scrollX=${window.scrollX} = ${leftPos.toFixed(1)}px`);
-                  }
-                  return leftPos;
-                })()}px`,
-                top: `${(() => {
-                  // 🎯 **ADJUSTED POSITION**: 5px above canvas thay vì 15px
-                  const canvas = canvasRef.current;
-                  if (!canvas) return 0;
-                  const rect = canvasRectRef.current || canvas.getBoundingClientRect();
-                  const topPos = rect.top + window.scrollY - 5; // 🆕 **5PX ABOVE**: Closer to waveform
-                  if (isDebugMode) {
-                    console.log(`📍 [HoverTooltipRender] Top position: canvas.top=${rect.top.toFixed(1)} + scrollY=${window.scrollY} - 5px = ${topPos.toFixed(1)}px (ADJUSTED)`);
-                  }
-                  return topPos;
-                })()}px`,
-                transform: 'translateX(-50%)',
-                // 🚫 **NO BACKGROUND**: Removed all background styling cho clean text-only design
-                color: 'rgba(30, 41, 59, 0.95)', // Dark text for good contrast on light backgrounds
-                transition: 'none',
-                whiteSpace: 'nowrap',
-                fontWeight: '700', // 🎯 **BOLD FONT**: Better visibility without background
-                fontSize: '11px', // Slightly smaller for cleaner look
-                // 🎯 **ENHANCED TEXT SHADOW**: Strong shadow cho visibility on any background
-                textShadow: '0 1px 4px rgba(255, 255, 255, 0.9), 0 -1px 2px rgba(0, 0, 0, 0.8), 1px 0 3px rgba(255, 255, 255, 0.8), -1px 0 3px rgba(255, 255, 255, 0.8)',
-                WebkitTextStroke: '0.5px rgba(255, 255, 255, 0.9)', // 🆕 **STRONGER TEXT STROKE**: Extra contrast without background
-                zIndex: 2147483646 // 🎯 **MAXIMUM Z-INDEX**: Near maximum for visibility
-              }}
-            >
-              {hoverPosition.formattedTime}
-              {/* 🔧 **DEBUG INDICATOR**: Visual indicator to confirm tooltip is showing - smaller for text-only design */}
-              {isDebugMode && (
-                <span style={{ 
-                  position: 'absolute', 
-                  top: '-3px', 
-                  right: '-6px', 
-                  width: '3px', 
-                  height: '3px', 
-                  backgroundColor: '#10b981', 
-                  borderRadius: '50%',
-                  opacity: 0.7
-                }} />
-              )}
-            </div>
-          );
-        })()}
+      {/* 🆕 **SIMPLIFIED TOOLTIPS**: Relative positioning tooltips - NO PORTAL */}
+      
+      {/* 🆕 **HOVER TIME TOOLTIP**: Simple relative positioning */}
+      {hoverTooltip && hoverTooltip.visible && (
+        <div
+          className="absolute pointer-events-none text-xs font-bold z-50"
+          style={{
+            left: `${hoverTooltip.x}px`,
+            top: '-25px', // 🎯 **ABOVE CANVAS**: 25px above canvas
+            transform: 'translateX(-50%)',
+            color: 'rgba(30, 41, 59, 0.95)',
+            whiteSpace: 'nowrap',
+            fontWeight: '700',
+            fontSize: '11px',
+            textShadow: '0 1px 4px rgba(255, 255, 255, 0.9), 0 -1px 2px rgba(0, 0, 0, 0.8), 1px 0 3px rgba(255, 255, 255, 0.8), -1px 0 3px rgba(255, 255, 255, 0.8)',
+            WebkitTextStroke: '0.5px rgba(255, 255, 255, 0.9)'
+          }}
+        >
+          {hoverTooltip.formattedTime}
+        </div>
+      )}
 
-        {/* 🏷️ **START HANDLE TOOLTIP**: Portal-rendered tooltip cho left handle */}
-        {tooltipPositions.startHandle && tooltipPositions.startHandle.visible && (
-          <div
-            className="pointer-events-none text-xs px-2 py-1 rounded font-medium"
-            style={{
-              position: 'absolute',
-              left: `${tooltipPositions.startHandle.absoluteX}px`,
-              top: `${tooltipPositions.startHandle.absoluteY}px`,
-              transform: 'translateX(-50%)',
-              backgroundColor: 'rgba(20, 184, 166, 0.95)', // Teal color for start handle
-              color: 'white',
-              transition: 'none',
-              whiteSpace: 'nowrap',
-              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.4)',
-              backdropFilter: 'blur(6px)',
-              zIndex: 999999 // 🆕 **PORTAL Z-INDEX**: Highest possible z-index via portal
-            }}
-          >
-            {tooltipPositions.startHandle.formattedTime}
-          </div>
-        )}
+      {/* 🏷️ **START HANDLE TOOLTIP**: Below waveform */}
+      {handleTooltips.startHandle && handleTooltips.startHandle.visible && (
+        <div
+          className="absolute pointer-events-none text-xs px-2 py-1 rounded font-medium z-40"
+          style={{
+            left: `${handleTooltips.startHandle.x}px`,
+            top: `${WAVEFORM_CONFIG.HEIGHT + 5}px`, // 🎯 **BELOW CANVAS**: 5px below canvas
+            transform: 'translateX(-50%)',
+            backgroundColor: 'rgba(20, 184, 166, 0.95)',
+            color: 'white',
+            whiteSpace: 'nowrap',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.4)',
+            backdropFilter: 'blur(6px)'
+          }}
+        >
+          {handleTooltips.startHandle.formattedTime}
+        </div>
+      )}
 
-        {/* 🏷️ **END HANDLE TOOLTIP**: Portal-rendered tooltip cho right handle */}
-        {tooltipPositions.endHandle && tooltipPositions.endHandle.visible && (
-          <div
-            className="pointer-events-none text-xs px-2 py-1 rounded font-medium"
-            style={{
-              position: 'absolute',
-              left: `${tooltipPositions.endHandle.absoluteX}px`,
-              top: `${tooltipPositions.endHandle.absoluteY}px`,
-              transform: 'translateX(-50%)',
-              backgroundColor: 'rgba(249, 115, 22, 0.95)', // Orange color for end handle  
-              color: 'white',
-              transition: 'none',
-              whiteSpace: 'nowrap',
-              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.4)',
-              backdropFilter: 'blur(6px)',
-              zIndex: 999999 // 🆕 **PORTAL Z-INDEX**: Highest possible z-index via portal
-            }}
-          >
-            {tooltipPositions.endHandle.formattedTime}
-          </div>
-        )}
+      {/* 🏷️ **END HANDLE TOOLTIP**: Below waveform */}
+      {handleTooltips.endHandle && handleTooltips.endHandle.visible && (
+        <div
+          className="absolute pointer-events-none text-xs px-2 py-1 rounded font-medium z-40"
+          style={{
+            left: `${handleTooltips.endHandle.x}px`,
+            top: `${WAVEFORM_CONFIG.HEIGHT + 5}px`, // 🎯 **BELOW CANVAS**: 5px below canvas
+            transform: 'translateX(-50%)',
+            backgroundColor: 'rgba(249, 115, 22, 0.95)',
+            color: 'white',
+            whiteSpace: 'nowrap',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.4)',
+            backdropFilter: 'blur(6px)'
+          }}
+        >
+          {handleTooltips.endHandle.formattedTime}
+        </div>
+      )}
 
-        {/* 🏷️ **CURSOR TOOLTIP**: Portal-rendered tooltip cho cursor line - TEXT ONLY DESIGN */}
-        {tooltipPositions.cursor && tooltipPositions.cursor.visible && (
-          <div
-            className="pointer-events-none text-xs font-bold"
-            style={{
-              position: 'absolute',
-              left: `${tooltipPositions.cursor.absoluteX}px`,
-              top: `${tooltipPositions.cursor.absoluteY}px`,
-              transform: 'translateX(-50%)',
-              // 🚫 **NO BACKGROUND**: Removed all background styling cho clean text-only design
-              color: 'rgba(30, 41, 59, 0.95)', // Dark text for good contrast on light backgrounds
-              transition: 'none',
-              whiteSpace: 'nowrap',
-              fontWeight: '700', // 🎯 **BOLD FONT**: Better visibility without background
-              fontSize: '11px', // Consistent size with hover tooltip
-              // 🎯 **ENHANCED TEXT SHADOW**: Strong shadow cho visibility on any background
-              textShadow: '0 1px 4px rgba(255, 255, 255, 0.9), 0 -1px 2px rgba(0, 0, 0, 0.8), 1px 0 3px rgba(255, 255, 255, 0.8), -1px 0 3px rgba(255, 255, 255, 0.8)',
-              WebkitTextStroke: '0.5px rgba(255, 255, 255, 0.9)', // 🆕 **STRONGER TEXT STROKE**: Extra contrast without background
-              zIndex: 999999 // 🆕 **PORTAL Z-INDEX**: Highest possible z-index via portal
-            }}
-          >
-            {tooltipPositions.cursor.formattedTime}
-          </div>
-        )}
-
-        {/* 🏷️ **SELECTION DURATION TOOLTIP**: Portal-rendered tooltip TRONG waveform - TEXT ONLY */}
-        {tooltipPositions.selectionDuration && tooltipPositions.selectionDuration.visible && (
-          <div
-            className="pointer-events-none text-sm font-semibold"
-            style={{
-              position: 'absolute',
-              left: `${tooltipPositions.selectionDuration.absoluteX}px`,
-              top: `${tooltipPositions.selectionDuration.absoluteY}px`,
-              transform: 'translateX(-50%)',
-              // 🚫 **NO BACKGROUND**: Removed background, border, shadow for clean text-only display
-              color: 'rgba(30, 41, 59, 0.9)', // Dark text for good contrast
-              transition: 'none',
-              whiteSpace: 'nowrap',
-              // 🎯 **TEXT SHADOW**: Subtle text shadow for readability on waveform background
-              textShadow: '0 1px 2px rgba(255, 255, 255, 0.8), 0 -1px 1px rgba(0, 0, 0, 0.2)',
-              fontWeight: '600', // Slightly bolder for better visibility
-              zIndex: 999999 // 🆕 **PORTAL Z-INDEX**: Highest possible z-index via portall
-            }}
-          >
-            {tooltipPositions.selectionDuration.formattedDuration}
-          </div>
-        )}
-      </TooltipPortal>
+      {/* 🏷️ **SELECTION DURATION TOOLTIP**: Inside waveform */}
+      {handleTooltips.selectionDuration && handleTooltips.selectionDuration.visible && (
+        <div
+          className="absolute pointer-events-none text-sm font-semibold z-30"
+          style={{
+            left: `${handleTooltips.selectionDuration.x}px`,
+            top: `${WAVEFORM_CONFIG.HEIGHT - 30}px`, // 🎯 **INSIDE CANVAS**: 30px from bottom
+            transform: 'translateX(-50%)',
+            color: 'rgba(30, 41, 59, 0.9)',
+            whiteSpace: 'nowrap',
+            textShadow: '0 1px 2px rgba(255, 255, 255, 0.8), 0 -1px 1px rgba(0, 0, 0, 0.2)',
+            fontWeight: '600'
+          }}
+        >
+          {handleTooltips.selectionDuration.formattedDuration}
+        </div>
+      )}
     </div>
   );
 });
