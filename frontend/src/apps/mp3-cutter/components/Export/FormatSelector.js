@@ -6,7 +6,6 @@ const FormatPresets = ({ selectedFormat, onFormatChange }) => {
   
   return (
     <div className="mb-3">
-      <label className="block text-xs text-slate-600 mb-2 font-medium">Output Format</label>
       <div className="grid grid-cols-4 gap-1.5">
         {Object.values(AUDIO_FORMATS).map(format => {
           const isSelected = selectedFormat === format.value;
@@ -37,18 +36,7 @@ const FormatPresets = ({ selectedFormat, onFormatChange }) => {
           );
         })}
       </div>
-      
-      {/* 🆕 **SELECTED FORMAT INFO**: Show selected format details */}
-      {selectedFormat && (
-        <div className="mt-2 text-xs text-slate-500 text-center">
-          Selected: <span className="font-semibold text-indigo-600">
-            {AUDIO_FORMATS[selectedFormat.toUpperCase()]?.label || selectedFormat.toUpperCase()}
-          </span>
-          {AUDIO_FORMATS[selectedFormat.toUpperCase()]?.description && (
-            <span className="text-slate-400"> - {AUDIO_FORMATS[selectedFormat.toUpperCase()].description}</span>
-          )}
-        </div>
-      )}
+
     </div>
   );
 };

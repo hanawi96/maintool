@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Loader, CheckCircle, AlertCircle } from 'lucide-react';
 
 // 🔌 **PROGRESS INDICATOR COMPONENT**: Hiển thị tiến trình real-time từ WebSocket
@@ -6,6 +6,30 @@ const ProgressIndicator = ({
   progress, 
   className = '' 
 }) => {
+  const [isVisible, setIsVisible] = useState(true);
+
+  // 🎨 **FADE OUT EFFECT**: Hiệu ứng mờ dần sau khi completed
+  useEffect(() => {
+    if (progress) {
+      setIsVisible(true); // Đảm bảo hiển thị khi có progress
+      
+      // 🎯 **AUTO FADE OUT**: Nếu completed, hiển thị đầy đủ 2s rồi mới fade out 1.5s
+      if (progress.stage === 'completed') {
+        console.log('✅ [ProgressIndicator] Completed detected, starting fade sequence...');
+        
+        const showCompletedTimeout = setTimeout(() => {
+          console.log('🎨 [ProgressIndicator] Starting fade out after 2s display...');
+          setIsVisible(false);
+        }, 2000); // Hiển thị đầy đủ trong 2 giây trước khi bắt đầu fade
+        
+        return () => {
+          clearTimeout(showCompletedTimeout);
+        };
+      }
+    }
+    // Không ẩn progress khi progress = null, để component cha quyết định
+  }, [progress]);
+
   // 📊 **PROGRESS BAR**: Hiển thị thanh tiến trình
   const renderProgressBar = () => {
     if (!progress) return null;
@@ -94,7 +118,14 @@ const ProgressIndicator = ({
   }
 
   return (
-    <div className={`bg-white border rounded-lg p-4 shadow-sm ${className}`}>
+    <div 
+      className={`
+        bg-white border rounded-lg p-4 shadow-sm 
+        transition-opacity duration-[1500ms] ease-out
+        ${isVisible ? 'opacity-100' : 'opacity-0'}
+        ${className}
+      `}
+    >
       {/* 📊 **PROGRESS BAR**: Hiển thị tiến trình */}
       {renderProgressBar()}
     </div>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Download, Scissors, Loader, AlertCircle, Save } from 'lucide-react';
 import { audioApi } from '../../services/audioApi';
 import { formatTime } from '../../utils/timeFormatter';
@@ -29,6 +29,19 @@ const CutDownload = ({
     startProgressSession,
     clearProgress
   } = useWebSocketProgress();
+
+  // 🎨 **AUTO CLEAR COMPLETED PROGRESS**: Tự động clear progress sau khi fade-out hoàn tất
+  useEffect(() => {
+    if (progress && progress.stage === 'completed') {
+      // Tổng thời gian: 2s hiển thị + 1.5s fade-out = 3.5s
+      const totalTimeout = setTimeout(() => {
+        console.log('🧹 [CutDownload] Auto-clearing completed progress after fade-out');
+        clearProgress();
+      }, 3500); // 2s hiển thị + 1.5s fade-out
+      
+      return () => clearTimeout(totalTimeout);
+    }
+  }, [progress, clearProgress]);
 
   // 🆕 **CUT ONLY FUNCTION**: Cut audio với speed nhưng KHÔNG auto download
   const handleCutOnly = async () => {
@@ -282,7 +295,9 @@ const CutDownload = ({
             ${cutButtonState.className}
           `}
         >
-          <cutButtonState.icon className="w-4 h-4" />
+          <cutButtonState.icon 
+            className={`w-4 h-4 ${isProcessing ? 'animate-spin' : ''}`} 
+          />
           {cutButtonState.text}
         </button>
 
