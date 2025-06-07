@@ -509,25 +509,27 @@ const WaveformCanvas = React.memo(({
     return waveformData;
   }, [waveformData, canvasRef]);
 
+  // 🆕 **FADE ANIMATION**: Smooth fadeIn/fadeOut transitions
+  const fadeInAnimationRef = useRef(fadeIn);
+  const fadeOutAnimationRef = useRef(fadeOut);
+  const targetFadeInRef = useRef(fadeIn);
+  const targetFadeOutRef = useRef(fadeOut);
+  const [animatedFadeIn, setAnimatedFadeIn] = useState(fadeIn);
+  const [animatedFadeOut, setAnimatedFadeOut] = useState(fadeOut);
+
   // 🔥 **STABLE RENDER DATA**: Giảm re-calculation và logging với volume support + fade effects
   const renderData = useMemo(() => {    
     if (!adaptiveWaveformData.length || duration === 0) {
       return null;
     }
-    
     const canvas = canvasRef.current;
     const canvasWidth = canvas?.width || 800;
-    
-    // 🔥 **STABLE HASH**: Use rounded values to prevent excessive re-calculations
-    const stableStartTime = Math.round(startTime * 10) / 10; // 0.1s precision
-    const stableEndTime = Math.round(endTime * 10) / 10;     // 0.1s precision
-    const stableDuration = Math.round(duration * 10) / 10;   // 0.1s precision
-    const stableVolume = Math.round(animatedVolume * 1000) / 1000; // 🆕 **USE STATE** instead of ref
-    
-    // 🆕 **STABLE FADE VALUES**: Include fade values in render data với precision
-    const stableFadeIn = Math.round(fadeIn * 10) / 10;  // 0.1s precision
-    const stableFadeOut = Math.round(fadeOut * 10) / 10; // 0.1s precision
-    
+    const stableStartTime = Math.round(startTime * 10) / 10;
+    const stableEndTime = Math.round(endTime * 10) / 10;
+    const stableDuration = Math.round(duration * 10) / 10;
+    const stableVolume = Math.round(animatedVolume * 1000) / 1000;
+    const stableFadeIn = Math.round(animatedFadeIn * 10) / 10;
+    const stableFadeOut = Math.round(animatedFadeOut * 10) / 10;
     const data = {
       waveformData: adaptiveWaveformData,
       duration: stableDuration,
@@ -536,20 +538,14 @@ const WaveformCanvas = React.memo(({
       hoveredHandle,
       isDragging,
       canvasWidth,
-      volume: stableVolume, // 🆕 **ANIMATED VOLUME**: Use animation ref for smooth transitions
-      
-      // 🆕 **FADE EFFECTS**: Include fade values để tính toán fade effect
-      fadeIn: stableFadeIn,   // Fade in duration
-      fadeOut: stableFadeOut, // Fade out duration
-      
+      volume: stableVolume,
+      fadeIn: stableFadeIn,   // Dùng animatedFadeIn
+      fadeOut: stableFadeOut, // Dùng animatedFadeOut
       dataHash: `${adaptiveWaveformData.length}-${stableDuration}-${stableStartTime}-${stableEndTime}-${hoveredHandle || 'none'}-${isDragging || 'none'}-${canvasWidth}-${stableVolume}-${stableFadeIn}-${stableFadeOut}`
     };
-    
-    // 🔥 **UPDATE REF**: Update ref without logging to prevent spam
     lastRenderDataRef.current = data;
-    
     return data;
-  }, [adaptiveWaveformData, duration, startTime, endTime, hoveredHandle, isDragging, canvasRef, animatedVolume, fadeIn, fadeOut]);
+  }, [adaptiveWaveformData, duration, startTime, endTime, hoveredHandle, isDragging, canvasRef, animatedVolume, animatedFadeIn, animatedFadeOut]);
 
   // 🎯 ENHANCED: Drawing function with performance optimizations
   const drawWaveform = useCallback(() => {
@@ -946,23 +942,16 @@ const WaveformCanvas = React.memo(({
       const target = targetVolumeRef.current;
       const diff = target - current;
       
-      // 🆕 **ULTRA-SENSITIVE**: Animate even tiny volume changes (0.001 threshold)
-      if (Math.abs(diff) > 0.001) {
-        // 🎯 **ADAPTIVE SPEED**: Faster animation for small changes, smoother for large changes
-        const adaptiveSpeed = Math.abs(diff) > 0.1 ? 0.12 : 0.25; // Faster for small changes
+      // Siêu nhạy: threshold cực nhỏ, tốc độ lớn
+      if (Math.abs(diff) > 0.0001) {
+        // Siêu nhanh, realtime
+        const adaptiveSpeed = 0.5; // Luôn rất nhanh, không phân biệt lớn nhỏ
         volumeAnimationRef.current = current + diff * adaptiveSpeed;
-        setAnimatedVolume(volumeAnimationRef.current); // 🆕 **UPDATE STATE** for dependencies
-        
-        // 🔊 **ENHANCED LOGGING**: Log ALL volume changes for debugging
-        console.log(`🔊 [VolumeAnimation] Animating: ${current.toFixed(3)} → ${target.toFixed(3)} (diff: ${diff.toFixed(3)})`);
-        
-        // 🎯 **CONTINUE ANIMATION**: Schedule next frame
+        setAnimatedVolume(volumeAnimationRef.current);
         animationId = requestAnimationFrame(animateVolume);
       } else {
-        // 🎯 **SNAP TO TARGET**: When close enough, snap to target
         volumeAnimationRef.current = target;
-        setAnimatedVolume(target); // 🆕 **FINAL UPDATE** to state
-        console.log(`✅ [VolumeAnimation] Complete: ${target.toFixed(3)}`);
+        setAnimatedVolume(target);
         animationId = null;
       }
     };
@@ -1126,6 +1115,55 @@ const WaveformCanvas = React.memo(({
     // 🎯 **CLAMP RESULT**: Đảm bảo fade multiplier trong range hợp lệ
     return Math.max(0.05, Math.min(1.0, fadeMultiplier)); // Minimum 5% height, maximum 100% height
   }, []);
+
+  // 🆕 **FADE ANIMATION SYSTEM**: Siêu nhanh, siêu mượt cho fadeIn/fadeOut
+  useEffect(() => {
+    targetFadeInRef.current = fadeIn;
+    targetFadeOutRef.current = fadeOut;
+    let animationId = null;
+    const animateFade = () => {
+      const currentIn = fadeInAnimationRef.current;
+      const targetIn = targetFadeInRef.current;
+      const diffIn = targetIn - currentIn;
+      const currentOut = fadeOutAnimationRef.current;
+      const targetOut = targetFadeOutRef.current;
+      const diffOut = targetOut - currentOut;
+      let changed = false;
+      // Siêu nhạy: threshold cực nhỏ, tốc độ lớn
+      if (Math.abs(diffIn) > 0.0001) {
+        const adaptiveSpeed = 0.5;
+        fadeInAnimationRef.current = currentIn + diffIn * adaptiveSpeed;
+        setAnimatedFadeIn(fadeInAnimationRef.current);
+        changed = true;
+      } else if (animatedFadeIn !== targetIn) {
+        fadeInAnimationRef.current = targetIn;
+        setAnimatedFadeIn(targetIn);
+        changed = true;
+      }
+      if (Math.abs(diffOut) > 0.0001) {
+        const adaptiveSpeed = 0.5;
+        fadeOutAnimationRef.current = currentOut + diffOut * adaptiveSpeed;
+        setAnimatedFadeOut(fadeOutAnimationRef.current);
+        changed = true;
+      } else if (animatedFadeOut !== targetOut) {
+        fadeOutAnimationRef.current = targetOut;
+        setAnimatedFadeOut(targetOut);
+        changed = true;
+      }
+      if (changed) {
+        animationId = requestAnimationFrame(animateFade);
+      } else {
+        animationId = null;
+      }
+      if (changed) {
+        console.log('[FadeAnimation] Animating fadeIn:', fadeInAnimationRef.current, '→', targetIn, '| fadeOut:', fadeOutAnimationRef.current, '→', targetOut);
+      }
+    };
+    animationId = requestAnimationFrame(animateFade);
+    return () => {
+      if (animationId) cancelAnimationFrame(animationId);
+    };
+  }, [fadeIn, fadeOut]);
 
   // 🆕 **FADE EFFECT LOGGER**: Log khi fade values thay đổi để debug
   useEffect(() => {
