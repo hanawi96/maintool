@@ -228,13 +228,10 @@ const CutDownload = ({
       };
     }
     
-    // 🆕 **SPEED AWARE BUTTON**: Show speed in button text
-    const speedText = playbackRate !== 1 ? ` (${playbackRate}x)` : '';
-    
     return {
       variant: 'ready',
       icon: Scissors,
-      text: `Cut${speedText}`,
+      text: 'Cut',
       className: 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white transform hover:scale-105'
     };
   };
@@ -250,12 +247,10 @@ const CutDownload = ({
       };
     }
     
-    const speedText = processedFile.playbackRate !== 1 ? ` (${processedFile.playbackRate}x)` : '';
-    
     return {
       variant: 'ready',
       icon: Download,
-      text: `Save${speedText}`,
+      text: 'Save',
       className: 'bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 text-white transform hover:scale-105'
     };
   };
