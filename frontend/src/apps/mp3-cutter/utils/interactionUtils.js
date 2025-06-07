@@ -284,7 +284,7 @@ export class InteractionManager {
           const regionMiddle = adjustedStartTime + (regionDuration / 2);
           
           audioSynced = this.audioSyncManager.realTimeSync(
-            regionMiddle, audioRef, setCurrentTime, 'region', true // force = true
+            regionMiddle, audioRef, setCurrentTime, 'region', true, adjustedStartTime // force = true, pass startTime
           );
           
           if (audioSynced) {
@@ -316,7 +316,7 @@ export class InteractionManager {
             
             // 🔥 **ULTRA-SMOOTH REAL-TIME SYNC**: Sử dụng realTimeSync với force mode
             audioSynced = this.audioSyncManager.realTimeSync(
-              newStartTime, audioRef, setCurrentTime, 'start', true // force = true
+              newStartTime, audioRef, setCurrentTime, 'start', true, newStartTime // force = true, pass startTime
             );
             
             if (audioSynced) {
@@ -338,7 +338,7 @@ export class InteractionManager {
         if (Math.abs(newEndTime - endTime) > 0.01) {
           console.log(`⏭️ [${this.debugId}] CONFIRMED dragging end: ${endTime.toFixed(2)}s → ${newEndTime.toFixed(2)}s`);
           
-          // 🆕 **REAL-TIME CURSOR SYNC**: Cursor theo real-time khi drag end handle với offset
+          // 🆕 **REAL-TIME CURSOR SYNC**: Cursor theo real-time khi drag end handle với intelligent offset
           let audioSynced = false;
           
           if (audioContext && this.audioSyncManager.preferences.syncEndHandle) {
@@ -346,12 +346,14 @@ export class InteractionManager {
             
             // 🔥 **ULTRA-SMOOTH REAL-TIME SYNC**: Sử dụng realTimeSync với force mode cho end handle
             audioSynced = this.audioSyncManager.realTimeSync(
-              newEndTime, audioRef, setCurrentTime, 'end', true // force = true, sẽ auto-apply 3s offset
+              newEndTime, audioRef, setCurrentTime, 'end', true, startTime // force = true, pass startTime for boundary checking
             );
             
             if (audioSynced) {
-              const targetSyncTime = Math.max(0, newEndTime - 3.0);
-              console.log(`🎯 [${this.debugId}] REAL-TIME sync end handle: ${newEndTime.toFixed(2)}s → ${targetSyncTime.toFixed(2)}s (3s offset)`);
+              // 🎯 **INTELLIGENT LOGGING**: Log actual target time based on region size  
+              const regionDuration = newEndTime - startTime;
+              const actualTargetTime = regionDuration < 1.0 ? startTime : Math.max(startTime, newEndTime - 3.0);
+              console.log(`🎯 [${this.debugId}] REAL-TIME sync end handle: ${newEndTime.toFixed(2)}s → ${actualTargetTime.toFixed(2)}s (intelligent region-aware sync)`);
             }
           }
           
@@ -439,17 +441,19 @@ export class InteractionManager {
           const regionMiddle = startTime + (regionDuration / 2);
           
           this.audioSyncManager.completeDragSync(
-            'region', regionMiddle, audioRef, setCurrentTime, isPlaying
+            'region', regionMiddle, audioRef, setCurrentTime, isPlaying, startTime
           );
           
           console.log(`🔄 [${this.debugId}] Region drag completed - synced to middle: ${regionMiddle.toFixed(2)}s`);
         } else if (draggedHandle) {
-          // 🎯 **HANDLE DRAG COMPLETION**: Standard handle sync
+          // 🎯 **HANDLE DRAG COMPLETION**: Standard handle sync with intelligent boundary checking
           const finalTime = draggedHandle === HANDLE_TYPES.START ? startTime : endTime;
           
           this.audioSyncManager.completeDragSync(
-            draggedHandle, finalTime, audioRef, setCurrentTime, isPlaying
+            draggedHandle, finalTime, audioRef, setCurrentTime, isPlaying, startTime
           );
+          
+          console.log(`🎯 [${this.debugId}] Handle drag completed - ${draggedHandle} handle synced with region-aware logic`);
         }
       }
     }

@@ -66,8 +66,9 @@ export class AudioSyncManager {
    * @param {function} setCurrentTime - React state setter
    * @param {boolean} isPlaying - Current playing state
    * @param {string} handleType - Handle being dragged
+   * @param {number} startTime - Current start time of region (for boundary checking)
    */
-  syncAudioCursor(newTime, audioRef, setCurrentTime, isPlaying, handleType) {
+  syncAudioCursor(newTime, audioRef, setCurrentTime, isPlaying, handleType, startTime = 0) {
     if (!audioRef.current) {
       console.warn(`⚠️ [${this.debugId}] No audio element for sync`);
       return;
@@ -76,11 +77,34 @@ export class AudioSyncManager {
     const audio = audioRef.current;
     const currentAudioTime = audio.currentTime;
     
-    // 🆕 SMART TARGET CALCULATION: Apply offset for end handle
+    // 🆕 SMART TARGET CALCULATION: Apply intelligent offset for end handle
     let targetTime = newTime;
     if (handleType === 'end' && this.preferences.endHandleOffset > 0) {
-      targetTime = Math.max(0, newTime - this.preferences.endHandleOffset);
-      console.log(`🎯 [${this.debugId}] End handle offset applied: ${newTime.toFixed(2)}s → ${targetTime.toFixed(2)}s (${this.preferences.endHandleOffset}s offset)`);
+      // 🔥 **INTELLIGENT REGION SIZE CHECK**: Calculate region duration
+      const regionDuration = newTime - startTime;
+      
+      console.log(`🎯 [${this.debugId}] End handle analysis:`, {
+        endTime: newTime.toFixed(2) + 's',
+        startTime: startTime.toFixed(2) + 's', 
+        regionDuration: regionDuration.toFixed(2) + 's',
+        offsetPreference: this.preferences.endHandleOffset + 's'
+      });
+      
+      if (regionDuration < 1.0) {
+        // 🚫 **SMALL REGION**: Region < 1s → cursor stays at startTime
+        targetTime = startTime;
+        console.log(`🚫 [${this.debugId}] SMALL REGION (${regionDuration.toFixed(2)}s < 1s) → cursor locked to startTime: ${startTime.toFixed(2)}s`);
+      } else {
+        // 🎯 **NORMAL REGION**: Apply offset but ensure cursor doesn't go before startTime
+        const proposedTime = newTime - this.preferences.endHandleOffset;
+        targetTime = Math.max(startTime, proposedTime); // ✅ Never go before startTime
+        
+        console.log(`🎯 [${this.debugId}] NORMAL REGION (${regionDuration.toFixed(2)}s ≥ 1s):`, {
+          proposedTime: proposedTime.toFixed(2) + 's',
+          finalTargetTime: targetTime.toFixed(2) + 's',
+          boundaryProtected: proposedTime < startTime ? 'YES (clamped to startTime)' : 'NO'
+        });
+      }
     } else if (handleType === 'region') {
       // 🆕 **REGION SYNC**: newTime đã là middle của region, không cần offset
       targetTime = newTime;
@@ -100,7 +124,7 @@ export class AudioSyncManager {
       targetTime: targetTime.toFixed(2) + 's', 
       from: currentAudioTime.toFixed(2) + 's',
       difference: timeDifference.toFixed(3) + 's',
-      offset: handleType === 'end' ? this.preferences.endHandleOffset + 's' : 'none',
+      smartLogic: handleType === 'end' ? 'REGION_SIZE_AWARE' : 'STANDARD',
       isPlaying
     });
     
@@ -141,8 +165,9 @@ export class AudioSyncManager {
    * @param {object} audioRef - Audio element ref
    * @param {function} setCurrentTime - React state setter
    * @param {boolean} isPlaying - Current playing state
+   * @param {number} startTime - Current start time of region (for boundary checking)
    */
-  completeDragSync(handleType, finalTime, audioRef, setCurrentTime, isPlaying) {
+  completeDragSync(handleType, finalTime, audioRef, setCurrentTime, isPlaying, startTime = 0) {
     const shouldSyncStart = handleType === 'start' && this.preferences.syncStartHandle;
     const shouldSyncEnd = handleType === 'end' && this.preferences.syncEndHandle;
     const shouldSyncRegion = handleType === 'region'; // 🆕 **REGION SYNC**
@@ -157,9 +182,10 @@ export class AudioSyncManager {
       // 🆕 **REGION SYNC**: Không cần offset cho region (finalTime đã là middle)
       if (handleType === 'region') {
         console.log(`🔄 [${this.debugId}] Region drag completion - sync to middle: ${finalTime.toFixed(2)}s`);
-        this.syncAudioCursor(finalTime, audioRef, setCurrentTime, isPlaying, 'region');
+        this.syncAudioCursor(finalTime, audioRef, setCurrentTime, isPlaying, 'region', startTime);
       } else {
-        this.syncAudioCursor(finalTime, audioRef, setCurrentTime, isPlaying, handleType);
+        // 🔥 **INTELLIGENT SYNC**: Pass startTime for boundary checking in end handle sync
+        this.syncAudioCursor(finalTime, audioRef, setCurrentTime, isPlaying, handleType, startTime);
       }
       
       console.log(`✅ [${this.debugId}] Drag sync completed for ${handleType}`);
@@ -262,8 +288,9 @@ export class AudioSyncManager {
    * @param {function} setCurrentTime - React state setter
    * @param {string} handleType - Handle being dragged
    * @param {boolean} force - Force sync even if throttled
+   * @param {number} startTime - Current start time of region (for boundary checking)
    */
-  realTimeSync(newTime, audioRef, setCurrentTime, handleType, force = false) {
+  realTimeSync(newTime, audioRef, setCurrentTime, handleType, force = false, startTime = 0) {
     if (!audioRef.current) return false;
     
     // 🔥 **FORCE MODE**: Skip throttling for ultra-smooth dragging
@@ -273,10 +300,27 @@ export class AudioSyncManager {
       return false; // Skip if throttled and not forced
     }
     
-    // 🔥 **CALCULATE TARGET**: Apply offset cho different handle types
+    // 🔥 **CALCULATE TARGET**: Apply intelligent offset cho different handle types
     let targetTime = newTime;
     if (handleType === 'end') {
-      targetTime = Math.max(0, newTime - this.preferences.endHandleOffset);
+      // 🔥 **INTELLIGENT REGION SIZE CHECK**: Calculate region duration
+      const regionDuration = newTime - startTime;
+      
+      if (regionDuration < 1.0) {
+        // 🚫 **SMALL REGION**: Region < 1s → cursor stays at startTime
+        targetTime = startTime;
+        console.log(`🚫 [RealTimeSync] SMALL REGION (${regionDuration.toFixed(2)}s < 1s) → cursor locked to startTime: ${startTime.toFixed(2)}s`);
+      } else {
+        // 🎯 **NORMAL REGION**: Apply offset but ensure cursor doesn't go before startTime  
+        const proposedTime = newTime - this.preferences.endHandleOffset;
+        targetTime = Math.max(startTime, proposedTime); // ✅ Never go before startTime
+        
+        console.log(`🎯 [RealTimeSync] NORMAL REGION (${regionDuration.toFixed(2)}s ≥ 1s):`, {
+          proposedTime: proposedTime.toFixed(2) + 's',
+          finalTargetTime: targetTime.toFixed(2) + 's',
+          boundaryProtected: proposedTime < startTime ? 'YES (clamped to startTime)' : 'NO'
+        });
+      }
     } else if (handleType === 'region') {
       // 🆕 **REGION SYNC**: Không cần offset, newTime đã là middle của region
       targetTime = newTime;

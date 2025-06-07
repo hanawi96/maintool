@@ -984,6 +984,7 @@ const MP3CutterMain = React.memo(() => {
       setEndTime(end);
       saveState({ startTime: start, endTime: end, fadeIn, fadeOut });
     };
+
     
   }, []); // 🔥 **EMPTY DEPS**: Setup một lần
 
