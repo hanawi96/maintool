@@ -1,8 +1,8 @@
 import React, { useCallback, useMemo, useEffect, useRef } from 'react';
 import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Zap, RotateCcw, RotateCw, Repeat } from 'lucide-react';
-import CompactTimeSelector from './UnifiedControlBar/CompactTimeSelector';
-import { getAutoReturnSetting, setAutoReturnSetting } from '../utils/safeStorage';
-import '../styles/UnifiedControlBar.css';
+import CompactTimeSelector from './CompactTimeSelector';
+import { getAutoReturnSetting, setAutoReturnSetting } from '../../utils/safeStorage';
+import '../../styles/UnifiedControlBar.css';
 
 // 🎯 **UNIFIED CONTROL BAR** - Single responsive row for all controls
 // Layout: [PlayControls] | [Volume] | [Speed] | [TimeSelector] | [History]
