@@ -90,7 +90,7 @@ export class MP3Service {
   /**
    * 🆕 **CUT AUDIO BY FILE ID**: Cut audio file bằng fileId đã upload trước đó
    */
-  static async cutAudioByFileId(fileId, cutParams) {
+  static async cutAudioByFileId(fileId, cutParams, sessionId = null) {
     const { startTime, endTime, fadeIn, fadeOut, playbackRate = 1 } = cutParams; // 🆕 **SPEED SUPPORT**
     
     console.log('🔍 [cutAudioByFileId] Looking for file:', fileId);
@@ -100,6 +100,7 @@ export class MP3Service {
       fadeIn,
       fadeOut,
       playbackRate, // 🔧 **DEBUG**: Log playback rate
+      sessionId, // 🆕 **LOG SESSION ID**
       speedChange: playbackRate !== 1 ? `${playbackRate}x speed` : 'normal speed'
     });
     
@@ -136,6 +137,7 @@ export class MP3Service {
       output: outputPath,
       outputFilename,
       playbackRate,
+      sessionId, // 🆕 **LOG SESSION ID**
       speedSuffix: speedSuffix || 'none'
     });
     
@@ -144,14 +146,15 @@ export class MP3Service {
     await fs.mkdir(outputDir, { recursive: true });
     console.log('📁 [cutAudioByFileId] Output directory ensured:', outputDir);
     
-    console.log('✂️ [cutAudioByFileId] Starting cut operation with speed:', {
+    console.log('✂️ [cutAudioByFileId] Starting cut operation with speed and WebSocket:', {
       input: inputPath,
       output: outputPath,
       cutParams: { ...cutParams, playbackRate },
-      ffmpegWillReceive: { startTime, endTime, fadeIn, fadeOut, playbackRate, format: 'mp3', quality: 'medium' }
+      sessionId,
+      ffmpegWillReceive: { startTime, endTime, fadeIn, fadeOut, playbackRate, format: 'mp3', quality: 'medium', sessionId }
     });
     
-    // 🚀 **CUT AUDIO WITH SPEED**: Thực hiện cut audio với FFmpeg và speed change
+    // 🚀 **CUT AUDIO WITH SPEED & WEBSOCKET**: Thực hiện cut audio với FFmpeg, speed change và WebSocket progress
     const cutResult = await MP3Utils.cutAudio(inputPath, outputPath, {
       startTime, 
       endTime, 
@@ -159,12 +162,14 @@ export class MP3Service {
       fadeOut, 
       playbackRate, // 🆕 **PASS SPEED**: Truyền playback rate to FFmpeg
       format: 'mp3', 
-      quality: 'medium'
+      quality: 'medium',
+      sessionId // 🆕 **PASS SESSION ID**: Truyền sessionId cho WebSocket progress
     });
     
     console.log('🎬 [cutAudioByFileId] FFmpeg processing completed:', {
       success: cutResult.success,
       playbackRateApplied: cutResult.settings?.playbackRate,
+      sessionId,
       ffmpegCommand: 'check FFmpeg logs above'
     });
     
@@ -196,6 +201,7 @@ export class MP3Service {
       outputSize: outputStats.size,
       duration: endTime - startTime,
       playbackRate,
+      sessionId,
       speedProcessed: playbackRate !== 1 ? `${playbackRate}x speed applied` : 'normal speed'
     });
     

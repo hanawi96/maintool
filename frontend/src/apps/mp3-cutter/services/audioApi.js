@@ -253,17 +253,20 @@ export const audioApi = {
     }
   },
 
-  // 🆕 **CUT AUDIO BY FILE ID**: Cut audio bằng fileId đã upload trước đó - HIỆU QUẢ HỠN
+  // 🎯 ENHANCED: Cut audio by fileId with comprehensive error handling and WebSocket support
   async cutAudioByFileId(params) {
     console.log('✂️ [cutAudioByFileId] Starting cut by fileId:', params);
 
-    // 🔍 **VALIDATE PARAMS**: Kiểm tra params có đủ không
-    if (!params.fileId) {
-      throw new Error('fileId is required for cut operation');
-    }
-
-    const cutUrl = `${API_BASE_URL}${API_ENDPOINTS.CUT_BY_FILEID}`;
+    const cutUrl = `${API_BASE_URL}${API_ENDPOINTS.CUT_BY_FILE_ID}`;
     console.log('✂️ [cutAudioByFileId] Cut URL:', cutUrl);
+    
+    // 🆕 **ADD SESSION ID**: Add sessionId để backend có thể track progress
+    const requestBody = {
+      ...params,
+      sessionId: params.sessionId || `cut-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`
+    };
+
+    console.log('📊 [cutAudioByFileId] Request body with sessionId:', requestBody);
     
     let response;
     try {
@@ -272,7 +275,7 @@ export const audioApi = {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(params)
+        body: JSON.stringify(requestBody)
       });
       
       console.log('📡 [cutAudioByFileId] Response received:', {
@@ -294,7 +297,12 @@ export const audioApi = {
     try {
       const result = await safeJsonParse(response);
       console.log('✅ [cutAudioByFileId] Cut successful:', result);
-      return result;
+      
+      // 🆕 **RETURN WITH SESSION ID**: Include sessionId in result for WebSocket tracking
+      return {
+        ...result,
+        sessionId: requestBody.sessionId
+      };
     } catch (parseError) {
       console.error('❌ [cutAudioByFileId] Response parsing failed:', parseError);
       throw new Error(`Cut response parsing failed: ${parseError.message}`);

@@ -54,7 +54,8 @@ export class MP3Utils {
       fadeOut = 0,
       format = 'mp3',
       quality = 'medium',
-      playbackRate = 1
+      playbackRate = 1,
+      sessionId = null // 🆕 **SESSION ID**: Để identify WebSocket room
     } = options;
 
     console.log('🎬 [cutAudio] Starting cut operation with options:', {
@@ -65,6 +66,7 @@ export class MP3Utils {
       format,
       quality,
       playbackRate,
+      sessionId, // 🆕 **LOG SESSION ID**
       speedChangeRequested: playbackRate !== 1
     });
 
@@ -162,9 +164,26 @@ export class MP3Utils {
         // Set output quality based on format and quality preset
         command = this.setOutputQuality(command, format, quality);
 
-        // Progress tracking
-        let progressCallback = options.onProgress;
-        
+        // 🔌 **WEBSOCKET PROGRESS EMITTER**: Function để emit progress
+        const emitProgress = (progressData) => {
+          if (sessionId && global.io) {
+            const roomName = `progress-${sessionId}`;
+            console.log(`📊 [cutAudio] Emitting progress to room ${roomName}:`, progressData);
+            global.io.to(roomName).emit('cut-progress', {
+              sessionId,
+              ...progressData,
+              timestamp: new Date().toISOString()
+            });
+          }
+        };
+
+        // 📊 **INITIAL PROGRESS**: Emit starting progress
+        emitProgress({
+          stage: 'initializing',
+          percent: 0,
+          message: 'Initializing FFmpeg process...'
+        });
+
         command
           .output(outputPath)
           .on('start', (commandLine) => {
@@ -174,10 +193,31 @@ export class MP3Utils {
               atempoCount: (commandLine.match(/atempo/g) || []).length,
               fullCommand: commandLine
             });
+
+            // 📊 **START PROGRESS**: Emit start progress
+            emitProgress({
+              stage: 'processing',
+              percent: 5,
+              message: 'FFmpeg processing started...'
+            });
           })
           .on('progress', (progress) => {
-            if (progressCallback) {
-              progressCallback({
+            // 📊 **REAL-TIME PROGRESS**: Emit actual FFmpeg progress
+            const percent = Math.round(progress.percent || 0);
+            const progressData = {
+              stage: 'processing', 
+              percent: Math.min(95, Math.max(5, percent)), // Clamp between 5-95%
+              currentTime: progress.timemark,
+              targetSize: progress.targetSize,
+              message: `Processing audio... ${percent}%`
+            };
+
+            console.log(`📊 [cutAudio] FFmpeg progress: ${percent}% - ${progress.timemark}`);
+            emitProgress(progressData);
+
+            // 🔄 **LEGACY CALLBACK**: Keep existing callback for backward compatibility
+            if (options.onProgress) {
+              options.onProgress({
                 percent: Math.round(progress.percent || 0),
                 currentTime: progress.timemark,
                 targetSize: progress.targetSize
@@ -193,6 +233,15 @@ export class MP3Utils {
               filters,
               errorMessage: error.message
             });
+
+            // 📊 **ERROR PROGRESS**: Emit error progress
+            emitProgress({
+              stage: 'error',
+              percent: 0,
+              message: `Processing failed: ${error.message}`,
+              error: error.message
+            });
+
             reject(new Error(`Audio cutting failed: ${error.message}`));
           })
           .on('end', () => {
@@ -203,6 +252,14 @@ export class MP3Utils {
               playbackRateApplied: playbackRate,
               filtersApplied: filters,
               speedSuccess: playbackRate !== 1 ? `${playbackRate}x speed applied` : 'normal speed'
+            });
+
+            // 📊 **COMPLETION PROGRESS**: Emit completion progress
+            emitProgress({
+              stage: 'completed',
+              percent: 100,
+              message: 'Audio processing completed successfully!',
+              success: true
             });
             
             resolve({
@@ -226,6 +283,20 @@ export class MP3Utils {
 
       } catch (error) {
         console.error('❌ [cutAudio] Setup failed:', error);
+        
+        // 📊 **SETUP ERROR PROGRESS**: Emit setup error
+        if (sessionId && global.io) {
+          const roomName = `progress-${sessionId}`;
+          global.io.to(roomName).emit('cut-progress', {
+            sessionId,
+            stage: 'error',
+            percent: 0,
+            message: `Setup failed: ${error.message}`,
+            error: error.message,
+            timestamp: new Date().toISOString()
+          });
+        }
+
         reject(new Error(`Failed to setup audio cutting: ${error.message}`));
       }
     });

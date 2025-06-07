@@ -61,22 +61,28 @@ export class MP3Controller {
    */
   static async cutByFileId(req, res) {
     try {
+      // 🆕 **EXTRACT SESSION ID**: Get sessionId from request for WebSocket progress
+      const sessionId = req.body?.sessionId || req.query?.sessionId || null;
+      
       console.log('✂️ [cutByFileId] Starting cut by fileId:', {
         fileId: req.fileId,
-        cutParams: req.cutParams
+        cutParams: req.cutParams,
+        sessionId // 🆕 **LOG SESSION ID**
       });
 
-      const result = await MP3Service.cutAudioByFileId(req.fileId, req.cutParams);
+      const result = await MP3Service.cutAudioByFileId(req.fileId, req.cutParams, sessionId);
 
       console.log('✅ [cutByFileId] Cut successful:', {
         outputFilename: result.output.filename,
-        duration: result.output.duration
+        duration: result.output.duration,
+        sessionId
       });
 
       res.json({
         success: true,
         message: 'Audio cut successfully',
         data: result,
+        sessionId, // 🆕 **RETURN SESSION ID**: Include sessionId in response
         timestamp: new Date().toISOString()
       });
 

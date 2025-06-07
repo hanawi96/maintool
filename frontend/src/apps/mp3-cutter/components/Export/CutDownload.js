@@ -2,7 +2,9 @@ import React, { useState } from 'react';
 import { Download, Scissors, Loader, AlertCircle, Save } from 'lucide-react';
 import { audioApi } from '../../services/audioApi';
 import { formatTime } from '../../utils/timeFormatter';
+import { useWebSocketProgress } from '../../hooks/useCutProgress';
 import FormatPresets from './FormatSelector';
+import ProgressIndicator from './ProgressIndicator';
 
 const CutDownload = ({ 
   audioFile, 
@@ -17,19 +19,25 @@ const CutDownload = ({
 }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingError, setProcessingError] = useState(null);
-  const [processingProgress, setProcessingProgress] = useState(0);
   
   // 🆕 **NEW STATE**: Track processed file information for download
   const [processedFile, setProcessedFile] = useState(null);
 
+  // 🔌 **WEBSOCKET PROGRESS**: Hook để nhận real-time progress
+  const {
+    progress,
+    startProgressSession,
+    clearProgress
+  } = useWebSocketProgress();
+
   // 🆕 **CUT ONLY FUNCTION**: Cut audio với speed nhưng KHÔNG auto download
   const handleCutOnly = async () => {
-    console.log('✂️ [CutDownload] Starting CUT-ONLY process (no auto download)...');
+    console.log('✂️ [CutDownload] Starting CUT-ONLY process with WebSocket progress...');
     
     // 🎯 Reset previous state
     setProcessingError(null);
-    setProcessingProgress(0);
     setProcessedFile(null); // Clear previous processed file
+    clearProgress(); // Clear previous WebSocket progress
 
     // 🎯 Validate inputs
     if (!audioFile?.filename) {
@@ -52,10 +60,19 @@ const CutDownload = ({
     }
 
     setIsProcessing(true);
-    setProcessingProgress(10);
 
     try {
-      console.log('🎯 [CutDownload] Validated inputs, starting CUT-ONLY operation...');
+      console.log('🎯 [CutDownload] Validated inputs, starting CUT-ONLY operation with WebSocket...');
+      
+      // 🆕 **GENERATE SESSION ID**: Tạo unique session ID cho WebSocket tracking
+      const sessionId = `cut-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+      console.log('📊 [CutDownload] Generated sessionId for WebSocket:', sessionId);
+
+      // 🔌 **START WEBSOCKET SESSION**: Bắt đầu tracking progress qua WebSocket
+      const sessionStarted = startProgressSession(sessionId);
+      if (!sessionStarted) {
+        console.warn('⚠️ [CutDownload] WebSocket session failed to start, continuing without real-time progress');
+      }
       
       // 🔧 **CRITICAL**: Đảm bảo playbackRate được truyền đúng
       const cutParams = {
@@ -66,18 +83,18 @@ const CutDownload = ({
         fadeIn: fadeIn || 0,
         fadeOut: fadeOut || 0,
         playbackRate: playbackRate, // 🚨 **KEY FIX**: Truyền đúng speed setting
-        quality: 'high'
+        quality: 'high',
+        sessionId // 🆕 **WEBSOCKET SESSION**: Include sessionId for progress tracking
       };
 
-      console.log('📊 [CutDownload] CUT-ONLY parameters with SPEED and FORMAT:', {
+      console.log('📊 [CutDownload] CUT-ONLY parameters with SPEED, FORMAT and WebSocket:', {
         ...cutParams,
         speedApplied: playbackRate !== 1 ? `${playbackRate}x speed` : 'normal speed',
-        formatSelected: outputFormat
+        formatSelected: outputFormat,
+        websocketEnabled: sessionStarted
       });
-      setProcessingProgress(25);
 
       const result = await audioApi.cutAudioByFileId(cutParams);
-      setProcessingProgress(75);
 
       console.log('✅ [CutDownload] CUT-ONLY operation successful:', result);
 
@@ -92,7 +109,6 @@ const CutDownload = ({
       }
 
       console.log('📁 [CutDownload] Output file determined:', outputFile);
-      setProcessingProgress(90);
 
       // 🆕 **SAVE PROCESSED FILE INFO**: Store info for later download
       const processedFileInfo = {
@@ -101,11 +117,11 @@ const CutDownload = ({
         fileSize: result.data?.output?.size || result.output?.size,
         playbackRate: cutParams.playbackRate,
         outputFormat: cutParams.outputFormat,
-        processedAt: new Date().toISOString()
+        processedAt: new Date().toISOString(),
+        sessionId // 🆕 **TRACK SESSION**: Include sessionId for reference
       };
 
       setProcessedFile(processedFileInfo);
-      setProcessingProgress(100);
 
       // 🎉 **SUCCESS - NO ALERT**: Silent success, just ready for download
       console.log('🎉 [CutDownload] CUT-ONLY completed successfully - ready for download:', processedFileInfo);
@@ -131,7 +147,6 @@ const CutDownload = ({
       
     } finally {
       setIsProcessing(false);
-      setTimeout(() => setProcessingProgress(0), 2000);
     }
   };
 
@@ -194,25 +209,16 @@ const CutDownload = ({
       return {
         variant: 'processing',
         icon: Loader,
-        text: `Cutting... ${processingProgress}%`,
+        text: 'Cutting...',
         className: 'bg-blue-500 text-white'
       };
     }
-    
-    if (processingError) {
-      return {
-        variant: 'error',
-        icon: AlertCircle,
-        text: 'Try Again',
-        className: 'bg-red-500 hover:bg-red-600 text-white'
-      };
-    }
-    
+
     return {
       variant: 'ready',
       icon: Scissors,
-      text: 'Cut',
-      className: 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white transform hover:scale-105'
+      text: 'Cut Audio',
+      className: 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white transform hover:scale-105'
     };
   };
 
@@ -221,17 +227,17 @@ const CutDownload = ({
     if (!processedFile) {
       return {
         variant: 'disabled',
-        icon: Save,
-        text: 'Save (Cut First)',
+        icon: Download,
+        text: 'Cut First',
         className: 'bg-gray-300 text-gray-500 cursor-not-allowed'
       };
     }
-    
+
     return {
       variant: 'ready',
       icon: Download,
-      text: 'Save',
-      className: 'bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 text-white transform hover:scale-105'
+      text: 'Download',
+      className: 'bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white transform hover:scale-105'
     };
   };
 
@@ -239,92 +245,88 @@ const CutDownload = ({
   const downloadButtonState = getDownloadButtonState();
 
   return (
-    <div className="space-y-3">
-      {/* 🆕 **FORMAT PRESETS**: Above Cut button */}
-      <FormatPresets
+    <div className="space-y-4">
+      {/* 🎛️ **FORMAT SELECTOR**: Format selection */}
+      <FormatPresets 
         selectedFormat={outputFormat}
         onFormatChange={onFormatChange}
       />
 
-      {isProcessing && (
-        <div className="w-full bg-gray-200 rounded-full h-2">
-          <div 
-            className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-            style={{ width: `${processingProgress}%` }}
-          />
+      {/* 🎯 **PROCESSING INFO**: Hiển thị thông tin processing */}
+      {audioFile && (
+        <div className="bg-gray-50 p-3 rounded-lg text-sm">
+          <div className="grid grid-cols-2 gap-2">
+            <div>Duration: {formatTime(endTime - startTime)}</div>
+            <div>Speed: {playbackRate !== 1 ? `${playbackRate}x` : 'Normal'}</div>
+            <div>Format: {outputFormat?.toUpperCase() || 'MP3'}</div>
+            <div>Quality: High</div>
+          </div>
         </div>
       )}
-      
+
+      {/* 🔌 **WEBSOCKET PROGRESS**: Hiển thị tiến trình real-time */}
+      <ProgressIndicator 
+        progress={progress}
+        className="mb-4"
+      />
+
+      {/* 🎯 **ACTION BUTTONS**: Cut và Download buttons */}
+      <div className="flex gap-3">
+        {/* 🆕 **CUT BUTTON**: Cut-only button (replaces "Cut & Download") */}
+        <button
+          onClick={handleCutOnly}
+          disabled={cutButtonState.variant === 'disabled' || isProcessing}
+          className={`
+            flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium
+            transition-all duration-200 disabled:cursor-not-allowed
+            ${cutButtonState.className}
+          `}
+        >
+          <cutButtonState.icon className="w-4 h-4" />
+          {cutButtonState.text}
+        </button>
+
+        {/* 🆕 **DOWNLOAD/SAVE BUTTON**: Replaces speed-only button */}
+        <button
+          onClick={handleDownload}
+          disabled={downloadButtonState.variant === 'disabled'}
+          className={`
+            flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium
+            transition-all duration-200 disabled:cursor-not-allowed
+            ${downloadButtonState.className}
+          `}
+        >
+          <downloadButtonState.icon className="w-4 h-4" />
+          {downloadButtonState.text}
+        </button>
+      </div>
+
+      {/* ❌ **ERROR DISPLAY**: Hiển thị lỗi nếu có */}
       {processingError && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-          <div className="flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-red-500" />
-            <span className="text-sm text-red-700">{processingError}</span>
+          <div className="flex items-center gap-2 text-red-700">
+            <AlertCircle className="w-4 h-4" />
+            <span className="font-medium">Error</span>
           </div>
+          <p className="text-red-600 text-sm mt-1">{processingError}</p>
         </div>
       )}
 
-      {/* 🆕 **CUT BUTTON**: Cut-only button (replaces "Cut & Download") */}
-      <button
-        onClick={handleCutOnly}
-        disabled={disabled || !audioFile || isProcessing}
-        className={`
-          w-full py-3 px-6 rounded-lg font-semibold text-sm
-          flex items-center justify-center gap-2
-          transition-all duration-200 ease-in-out
-          shadow-lg hover:shadow-xl
-          ${cutButtonState.className}
-        `}
-      >
-        <cutButtonState.icon 
-          className={`w-5 h-5 ${isProcessing ? 'animate-spin' : ''}`} 
-        />
-        {cutButtonState.text}
-      </button>
-
-      {/* 🆕 **DOWNLOAD/SAVE BUTTON**: Replaces speed-only button */}
-      <button
-        onClick={handleDownload}
-        disabled={!processedFile}
-        className={`
-          w-full py-2.5 px-6 rounded-lg font-semibold text-sm
-          flex items-center justify-center gap-2
-          transition-all duration-200 ease-in-out
-          shadow-md hover:shadow-lg
-          ${downloadButtonState.className}
-        `}
-      >
-        <downloadButtonState.icon className="w-4 h-4" />
-        {downloadButtonState.text}
-      </button>
-
-      {/* 🆕 **ENHANCED INFO DISPLAY**: Show current settings and processed file info */}
-      {audioFile && startTime !== undefined && endTime !== undefined && startTime < endTime && (
-        <div className="text-xs text-gray-600 text-center space-y-1">
-          <div>
-            Cut: {formatTime(startTime)} → {formatTime(endTime)}
+      {/* ✅ **SUCCESS DISPLAY**: Hiển thị thông tin file đã xử lý */}
+      {processedFile && !processingError && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+          <div className="flex items-center gap-2 text-green-700 mb-2">
+            <Save className="w-4 h-4" />
+            <span className="font-medium">Ready to Download</span>
           </div>
-          <div>
-            Duration: {formatTime(endTime - startTime)} | 
-            Format: {outputFormat?.toUpperCase() || 'MP3'}
-            {playbackRate !== 1 && (
-              <span> | Speed: {playbackRate}x</span>
-            )}
-            {(fadeIn > 0 || fadeOut > 0) && (
-              <span> | Fade: {fadeIn > 0 ? `In ${fadeIn}s` : ''}
-              {fadeIn > 0 && fadeOut > 0 ? ', ' : ''}
-              {fadeOut > 0 ? `Out ${fadeOut}s` : ''}</span>
+          <div className="text-green-600 text-sm space-y-1">
+            <div>✅ Duration: {formatTime(processedFile.duration)}</div>
+            <div>✅ Speed: {processedFile.playbackRate !== 1 ? `${processedFile.playbackRate}x` : 'Normal'}</div>
+            <div>✅ Format: {processedFile.outputFormat?.toUpperCase()}</div>
+            {processedFile.fileSize && (
+              <div>✅ Ready to download: {(processedFile.fileSize / 1024 / 1024).toFixed(2)} MB</div>
             )}
           </div>
-          
-          {/* 🆕 **PROCESSED FILE STATUS**: Show status of processed file */}
-          {processedFile && (
-            <div className="text-green-700 bg-green-50 rounded px-2 py-1 mt-2">
-              ✅ Ready to download: {(processedFile.fileSize / 1024 / 1024).toFixed(2)} MB
-              {processedFile.playbackRate !== 1 && ` at ${processedFile.playbackRate}x speed`}
-              <span className="font-semibold"> ({processedFile.outputFormat?.toUpperCase()})</span>
-            </div>
-          )}
         </div>
       )}
     </div>
