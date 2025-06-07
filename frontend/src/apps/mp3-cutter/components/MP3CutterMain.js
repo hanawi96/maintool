@@ -782,18 +782,31 @@ const MP3CutterMain = React.memo(() => {
       if (end > start && audioCurrentTime >= end - 0.05) {
         const autoReturnEnabled = getAutoReturnSetting();
         
-        if (autoReturnEnabled && audioRef.current) {
-          audioRef.current.currentTime = start;
-          audioRef.current.pause();
-          setCurrentTime(start);
-        } else if (audioRef.current) {
-          audioRef.current.pause();
-        }
+        // 🎯 **DEBUG AUTO-RETURN**: Log khi đến cuối region
+        console.log(`🔄 [AutoReturn] Reached end of region at ${audioCurrentTime.toFixed(3)}s, autoReturn: ${autoReturnEnabled}`);
         
-        setIsPlaying(false);
-        animationActive = false;
-        currentAnimationId = null;
-        return;
+        if (autoReturnEnabled && audioRef.current) {
+          // 🔄 **LOOP BACK TO START**: Tự động quay về start và TIẾP TỤC phát
+          audioRef.current.currentTime = start;
+          setCurrentTime(start);
+          
+          // 🔄 **CONTINUE PLAYBACK**: Đảm bảo nhạc tiếp tục phát để tạo loop
+          console.log(`✅ [AutoReturn] Looped back to start ${start.toFixed(2)}s - continuing playback`);
+          
+          // 🔄 **KEEP ANIMATION ACTIVE**: Không dừng animation để loop tiếp tục
+          // ❌ Không set isPlaying = false
+          // ❌ Không set animationActive = false 
+          // ✅ Để animation tiếp tục cho smooth loop
+          
+        } else if (audioRef.current) {
+          // 🛑 **PAUSE ONLY WHEN AUTO-RETURN DISABLED**: Chỉ pause khi tắt auto-return
+          audioRef.current.pause();
+          setIsPlaying(false);
+          animationActive = false;
+          currentAnimationId = null;
+          console.log(`⏹️ [AutoReturn] Auto-return disabled - paused at end`);
+          return;
+        }
       }
       
       // 🔥 **CONTINUE ANIMATION**: Tiếp tục loop nếu đang playing

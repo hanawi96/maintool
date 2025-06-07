@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, useEffect, useRef } from 'react';
-import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Zap, RotateCcw, RotateCw } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Zap, RotateCcw, RotateCw, Repeat } from 'lucide-react';
 import CompactTimeSelector from './UnifiedControlBar/CompactTimeSelector';
+import { getAutoReturnSetting, setAutoReturnSetting } from '../utils/safeStorage';
 import '../styles/UnifiedControlBar.css';
 
 // 🎯 **UNIFIED CONTROL BAR** - Single responsive row for all controls
@@ -37,6 +38,17 @@ const UnifiedControlBar = React.memo(({
 }) => {
   // 🔥 **OPTIMIZED**: Removed all logging refs to prevent spam
   const setupCompleteRef = useRef(false);
+  
+  // 🆕 **AUTO-RETURN STATE**: State quản lý auto-return loop setting
+  const [autoReturnEnabled, setAutoReturnEnabled] = React.useState(() => getAutoReturnSetting());
+  
+  // 🆕 **AUTO-RETURN TOGGLE**: Handler để toggle auto-return setting
+  const toggleAutoReturn = useCallback(() => {
+    const newValue = !autoReturnEnabled;
+    setAutoReturnEnabled(newValue);
+    setAutoReturnSetting(newValue);
+    console.log(`🔄 [AutoReturn] Toggle: ${autoReturnEnabled ? 'ON' : 'OFF'} → ${newValue ? 'ON' : 'OFF'}`);
+  }, [autoReturnEnabled]);
   
   // 🔥 **SINGLE SETUP LOG**: Only log initial setup once, asynchronously
   useEffect(() => {
@@ -169,8 +181,30 @@ const UnifiedControlBar = React.memo(({
       >
         <SkipForward className="w-4 h-4 text-slate-700 group-hover:text-slate-900" />
       </button>
+      
+      {/* 🔄 Auto-Return Toggle */}
+      <button
+        onClick={toggleAutoReturn}
+        disabled={disabled}
+        className={`relative p-2 rounded-lg transition-all duration-200 group ${
+          autoReturnEnabled 
+            ? 'bg-green-100 hover:bg-green-200 border border-green-300' 
+            : 'bg-slate-100 hover:bg-slate-200 border border-slate-300'
+        } disabled:opacity-50 disabled:cursor-not-allowed`}
+        title={`Auto-Return Loop: ${autoReturnEnabled ? 'ON - Will loop region' : 'OFF - Will stop at end'}`}
+      >
+        <Repeat className={`w-4 h-4 transition-colors ${
+          autoReturnEnabled 
+            ? 'text-green-700 group-hover:text-green-800' 
+            : 'text-slate-700 group-hover:text-slate-900'
+        }`} />
+        {/* 🎯 Visual indicator khi enabled */}
+        {autoReturnEnabled && (
+          <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full shadow-sm"></div>
+        )}
+      </button>
     </div>
-  ), [isPlaying, onTogglePlayPause, onJumpToStart, onJumpToEnd, disabled]);
+  ), [isPlaying, onTogglePlayPause, onJumpToStart, onJumpToEnd, disabled, toggleAutoReturn, autoReturnEnabled]);
 
   // 🎯 **VOLUME CONTROL SECTION** - Optimized with callbacks
   const VolumeControlSection = useMemo(() => {
