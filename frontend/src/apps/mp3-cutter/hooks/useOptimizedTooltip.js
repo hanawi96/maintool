@@ -73,8 +73,8 @@ export const useOptimizedTooltip = (canvasRef, duration, currentTime, isPlaying,
     }
     
     return {
-      visible: true,
-      x: cursorX,
+                visible: true,
+                x: cursorX,
       time: currentTime,
       formattedTime: formatTime(currentTime)
     };
@@ -87,12 +87,12 @@ export const useOptimizedTooltip = (canvasRef, duration, currentTime, isPlaying,
       return { start: null, end: null, selectionDuration: null };
     }
     
-    const canvasWidth = canvas.width;
-    const startX = (startTime / duration) * canvasWidth;
-    const endX = (endTime / duration) * canvasWidth;
-    const selectionDuration = endTime - startTime;
-    const durationX = (startX + endX) / 2;
-    
+          const canvasWidth = canvas.width;
+          const startX = (startTime / duration) * canvasWidth;
+          const endX = (endTime / duration) * canvasWidth;
+          const selectionDuration = endTime - startTime;
+          const durationX = (startX + endX) / 2;
+          
     // 🔧 **REGION WIDTH CALCULATION**: Tính chiều dài region để ẩn tooltip khi quá nhỏ
     const regionWidthPx = Math.abs(endX - startX);
     
@@ -122,23 +122,23 @@ export const useOptimizedTooltip = (canvasRef, duration, currentTime, isPlaying,
     }
     
     return {
-      start: {
-        visible: true,
-        x: startX,
-        time: startTime,
-        formattedTime: formatTime(startTime)
-      },
-      end: {
-        visible: true,
-        x: endX,
-        time: endTime,
-        formattedTime: formatTime(endTime)
-      },
+              start: {
+                visible: true,
+                x: startX,
+                time: startTime,
+                formattedTime: formatTime(startTime)
+              },
+              end: {
+                visible: true,
+                x: endX,
+                time: endTime,
+                formattedTime: formatTime(endTime)
+              },
       selectionDuration: shouldShowDurationTooltip ? {
-        visible: true,
-        x: durationX,
-        duration: selectionDuration,
-        formattedTime: formatTime(selectionDuration)
+                visible: true,
+                x: durationX,
+                duration: selectionDuration,
+                formattedTime: formatTime(selectionDuration)
       } : null // 🔧 **HIDE WHEN TOO SMALL**: Ẩn khi region quá nhỏ
     };
   }, [canvasRef, duration, startTime, endTime, formatTime, isDragging]);
@@ -201,11 +201,11 @@ export const useOptimizedTooltip = (canvasRef, duration, currentTime, isPlaying,
     if (hoverTimeoutRef.current) {
       clearTimeout(hoverTimeoutRef.current);
     }
-    
-    hoverTimeoutRef.current = setTimeout(() => {
+      
+      hoverTimeoutRef.current = setTimeout(() => {
       setIsHoverActive(false);
       setHoverMousePosition(null);
-    }, 2000);
+      }, 2000);
   }, [canvasRef, duration]);
   
   const clearHoverTooltip = useCallback(() => {

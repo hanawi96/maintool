@@ -300,16 +300,18 @@ export const useInteractionHandlers = ({
     const processAction = () => {
       if (result.action === 'clearHover') {
         setHoveredHandle(null);
+        
+        // 🛡️ **FORCE RESET**: Reset interaction state nếu có forceReset flag
+        if (result.forceReset) {
+          setIsDragging(null); // Reset drag state
+          console.log(`🛡️ [ForceReset] All interaction states reset on mouse leave - protection against ghost states`);
+        }
       }
     };
     
-    // 🎯 DEBOUNCED UPDATES for mouse leave
-    if (window.requestIdleCallback) {
-      window.requestIdleCallback(processAction);
-    } else {
-      setTimeout(processAction, 0);
-    }
-  }, [setHoveredHandle, interactionManagerRef]);
+    // 🎯 IMMEDIATE PROCESSING for mouse leave
+    processAction();
+  }, [setHoveredHandle, setIsDragging, interactionManagerRef]);
 
   return {
     handleCanvasMouseDown,

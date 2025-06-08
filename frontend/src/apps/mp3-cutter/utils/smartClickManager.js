@@ -34,6 +34,9 @@ export class SmartClickManager {
   constructor() {
     this.debugId = Math.random().toString(36).substr(2, 6);
     
+    // 🛡️ **PROTECTION TIMING**: Track interaction timing for re-entry protection
+    this.lastInteractionTime = null; // Track last mouse interaction time
+    
     // 🎯 Click behavior preferences
     this.preferences = {
       enableSmartUpdate: true,        // Enable smart start/end updates
@@ -48,7 +51,7 @@ export class SmartClickManager {
       enableHoverProtection: true         // 🆕 **HOVER PROTECTION**: Bảo vệ handles khỏi hover events
     };
     
-    console.log(`🎯 [SmartClickManager] Created with HOVER PROTECTION enabled - ID: ${this.debugId}`);
+    console.log(`🎯 [SmartClickManager] Created with ENHANCED PROTECTION enabled - ID: ${this.debugId}`);
   }
   
   /**
@@ -336,24 +339,35 @@ export class SmartClickManager {
     const isStartAtEdge = Math.abs(startTime - 0) < 0.1; // Start handle gần đầu file (< 0.1s)
     const isEndAtEdge = Math.abs(endTime - duration) < 0.1; // End handle gần cuối file (< 0.1s)
     
+    // 🛡️ **ENHANCED EDGE PROTECTION**: Tăng cường protection với threshold lớn hơn
+    const edgeProtectionThreshold = 2.0; // Tăng từ 1.0s lên 2.0s cho protection mạnh hơn
+    
     // 🔧 **BEFORE_START PROTECTION**: Protect start handle khi đã ở edge
     if (clickZone === CLICK_ZONES.BEFORE_START && isStartAtEdge && this.preferences.preventAccidentalHandleMove) {
-      console.log(`🛡️ [${this.debugId}] EDGE PROTECTION: Start handle đã ở edge (${startTime.toFixed(2)}s), blocking BEFORE_START update`);
-      return false;
+      // 🛡️ **DISTANCE CHECK**: Kiểm tra khoảng cách click với start handle
+      const distanceFromStart = Math.abs(clickTime - startTime);
+      if (distanceFromStart < edgeProtectionThreshold) {
+        console.log(`🛡️ [${this.debugId}] ENHANCED EDGE PROTECTION: Start handle at edge (${startTime.toFixed(2)}s), click too close (${distanceFromStart.toFixed(2)}s < ${edgeProtectionThreshold}s), blocking BEFORE_START update`);
+        return false;
+      }
     }
     
     // 🔧 **AFTER_END PROTECTION**: Protect end handle khi đã ở edge  
     if (clickZone === CLICK_ZONES.AFTER_END && isEndAtEdge && this.preferences.preventAccidentalHandleMove) {
-      console.log(`🛡️ [${this.debugId}] EDGE PROTECTION: End handle đã ở edge (${endTime.toFixed(2)}s), blocking AFTER_END update`);
-      return false;
+      // 🛡️ **DISTANCE CHECK**: Kiểm tra khoảng cách click với end handle
+      const distanceFromEnd = Math.abs(clickTime - endTime);
+      if (distanceFromEnd < edgeProtectionThreshold) {
+        console.log(`🛡️ [${this.debugId}] ENHANCED EDGE PROTECTION: End handle at edge (${endTime.toFixed(2)}s), click too close (${distanceFromEnd.toFixed(2)}s < ${edgeProtectionThreshold}s), blocking AFTER_END update`);
+        return false;
+      }
     }
     
     // 🔧 **MINIMAL MOVEMENT PROTECTION**: Tránh movement quá nhỏ
-    const minMovementThreshold = 0.5; // 0.5 giây threshold
+    const minMovementThreshold = 1.0; // Tăng từ 0.5s lên 1.0s cho protection mạnh hơn
     if (clickZone === CLICK_ZONES.BEFORE_START) {
       const movementDistance = Math.abs(startTime - clickTime);
       if (movementDistance < minMovementThreshold) {
-        console.log(`🛡️ [${this.debugId}] MINIMAL MOVEMENT PROTECTION: Start movement too small (${movementDistance.toFixed(2)}s < ${minMovementThreshold}s)`);
+        console.log(`🛡️ [${this.debugId}] ENHANCED MINIMAL MOVEMENT PROTECTION: Start movement too small (${movementDistance.toFixed(2)}s < ${minMovementThreshold}s)`);
         return false;
       }
     }
@@ -361,9 +375,25 @@ export class SmartClickManager {
     if (clickZone === CLICK_ZONES.AFTER_END) {
       const movementDistance = Math.abs(endTime - clickTime);
       if (movementDistance < minMovementThreshold) {
-        console.log(`🛡️ [${this.debugId}] MINIMAL MOVEMENT PROTECTION: End movement too small (${movementDistance.toFixed(2)}s < ${minMovementThreshold}s)`);
+        console.log(`🛡️ [${this.debugId}] ENHANCED MINIMAL MOVEMENT PROTECTION: End movement too small (${movementDistance.toFixed(2)}s < ${minMovementThreshold}s)`);
         return false;
       }
+    }
+    
+    // 🛡️ **ADDITIONAL PROTECTION**: Check cho mouse re-entry scenarios
+    if (!isActualClick) {
+      // 🔧 **MOUSE RE-ENTRY PROTECTION**: Extra protection cho hover events sau mouse leave
+      const currentTime = performance.now();
+      const timeSinceLastInteraction = this.lastInteractionTime ? currentTime - this.lastInteractionTime : Infinity;
+      
+      // 🛡️ **COOLDOWN PERIOD**: 500ms cooldown sau mouse interactions
+      if (timeSinceLastInteraction < 500) {
+        console.log(`🛡️ [${this.debugId}] MOUSE RE-ENTRY PROTECTION: Too soon after last interaction (${timeSinceLastInteraction.toFixed(0)}ms < 500ms), blocking hover update`);
+        return false;
+      }
+    } else {
+      // 🔧 **TRACK LAST INTERACTION**: Track actual clicks cho re-entry protection
+      this.lastInteractionTime = performance.now();
     }
     
     return true;

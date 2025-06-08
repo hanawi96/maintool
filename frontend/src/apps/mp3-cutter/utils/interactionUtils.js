@@ -96,6 +96,9 @@ export class InteractionManager {
     this.lastMousePosition = null;             // Track mouse movement
     this.dragMoveThreshold = 3;                // Minimum pixels to confirm drag
     
+    // 🛡️ **MOUSE RE-ENTRY PROTECTION**: Track mouse leave timing
+    this.lastMouseLeaveTime = null;            // Track when mouse left canvas
+    
     // 🆕 **REGION DRAG**: Support cho region dragging
     this.isDraggingRegion = false;             // True khi đang drag toàn bộ region
     this.regionDragStartTime = null;           // Reference time cho region drag
@@ -115,11 +118,82 @@ export class InteractionManager {
     // 🆕 NEW: Smart click manager for intelligent click behavior
     this.smartClickManager = createSmartClickManager();
     
-    // 🎯 Debug tracking
-    this.debugId = Math.random().toString(36).substr(2, 6);
-    console.log(`🎮 [InteractionManager] Created with ID: ${this.debugId} (MODERN HANDLES + DELAYED JUMP)`);
-    console.log(`🔄 [AudioSync] Connected to InteractionManager ${this.debugId}`);
-    console.log(`🎯 [SmartClick] Connected to InteractionManager ${this.debugId}`);
+    // 🔧 **GLOBAL MOUSE UP PROTECTION**: Add global mouse up listener to catch outside releases
+    this.globalMouseUpHandler = null;
+    this.isGlobalListenerActive = false;
+    
+    // 🆕 **DEBUG ID**: Unique debug identifier
+    this.debugId = Math.random().toString(36).substring(2, 8);
+    
+    // 🚀 **SETUP GLOBAL MOUSE UP LISTENER**: Catch mouse up outside canvas
+    this.setupGlobalMouseUpListener();
+  }
+  
+  /**
+   * 🚨 **SETUP GLOBAL MOUSE UP LISTENER**: Catch mouse up events outside canvas
+   */
+  setupGlobalMouseUpListener() {
+    this.globalMouseUpHandler = (e) => {
+      // Only handle if we're currently in a drag state
+      if (this.state === INTERACTION_STATES.DRAGGING && this.isDraggingConfirmed) {
+        console.log(`🌍 [${this.debugId}] GLOBAL mouse up detected outside canvas - preventing ghost drag:`, {
+          dragState: this.state,
+          confirmed: this.isDraggingConfirmed,
+          activeHandle: this.activeHandle,
+          isDraggingRegion: this.isDraggingRegion,
+          mouseEvent: 'outside_canvas',
+          ghostDragPrevention: true
+        });
+        
+        // 🚨 **FORCE COMPLETE RESET**: Reset all drag states
+        this.state = INTERACTION_STATES.IDLE;
+        this.activeHandle = HANDLE_TYPES.NONE;
+        this.lastHoveredHandle = HANDLE_TYPES.NONE;
+        this.dragStartPosition = null;
+        this.dragStartTime = null;
+        this.isDraggingConfirmed = false;
+        this.mouseDownTimestamp = null;
+        this.lastMousePosition = null;
+        this.isDraggingRegion = false;
+        this.regionDragStartTime = null;
+        this.regionDragOffset = 0;
+        
+        // Clear pending actions
+        this.pendingJumpTime = null;
+        this.hasPendingJump = false;
+        this.pendingHandleUpdate = null;
+        this.hasPendingHandleUpdate = false;
+        
+        // Disable global listener until next drag starts
+        this.disableGlobalMouseUpListener();
+        
+        console.log(`🛡️ [${this.debugId}] Ghost drag PREVENTED by global mouse up - all states reset`);
+      }
+    };
+    
+    // Don't attach immediately - only when drag starts
+  }
+  
+  /**
+   * 🔧 **ENABLE GLOBAL MOUSE UP LISTENER**: Activate when drag starts
+   */
+  enableGlobalMouseUpListener() {
+    if (!this.isGlobalListenerActive && this.globalMouseUpHandler) {
+      document.addEventListener('mouseup', this.globalMouseUpHandler, { capture: true, passive: true });
+      this.isGlobalListenerActive = true;
+      console.log(`🌍 [${this.debugId}] Global mouse up listener ENABLED - will catch outside releases`);
+    }
+  }
+  
+  /**
+   * 🔧 **DISABLE GLOBAL MOUSE UP LISTENER**: Deactivate when drag ends
+   */
+  disableGlobalMouseUpListener() {
+    if (this.isGlobalListenerActive && this.globalMouseUpHandler) {
+      document.removeEventListener('mouseup', this.globalMouseUpHandler, { capture: true });
+      this.isGlobalListenerActive = false;
+      console.log(`🌍 [${this.debugId}] Global mouse up listener DISABLED`);
+    }
   }
   
   /**
@@ -355,6 +429,10 @@ export class InteractionManager {
   handleMouseMove(x, canvasWidth, duration, startTime, endTime, audioContext = null) {
     const currentTime = positionToTime(x, canvasWidth, duration);
     
+    // 🛡️ **MOUSE RE-ENTRY PROTECTION**: Ngăn immediate interactions sau mouse leave
+    const timeSinceMouseLeave = this.lastMouseLeaveTime ? performance.now() - this.lastMouseLeaveTime : Infinity;
+    const isRecentlyReEntered = timeSinceMouseLeave < 300; // 300ms cooldown
+    
     // 🆕 **DRAG CONFIRMATION**: Kiểm tra xem có thực sự đang drag không
     if (this.state === INTERACTION_STATES.DRAGGING && !this.isDraggingConfirmed) {
       const pixelsMoved = Math.abs(x - (this.lastMousePosition?.x || x));
@@ -397,6 +475,9 @@ export class InteractionManager {
             isDraggingRegion: this.isDraggingRegion,
             pendingJumpCanceled: true
           });
+          
+          // 🌍 **ENABLE GLOBAL PROTECTION**: Enable global mouse up listener for ghost drag protection
+          this.enableGlobalMouseUpListener();
         }
       }
     }
@@ -541,6 +622,13 @@ export class InteractionManager {
       
     } else {
       // 🎯 **HOVER ONLY** - Visual feedback only, TUYỆT ĐỐI KHÔNG thay đổi region
+      
+      // 🛡️ **RE-ENTRY PROTECTION**: Skip handle detection nếu vừa re-enter
+      if (isRecentlyReEntered) {
+        console.log(`🛡️ [${this.debugId}] MOUSE RE-ENTRY PROTECTION: Skipping handle detection (${timeSinceMouseLeave.toFixed(0)}ms since mouse leave < 300ms)`);
+        return { action: 'none', reason: 'mouse_re_entry_protection' };
+      }
+      
       const handle = detectHandle(x, canvasWidth, duration, startTime, endTime);
       
       if (handle !== this.lastHoveredHandle) {
@@ -675,6 +763,9 @@ export class InteractionManager {
     this.pendingHandleUpdate = null;
     this.hasPendingHandleUpdate = false;
     
+    // 🌍 **DISABLE GLOBAL PROTECTION**: Disable global mouse up listener after normal completion
+    this.disableGlobalMouseUpListener();
+    
     return {
       action: wasDragging ? 'completeDrag' : 'none',
       saveHistory: wasConfirmedDrag, // 🆕 **CHỈ SAVE** khi đã confirmed drag
@@ -696,17 +787,51 @@ export class InteractionManager {
   handleMouseLeave() {
     console.log(`🫥 [${this.debugId}] Mouse left canvas (MODERN)`);
     
-    const wasDragging = this.state === INTERACTION_STATES.DRAGGING;
+    // 🛡️ **TRACK MOUSE LEAVE TIME**: Record timing cho re-entry protection
+    this.lastMouseLeaveTime = performance.now();
     
-    // 🎯 Clear hover state but preserve dragging if active
-    if (!wasDragging) {
-      this.state = INTERACTION_STATES.IDLE;
-      this.lastHoveredHandle = HANDLE_TYPES.NONE;
+    const wasDragging = this.state === INTERACTION_STATES.DRAGGING;
+    const wasConfirmedDrag = this.isDraggingConfirmed;
+    
+    // 🚨 **CRITICAL FIX for GHOST DRAG BUG**: ALWAYS RESET drag state on mouse leave
+    // Previous logic giữ drag state khi có confirmed drag, causing ghost drag when mouse up outside canvas
+    console.log(`🛡️ [${this.debugId}] FORCE RESET all interaction states - mouse left canvas (protection against ghost states)`);
+    
+    // 🔧 **FORCE RESET ALL STATES**: Always reset regardless of drag status
+    this.state = INTERACTION_STATES.IDLE;
+    this.lastHoveredHandle = HANDLE_TYPES.NONE;
+    this.activeHandle = HANDLE_TYPES.NONE;
+    this.dragStartPosition = null;
+    this.dragStartTime = null;
+    this.isDraggingConfirmed = false;
+    this.mouseDownTimestamp = null;
+    this.lastMousePosition = null;
+    
+    // 🔧 **RESET REGION DRAG**: Reset region drag states
+    this.isDraggingRegion = false;
+    this.regionDragStartTime = null;
+    this.regionDragOffset = 0;
+    
+    // 🛡️ **CLEAR PENDING ACTIONS**: Clear pending actions để tránh trigger khi mouse re-enter
+    if (this.hasPendingJump) {
+      console.log(`🚫 [${this.debugId}] CLEARING pending jump (${this.pendingJumpTime?.toFixed(2)}s) - mouse left canvas`);
+      this.pendingJumpTime = null;
+      this.hasPendingJump = false;
+    }
+    
+    if (this.hasPendingHandleUpdate) {
+      console.log(`🚫 [${this.debugId}] CLEARING pending handle update (${this.pendingHandleUpdate?.type}: ${this.pendingHandleUpdate?.newTime?.toFixed(2)}s) - mouse left canvas`);
+      this.pendingHandleUpdate = null;
+      this.hasPendingHandleUpdate = false;
     }
     
     return {
       action: 'clearHover',
-      cursor: wasDragging ? 'grabbing' : 'default'
+      cursor: 'default', // Always reset to default cursor
+      forceReset: true, // Always force reset
+      wasDragging: wasDragging,
+      wasConfirmedDrag: wasConfirmedDrag,
+      ghostDragPrevented: true // Flag để báo đã prevent ghost drag
     };
   }
   
@@ -743,7 +868,7 @@ export class InteractionManager {
    * 🎯 Reset manager state
    */
   reset() {
-    console.log(`🔄 [${this.debugId}] Resetting interaction state (MODERN + DELAYED JUMP)`);
+    console.log(`🔄 [${this.debugId}] Resetting interaction state (MODERN + DELAYED JUMP + RE-ENTRY PROTECTION)`);
     this.state = INTERACTION_STATES.IDLE;
     this.activeHandle = HANDLE_TYPES.NONE;
     this.lastHoveredHandle = HANDLE_TYPES.NONE;
@@ -754,6 +879,9 @@ export class InteractionManager {
     this.isDraggingConfirmed = false;
     this.mouseDownTimestamp = null;
     this.lastMousePosition = null;
+    
+    // 🛡️ **RESET RE-ENTRY PROTECTION**: Reset mouse leave timing
+    this.lastMouseLeaveTime = null;
     
     // 🆕 **RESET REGION DRAG**: Reset region drag state
     this.isDraggingRegion = false;
@@ -772,6 +900,9 @@ export class InteractionManager {
     if (this.audioSyncManager) {
       this.audioSyncManager.reset();
     }
+    
+    // 🌍 **CLEANUP GLOBAL LISTENER**: Ensure global mouse up listener is disabled
+    this.disableGlobalMouseUpListener();
   }
   
   /**
