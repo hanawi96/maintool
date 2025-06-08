@@ -1,40 +1,19 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 
 /**
- * 🚀 **OPTIMIZED TOOLTIP HOOK** - Hover và Handle tooltips only
+ * 🚀 **ULTRA INSTANT TOOLTIP HOOK** - Zero delay cho tất cả tooltips
  * 
- * ✅ **SIMPLIFIED VERSION:**
- * - 🎯 **HOVER TOOLTIP**: Tooltip khi hover mouse
- * - 🤚 **HANDLE TOOLTIPS**: Tooltips cho start/end handles và selection duration
- * - 💨 **ZERO LAG**: Instant response to all interactions
+ * ✅ **ULTRA RESPONSIVE VERSION:**
+ * - ⚡ **INSTANT HOVER TOOLTIP**: Direct calculation từ mouse position - ZERO DELAY
+ * - ⚡ **INSTANT HANDLE TOOLTIPS**: Direct calculation từ startTime/endTime - ZERO DELAY  
+ * - 🔥 **NO DELAYS**: Loại bỏ timeouts và animation frames
  */
 export const useOptimizedTooltip = (canvasRef, duration, currentTime, isPlaying, audioRef, startTime, endTime, hoveredHandle, isDragging) => {
-  // 🎯 **CORE STATE** - Chỉ hover và handles
-  const [tooltipData, setTooltipData] = useState({
-    hover: null,
-    handles: { start: null, end: null, selectionDuration: null }
-  });
+  // 🎯 **INSTANT HOVER STATE** - Track mouse position cho instant calculation
+  const [hoverMousePosition, setHoverMousePosition] = useState(null);
+  const [isHoverActive, setIsHoverActive] = useState(false);
   
-  // 🚀 **IMMEDIATE REFS** - Zero delay updates
-  const durationRef = useRef(duration);
-  const startTimeRef = useRef(startTime);
-  const endTimeRef = useRef(endTime);
-  const canvasRefRef = useRef(canvasRef);
-  const isDraggingRef = useRef(isDragging);
-  
-  // 🔥 **ANIMATION REFS** - Chỉ cho handles
-  const handlesAnimationRef = useRef(null);
-  const isHandlesAnimatingRef = useRef(false);
-  
-  const handlesFrameCountRef = useRef(0);
   const hoverTimeoutRef = useRef(null);
-  
-  // 🔥 **IMMEDIATE SYNC** - No useEffect delays
-  durationRef.current = duration;
-  startTimeRef.current = startTime;
-  endTimeRef.current = endTime;
-  canvasRefRef.current = canvasRef;
-  isDraggingRef.current = isDragging;
   
   // 🎯 **TIME FORMATTER**
   const formatTime = useCallback((time) => {
@@ -45,145 +24,180 @@ export const useOptimizedTooltip = (canvasRef, duration, currentTime, isPlaying,
     return `${minutes.toString().padStart(2, '0')}.${seconds.toString().padStart(2, '0')}.${centiseconds.toString().padStart(2, '0')}`;
   }, []);
   
-  // 🆕 **INSTANT HANDLES ANIMATION**
-  const runHandlesAnimation = useCallback(() => {
-    if (isHandlesAnimatingRef.current) return;
+  // ⚡ **INSTANT HANDLE TOOLTIPS CALCULATOR** - Tính toán trực tiếp từ props
+  const calculateHandleTooltips = useCallback(() => {
+    const canvas = canvasRef?.current;
+    if (!canvas || !duration || duration === 0 || startTime >= endTime) {
+      return { start: null, end: null, selectionDuration: null };
+    }
     
-    const animate = () => {
-      if (!isHandlesAnimatingRef.current) return;
-      
-      handlesFrameCountRef.current++;
-      
-      const canvas = canvasRefRef.current?.current;
-      const duration = durationRef.current;
-      const startTime = startTimeRef.current;
-      const endTime = endTimeRef.current;
-      const currentIsDragging = isDraggingRef.current;
-      
-      if (canvas && duration) {
-        if (startTime < endTime) {
-          const canvasWidth = canvas.width;
-          const startX = (startTime / duration) * canvasWidth;
-          const endX = (endTime / duration) * canvasWidth;
-          const selectionDuration = endTime - startTime;
-          const durationX = (startX + endX) / 2;
-          
-          setTooltipData(prev => ({
-            ...prev,
-            handles: {
-              start: {
-                visible: true,
-                x: startX,
-                time: startTime,
-                formattedTime: formatTime(startTime)
-              },
-              end: {
-                visible: true,
-                x: endX,
-                time: endTime,
-                formattedTime: formatTime(endTime)
-              },
-              selectionDuration: selectionDuration >= 0.1 ? {
-                visible: true,
-                x: durationX,
-                duration: selectionDuration,
-                formattedTime: formatTime(selectionDuration)
-              } : null
-            }
-          }));
-        }
-      }
-      
-      handlesAnimationRef.current = requestAnimationFrame(animate);
+    const canvasWidth = canvas.width;
+    const startX = (startTime / duration) * canvasWidth;
+    const endX = (endTime / duration) * canvasWidth;
+    const selectionDuration = endTime - startTime;
+    const durationX = (startX + endX) / 2;
+    
+    // 🔧 **INSTANT CALCULATION DEBUG** - Log khi có drag để verify instant response
+    if (isDragging && Math.random() < 0.05) { // 5% sampling chỉ khi drag
+      console.log('⚡ [INSTANT-HANDLE] Direct calculation (NO DELAY):', {
+        startTime: `${startTime.toFixed(3)}s`,
+        endTime: `${endTime.toFixed(3)}s`,
+        startX: `${startX.toFixed(1)}px`,
+        endX: `${endX.toFixed(1)}px`,
+        isDragging,
+        method: 'DIRECT_CALCULATION_FROM_PROPS',
+        performance: 'ZERO_ANIMATION_FRAME_DELAY'
+      });
+    }
+    
+    return {
+      start: {
+        visible: true,
+        x: startX,
+        time: startTime,
+        formattedTime: formatTime(startTime)
+      },
+      end: {
+        visible: true,
+        x: endX,
+        time: endTime,
+        formattedTime: formatTime(endTime)
+      },
+      selectionDuration: selectionDuration >= 0.1 ? {
+        visible: true,
+        x: durationX,
+        duration: selectionDuration,
+        formattedTime: formatTime(selectionDuration)
+      } : null
     };
-    
-    isHandlesAnimatingRef.current = true;
-    handlesFrameCountRef.current = 0;
-    animate();
-  }, [formatTime]);
+  }, [canvasRef, duration, startTime, endTime, formatTime, isDragging]);
   
-  // 🔧 **STOP HANDLES ANIMATION**
-  const stopHandlesAnimation = useCallback(() => {
-    isHandlesAnimatingRef.current = false;
-    if (handlesAnimationRef.current) {
-      cancelAnimationFrame(handlesAnimationRef.current);
-      handlesAnimationRef.current = null;
-    }
-  }, []);
-  
-  // 🚀 **HANDLES CONTROL** - Start once and run continuously
-  useEffect(() => {
-    const shouldStartHandlesAnimation = audioRef?.current && duration > 0;
-    
-    if (shouldStartHandlesAnimation) {
-      runHandlesAnimation();
-    } else {
-      stopHandlesAnimation();
+  // ⚡ **INSTANT HOVER CALCULATOR** - Direct calculation từ mouse position
+  const calculateHoverTooltip = useCallback(() => {
+    if (!isHoverActive || !hoverMousePosition || !canvasRef?.current || !duration) {
+      return null;
     }
     
-    return stopHandlesAnimation;
-  }, [audioRef, duration, runHandlesAnimation, stopHandlesAnimation]);
+    const canvas = canvasRef.current;
+    const { x: mouseX } = hoverMousePosition;
+    const time = (mouseX / canvas.width) * duration;
+    
+    // 🔧 **VALIDATION**: Ensure valid position
+    if (time < 0 || time > duration || mouseX < 0 || mouseX > canvas.width) {
+      return null;
+    }
+    
+    // 🔧 **INSTANT HOVER DEBUG** - Log instant calculation
+    if (Math.random() < 0.02) { // 2% sampling để track hover performance
+      console.log('⚡ [INSTANT-HOVER] Direct calculation from mouse:', {
+        mouseX: `${mouseX.toFixed(1)}px`,
+        time: `${time.toFixed(3)}s`,
+        canvasWidth: `${canvas.width}px`,
+        method: 'DIRECT_CALCULATION_FROM_MOUSE',
+        performance: 'ZERO_STATE_DELAY'
+      });
+    }
+    
+    return {
+      visible: true,
+      x: mouseX,
+      time,
+      formattedTime: formatTime(time)
+    };
+  }, [isHoverActive, hoverMousePosition, canvasRef, duration, formatTime]);
   
-  // 🚀 **INSTANT HOVER TOOLTIP**
+  // 🚀 **ULTRA INSTANT HOVER UPDATE** - Chỉ track mouse position, calculation ở useMemo
   const updateHoverTooltip = useCallback((mouseEvent) => {
-    if (hoverTimeoutRef.current) {
-      clearTimeout(hoverTimeoutRef.current);
-    }
-    
     if (!canvasRef?.current || !duration) {
-      setTooltipData(prev => ({ ...prev, hover: null }));
+      setHoverMousePosition(null);
+      setIsHoverActive(false);
       return;
     }
     
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
     const x = mouseEvent.clientX - rect.left;
-    const time = (x / canvas.width) * duration;
     
-    if (time >= 0 && time <= duration && x >= 0 && x <= canvas.width) {
-      setTooltipData(prev => ({
-        ...prev,
-        hover: {
-          visible: true,
-          x,
-          time,
-          formattedTime: formatTime(time)
-        }
-      }));
-      
-      hoverTimeoutRef.current = setTimeout(() => {
-        setTooltipData(prev => ({ ...prev, hover: null }));
-      }, 2000);
-    } else {
-      setTooltipData(prev => ({ ...prev, hover: null }));
+    // ⚡ **INSTANT POSITION UPDATE** - Chỉ store position, không calculate tooltip
+    setHoverMousePosition({ x });
+    setIsHoverActive(true);
+    
+    // 🔄 **SMART TIMEOUT** - Clear previous timeout và set mới
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
     }
-  }, [canvasRef, duration, formatTime]);
+    
+    hoverTimeoutRef.current = setTimeout(() => {
+      setIsHoverActive(false);
+      setHoverMousePosition(null);
+    }, 2000);
+  }, [canvasRef, duration]);
   
   const clearHoverTooltip = useCallback(() => {
     if (hoverTimeoutRef.current) {
       clearTimeout(hoverTimeoutRef.current);
       hoverTimeoutRef.current = null;
     }
-    setTooltipData(prev => ({ ...prev, hover: null }));
+    setIsHoverActive(false);
+    setHoverMousePosition(null);
   }, []);
   
   // 🧹 **CLEANUP**
   useEffect(() => {
     return () => {
-      stopHandlesAnimation();
       if (hoverTimeoutRef.current) {
         clearTimeout(hoverTimeoutRef.current);
       }
     };
-  }, [stopHandlesAnimation]);
+  }, []);
   
-  // 🎯 **RETURN** - Chỉ hover và handle tooltips
+  // ⚡ **INSTANT HANDLE TOOLTIPS** - Tính toán mới mỗi render cho instant response
+  const handleTooltips = useMemo(() => {
+    const tooltips = calculateHandleTooltips();
+    
+    // 🔧 **INSTANT SYNC DEBUG** - Log khi tooltips được calculate
+    if (Math.random() < 0.01) { // 1% sampling để track instant updates
+      console.log('⚡ [INSTANT-SYNC] Handle tooltips calculated:', {
+        startVisible: !!tooltips.start,
+        endVisible: !!tooltips.end,
+        durationVisible: !!tooltips.selectionDuration,
+        startX: tooltips.start?.x?.toFixed(1),
+        endX: tooltips.end?.x?.toFixed(1),
+        durationX: tooltips.selectionDuration?.x?.toFixed(1),
+        calculation: 'INSTANT_EVERY_RENDER',
+        performance: 'ZERO_DELAY_GUARANTEED'
+      });
+    }
+    
+    return tooltips;
+  }, [calculateHandleTooltips]);
+  
+  // ⚡ **INSTANT HOVER TOOLTIP** - Direct calculation mỗi render
+  const hoverTooltip = useMemo(() => {
+    const tooltip = calculateHoverTooltip();
+    
+    // 🔧 **INSTANT HOVER DEBUG** - Log khi hover tooltip được calculate
+    if (tooltip && Math.random() < 0.02) { // 2% sampling cho hover
+      console.log('⚡ [INSTANT-HOVER-SYNC] Hover tooltip calculated:', {
+        visible: tooltip.visible,
+        x: `${tooltip.x.toFixed(1)}px`,
+        time: `${tooltip.time.toFixed(3)}s`,
+        formattedTime: tooltip.formattedTime,
+        calculation: 'INSTANT_FROM_MOUSE_POSITION',
+        performance: 'ZERO_CALCULATION_DELAY'
+      });
+    }
+    
+    return tooltip;
+  }, [calculateHoverTooltip]);
+  
+  // 🎯 **RETURN** - Instant calculated hover + handles
   return useMemo(() => {
     return {
-      hoverTooltip: tooltipData.hover,
-      handleTooltips: tooltipData.handles,
+      hoverTooltip,
+      handleTooltips,
       updateHoverTooltip,
       clearHoverTooltip
     };
-  }, [tooltipData, updateHoverTooltip, clearHoverTooltip]);
+  }, [hoverTooltip, handleTooltips, updateHoverTooltip, clearHoverTooltip]);
 };
