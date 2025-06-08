@@ -33,10 +33,11 @@ const WaveformCanvas = React.memo(({
 
   const lastRenderDataRef = useRef(null);
 
-  // 🚀 **OPTIMIZED TOOLTIP HOOK** - Chỉ hover và handle tooltips
+  // 🚀 **OPTIMIZED TOOLTIP HOOK** - Bao gồm main cursor tooltip
   const {
     hoverTooltip,
     handleTooltips,
+    mainCursorTooltip, // 🆕 **MAIN CURSOR TOOLTIP**: Instant calculated tooltip cho main cursor
     updateHoverTooltip,
     clearHoverTooltip
   } = useOptimizedTooltip(canvasRef, duration, currentTime, isPlaying, audioRef, startTime, endTime, hoveredHandle, isDragging);
@@ -75,8 +76,23 @@ const WaveformCanvas = React.memo(({
 
   const handleEnhancedMouseDown = useCallback((e) => {
     if (onMouseDown) onMouseDown(e);
+    
+    // 🔧 **CLEAR HOVER TOOLTIP**: Ẩn hover tooltip khi nhấn giữ/drag theo yêu cầu user
     clearHoverTooltip();
-  }, [onMouseDown, clearHoverTooltip]);
+    
+    // 🔧 **DEBUG MOUSE DOWN**: Log mouse down events
+    if (Math.random() < 0.1) { // 10% sampling để track mouse down
+      const canvas = canvasRef.current;
+      if (canvas) {
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        console.log('🖱️ [MOUSE-DOWN] Enhanced mouse down - hover tooltip cleared:', {
+          mouseX: `${mouseX.toFixed(1)}px`,
+          note: 'Hover tooltip bị ẩn khi nhấn giữ/drag - theo yêu cầu user'
+        });
+      }
+    }
+  }, [onMouseDown, canvasRef, clearHoverTooltip]);
 
   // 🔥 **STABLE RENDER DATA**: Optimized memoization
   const renderData = useMemo(() => {    
@@ -367,6 +383,7 @@ const WaveformCanvas = React.memo(({
       <WaveformUI 
         hoverTooltip={hoverTooltip}
         handleTooltips={handleTooltips}
+        mainCursorTooltip={mainCursorTooltip}
       />
     </div>
   );

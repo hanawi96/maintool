@@ -6,6 +6,7 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
  * ✅ **ULTRA RESPONSIVE VERSION:**
  * - ⚡ **INSTANT HOVER TOOLTIP**: Direct calculation từ mouse position - ZERO DELAY
  * - ⚡ **INSTANT HANDLE TOOLTIPS**: Direct calculation từ startTime/endTime - ZERO DELAY  
+ * - ⚡ **INSTANT MAIN CURSOR TOOLTIP**: Direct calculation từ currentTime - ZERO DELAY
  * - 🔥 **NO DELAYS**: Loại bỏ timeouts và animation frames
  */
 export const useOptimizedTooltip = (canvasRef, duration, currentTime, isPlaying, audioRef, startTime, endTime, hoveredHandle, isDragging) => {
@@ -23,6 +24,43 @@ export const useOptimizedTooltip = (canvasRef, duration, currentTime, isPlaying,
     const centiseconds = Math.floor((time % 1) * 100);
     return `${minutes.toString().padStart(2, '0')}.${seconds.toString().padStart(2, '0')}.${centiseconds.toString().padStart(2, '0')}`;
   }, []);
+  
+  // ⚡ **INSTANT MAIN CURSOR CALCULATOR** - Direct calculation từ currentTime
+  const calculateMainCursorTooltip = useCallback(() => {
+    // 🔧 **SHOW WHEN HAS AUDIO FILE**: Hiện khi có file mp3, không cần đang play
+    if (!canvasRef?.current || !duration || duration === 0 || typeof currentTime !== 'number') {
+      return null;
+    }
+    
+    const canvas = canvasRef.current;
+    const cursorX = (currentTime / duration) * canvas.width;
+    
+    // 🔧 **BOUNDARY CHECK**: Ensure cursor trong phạm vi canvas
+    if (cursorX < 0 || cursorX > canvas.width || currentTime < 0 || currentTime > duration) {
+      return null;
+    }
+    
+    // 🔧 **INSTANT MAIN CURSOR DEBUG** - Log instant calculation
+    if (Math.random() < 0.01) { // 1% sampling để track main cursor performance
+      console.log('⚡ [INSTANT-MAIN-CURSOR] Direct calculation from currentTime:', {
+        currentTime: `${currentTime.toFixed(3)}s`,
+        cursorX: `${cursorX.toFixed(1)}px`,
+        canvasWidth: `${canvas.width}px`,
+        isPlaying,
+        hasAudioFile: duration > 0,
+        method: 'DIRECT_CALCULATION_FROM_CURRENT_TIME',
+        performance: 'ZERO_STATE_DELAY',
+        note: 'Hiện trong mọi trường hợp khi có file mp3 - không chỉ khi playing'
+      });
+    }
+    
+    return {
+      visible: true,
+      x: cursorX,
+      time: currentTime,
+      formattedTime: formatTime(currentTime)
+    };
+  }, [canvasRef, duration, currentTime, formatTime, isPlaying]);
   
   // ⚡ **INSTANT HANDLE TOOLTIPS CALCULATOR** - Tính toán trực tiếp từ props
   const calculateHandleTooltips = useCallback(() => {
@@ -151,6 +189,28 @@ export const useOptimizedTooltip = (canvasRef, duration, currentTime, isPlaying,
     };
   }, []);
   
+  // ⚡ **INSTANT MAIN CURSOR TOOLTIP** - Direct calculation mỗi render
+  const mainCursorTooltip = useMemo(() => {
+    const tooltip = calculateMainCursorTooltip();
+    
+    // 🔧 **INSTANT MAIN CURSOR DEBUG** - Log khi main cursor tooltip được calculate
+    if (tooltip && Math.random() < 0.005) { // 0.5% sampling cho main cursor để tránh spam
+      console.log('⚡ [INSTANT-MAIN-CURSOR-SYNC] Main cursor tooltip calculated:', {
+        visible: tooltip.visible,
+        x: `${tooltip.x.toFixed(1)}px`,
+        time: `${tooltip.time.toFixed(3)}s`,
+        formattedTime: tooltip.formattedTime,
+        isPlaying,
+        hasAudioFile: !!tooltip, // Có file audio nếu tooltip tồn tại
+        calculation: 'INSTANT_FROM_CURRENT_TIME',
+        performance: 'ZERO_CALCULATION_DELAY',
+        note: 'Hiện trong mọi trường hợp khi có file mp3 - bao gồm cả khi drag handles'
+      });
+    }
+    
+    return tooltip;
+  }, [calculateMainCursorTooltip, isPlaying]);
+  
   // ⚡ **INSTANT HANDLE TOOLTIPS** - Tính toán mới mỗi render cho instant response
   const handleTooltips = useMemo(() => {
     const tooltips = calculateHandleTooltips();
@@ -183,21 +243,24 @@ export const useOptimizedTooltip = (canvasRef, duration, currentTime, isPlaying,
         x: `${tooltip.x.toFixed(1)}px`,
         time: `${tooltip.time.toFixed(3)}s`,
         formattedTime: tooltip.formattedTime,
+        isDragging, // 🆕 **DRAG STATE**: Track drag state
         calculation: 'INSTANT_FROM_MOUSE_POSITION',
-        performance: 'ZERO_CALCULATION_DELAY'
+        performance: 'ZERO_CALCULATION_DELAY',
+        note: 'Hover tooltip sẽ bị ẩn khi drag - theo yêu cầu user mới'
       });
     }
     
     return tooltip;
-  }, [calculateHoverTooltip]);
+  }, [calculateHoverTooltip, isDragging]);
   
-  // 🎯 **RETURN** - Instant calculated hover + handles
+  // 🎯 **RETURN** - Instant calculated hover + handles + main cursor
   return useMemo(() => {
     return {
       hoverTooltip,
       handleTooltips,
+      mainCursorTooltip, // 🆕 **MAIN CURSOR TOOLTIP**: Instant calculated main cursor tooltip
       updateHoverTooltip,
       clearHoverTooltip
     };
-  }, [hoverTooltip, handleTooltips, updateHoverTooltip, clearHoverTooltip]);
+  }, [hoverTooltip, handleTooltips, mainCursorTooltip, updateHoverTooltip, clearHoverTooltip]);
 };

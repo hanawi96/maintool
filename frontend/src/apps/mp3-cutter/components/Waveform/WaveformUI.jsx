@@ -2,7 +2,7 @@ import React, { useEffect, useRef, memo } from 'react';
 import { WAVEFORM_CONFIG } from '../../utils/constants.js';
 
 // 🚀 **ULTRA-OPTIMIZED COMPONENT** - Loại bỏ excessive re-renders
-export const WaveformUI = memo(({ hoverTooltip, handleTooltips }) => {
+export const WaveformUI = memo(({ hoverTooltip, handleTooltips, mainCursorTooltip }) => {
   // 🔧 **MINIMAL DEBUG REFS** - Chỉ track cần thiết
   const renderCountRef = useRef(0);
   const lastLogTimeRef = useRef(0);
@@ -25,9 +25,17 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips }) => {
     // 🖱️ **HOVER TOOLTIP**: Giữ nguyên position trên waveform
     HOVER_OFFSET: -25,
     
+    // 🔵 **MAIN CURSOR TOOLTIP**: Position rất gần main cursor - theo yêu cầu user
+    MAIN_CURSOR_OFFSET: -5, // Chỉ 5px trên cursor line - cực kì gần cursor
+    
     // 🎨 **MINIMAL STYLING**: Bỏ tất cả hiệu ứng màu sắc và tô đậm
     COLOR: '#9ca3af', // Màu xám neutral cho tất cả tooltips
-    FONT_WEIGHT: '400' // Normal weight thay vì bold
+    FONT_WEIGHT: '400', // Normal weight thay vì bold
+    
+    // 🆕 **MAIN CURSOR STYLING**: Styling riêng cho main cursor tooltip
+    MAIN_CURSOR_FONT_SIZE: '6px', // Font nhỏ hơn cho main cursor
+    MAIN_CURSOR_COLOR: '#374151', // Màu đậm hơn cho main cursor
+    MAIN_CURSOR_FONT_WEIGHT: '600' // Bold cho main cursor
   };
 
   // 🚀 **HEAVY THROTTLED DEBUG** - Chỉ log mỗi 3 giây hoặc khi có thay đổi lớn
@@ -43,7 +51,11 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips }) => {
       hasHandles: !!handleTooltips,
       startVisible: handleTooltips?.start?.visible,
       endVisible: handleTooltips?.end?.visible,
-      durationVisible: handleTooltips?.selectionDuration?.visible
+      durationVisible: handleTooltips?.selectionDuration?.visible,
+      // 🆕 **MAIN CURSOR STATE**: Track main cursor tooltip state
+      hasMainCursor: !!mainCursorTooltip,
+      mainCursorVisible: mainCursorTooltip?.visible,
+      mainCursorX: mainCursorTooltip?.x
     };
     
     const lastState = lastTooltipStateRef.current;
@@ -55,30 +67,44 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips }) => {
       currentState.startVisible !== lastState.startVisible ||
       currentState.endVisible !== lastState.endVisible ||
       currentState.durationVisible !== lastState.durationVisible ||
-      Math.abs((currentState.hoverX || 0) - (lastState.hoverX || 0)) > 10; // 10px threshold
+      // 🆕 **MAIN CURSOR CHANGE DETECTION**: Track main cursor changes
+      currentState.hasMainCursor !== lastState.hasMainCursor ||
+      currentState.mainCursorVisible !== lastState.mainCursorVisible ||
+      currentState.mainCursorX !== lastState.mainCursorX ||
+      Math.abs((currentState.hoverX || 0) - (lastState.hoverX || 0)) > 10 || // 10px threshold
+      Math.abs((currentState.mainCursorX || 0) - (lastState.mainCursorX || 0)) > 5; // 5px threshold cho main cursor
     
     // 🚀 **ULTRA REDUCED LOGGING** - Chỉ log mỗi 5 giây hoặc changes lớn
     if ((now - lastLogTimeRef.current > 5000) || hasSignificantChange) {
       lastLogTimeRef.current = now;
       lastTooltipStateRef.current = currentState;
       
-      // 🎯 **MINIMAL STYLING DEBUG LOG** - Bao gồm styling changes
+      // 🎯 **MINIMAL STYLING DEBUG LOG** - Bao gồm main cursor tooltip
       if (renderCountRef.current % 50 === 0 || hasSignificantChange) {
         console.log(`🎨 [WaveformUI] Minimal Tooltip Styling #${renderCountRef.current}:`, {
           tooltip: currentState.hasHover ? 'ACTIVE' : 'INACTIVE',
           x: currentState.hoverX ? `${currentState.hoverX.toFixed(0)}px` : 'N/A',
           handles: `Start:${currentState.startVisible} End:${currentState.endVisible}`,
+          // 🆕 **MAIN CURSOR LOG**: Bao gồm main cursor tooltip state
+          mainCursor: currentState.hasMainCursor ? 
+            `ACTIVE (${currentState.mainCursorX?.toFixed(0)}px)` : 'INACTIVE',
           positioning: {
             waveformHeight: `${WAVEFORM_HEIGHT}px`,
             hoverTooltip: `${TOOLTIP_CONFIG.HOVER_OFFSET}px (above waveform)`,
             durationTooltip: `${WAVEFORM_HEIGHT + TOOLTIP_CONFIG.DURATION_OFFSET}px (chỉ ${Math.abs(TOOLTIP_CONFIG.DURATION_OFFSET)}px từ đáy!)`,
-            handleTooltips: `${WAVEFORM_HEIGHT + TOOLTIP_CONFIG.HANDLE_OFFSET}px (${TOOLTIP_CONFIG.HANDLE_OFFSET}px below waveform)`
+            handleTooltips: `${WAVEFORM_HEIGHT + TOOLTIP_CONFIG.HANDLE_OFFSET}px (${TOOLTIP_CONFIG.HANDLE_OFFSET}px below waveform)`,
+            // 🆕 **MAIN CURSOR POSITION**: Thêm main cursor position
+            mainCursorTooltip: `${TOOLTIP_CONFIG.MAIN_CURSOR_OFFSET}px (chỉ 5px trên main cursor line - cực kì gần!)`
           },
           styling: {
             fontSize: TOOLTIP_CONFIG.FONT_SIZE,
             color: TOOLTIP_CONFIG.COLOR,
             fontWeight: TOOLTIP_CONFIG.FONT_WEIGHT,
-            improvements: 'Ultra compact: 7px font, no colors, no bold, duration cực sát đáy'
+            // 🆕 **MAIN CURSOR STYLING**: Bao gồm styling riêng cho main cursor
+            mainCursorFontSize: TOOLTIP_CONFIG.MAIN_CURSOR_FONT_SIZE,
+            mainCursorColor: TOOLTIP_CONFIG.MAIN_CURSOR_COLOR,
+            mainCursorFontWeight: TOOLTIP_CONFIG.MAIN_CURSOR_FONT_WEIGHT,
+            improvements: 'Ultra compact: 7px font, no colors, no bold, main cursor 6px+đậm+gần'
           }
         });
       }
@@ -105,6 +131,12 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips }) => {
     typeof handleTooltips.selectionDuration.x === 'number' &&
     !isNaN(handleTooltips.selectionDuration.x) &&
     handleTooltips.selectionDuration.x >= 0;
+
+  // 🆕 **MAIN CURSOR TOOLTIP RENDER CHECK**: Chỉ render khi main cursor đang hiển thị
+  const shouldRenderMainCursorTooltip = mainCursorTooltip?.visible &&
+    typeof mainCursorTooltip.x === 'number' &&
+    !isNaN(mainCursorTooltip.x) &&
+    mainCursorTooltip.x >= 0;
 
   // 🔧 **INSTANT TOOLTIP DEBUG**: Log instant positioning và verify zero delay
   useEffect(() => {
@@ -135,8 +167,27 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips }) => {
         }
       });
     }
+    
+    // 🆕 **MAIN CURSOR TOOLTIP DEBUG**: Log main cursor positioning
+    if (shouldRenderMainCursorTooltip && Math.random() < 0.02) { // 2% sampling để tránh spam
+      console.log('🔵 [INSTANT-MAIN-CURSOR-TOOLTIP] Position via DIRECT CALCULATION:', {
+        x: mainCursorTooltip.x,
+        calculatedTop: TOOLTIP_CONFIG.MAIN_CURSOR_OFFSET,
+        currentTime: mainCursorTooltip.time?.toFixed(3) + 's',
+        formattedTime: mainCursorTooltip.formattedTime,
+        method: 'INSTANT_SYNC_FROM_CURRENT_TIME',
+        performance: 'ZERO_DELAY_GUARANTEED',
+        positioning: 'Chỉ 5px trên main cursor line - cực kì gần theo yêu cầu user',
+        styling: {
+          fontSize: TOOLTIP_CONFIG.MAIN_CURSOR_FONT_SIZE, // 6px
+          color: TOOLTIP_CONFIG.MAIN_CURSOR_COLOR, // darker
+          fontWeight: TOOLTIP_CONFIG.MAIN_CURSOR_FONT_WEIGHT, // bold
+          note: 'Font nhỏ hơn (6px), màu đậm hơn, bold - theo yêu cầu user'
+        }
+      });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shouldRenderDurationTooltip, shouldRenderStartTooltip, shouldRenderEndTooltip, handleTooltips]);
+  }, [shouldRenderDurationTooltip, shouldRenderStartTooltip, shouldRenderEndTooltip, shouldRenderMainCursorTooltip, handleTooltips, mainCursorTooltip]);
 
   return (
     <>
@@ -213,6 +264,25 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips }) => {
           }}
         >
           {handleTooltips.selectionDuration.formattedTime}
+        </div>
+      )}
+
+      {/* 🔵 **MAIN CURSOR TOOLTIP** - MINIMAL STYLING: Trên main cursor line khi đang play */}
+      {shouldRenderMainCursorTooltip && (
+        <div
+          className="absolute pointer-events-none text-xs z-50"
+          style={{
+            left: `${mainCursorTooltip.x}px`,
+            top: `${TOOLTIP_CONFIG.MAIN_CURSOR_OFFSET}px`, // 🔧 **ABOVE CURSOR**: -5px để gần cursor hơn
+            transform: 'translateX(-50%)',
+            color: TOOLTIP_CONFIG.MAIN_CURSOR_COLOR, // 🎨 **DARKER**: Màu đậm hơn cho main cursor
+            fontSize: TOOLTIP_CONFIG.MAIN_CURSOR_FONT_SIZE, // 🔤 **SMALLER**: Font nhỏ hơn cho main cursor
+            fontWeight: TOOLTIP_CONFIG.MAIN_CURSOR_FONT_WEIGHT, // 🚫 **BOLD**: Bold cho main cursor
+            fontFamily: 'monospace', // 🆕 **MONOSPACE**: Font mono cho số
+            whiteSpace: 'nowrap'
+          }}
+        >
+          {mainCursorTooltip.formattedTime}
         </div>
       )}
     </>
