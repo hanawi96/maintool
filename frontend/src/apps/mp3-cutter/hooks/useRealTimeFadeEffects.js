@@ -39,7 +39,9 @@ export const useRealTimeFadeEffects = () => {
     connectionAttempts: 0,
     lastGainValue: 1.0,
     lastCurrentTime: 0,
-    audioElementReady: false
+    audioElementReady: false,
+    lastFadeIn: 0,
+    lastFadeOut: 0
   });
 
   // 🎯 **ENHANCED WEB AUDIO INITIALIZATION** với improved error handling
@@ -265,14 +267,23 @@ export const useRealTimeFadeEffects = () => {
       // 🆕 **USE LATEST CONFIG** từ ref thay vì closure
       const latestConfig = fadeConfigRef.current;
       
-      // 🔧 **DEBUG CONFIG USAGE**: Log khi sử dụng config mới
-      if (Math.random() < 0.01) { // 1% sampling để avoid spam
-        console.log('🔄 [RealTimeFade] Using latest config in animation:', {
+      // 🔧 **ENHANCED DEBUG CONFIG USAGE**: Log config usage more frequently khi có changes
+      const configChangeDetected = Math.random() < 0.1 || // 10% sampling
+        (latestConfig.fadeIn !== debugStateRef.current.lastFadeIn) || 
+        (latestConfig.fadeOut !== debugStateRef.current.lastFadeOut);
+        
+      if (configChangeDetected) {
+        console.log('🔄 [RealTimeFade] REAL-TIME config in animation:', {
           fadeIn: latestConfig.fadeIn.toFixed(1) + 's',
           fadeOut: latestConfig.fadeOut.toFixed(1) + 's',
           isActive: latestConfig.isActive,
-          currentTime: currentTime.toFixed(2) + 's'
+          currentTime: currentTime.toFixed(2) + 's',
+          configChanged: latestConfig.fadeIn !== debugStateRef.current.lastFadeIn || latestConfig.fadeOut !== debugStateRef.current.lastFadeOut
         });
+        
+        // 🆕 **UPDATE DEBUG STATE**: Track last seen config
+        debugStateRef.current.lastFadeIn = latestConfig.fadeIn;
+        debugStateRef.current.lastFadeOut = latestConfig.fadeOut;
       }
       
       // 🎯 **CALCULATE FADE MULTIPLIER** với latest config
@@ -305,11 +316,25 @@ export const useRealTimeFadeEffects = () => {
         console.error('❌ [RealTimeFade] Gain application error:', gainError);
       }
       
-      // 🆕 **CONTINUE WITH LATEST CONFIG** - check latest config cho continuation
-      if (isAnimatingRef.current && latestConfig.isActive) {
+      // 🆕 **ENHANCED ANIMATION CONTINUATION**: Continue animation nếu audio đang play, không chỉ dựa vào fade config
+      const shouldContinueAnimation = isAnimatingRef.current && currentAudioElement && (
+        latestConfig.isActive || // Continue if fade is active
+        (!currentAudioElement.paused && currentAudioElement.currentTime >= 0) // OR if audio is playing (để ready cho fade activation)
+      );
+      
+      if (shouldContinueAnimation) {
         animationFrameRef.current = requestAnimationFrame(animate);
       } else {
-        console.log('⏹️ [RealTimeFade] Animation stopped - fade not active or explicitly stopped');
+        console.log('⏹️ [RealTimeFade] Animation stopped:', {
+          isAnimating: isAnimatingRef.current,
+          hasAudioElement: !!currentAudioElement,
+          fadeActive: latestConfig.isActive,
+          audioPaused: currentAudioElement?.paused,
+          audioTime: currentAudioElement?.currentTime?.toFixed(2) + 's' || 'N/A',
+          reason: !isAnimatingRef.current ? 'MANUALLY_STOPPED' : 
+                  !currentAudioElement ? 'NO_AUDIO_ELEMENT' :
+                  currentAudioElement.paused ? 'AUDIO_PAUSED' : 'UNKNOWN'
+        });
         isAnimatingRef.current = false;
         animationFrameRef.current = null;
         currentAudioElementRef.current = null; // 🆕 Clear audio element ref
@@ -319,7 +344,7 @@ export const useRealTimeFadeEffects = () => {
     // 🚀 **START ANIMATION**
     animationFrameRef.current = requestAnimationFrame(animate);
     console.log('✅ [RealTimeFade] Persistent animation started with real-time config updates');
-  }, [calculateFadeMultiplier]); // 🆕 **REMOVED fadeConfig dependency** để tránh recreation
+  }, [calculateFadeMultiplier]);
   
   // 🎯 **STOP FADE ANIMATION** với better cleanup
   const stopFadeAnimation = useCallback(() => {
@@ -368,10 +393,14 @@ export const useRealTimeFadeEffects = () => {
     }
   }, []);
   
-  // 🆕 **REAL-TIME CONFIG UPDATE** - restart animation khi config thay đổi trong lúc playing
+  // 🆕 **REAL-TIME CONFIG UPDATE** - instant update với enhanced animation restart
   const updateFadeConfig = useCallback((newConfig) => {
     const { fadeIn, fadeOut, startTime, endTime } = newConfig;
     const isActive = (fadeIn > 0 || fadeOut > 0) && startTime < endTime;
+    
+    // 🔍 **DETECT CONFIG CHANGES**: Track previous state để detect activation
+    const wasActive = fadeConfigRef.current.isActive;
+    const becameActive = !wasActive && isActive; // 🆕 **ACTIVATION DETECTION**
     
     const updatedConfig = {
       fadeIn,
@@ -381,27 +410,63 @@ export const useRealTimeFadeEffects = () => {
       isActive
     };
     
-    // 🆕 **UPDATE BOTH STATE AND REF** để đảm bảo consistency
-    setFadeConfig(updatedConfig);
-    fadeConfigRef.current = updatedConfig; // 🆕 **IMMEDIATE REF UPDATE** cho animation loop
+    // 🔥 **IMMEDIATE REF UPDATE**: Update ref TRƯỚC state để animation loop ngay lập tức thấy config mới
+    fadeConfigRef.current = updatedConfig;
     
-    // 🔧 **DEBUG CONFIG CHANGE**: Log config updates với animation state
-    console.log('🎨 [RealTimeFade] REAL-TIME config updated:', {
+    // 🚀 **INSTANT STATE UPDATE**: Update state sau để trigger re-renders
+    setFadeConfig(updatedConfig);
+    
+    // 🎯 **ENHANCED REAL-TIME APPLY**: Nếu đang play, apply config changes ngay lập tức
+    if (isAnimatingRef.current && gainNodeRef.current && currentAudioElementRef.current) {
+      const currentTime = currentAudioElementRef.current.currentTime;
+      
+      // 🔥 **INSTANT GAIN CALCULATION**: Tính toán gain ngay lập tức cho position hiện tại
+      const newGainValue = calculateFadeMultiplier(currentTime, updatedConfig);
+      
+      // 🚀 **IMMEDIATE GAIN UPDATE**: Apply gain ngay lập tức
+      try {
+        gainNodeRef.current.gain.value = newGainValue;
+        debugStateRef.current.lastGainValue = newGainValue;
+        
+        console.log(`🎨 [RealTimeFade] INSTANT config applied - new gain: ${newGainValue.toFixed(3)} at ${currentTime.toFixed(2)}s`);
+      } catch (error) {
+        console.warn('⚠️ [RealTimeFade] Error applying instant gain:', error);
+      }
+    }
+    
+    // 🆕 **CRITICAL FIX**: Restart animation if config becomes active và audio đang play
+    if (becameActive && currentAudioElementRef.current && !isAnimatingRef.current) {
+      const audioElement = currentAudioElementRef.current;
+      
+      // 🔍 **CHECK IF AUDIO IS PLAYING**: Verify audio is actually playing
+      const isAudioPlaying = audioElement && !audioElement.paused && audioElement.currentTime > 0;
+      
+      if (isAudioPlaying && connectionStateRef.current === 'connected') {
+        console.log('🚀 [RealTimeFade] RESTARTING animation - config became active during playback!');
+        startFadeAnimation(audioElement);
+      } else {
+        console.log('🔍 [RealTimeFade] Config became active but audio not playing or not connected:', {
+          isAudioPlaying,
+          connectionState: connectionStateRef.current,
+          audioPaused: audioElement?.paused,
+          audioCurrentTime: audioElement?.currentTime
+        });
+      }
+    }
+    
+    // 🔧 **DEBUG CONFIG CHANGE**: Enhanced logging với instant feedback
+    console.log('🎨 [RealTimeFade] Config updated INSTANTLY:', {
       fadeIn: fadeIn.toFixed(1) + 's',
       fadeOut: fadeOut.toFixed(1) + 's',
       range: `${startTime.toFixed(2)}s → ${endTime.toFixed(2)}s`,
       isActive,
+      wasActive,
+      becameActive, // 🆕 **ACTIVATION TRACKING**
       isAnimating: isAnimatingRef.current,
-      connectionState: connectionStateRef.current,
-      willRestartAnimation: isAnimatingRef.current && currentAudioElementRef.current
+      instantGainApplied: isAnimatingRef.current && gainNodeRef.current,
+      currentTime: currentAudioElementRef.current?.currentTime?.toFixed(2) + 's' || 'N/A',
+      animationRestarted: becameActive && !isAnimatingRef.current // 🆕 **RESTART TRACKING**
     });
-    
-    // 🆕 **RESTART ANIMATION** nếu đang play và config thay đổi
-    if (isAnimatingRef.current && currentAudioElementRef.current) {
-      console.log('🔄 [RealTimeFade] Config changed during playback - effects will update in next frame');
-      // 🔧 **NO RESTART NEEDED**: Animation loop sẽ tự động pick up config mới từ ref
-      // Điều này tạo ra smooth transition mà không cần restart animation
-    }
     
     // 🔄 **SMART GAIN RESET** - chỉ reset khi fade effects được disable
     if (!isActive && gainNodeRef.current && gainNodeRef.current.gain) {
@@ -409,7 +474,7 @@ export const useRealTimeFadeEffects = () => {
       debugStateRef.current.lastGainValue = 1.0;
       console.log('🔊 [RealTimeFade] Gain reset to 1.0 (fade effects disabled)');
     }
-  }, []);
+  }, [calculateFadeMultiplier, startFadeAnimation]);
   
   // 🆕 **SYNC CONFIG REF** - đảm bảo ref luôn sync với state
   useEffect(() => {
@@ -456,7 +521,8 @@ export const useRealTimeFadeEffects = () => {
       currentFadeActive: fadeConfigRef.current.isActive,
       connectionState: connectionStateRef.current,
       isAnimating: isAnimatingRef.current,
-      hasAudioElement: !!audioElement
+      hasAudioElement: !!audioElement,
+      currentTime: audioElement?.currentTime?.toFixed(2) + 's' || 'N/A'
     });
     
     if (isPlaying && connectionStateRef.current === 'connected') {
@@ -464,7 +530,9 @@ export const useRealTimeFadeEffects = () => {
         startFadeAnimation(audioElement);
         console.log('🎬 [RealTimeFade] Animation started for playback');
       } else {
-        console.log('🔄 [RealTimeFade] Animation already running, no need to restart');
+        console.log('🔄 [RealTimeFade] Animation already running, continuing with latest config');
+        // 🆕 **ENSURE CONTINUOUS ANIMATION**: Verify animation is still running với latest config
+        currentAudioElementRef.current = audioElement; // Update audio element reference
       }
     } else {
       if (isAnimatingRef.current) {
@@ -472,7 +540,7 @@ export const useRealTimeFadeEffects = () => {
         console.log('🛑 [RealTimeFade] Animation stopped - not playing or not connected');
       }
     }
-  }, [startFadeAnimation, stopFadeAnimation]); // 🆕 **REMOVED fadeConfig dependency**
+  }, [startFadeAnimation, stopFadeAnimation]);
   
   // 🆕 **DEBUG FUNCTION** để troubleshoot connection issues
   const getConnectionDebugInfo = useCallback(() => {

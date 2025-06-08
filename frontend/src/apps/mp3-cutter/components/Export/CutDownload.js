@@ -251,16 +251,11 @@ const CutDownload = ({
 
   // 🆕 **DOWNLOAD BUTTON STATE**: State for download/save button WITH FORMAT COMPATIBILITY
   const getDownloadButtonState = () => {
-    console.log('🔍 [getDownloadButtonState] Checking download button state:', {
-      hasProcessedFile: !!processedFile,
-      processedFormat: processedFile?.outputFormat,
-      currentFormat: outputFormat,
-      formatMatch: processedFile?.outputFormat === outputFormat
-    });
+    
 
     // 🚫 **NO PROCESSED FILE**: Chưa có file nào được xử lý
     if (!processedFile) {
-      console.log('🚫 [getDownloadButtonState] No processed file - button disabled');
+      
       return {
         variant: 'disabled',
         icon: Save,
@@ -273,11 +268,6 @@ const CutDownload = ({
     const isFormatMatch = processedFile.outputFormat === outputFormat;
     
     if (!isFormatMatch) {
-      console.log('🚫 [getDownloadButtonState] Format mismatch - button disabled:', {
-        processedFormat: processedFile.outputFormat,
-        selectedFormat: outputFormat,
-        message: `Switch back to ${processedFile.outputFormat?.toUpperCase()} to download, or cut again with ${outputFormat?.toUpperCase()}`
-      });
       
       return {
         variant: 'disabled',
@@ -288,11 +278,6 @@ const CutDownload = ({
       };
     }
 
-    // ✅ **FORMAT MATCH**: Có file và format khớp - enable button
-    console.log('✅ [getDownloadButtonState] Format matches - button enabled:', {
-      format: outputFormat?.toUpperCase(),
-      fileReady: true
-    });
 
     return {
       variant: 'ready',

@@ -409,16 +409,6 @@ const MP3CutterMain = React.memo(() => {
     return () => clearTimeout(setupTimeout);
   }, [audioFile?.url, connectAudioElement, isWebAudioSupported]); // 🔥 **OPTIMIZED DEPS**: Removed getConnectionDebugInfo
 
-  // 🆕 **FADE CONFIG SYNC**: Update fade configuration when fadeIn/fadeOut/selection changes
-  useEffect(() => {
-    updateFadeConfig({
-      fadeIn,
-      fadeOut,
-      startTime,
-      endTime
-    });
-  }, [fadeIn, fadeOut, startTime, endTime, updateFadeConfig]); // 🔥 **OPTIMIZED DEPS**: Removed connectionState
-
   // 🆕 **PLAYBACK STATE SYNC**: Start/stop fade effects khi playback state thay đổi
   useEffect(() => {
     const audio = audioRef.current;
@@ -457,38 +447,75 @@ const MP3CutterMain = React.memo(() => {
     jumpToTime(endTime);
   }, [jumpToTime, endTime]);
 
-  // 🆕 **OPTIMIZED FADE HANDLERS**: Apply fade effects với optimized debouncing
+  // 🆕 **OPTIMIZED FADE HANDLERS**: Apply fade effects với real-time updates
+  const fadeUpdateTimeoutRef = useRef(null); // 🆕 **SHARED TIMEOUT REF**: Để prevent multiple timeouts
+  
   const handleFadeInChange = useCallback((newFadeIn) => {
     setFadeIn(newFadeIn);
     
-    // 🚀 **DEBOUNCED CONFIG UPDATE**: Debounce config updates để tránh excessive calls
-    const updateTimeout = setTimeout(() => {
-    updateFadeConfig({
+    // 🔥 **IMMEDIATE CONFIG UPDATE**: Update ngay lập tức cho real-time effects
+    const newConfig = {
       fadeIn: newFadeIn,
       fadeOut,
       startTime,
       endTime
-    });
-    }, 50); // 50ms debounce for smooth real-time updates
+    };
     
-    return () => clearTimeout(updateTimeout);
+    // 🚀 **INSTANT UPDATE**: Apply config ngay lập tức
+    updateFadeConfig(newConfig);
+    
+    // 🎯 **DEBUG REAL-TIME**: Log fade change với immediate feedback
+    console.log(`🎨 [FadeControls] Fade In REAL-TIME: ${newFadeIn.toFixed(1)}s - effects applied instantly`);
+    
+    // 🔄 **CLEAR PREVIOUS TIMEOUT**: Prevent multiple debounced calls
+    if (fadeUpdateTimeoutRef.current) {
+      clearTimeout(fadeUpdateTimeoutRef.current);
+    }
+    
+    // 🚀 **OPTIONAL DEBOUNCED SAVE**: Save to history after user stops dragging
+    fadeUpdateTimeoutRef.current = setTimeout(() => {
+      console.log(`💾 [FadeControls] Fade In history saved: ${newFadeIn.toFixed(1)}s`);
+      // History will be saved when drag ends via FadeControls component
+    }, 200);
   }, [fadeOut, startTime, endTime, updateFadeConfig]);
 
   const handleFadeOutChange = useCallback((newFadeOut) => {
     setFadeOut(newFadeOut);
     
-    // 🚀 **DEBOUNCED CONFIG UPDATE**: Debounce config updates để tránh excessive calls
-    const updateTimeout = setTimeout(() => {
-    updateFadeConfig({
+    // 🔥 **IMMEDIATE CONFIG UPDATE**: Update ngay lập tức cho real-time effects
+    const newConfig = {
       fadeIn,
       fadeOut: newFadeOut,
       startTime,
       endTime
-    });
-    }, 50); // 50ms debounce for smooth real-time updates
+    };
     
-    return () => clearTimeout(updateTimeout);
+    // 🚀 **INSTANT UPDATE**: Apply config ngay lập tức
+    updateFadeConfig(newConfig);
+    
+    // 🎯 **DEBUG REAL-TIME**: Log fade change với immediate feedback
+    console.log(`🎨 [FadeControls] Fade Out REAL-TIME: ${newFadeOut.toFixed(1)}s - effects applied instantly`);
+    
+    // 🔄 **CLEAR PREVIOUS TIMEOUT**: Prevent multiple debounced calls
+    if (fadeUpdateTimeoutRef.current) {
+      clearTimeout(fadeUpdateTimeoutRef.current);
+    }
+    
+    // 🚀 **OPTIONAL DEBOUNCED SAVE**: Save to history after user stops dragging
+    fadeUpdateTimeoutRef.current = setTimeout(() => {
+      console.log(`💾 [FadeControls] Fade Out history saved: ${newFadeOut.toFixed(1)}s`);
+      // History will be saved when drag ends via FadeControls component
+    }, 200);
   }, [fadeIn, startTime, endTime, updateFadeConfig]);
+  
+  // 🆕 **CLEANUP TIMEOUT**: Clear timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (fadeUpdateTimeoutRef.current) {
+        clearTimeout(fadeUpdateTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Drag and drop handler
   const handleDrop = useCallback((e) => {
@@ -672,6 +699,40 @@ const MP3CutterMain = React.memo(() => {
       }
     };
   }, [isPlaying, startTime, endTime, audioRef, setCurrentTime, setIsPlaying]);
+
+  // 🆕 **INITIAL CONFIG SYNC**: Only sync on startup and when selection changes (not fade values)
+  const fadeConfigSyncedRef = useRef(false); // 🆕 **PREVENT MULTIPLE SYNCS**: Track if initial sync done
+  
+  useEffect(() => {
+    // 🎯 **SYNC ONLY ON MOUNT OR SELECTION CHANGES**: Update config when startTime/endTime change
+    // Skip if this is triggered by fade value changes during real-time updates
+    if (!fadeConfigSyncedRef.current || 
+        (fadeConfigSyncedRef.current && (startTime !== fadeConfigSyncedRef.current.lastStartTime || endTime !== fadeConfigSyncedRef.current.lastEndTime))) {
+      
+      updateFadeConfig({
+        fadeIn,
+        fadeOut,
+        startTime,
+        endTime
+      });
+      
+      // 🆕 **TRACK SYNC STATE**: Remember last synced values
+      fadeConfigSyncedRef.current = {
+        lastStartTime: startTime,
+        lastEndTime: endTime,
+        lastFadeIn: fadeIn,
+        lastFadeOut: fadeOut
+      };
+      
+      console.log('🔄 [ConfigSync] Initial/Selection config sync:', {
+        startTime: startTime.toFixed(2) + 's',
+        endTime: endTime.toFixed(2) + 's',
+        fadeIn: fadeIn.toFixed(1) + 's',
+        fadeOut: fadeOut.toFixed(1) + 's',
+        reason: !fadeConfigSyncedRef.current ? 'INITIAL_MOUNT' : 'SELECTION_CHANGE'
+      });
+    }
+  }, [startTime, endTime, fadeIn, fadeOut, updateFadeConfig]); // 🚀 **ALL DEPS**: But logic prevents fade-only updates
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-pink-50">
