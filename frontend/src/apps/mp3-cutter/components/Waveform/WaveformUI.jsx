@@ -235,7 +235,7 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, mainCursorToolti
           height: handlePositions.start.height,
           color: handlePositions.start.color,
           isActive: handlePositions.start.isActive,
-          leftPos: `${handlePositions.start.x - handlePositions.start.width / 2}px`
+          leftPos: `${handlePositions.start.x - handlePositions.start.width}px` // 🔧 **UPDATED DEBUG**: Pushed fully left
         } : 'NOT_RENDERED',
         endHandle: shouldRenderEndHandle ? {
           x: handlePositions.end.x,
@@ -244,10 +244,10 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, mainCursorToolti
           height: handlePositions.end.height,
           color: handlePositions.end.color,
           isActive: handlePositions.end.isActive,
-          leftPos: `${handlePositions.end.x - handlePositions.end.width / 2}px`
+          leftPos: `${handlePositions.end.x}px` // 🔧 **UPDATED DEBUG**: Pushed fully right
         } : 'NOT_RENDERED',
-        technique: '✅ SAME AS TOOLTIPS - absolute positioning with z-index',
-        visibility: '🔥 SHOULD BE 100% VISIBLE - no canvas clipping!',
+        technique: '✅ PUSHED OUTSIDE - handles no longer overlap waveform area',
+        visibility: '🔥 FULLY EXTERNAL - zero waveform area overlap!',
         zIndex: 40,
         pointerEvents: 'none (pass through to canvas)'
       });
@@ -646,7 +646,7 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, mainCursorToolti
         <div
           className="absolute z-40"
           style={{
-            left: `${handlePositions.start.x - handlePositions.start.width / 2}px`,
+            left: `${handlePositions.start.x - handlePositions.start.width}px`, // 🔧 **PUSHED LEFT**: Đẩy handle ra ngoài hoàn toàn (từ width/2 → width)
             top: `${handlePositions.start.y}px`,
             width: `${handlePositions.start.width}px`,
             height: `${handlePositions.start.height}px`,
@@ -664,7 +664,7 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, mainCursorToolti
         <div
           className="absolute z-40"
           style={{
-            left: `${handlePositions.end.x - handlePositions.end.width / 2}px`,
+            left: `${handlePositions.end.x}px`, // 🔧 **PUSHED RIGHT**: Đẩy handle ra ngoài hoàn toàn (từ -width/2 → 0)
             top: `${handlePositions.end.y}px`,
             width: `${handlePositions.end.width}px`,
             height: `${handlePositions.end.height}px`,

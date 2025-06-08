@@ -21,8 +21,9 @@ export const useWaveformCursor = (canvasRef, duration, startTime, endTime, isDra
     
     const startX = (startTime / duration) * canvasWidth;
     const endX = (endTime / duration) * canvasWidth;
-    const baseTolerance = responsiveHandleWidth + 3;
-    const mobileTolerance = canvasWidth < WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT ? 12 : 8;
+    // 🔧 **UPDATED FOR EXTERNAL HANDLES**: Increase tolerance since handles are now outside waveform
+    const baseTolerance = responsiveHandleWidth + 8; // Tăng từ 3px lên 8px cho handles ở ngoài
+    const mobileTolerance = canvasWidth < WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT ? 18 : 12; // Tăng mobile tolerance
     const tolerance = Math.min(baseTolerance, mobileTolerance);
     
     if (startTime < endTime) {

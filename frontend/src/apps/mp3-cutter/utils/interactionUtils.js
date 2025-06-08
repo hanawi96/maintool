@@ -42,9 +42,9 @@ export const detectHandle = (x, canvasWidth, duration, startTime, endTime) => {
   const endX = (endTime / duration) * canvasWidth;
   
   // 🔧 **OPTIMIZED TOLERANCE**: Match WaveformCanvas tolerance calculation exactly
-  // Giảm tolerance để cursor chỉ hiện ew-resize khi thực sự hover over handle
-  const baseTolerance = responsiveHandleWidth + 3; // Chỉ 3px padding thêm thay vì 8px
-  const mobileTolerance = canvasWidth < mobileBreakpoint ? 12 : 8; // Giảm mobile tolerance
+  // 🔧 **UPDATED FOR EXTERNAL HANDLES**: Increase tolerance since handles are now outside waveform
+  const baseTolerance = responsiveHandleWidth + 8; // Tăng từ 3px lên 8px cho handles ở ngoài
+  const mobileTolerance = canvasWidth < mobileBreakpoint ? 18 : 12; // Tăng mobile tolerance
   const tolerance = Math.min(baseTolerance, mobileTolerance); // Chọn giá trị nhỏ hơn
   
   // 🔧 **DEBUG TOLERANCE CALCULATION**: Log để sync với WaveformCanvas
@@ -56,7 +56,8 @@ export const detectHandle = (x, canvasWidth, duration, startTime, endTime) => {
       mobileTolerance: mobileTolerance + 'px',
       finalTolerance: tolerance + 'px',
       canvasWidth: canvasWidth + 'px',
-      isMobile: canvasWidth < mobileBreakpoint
+      isMobile: canvasWidth < mobileBreakpoint,
+      handleMode: '🔧 EXTERNAL HANDLES - pushed outside waveform'
     });
   }
   
