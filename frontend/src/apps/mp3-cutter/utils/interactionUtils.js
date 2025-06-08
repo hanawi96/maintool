@@ -793,46 +793,67 @@ export class InteractionManager {
     const wasDragging = this.state === INTERACTION_STATES.DRAGGING;
     const wasConfirmedDrag = this.isDraggingConfirmed;
     
-    // 🚨 **CRITICAL FIX for GHOST DRAG BUG**: ALWAYS RESET drag state on mouse leave
-    // Previous logic giữ drag state khi có confirmed drag, causing ghost drag when mouse up outside canvas
-    console.log(`🛡️ [${this.debugId}] FORCE RESET all interaction states - mouse left canvas (protection against ghost states)`);
-    
-    // 🔧 **FORCE RESET ALL STATES**: Always reset regardless of drag status
-    this.state = INTERACTION_STATES.IDLE;
-    this.lastHoveredHandle = HANDLE_TYPES.NONE;
-    this.activeHandle = HANDLE_TYPES.NONE;
-    this.dragStartPosition = null;
-    this.dragStartTime = null;
-    this.isDraggingConfirmed = false;
-    this.mouseDownTimestamp = null;
-    this.lastMousePosition = null;
-    
-    // 🔧 **RESET REGION DRAG**: Reset region drag states
-    this.isDraggingRegion = false;
-    this.regionDragStartTime = null;
-    this.regionDragOffset = 0;
-    
-    // 🛡️ **CLEAR PENDING ACTIONS**: Clear pending actions để tránh trigger khi mouse re-enter
-    if (this.hasPendingJump) {
-      console.log(`🚫 [${this.debugId}] CLEARING pending jump (${this.pendingJumpTime?.toFixed(2)}s) - mouse left canvas`);
-      this.pendingJumpTime = null;
-      this.hasPendingJump = false;
+    // 🔧 **SMART RESET LOGIC**: Only reset if NOT actively dragging with confirmed drag
+    if (wasDragging && wasConfirmedDrag) {
+      // 🚀 **MAINTAIN DRAG STATE**: Keep drag state when actively dragging for seamless re-entry
+      console.log(`🔄 [${this.debugId}] MAINTAINING drag state - active drag in progress (can re-enter and continue)`, {
+        activeHandle: this.activeHandle,
+        isDraggingRegion: this.isDraggingRegion,
+        note: 'Drag state preserved for seamless mouse re-entry'
+      });
+      
+      // 🛡️ **CLEAR ONLY HOVER**: Clear hover state but keep drag state
+      this.lastHoveredHandle = HANDLE_TYPES.NONE;
+      
+      return {
+        action: 'clearHover',
+        cursor: 'default',
+        forceReset: false, // 🚀 **NO FORCE RESET**: Keep drag state active
+        wasDragging: wasDragging,
+        wasConfirmedDrag: wasConfirmedDrag,
+        maintainDragState: true // 🆕 **FLAG**: Indicate drag state is maintained
+      };
+    } else {
+      // 🚨 **RESET NON-CONFIRMED DRAGS**: Reset if not confirmed drag or not dragging
+      console.log(`🛡️ [${this.debugId}] RESET interaction states - no confirmed drag in progress`);
+      
+      // 🔧 **STANDARD RESET**: Reset all states for non-drag scenarios
+      this.state = INTERACTION_STATES.IDLE;
+      this.lastHoveredHandle = HANDLE_TYPES.NONE;
+      this.activeHandle = HANDLE_TYPES.NONE;
+      this.dragStartPosition = null;
+      this.dragStartTime = null;
+      this.isDraggingConfirmed = false;
+      this.mouseDownTimestamp = null;
+      this.lastMousePosition = null;
+      
+      // 🔧 **RESET REGION DRAG**: Reset region drag states
+      this.isDraggingRegion = false;
+      this.regionDragStartTime = null;
+      this.regionDragOffset = 0;
+      
+      // 🛡️ **CLEAR PENDING ACTIONS**: Clear pending actions để tránh trigger khi mouse re-enter
+      if (this.hasPendingJump) {
+        console.log(`🚫 [${this.debugId}] CLEARING pending jump (${this.pendingJumpTime?.toFixed(2)}s) - mouse left canvas`);
+        this.pendingJumpTime = null;
+        this.hasPendingJump = false;
+      }
+      
+      if (this.hasPendingHandleUpdate) {
+        console.log(`🚫 [${this.debugId}] CLEARING pending handle update (${this.pendingHandleUpdate?.type}: ${this.pendingHandleUpdate?.newTime?.toFixed(2)}s) - mouse left canvas`);
+        this.pendingHandleUpdate = null;
+        this.hasPendingHandleUpdate = false;
+      }
+      
+      return {
+        action: 'clearHover',
+        cursor: 'default',
+        forceReset: true, // 🚨 **FORCE RESET**: Reset for non-drag scenarios
+        wasDragging: wasDragging,
+        wasConfirmedDrag: wasConfirmedDrag,
+        ghostDragPrevented: true
+      };
     }
-    
-    if (this.hasPendingHandleUpdate) {
-      console.log(`🚫 [${this.debugId}] CLEARING pending handle update (${this.pendingHandleUpdate?.type}: ${this.pendingHandleUpdate?.newTime?.toFixed(2)}s) - mouse left canvas`);
-      this.pendingHandleUpdate = null;
-      this.hasPendingHandleUpdate = false;
-    }
-    
-    return {
-      action: 'clearHover',
-      cursor: 'default', // Always reset to default cursor
-      forceReset: true, // Always force reset
-      wasDragging: wasDragging,
-      wasConfirmedDrag: wasConfirmedDrag,
-      ghostDragPrevented: true // Flag để báo đã prevent ghost drag
-    };
   }
   
   /**

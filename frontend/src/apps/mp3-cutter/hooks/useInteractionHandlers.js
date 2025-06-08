@@ -301,10 +301,14 @@ export const useInteractionHandlers = ({
       if (result.action === 'clearHover') {
         setHoveredHandle(null);
         
-        // 🛡️ **FORCE RESET**: Reset interaction state nếu có forceReset flag
-        if (result.forceReset) {
-          setIsDragging(null); // Reset drag state
-          console.log(`🛡️ [ForceReset] All interaction states reset on mouse leave - protection against ghost states`);
+        // 🔧 **SMART RESET**: Only force reset if NOT maintaining drag state
+        if (result.forceReset && !result.maintainDragState) {
+          setIsDragging(null); // Reset drag state only when safe
+          console.log(`🛡️ [ForceReset] All interaction states reset on mouse leave - no active drag`);
+        } else if (result.maintainDragState) {
+          // 🚀 **MAINTAIN DRAG**: Keep drag state for seamless re-entry
+          console.log(`🔄 [MaintainDrag] Drag state preserved on mouse leave - can re-enter and continue dragging`);
+          // Don't reset isDragging - keep it active for re-entry
         }
       }
     };
