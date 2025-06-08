@@ -49,12 +49,10 @@ export const useRealTimeFadeEffects = () => {
     try {
       connectionStateRef.current = 'connecting';
       debugStateRef.current.connectionAttempts++;
-      console.log(`🔧 [RealTimeFade] Connection attempt #${debugStateRef.current.connectionAttempts} - initializing Web Audio...`);
       
       // 🔧 **CREATE AUDIO CONTEXT** với state validation
       if (!audioContextRef.current) {
         audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
-        console.log('🎛️ [RealTimeFade] Audio context created, state:', audioContextRef.current.state);
       }
       
       const audioContext = audioContextRef.current;
@@ -62,32 +60,23 @@ export const useRealTimeFadeEffects = () => {
       // 🔧 **FORCE RESUME CONTEXT** để đảm bảo context readyy
       if (audioContext.state === 'suspended') {
         await audioContext.resume();
-        console.log('🔄 [RealTimeFade] Audio context resumed from suspended state');
       }
       
       // 🆕 **VALIDATE AUDIO ELEMENT** trước khi connect
       if (!audioElement || !audioElement.src) {
-        console.warn('⚠️ [RealTimeFade] Invalid audio element - no src available');
         return false;
       }
       
       debugStateRef.current.audioElementReady = !!audioElement.src;
-      console.log('🎵 [RealTimeFade] Audio element validation:', {
-        hasElement: !!audioElement,
-        hasSrc: !!audioElement.src,
-        readyState: audioElement.readyState,
-        duration: audioElement.duration
-      });
+
       
       // 🆕 **IMPROVED SOURCE NODE CREATION** với better error handling
       if (!sourceNodeRef.current) {
         try {
           sourceNodeRef.current = audioContext.createMediaElementSource(audioElement);
-          console.log('✅ [RealTimeFade] NEW source node created successfully');
         } catch (error) {
           if (error.name === 'InvalidStateError') {
             // 🚨 **CRITICAL FIX**: Nếu source đã tồn tại, tìm cách reuse hoặc tạo mới
-            console.warn('⚠️ [RealTimeFade] Audio element already connected - attempting reconnection...');
             
             // 🔄 **TRY ALTERNATIVE APPROACH**: Tạo audio context mới để force reconnect
             try {
@@ -96,13 +85,10 @@ export const useRealTimeFadeEffects = () => {
               
               sourceNodeRef.current = newAudioContext.createMediaElementSource(audioElement);
               audioContextRef.current = newAudioContext; // Update context reference
-              console.log('🔄 [RealTimeFade] Successfully created new connection with fresh context');
             } catch (secondError) {
-              console.error('❌ [RealTimeFade] Failed to create alternative connection:', secondError);
               return false;
             }
           } else {
-            console.error('❌ [RealTimeFade] Source node creation failed:', error);
             return false;
           }
         }
@@ -113,43 +99,34 @@ export const useRealTimeFadeEffects = () => {
         gainNodeRef.current = audioContext.createGain();
         gainNodeRef.current.gain.value = 1.0;
         debugStateRef.current.lastGainValue = 1.0;
-        console.log('🔊 [RealTimeFade] Fresh gain node created, gain:', gainNodeRef.current.gain.value);
       }
       
       // 🔧 **CREATE ANALYSER NODE** cho monitoring
       if (!analyserNodeRef.current) {
         analyserNodeRef.current = audioContext.createAnalyser();
         analyserNodeRef.current.fftSize = 256;
-        console.log('📊 [RealTimeFade] Analyser node created');
       }
       
       // 🆕 **ROBUST CONNECTION LOGIC** với validation steps
       if (!isConnectedRef.current && sourceNodeRef.current && gainNodeRef.current && analyserNodeRef.current) {
         try {
           // 🔗 **STEP BY STEP CONNECTION** với individual error handling
-          console.log('🔗 [RealTimeFade] Connecting audio graph...');
           
           sourceNodeRef.current.connect(gainNodeRef.current);
-          console.log('✅ [RealTimeFade] Source → Gain connected');
           
           gainNodeRef.current.connect(analyserNodeRef.current);
-          console.log('✅ [RealTimeFade] Gain → Analyser connected');
           
           analyserNodeRef.current.connect(audioContext.destination);
-          console.log('✅ [RealTimeFade] Analyser → Destination connected');
           
           isConnectedRef.current = true;
           connectionStateRef.current = 'connected';
           
-          console.log('🎉 [RealTimeFade] Complete audio graph connected: source → gain → analyser → destination');
           
         } catch (connectionError) {
-          console.error('❌ [RealTimeFade] Connection failed:', connectionError);
           connectionStateRef.current = 'error';
           return false;
         }
       } else {
-        console.log('🔄 [RealTimeFade] Audio graph already connected, reusing existing connection');
         isConnectedRef.current = true;
         connectionStateRef.current = 'connected';
       }
@@ -157,21 +134,14 @@ export const useRealTimeFadeEffects = () => {
       // 🆕 **CONNECTION VALIDATION** để verify working state
       const isWorking = gainNodeRef.current && gainNodeRef.current.gain && typeof gainNodeRef.current.gain.value === 'number';
       if (!isWorking) {
-        console.error('❌ [RealTimeFade] Gain node validation failed - connection may be broken');
         return false;
       }
       
-      console.log('✅ [RealTimeFade] Web Audio setup completed successfully:', {
-        contextState: audioContext.state,
-        connectionState: connectionStateRef.current,
-        gainNodeWorking: isWorking,
-        gainValue: gainNodeRef.current.gain.value
-      });
+
       
       return true;
       
     } catch (error) {
-      console.error('❌ [RealTimeFade] Fatal initialization error:', error);
       connectionStateRef.current = 'error';
       return false;
     }
@@ -183,7 +153,6 @@ export const useRealTimeFadeEffects = () => {
     
     // 🔧 **DEBUG CURRENT TIME** để detect stuck time
     if (Math.abs(currentTime - debugStateRef.current.lastCurrentTime) > 0.1) {
-      console.log(`⏰ [RealTimeFade] Current time progressed: ${debugStateRef.current.lastCurrentTime.toFixed(2)}s → ${currentTime.toFixed(2)}s`);
       debugStateRef.current.lastCurrentTime = currentTime;
     }
     
@@ -201,10 +170,7 @@ export const useRealTimeFadeEffects = () => {
       const easedProgress = 1 - Math.pow(1 - fadeProgress, 1.5);
       multiplier = Math.min(multiplier, 0.001 + (easedProgress * 0.999));
       
-      // 🔧 **FADE IN DEBUG**: Log fade in progress occasionally
-      if (fadeProgress < 0.5 && Math.random() < 0.05) {
-        console.log(`🔥 [RealTimeFade] FadeIn active: progress=${(fadeProgress * 100).toFixed(1)}%, multiplier=${multiplier.toFixed(3)}`);
-      }
+      
     }
     
     // 🔥 **FADE OUT EFFECT** với enhanced calculation
@@ -215,9 +181,7 @@ export const useRealTimeFadeEffects = () => {
       multiplier = Math.min(multiplier, fadeOutMultiplier);
       
       // 🔧 **FADE OUT DEBUG**: Log fade out progress occasionally
-      if (fadeProgress < 0.5 && Math.random() < 0.05) {
-        console.log(`🔥 [RealTimeFade] FadeOut active: progress=${(fadeProgress * 100).toFixed(1)}%, multiplier=${multiplier.toFixed(3)}`);
-      }
+      
     }
     
     return Math.max(0.0001, Math.min(1.0, multiplier));
@@ -226,18 +190,15 @@ export const useRealTimeFadeEffects = () => {
   // 🆕 **OPTIMIZED ANIMATION LOOP** - sử dụng ref để access latest config
   const startFadeAnimation = useCallback((audioElement) => {
     if (isAnimatingRef.current) {
-      console.log('🔄 [RealTimeFade] Animation already running, skipping start');
       return;
     }
     
     if (!gainNodeRef.current) {
-      console.log('⚠️ [RealTimeFade] Cannot start animation - missing gain node');
       return;
     }
     
     isAnimatingRef.current = true;
     currentAudioElementRef.current = audioElement; // 🆕 Store audio element reference
-    console.log('🎬 [RealTimeFade] Starting persistent fade animation...');
     
     const animate = (timestamp) => {
       // 🚀 **60FPS THROTTLING**
@@ -254,7 +215,6 @@ export const useRealTimeFadeEffects = () => {
       
       // 🆕 **ROBUST ELEMENT CHECK** 
       if (!currentAudioElement || !gainNodeRef.current) {
-        console.warn('⚠️ [RealTimeFade] Missing audio element or gain node, continuing animation...');
         if (isAnimatingRef.current) {
           animationFrameRef.current = requestAnimationFrame(animate);
         }
@@ -273,13 +233,7 @@ export const useRealTimeFadeEffects = () => {
         (latestConfig.fadeOut !== debugStateRef.current.lastFadeOut);
         
       if (configChangeDetected) {
-        console.log('🔄 [RealTimeFade] REAL-TIME config in animation:', {
-          fadeIn: latestConfig.fadeIn.toFixed(1) + 's',
-          fadeOut: latestConfig.fadeOut.toFixed(1) + 's',
-          isActive: latestConfig.isActive,
-          currentTime: currentTime.toFixed(2) + 's',
-          configChanged: latestConfig.fadeIn !== debugStateRef.current.lastFadeIn || latestConfig.fadeOut !== debugStateRef.current.lastFadeOut
-        });
+
         
         // 🆕 **UPDATE DEBUG STATE**: Track last seen config
         debugStateRef.current.lastFadeIn = latestConfig.fadeIn;
@@ -305,7 +259,6 @@ export const useRealTimeFadeEffects = () => {
             
             // 🔧 **ENHANCED DEBUG**: Log significant changes với real-time tag
             if (Math.abs(diff) > 0.1) {
-              console.log(`🎨 [RealTimeFade] REAL-TIME gain update: ${currentGain.toFixed(3)} → ${targetGain.toFixed(3)} (time: ${currentTime.toFixed(2)}s, fadeIn: ${latestConfig.fadeIn}s, fadeOut: ${latestConfig.fadeOut}s)`);
             }
           } else {
             gainNodeRef.current.gain.value = targetGain;
@@ -313,7 +266,6 @@ export const useRealTimeFadeEffects = () => {
           }
         }
       } catch (gainError) {
-        console.error('❌ [RealTimeFade] Gain application error:', gainError);
       }
       
       // 🆕 **ENHANCED ANIMATION CONTINUATION**: Continue animation nếu audio đang play, không chỉ dựa vào fade config
@@ -325,16 +277,7 @@ export const useRealTimeFadeEffects = () => {
       if (shouldContinueAnimation) {
         animationFrameRef.current = requestAnimationFrame(animate);
       } else {
-        console.log('⏹️ [RealTimeFade] Animation stopped:', {
-          isAnimating: isAnimatingRef.current,
-          hasAudioElement: !!currentAudioElement,
-          fadeActive: latestConfig.isActive,
-          audioPaused: currentAudioElement?.paused,
-          audioTime: currentAudioElement?.currentTime?.toFixed(2) + 's' || 'N/A',
-          reason: !isAnimatingRef.current ? 'MANUALLY_STOPPED' : 
-                  !currentAudioElement ? 'NO_AUDIO_ELEMENT' :
-                  currentAudioElement.paused ? 'AUDIO_PAUSED' : 'UNKNOWN'
-        });
+
         isAnimatingRef.current = false;
         animationFrameRef.current = null;
         currentAudioElementRef.current = null; // 🆕 Clear audio element ref
@@ -343,12 +286,10 @@ export const useRealTimeFadeEffects = () => {
     
     // 🚀 **START ANIMATION**
     animationFrameRef.current = requestAnimationFrame(animate);
-    console.log('✅ [RealTimeFade] Persistent animation started with real-time config updates');
   }, [calculateFadeMultiplier]);
   
   // 🎯 **STOP FADE ANIMATION** với better cleanup
   const stopFadeAnimation = useCallback(() => {
-    console.log('🛑 [RealTimeFade] Stopping fade animation...');
     
     isAnimatingRef.current = false;
     currentAudioElementRef.current = null; // 🆕 Clear audio element ref
@@ -356,7 +297,6 @@ export const useRealTimeFadeEffects = () => {
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
       animationFrameRef.current = null;
-      console.log('⏹️ [RealTimeFade] Animation frame cancelled');
     }
     
     // 🔄 **GRADUAL RESET** thay vì immediate reset để tránh audio pop
@@ -381,12 +321,10 @@ export const useRealTimeFadeEffects = () => {
             if (gainNodeRef.current && gainNodeRef.current.gain) {
               gainNodeRef.current.gain.value = 1.0;
             }
-            console.log('🔊 [RealTimeFade] Gain smoothly reset to 1.0');
           }
         }, 10); // 100ms total reset time
       } else {
         gainNodeRef.current.gain.value = 1.0;
-        console.log('🔊 [RealTimeFade] Gain immediately reset to 1.0');
       }
       
       debugStateRef.current.lastGainValue = 1.0;
@@ -428,9 +366,7 @@ export const useRealTimeFadeEffects = () => {
         gainNodeRef.current.gain.value = newGainValue;
         debugStateRef.current.lastGainValue = newGainValue;
         
-        console.log(`🎨 [RealTimeFade] INSTANT config applied - new gain: ${newGainValue.toFixed(3)} at ${currentTime.toFixed(2)}s`);
       } catch (error) {
-        console.warn('⚠️ [RealTimeFade] Error applying instant gain:', error);
       }
     }
     
@@ -442,37 +378,17 @@ export const useRealTimeFadeEffects = () => {
       const isAudioPlaying = audioElement && !audioElement.paused && audioElement.currentTime > 0;
       
       if (isAudioPlaying && connectionStateRef.current === 'connected') {
-        console.log('🚀 [RealTimeFade] RESTARTING animation - config became active during playback!');
         startFadeAnimation(audioElement);
       } else {
-        console.log('🔍 [RealTimeFade] Config became active but audio not playing or not connected:', {
-          isAudioPlaying,
-          connectionState: connectionStateRef.current,
-          audioPaused: audioElement?.paused,
-          audioCurrentTime: audioElement?.currentTime
-        });
+        
       }
     }
     
-    // 🔧 **DEBUG CONFIG CHANGE**: Enhanced logging với instant feedback
-    console.log('🎨 [RealTimeFade] Config updated INSTANTLY:', {
-      fadeIn: fadeIn.toFixed(1) + 's',
-      fadeOut: fadeOut.toFixed(1) + 's',
-      range: `${startTime.toFixed(2)}s → ${endTime.toFixed(2)}s`,
-      isActive,
-      wasActive,
-      becameActive, // 🆕 **ACTIVATION TRACKING**
-      isAnimating: isAnimatingRef.current,
-      instantGainApplied: isAnimatingRef.current && gainNodeRef.current,
-      currentTime: currentAudioElementRef.current?.currentTime?.toFixed(2) + 's' || 'N/A',
-      animationRestarted: becameActive && !isAnimatingRef.current // 🆕 **RESTART TRACKING**
-    });
     
     // 🔄 **SMART GAIN RESET** - chỉ reset khi fade effects được disable
     if (!isActive && gainNodeRef.current && gainNodeRef.current.gain) {
       gainNodeRef.current.gain.value = 1.0;
       debugStateRef.current.lastGainValue = 1.0;
-      console.log('🔊 [RealTimeFade] Gain reset to 1.0 (fade effects disabled)');
     }
   }, [calculateFadeMultiplier, startFadeAnimation]);
   
@@ -484,11 +400,9 @@ export const useRealTimeFadeEffects = () => {
   // 🎯 **CONNECT AUDIO ELEMENT** với retry logic
   const connectAudioElement = useCallback(async (audioElement) => {
     if (!audioElement) {
-      console.warn('⚠️ [RealTimeFade] No audio element provided for connection');
       return false;
     }
     
-    console.log('🔌 [RealTimeFade] Attempting to connect audio element...');
     
     // 🆕 **RETRY LOGIC** cho connection failures
     let attempts = 0;
@@ -496,48 +410,34 @@ export const useRealTimeFadeEffects = () => {
     
     while (attempts < maxAttempts) {
       attempts++;
-      console.log(`🔄 [RealTimeFade] Connection attempt ${attempts}/${maxAttempts}`);
       
       const success = await initializeWebAudio(audioElement);
       if (success) {
-        console.log(`✅ [RealTimeFade] Audio element connected successfully on attempt ${attempts}`);
         return true;
       }
       
       if (attempts < maxAttempts) {
-        console.log(`⏳ [RealTimeFade] Connection failed, retrying in 100ms...`);
         await new Promise(resolve => setTimeout(resolve, 100));
       }
     }
     
-    console.error(`❌ [RealTimeFade] Failed to connect after ${maxAttempts} attempts`);
     return false;
   }, [initializeWebAudio]);
   
   // 🆕 **ENHANCED FADE ACTIVE CONTROL** với real-time config support
   const setFadeActive = useCallback((isPlaying, audioElement) => {
-    console.log('🎬 [RealTimeFade] Fade active control:', {
-      isPlaying,
-      currentFadeActive: fadeConfigRef.current.isActive,
-      connectionState: connectionStateRef.current,
-      isAnimating: isAnimatingRef.current,
-      hasAudioElement: !!audioElement,
-      currentTime: audioElement?.currentTime?.toFixed(2) + 's' || 'N/A'
-    });
+   
     
     if (isPlaying && connectionStateRef.current === 'connected') {
       if (!isAnimatingRef.current) {
         startFadeAnimation(audioElement);
-        console.log('🎬 [RealTimeFade] Animation started for playback');
       } else {
-        console.log('🔄 [RealTimeFade] Animation already running, continuing with latest config');
         // 🆕 **ENSURE CONTINUOUS ANIMATION**: Verify animation is still running với latest config
         currentAudioElementRef.current = audioElement; // Update audio element reference
       }
     } else {
       if (isAnimatingRef.current) {
         stopFadeAnimation();
-        console.log('🛑 [RealTimeFade] Animation stopped - not playing or not connected');
       }
     }
   }, [startFadeAnimation, stopFadeAnimation]);
@@ -564,18 +464,13 @@ export const useRealTimeFadeEffects = () => {
   // 🆕 **REAL-TIME DEBUG UTILITY**: Function để force log current state
   const logRealTimeState = useCallback(() => {
     const debugInfo = getConnectionDebugInfo();
-    console.log('🔍 [RealTimeFade] REAL-TIME State Debug:', {
-      ...debugInfo,
-      configMatch: JSON.stringify(debugInfo.fadeConfig) === JSON.stringify(debugInfo.fadeConfigRef),
-      note: 'State config vs Ref config should match for real-time updates'
-    });
+
   }, [getConnectionDebugInfo]);
   
   // 🆕 **GLOBAL DEBUG UTILITY**: Expose debug function to window for troubleshooting
   useEffect(() => {
     if (typeof window !== 'undefined') {
       window.debugRealTimeFade = logRealTimeState;
-      console.log('🔧 [RealTimeFade] Debug utility available: window.debugRealTimeFade()');
     }
     
     return () => {
@@ -588,7 +483,6 @@ export const useRealTimeFadeEffects = () => {
   // 🔧 **CLEANUP EFFECT** với enhanced cleanup
   useEffect(() => {
     return () => {
-      console.log('🧹 [RealTimeFade] Component cleanup - stopping all activities');
       
       // Stop animation
       isAnimatingRef.current = false;
@@ -600,9 +494,7 @@ export const useRealTimeFadeEffects = () => {
       // Close audio context
       if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
         audioContextRef.current.close().then(() => {
-          console.log('🧹 [RealTimeFade] Audio context closed');
         }).catch(err => {
-          console.error('⚠️ [RealTimeFade] Error closing audio context:', err);
         });
       }
       

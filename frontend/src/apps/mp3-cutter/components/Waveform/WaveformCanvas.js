@@ -22,6 +22,9 @@ const WaveformCanvas = React.memo(({
   fadeIn = 0,   // Fade in duration (seconds) - sóng âm thấp → cao dần
   fadeOut = 0,  // Fade out duration (seconds) - sóng âm cao → thấp dần
   
+  // 🚀 **REALTIME AUDIO ACCESS**: Direct audio element access cho ultra-smooth tooltips
+  audioRef,
+  
   onMouseDown,
   onMouseMove,
   onMouseUp,
@@ -34,9 +37,10 @@ const WaveformCanvas = React.memo(({
   const {
     hoverTooltip,
     handleTooltips,
+    currentTimeTooltip,
     updateHoverTime,
     clearHoverTooltip
-  } = useWaveformTooltips(canvasRef, duration, startTime, endTime, isDragging);
+  } = useWaveformTooltips(canvasRef, duration, startTime, endTime, isDragging, currentTime, isPlaying, audioRef);
 
   const {
     updateCursor,
@@ -59,7 +63,7 @@ const WaveformCanvas = React.memo(({
       const mouseX = e.clientX - rect.left;
       
       updateCursor(mouseX);
-      updateHoverTime(mouseX, canvas.width);
+      updateHoverTime(e);
     }
   }, [onMouseMove, canvasRef, updateCursor, updateHoverTime]);
 
@@ -363,6 +367,7 @@ const WaveformCanvas = React.memo(({
       <WaveformUI 
         hoverTooltip={hoverTooltip}
         handleTooltips={handleTooltips}
+        currentTimeTooltip={currentTimeTooltip}
       />
     </div>
   );

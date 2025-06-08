@@ -19,6 +19,9 @@ const Waveform = ({
   fadeIn = 0,   // Fade in duration (seconds)
   fadeOut = 0,  // Fade out duration (seconds)
   
+  // 🚀 **REALTIME AUDIO ACCESS**: Direct audio element access cho ultra-smooth tooltips
+  audioRef,
+  
   // Canvas handlers
   onMouseDown,
   onMouseMove,
@@ -84,6 +87,7 @@ const Waveform = ({
             volume={volume}
             fadeIn={fadeIn}
             fadeOut={fadeOut}
+            audioRef={audioRef}
             onMouseDown={onMouseDown}
             onMouseMove={onMouseMove}
             onMouseUp={onMouseUp}
