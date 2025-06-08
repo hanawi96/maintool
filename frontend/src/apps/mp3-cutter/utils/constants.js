@@ -40,15 +40,15 @@ export const WAVEFORM_CONFIG = {
   // 🎯 RESPONSIVE: Adaptive configuration for different screen sizes
   RESPONSIVE: {
     MIN_WIDTH: 250,           // Minimum canvas width (px)
-    MIN_BAR_WIDTH: 1,         // Giảm xuống 1px cho thanh nhỏ hơn
+    MIN_BAR_WIDTH: 0.8,       // 🔥 **SIÊU MỎNG**: Giảm từ 1px xuống 0.8px cho bars mịn hơn
     MOBILE_BREAKPOINT: 600,   // Mobile breakpoint (px)
     TOUCH_TOLERANCE: 15,      // Touch area tolerance on mobile (px)
     
-    // Adaptive sampling rules (samples per pixel)
+    // 🎯 **ENHANCED SAMPLING**: Tăng density cho bars mịn hơn
     SAMPLING_RULES: {
-      SMALL: { maxWidth: 400, samplesPerPx: 1/3 },    // 1 sample per 3px
-      MEDIUM: { maxWidth: 800, samplesPerPx: 1/2.5 }, // 1 sample per 2.5px  
-      LARGE: { maxWidth: Infinity, samplesPerPx: 1/2 } // 1 sample per 2px
+      SMALL: { maxWidth: 400, samplesPerPx: 1/2.5 },    // 🔥 Tăng từ 1/3 lên 1/2.5 - nhiều bars hơn
+      MEDIUM: { maxWidth: 800, samplesPerPx: 1/2 },     // 🔥 Tăng từ 1/2.5 lên 1/2 - dày đặc hơn  
+      LARGE: { maxWidth: Infinity, samplesPerPx: 1/1.5 } // 🔥 Tăng từ 1/2 lên 1/1.5 - siêu mịn
     }
   }
 };

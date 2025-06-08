@@ -660,7 +660,7 @@ const WaveformCanvas = React.memo(({
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, width, height);
     
-    // 2. 🎯 RESPONSIVE WAVEFORM BARS với Volume Scaling + Fade Effects
+    // 2. 🎯 RESPONSIVE WAVEFORM BARS với Perfect Linear Volume Scaling + Fade Effects
     const { waveformData, duration, startTime, endTime, volume: currentVolume, fadeIn: currentFadeIn, fadeOut: currentFadeOut } = renderData;
     const centerY = height / 2;
     
@@ -670,22 +670,36 @@ const WaveformCanvas = React.memo(({
     const barWidth = Math.max(minBarWidth, rawBarWidth);
     const useOptimizedSpacing = rawBarWidth < minBarWidth;
     
-    // 🆕 **VOLUME ANIMATION SYSTEM**: Enhanced responsive volume animation
-    const volumeMultiplier = Math.max(0.05, Math.min(2.5, currentVolume)); // Range: 0.05x to 2.5x (wider range)
+    // 🆕 **PERFECT LINEAR VOLUME SYSTEM**: Completely rewritten for true linear progression
+    // 🎯 **DESIGN REQUIREMENTS**: 
+    // - 0% volume = 1px flat bars (exactly)
+    // - 100% volume = 66px max bars (1px base + 65px scaling)
+    // - 50 steps (0%, 2%, 4%, ..., 100%) with 1.3px increment per 2%
+    // - Perfect linear progression từ 0% đến 100%
     
-    // 🆕 **EXPONENTIAL SCALING**: More noticeable changes at low volumes
-    const exponentialScale = Math.pow(volumeMultiplier, 0.7); // Gentler curve for low volumes
-    const linearScale = volumeMultiplier * 0.8;
-    const hybridScale = (exponentialScale + linearScale) / 2; // Hybrid approach
+    const FLAT_BAR_HEIGHT_PX = 1;           // 🎯 **1px EXACT** at 0% volume
+    const MAX_SCALING_PX = 65;              // 🎯 **65px SCALING** from 0% to 100% (1.3px per step)
+    const VOLUME_STEPS = 50;                // 🎯 **50 STEPS** (0%, 2%, 4%, ..., 100%)
+    const PX_PER_STEP = MAX_SCALING_PX / VOLUME_STEPS; // 🎯 **1.3px per 2%** exactly
     
-    const baseVolumeMultiplier = 0.15; // Higher minimum visible height
-    const finalVolumeMultiplier = baseVolumeMultiplier + (hybridScale * (1 - baseVolumeMultiplier));
+    // 🎯 **CALCULATE ABSOLUTE BAR HEIGHT**: Direct pixel calculation
+    const volumePercent = Math.max(0, Math.min(100, currentVolume * 100)); // Clamp 0-100%
+    const volumeStep = volumePercent / 2; // Convert % to step number (0-50)
+    const scalingPixels = volumeStep * PX_PER_STEP; // Additional pixels from scaling
+    const absoluteBarHeightPx = FLAT_BAR_HEIGHT_PX + scalingPixels; // Final absolute height
     
-    // 🔊 **SENSITIVE LOGGING**: Log even small volume changes for debugging
-    if (!lastVolumeLogRef.current || Math.abs(currentVolume - lastVolumeLogRef.current) > 0.01) {
-      console.log(`🔊 [WaveformDraw] Volume scaling: ${currentVolume.toFixed(3)} → ${finalVolumeMultiplier.toFixed(3)}x height (exp: ${exponentialScale.toFixed(3)}, linear: ${linearScale.toFixed(3)})`);
-      lastVolumeLogRef.current = currentVolume;
-    }
+    // 🎯 **WAVEFORM VARIATION**: Simple linear transition from flat to dynamic
+    // 0% = 100% flat bars, 100% = 100% waveform variation
+    const waveformVariation = Math.max(0, Math.min(1, currentVolume)); // Direct 1:1 mapping
+    
+    // 🔧 **PERFECT LINEAR LOGGING**: Enhanced debugging info
+    console.log(`📊 [PerfectLinear] ${volumePercent.toFixed(1)}% Volume:`, {
+      volumeStep: volumeStep.toFixed(1),
+      scalingPixels: scalingPixels.toFixed(1) + 'px',
+      absoluteHeight: absoluteBarHeightPx.toFixed(1) + 'px',
+      waveformVariation: (waveformVariation * 100).toFixed(1) + '%',
+      calculation: `${FLAT_BAR_HEIGHT_PX}px base + ${scalingPixels.toFixed(1)}px scaling = ${absoluteBarHeightPx.toFixed(1)}px total`
+    });
     
     // 🆕 **FADE EFFECTS LOGGING**: Log fade configuration khi đang active
     let fadeEffectsActive = false;
@@ -706,63 +720,108 @@ const WaveformCanvas = React.memo(({
     // 🎯 PERFORMANCE: Batch draw operations
     ctx.save();
     
-    if (useOptimizedSpacing) {
-      // 🎯 SMALL SCREENS: Fill entire width with evenly spaced bars + fade effects
-      const totalBarSpace = width;
-      const spacing = totalBarSpace / waveformData.length;
+    // 🎯 **WAVEFORM BARS RENDERING**: Simplified with perfect linear scaling
+    if (absoluteBarHeightPx > 0) {
+      const centerY = height / 2;
       
-      for (let i = 0; i < waveformData.length; i++) {
-        const value = waveformData[i];
-        const baseBarHeight = Math.max(3, (value * height) / 2); // Increased minimum from 2px to 3px
+      if (useOptimizedSpacing) {
+        // 🎯 SMALL SCREENS: Fill entire width with evenly spaced bars
+        const totalBarSpace = width;
+        const spacing = totalBarSpace / waveformData.length;
         
-        // 🎯 **CALCULATE TIME**: Time position của bar này
-        const barTime = (i / waveformData.length) * duration;
-        
-        // 🆕 **APPLY FADE EFFECT**: Tính toán fade multiplier cho bar này
-        const fadeMultiplier = fadeEffectsActive ? 
-          calculateFadeMultiplier(barTime, startTime, endTime, currentFadeIn, currentFadeOut) : 1.0;
-        
-        // 🆕 **COMBINED SCALING**: Volume scaling + Fade effect
-        const volumeScaledHeight = baseBarHeight * finalVolumeMultiplier;
-        const finalBarHeight = volumeScaledHeight * fadeMultiplier; // 🎨 **FADE + VOLUME**
-        
-        const x = i * spacing;
-        
-        // Selection-based coloring
-        const isInSelection = barTime >= startTime && barTime <= endTime;
-        ctx.fillStyle = isInSelection ? '#8b5cf6' : '#cbd5e1';
-        
-        // Draw bar with guaranteed visibility + volume scaling + fade effects
-        ctx.fillRect(Math.floor(x), centerY - finalBarHeight, minBarWidth, finalBarHeight * 2);
+        for (let i = 0; i < waveformData.length; i++) {
+          const value = waveformData[i];
+          
+          // 🎯 **CALCULATE TIME**: Time position của bar này
+          const barTime = (i / waveformData.length) * duration;
+          
+          // 🆕 **APPLY FADE EFFECT**: Tính toán fade multiplier cho bar này
+          const fadeMultiplier = fadeEffectsActive ? 
+            calculateFadeMultiplier(barTime, startTime, endTime, currentFadeIn, currentFadeOut) : 1.0;
+          
+          // 🆕 **PERFECT LINEAR BAR HEIGHT CALCULATION**
+          let effectiveBarHeight;
+          
+          if (waveformVariation === 0) {
+            // 🟦 **PURE FLAT MODE**: All bars exactly same height (0% volume)
+            effectiveBarHeight = FLAT_BAR_HEIGHT_PX;
+          } else {
+            // 🎵 **DYNAMIC SCALING MODE**: Linear blend between flat and waveform-based
+            const flatHeight = FLAT_BAR_HEIGHT_PX;
+            const dynamicHeight = absoluteBarHeightPx * value; // Scale by waveform data
+            
+            // 🎯 **LINEAR BLEND**: Smooth transition from flat to dynamic
+            effectiveBarHeight = flatHeight + (dynamicHeight - flatHeight) * waveformVariation;
+          }
+          
+          // 🆕 **APPLY FADE EFFECT**: Final height calculation
+          const finalBarHeight = effectiveBarHeight * fadeMultiplier;
+          
+          const x = i * spacing;
+          
+          // Selection-based coloring
+          const isInSelection = barTime >= startTime && barTime <= endTime;
+          ctx.fillStyle = isInSelection ? '#7c3aed' : '#cbd5e1'; // 🎨 **DARKER PURPLE**: Changed from #8b5cf6 to #7c3aed
+          
+          // 🔥 **ULTRA-THIN BARS**: Siêu mỏng cho cảm giác mịn hơn
+          const ultraThinWidth = Math.max(0.5, minBarWidth * 0.7); // 🔥 Giảm 30% width, tối thiểu 0.5px
+          ctx.fillRect(Math.floor(x), centerY - finalBarHeight, ultraThinWidth, finalBarHeight * 2);
+        }
+      } else {
+        // 🎯 LARGE SCREENS: Normal spacing with calculated bar width
+        for (let i = 0; i < waveformData.length; i++) {
+          const value = waveformData[i];
+          
+          // 🎯 **CALCULATE TIME**: Time position của bar này
+          const barTime = (i / waveformData.length) * duration;
+          
+          // 🆕 **APPLY FADE EFFECT**: Tính toán fade multiplier cho bar này
+          const fadeMultiplier = fadeEffectsActive ? 
+            calculateFadeMultiplier(barTime, startTime, endTime, currentFadeIn, currentFadeOut) : 1.0;
+          
+          // 🆕 **PERFECT LINEAR BAR HEIGHT CALCULATION**
+          let effectiveBarHeight;
+          
+          if (waveformVariation === 0) {
+            // 🟦 **PURE FLAT MODE**: All bars exactly same height (0% volume)
+            effectiveBarHeight = FLAT_BAR_HEIGHT_PX;
+          } else {
+            // 🎵 **DYNAMIC SCALING MODE**: Linear blend between flat and waveform-based
+            const flatHeight = FLAT_BAR_HEIGHT_PX;
+            const dynamicHeight = absoluteBarHeightPx * value; // Scale by waveform data
+            
+            // 🎯 **LINEAR BLEND**: Smooth transition from flat to dynamic
+            effectiveBarHeight = flatHeight + (dynamicHeight - flatHeight) * waveformVariation;
+          }
+          
+          // 🆕 **APPLY FADE EFFECT**: Final height calculation
+          const finalBarHeight = effectiveBarHeight * fadeMultiplier;
+          
+          const x = i * barWidth;
+          
+          // Selection-based coloring
+          const isInSelection = barTime >= startTime && barTime <= endTime;
+          ctx.fillStyle = isInSelection ? '#7c3aed' : '#cbd5e1'; // 🎨 **DARKER PURPLE**: Changed from #8b5cf6 to #7c3aed
+          
+          // 🔥 **ULTRA-REFINED BARS**: Siêu mịn với khoảng cách lớn hơn
+          const refinedWidth = Math.max(0.4, barWidth * 0.6); // 🔥 Giảm 40% width, tối thiểu 0.4px
+          const spacingGap = barWidth * 0.4; // 🔥 Tạo gap 40% để bars không chạm nhau
+          ctx.fillRect(Math.floor(x + spacingGap/2), centerY - finalBarHeight, refinedWidth, finalBarHeight * 2);
+        }
       }
-    } else {
-      // 🎯 LARGE SCREENS: Normal spacing with calculated bar width + fade effects
-      for (let i = 0; i < waveformData.length; i++) {
-        const value = waveformData[i];
-        const baseBarHeight = Math.max(3, (value * height) / 2); // Increased minimum from 2px to 3px
-        
-        // 🎯 **CALCULATE TIME**: Time position của bar này
-        const barTime = (i / waveformData.length) * duration;
-        
-        // 🆕 **APPLY FADE EFFECT**: Tính toán fade multiplier cho bar này
-        const fadeMultiplier = fadeEffectsActive ? 
-          calculateFadeMultiplier(barTime, startTime, endTime, currentFadeIn, currentFadeOut) : 1.0;
-        
-        // 🆕 **COMBINED SCALING**: Volume scaling + Fade effect
-        const volumeScaledHeight = baseBarHeight * finalVolumeMultiplier;
-        const finalBarHeight = volumeScaledHeight * fadeMultiplier; // 🎨 **FADE + VOLUME**
-        
-        const x = i * barWidth;
-        
-        // Selection-based coloring
-        const isInSelection = barTime >= startTime && barTime <= endTime;
-        ctx.fillStyle = isInSelection ? '#8b5cf6' : '#cbd5e1';
-        
-        // Draw bar with optimized width + volume scaling + fade effects
-        const drawWidth = Math.max(1, barWidth - 0.3);
-        ctx.fillRect(Math.floor(x), centerY - finalBarHeight, drawWidth, finalBarHeight * 2);
+      
+      // 🔧 **VARIATION DEBUG**: Log with new perfect linear system
+      if (Math.random() < 0.02) { // 2% sampling để kiểm tra perfect linear scaling
+        console.log(`🎨 [PerfectLinearScaling] Rendered with perfect scaling:`, {
+          volumePercent: volumePercent.toFixed(1) + '%',
+          absoluteHeight: absoluteBarHeightPx.toFixed(1) + 'px',
+          waveformVariation: (waveformVariation * 100).toFixed(1) + '%',
+          step: `Step ${volumeStep.toFixed(1)}/50`,
+          pixelProgression: `+${scalingPixels.toFixed(1)}px from base ${FLAT_BAR_HEIGHT_PX}px`
+        });
       }
     }
+    
     ctx.restore();
     
     // 3. 🎯 Selection overlay
@@ -841,44 +900,42 @@ const WaveformCanvas = React.memo(({
       drawCrispHandle(endX, false, isEndActive);
     }
     
-    // 5. 🔥 **COMPACT CURSOR**: Reduced size by 50% as requested by user
+    // 5. 🔥 **COMPACT BLUE CURSOR**: Blue color and even smaller size as requested by user
     if (duration > 0 && currentTime >= 0) {
       const cursorX = (currentTime / duration) * width;
       
-      // 🔥 **ULTRA-SLIM CURSOR LINE**: Reduced from 2px to 1px (50% smaller as requested)
-      ctx.strokeStyle = isPlaying ? '#f59e0b' : '#f97316';
-      ctx.lineWidth = 1; // 🆕 **REDUCED SIZE**: Changed from 2px to 1px (50% reduction)
-      ctx.shadowColor = isPlaying ? '#f59e0b' : '#f97316';
-      ctx.shadowBlur = isPlaying ? 1 : 0.5; // Reduced shadow blur proportionally
+      // 🔵 **BLUE CURSOR LINE**: Changed to blue color and made even thinner as requested
+      ctx.strokeStyle = isPlaying ? '#3b82f6' : '#2563eb'; // Blue colors instead of orange
+      ctx.lineWidth = 0.5; // 🆕 **EVEN SMALLER**: Changed from 1px to 0.5px (50% smaller again)
       
       ctx.beginPath();
       ctx.moveTo(cursorX, 0);
       ctx.lineTo(cursorX, height);
       ctx.stroke();
-      ctx.shadowBlur = 0;
       
-      // 🔥 **MINI CURSOR TRIANGLE**: Reduced from 4px to 2px (50% smaller as requested)
-      const triangleSize = 2; // 🆕 **REDUCED SIZE**: Changed from 4px to 2px (50% reduction)
-      ctx.fillStyle = isPlaying ? '#f59e0b' : '#f97316';
-      ctx.shadowColor = isPlaying ? '#f59e0b' : '#f97316';
-      ctx.shadowBlur = isPlaying ? 0.5 : 0; // Reduced shadow blur
+      // 🔵 **MINI BLUE CURSOR TRIANGLE**: Blue color and even smaller size
+      const triangleSize = 1; // 🆕 **ULTRA SMALL**: Changed from 2px to 1px (50% smaller again)
+      ctx.fillStyle = isPlaying ? '#3b82f6' : '#2563eb'; // Blue colors to match line
       
       ctx.beginPath();
       ctx.moveTo(cursorX - triangleSize, 0);
       ctx.lineTo(cursorX + triangleSize, 0);
-      ctx.lineTo(cursorX, triangleSize * 1.5); // Proportionally smaller triangle
+      ctx.lineTo(cursorX, triangleSize * 1.5); // Proportionally smaller triangle (1.5px height)
       ctx.closePath();
       ctx.fill();
-      ctx.shadowBlur = 0;
       
-      // 🔧 **DEBUG COMPACT CURSOR**: Log size reduction occasionally
+      // 🔧 **DEBUG BLUE COMPACT CURSOR**: Log new blue cursor specs
       if (Math.random() < 0.002) { // 0.2% sampling
-        console.log(`🔥 [CompactCursor] Rendered 50% smaller cursor:`, {
-          lineWidth: '1px (was 2px)',
-          triangleSize: '2px (was 4px)',
+        console.log(`🔵 [BlueCursor] Rendered BLUE ultra-compact cursor:`, {
+          lineWidth: '0.5px (was 1px - 50% smaller)',
+          triangleSize: '1px (was 2px - 50% smaller)', 
+          triangleHeight: '1.5px (proportional)',
           position: cursorX.toFixed(1) + 'px',
           time: currentTime.toFixed(2) + 's',
-          isPlaying
+          isPlaying,
+          color: isPlaying ? '#3b82f6 (blue-500)' : '#2563eb (blue-600)',
+          shadowEffects: 'REMOVED for crisp rendering',
+          userRequest: 'BLUE color + smaller size'
         });
       }
     }
@@ -914,10 +971,26 @@ const WaveformCanvas = React.memo(({
       console.warn(`🐌 [Performance] SLOW render: ${renderDuration.toFixed(2)}ms (target: <16ms for 60fps)`);
     } else if (renderDuration > 8 && Math.random() < 0.1) {
       // Medium render (30-60fps) - log occasionally
-      console.log(`⚡ [Performance] Render: ${renderDuration.toFixed(2)}ms (good)`);
+      console.log(`⚡ [Performance] Render: ${renderDuration.toFixed(2)}ms (good - ultra-thin bars)`);
     } else if (renderDuration <= 8 && Math.random() < 0.01) {
       // Fast render (<8ms = 125fps+) - log rarely
-      console.log(`🚀 [Performance] FAST render: ${renderDuration.toFixed(2)}ms (excellent)`);
+      console.log(`🚀 [Performance] FAST render: ${renderDuration.toFixed(2)}ms (excellent - refined waveform)`);
+    }
+    
+    // 🔥 **ULTRA-THIN BARS LOGGING**: Log bar refinement info occasionally
+    if (Math.random() < 0.005) { // 0.5% sampling
+      const totalBars = waveformData.length;
+      const avgBarWidth = useOptimizedSpacing ? 
+        Math.max(0.5, minBarWidth * 0.7) : 
+        Math.max(0.4, (width / totalBars) * 0.6);
+      
+      console.log(`🔥 [UltraThinBars] Refined waveform rendered:`, {
+        totalBars: totalBars,
+        avgBarWidth: avgBarWidth.toFixed(2) + 'px',
+        renderTime: renderDuration.toFixed(2) + 'ms',
+        optimization: useOptimizedSpacing ? 'SMALL_SCREEN' : 'LARGE_SCREEN',
+        refinement: 'ULTRA_THIN_BARS_WITH_SPACING'
+      });
     }
   }, [canvasRef, renderData, currentTime, isPlaying, hoverTooltip]);
 
