@@ -1,6 +1,8 @@
 // 📄 src/apps/mp3-cutter/components/Waveform/WaveformCanvas.js
 import React, { useEffect, useCallback, useRef, useMemo, useState } from 'react';
 import { WAVEFORM_CONFIG } from '../../utils/constants';
+import { WaveformUI } from './WaveformUI';
+import { useWaveformTooltips } from '../../hooks/useWaveformTooltips';
 
 const WaveformCanvas = React.memo(({
   canvasRef,
@@ -30,6 +32,15 @@ const WaveformCanvas = React.memo(({
   const isInitializedRef = useRef(false);
   const lastCanvasWidthRef = useRef(0);
   
+
+  // 🆕 **TOOLTIP SYSTEM**: Sử dụng custom hook
+  const {
+    hoverTooltip,
+    handleTooltips,
+    updateHoverTime,
+    clearHoverTooltip
+  } = useWaveformTooltips(canvasRef, duration, startTime, endTime, isDragging);
+  
   // 🆕 **VOLUME ANIMATION**: Smooth volume transitions
   const volumeAnimationRef = useRef(volume);
   const targetVolumeRef = useRef(volume);
@@ -45,17 +56,6 @@ const WaveformCanvas = React.memo(({
   const currentCursorRef = useRef('pointer'); // 🔧 **FIXED**: Default to pointer instead of crosshair
   const lastCursorUpdateRef = useRef(0);
 
-  // 🆕 **SIMPLIFIED HOVER TOOLTIP**: Chỉ lưu mouse position và time đơn giản
-  const [hoverTooltip, setHoverTooltip] = useState(null); // { x, time, formattedTime, visible }
-  const lastHoverUpdateRef = useRef(0);
-  const hoverTimeoutRef = useRef(null);
-
-  // 🆕 **HANDLE TOOLTIPS STATE**: Chỉ lưu handle tooltips (không dùng portal)
-  const [handleTooltips, setHandleTooltips] = useState({
-    startHandle: null,    // { x, time, visible, formattedTime }
-    endHandle: null,      // { x, time, visible, formattedTime }
-    selectionDuration: null // { x, duration, visible, formattedDuration }
-  });
 
   // 🆕 **CURSOR INTELLIGENCE**: Detect cursor type based on mouse position
   const detectCursorType = useCallback((mouseX, canvasWidth) => {
@@ -296,148 +296,18 @@ const WaveformCanvas = React.memo(({
     }
   }, [canvasRef, detectCursorType, duration, startTime, endTime, isDragging]);
 
-  // 🔧 **PERFORMANCE OPTIMIZATION**: Format time and duration with memoization
-  const formatTime = useCallback((seconds) => {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = Math.floor(seconds % 60);
-    const milliseconds = Math.floor((seconds % 1) * 1000);
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`;
-  }, []);
 
-  const formatDuration = useCallback((seconds) => {
-    if (seconds >= 60) {
-      const minutes = Math.floor(seconds / 60);
-      const remainingSeconds = (seconds % 60);
-      return `${minutes}m ${remainingSeconds.toFixed(1)}s`;
-    }
-    return `${seconds.toFixed(1)}s`;
-  }, []);
 
-  // 🆕 **SIMPLIFIED HANDLE TOOLTIPS**: Chỉ update handle tooltips khi cần thiết
-  const updateHandleTooltips = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || duration === 0) {
-      setHandleTooltips({
-        startHandle: null,
-        endHandle: null,
-        selectionDuration: null
-      });
-      return;
-    }
 
-    const canvasWidth = canvas.width;
-    
-    // 🎯 **CALCULATE POSITIONS**: Tính toán vị trí pixel từ time
-    const startX = (startTime / duration) * canvasWidth;
-    const endX = (endTime / duration) * canvasWidth;
-    
-    // 🎯 **SELECTION INFO**: Thông tin về selection
-    const hasValidSelection = startTime < endTime;
-    const selectionDuration = hasValidSelection ? endTime - startTime : 0;
-    const selectionCenterX = hasValidSelection ? (startX + endX) / 2 : null;
 
-    // 🆕 **TOOLTIP VISIBILITY LOGIC**: Chỉ hiện tooltip khi cần thiết
-    const showStartHandle = hasValidSelection && startX >= 0 && startX <= canvasWidth;
-    const showEndHandle = hasValidSelection && endX >= 0 && endX <= canvasWidth;
-    const showSelectionDuration = hasValidSelection && selectionDuration > 0.1;
 
-    // 🎯 **UPDATE HANDLE TOOLTIPS**: Simple relative positioning
-    setHandleTooltips({
-      startHandle: showStartHandle ? {
-        x: startX,
-        time: startTime,
-        visible: true,
-        formattedTime: formatTime(startTime)
-      } : null,
 
-      endHandle: showEndHandle ? {
-        x: endX,
-        time: endTime,
-        visible: true,
-        formattedTime: formatTime(endTime)
-      } : null,
-
-      selectionDuration: showSelectionDuration ? {
-        x: selectionCenterX,
-        duration: selectionDuration,
-        visible: true,
-        formattedDuration: formatDuration(selectionDuration)
-      } : null
-    });
-
-    // 🔧 **MINIMAL DEBUG**: Reduced logging để improve performance
-    if (Math.random() < 0.01) { // 1% sampling
-      console.log(`🏷️ [HandleTooltips] Updated:`, {
-        tooltipCount: [showStartHandle, showEndHandle, showSelectionDuration].filter(Boolean).length
-      });
-    }
-
-  }, [canvasRef, duration, startTime, endTime, formatTime, formatDuration]);
-
-  // 🆕 **SIMPLIFIED HOVER TIME TRACKER**: Đơn giản hóa hover tooltip
-  const updateHoverTime = useCallback((mouseX, canvasWidth) => {
-    const now = performance.now();
-    
-    // 🚀 **MINIMAL THROTTLING**: Smooth hover tooltip
-    if (now - lastHoverUpdateRef.current < 8) return; // 125fps cho smooth hover
-    lastHoverUpdateRef.current = now;
-
-    if (!canvasWidth || duration === 0) {
-      setHoverTooltip(null);
-      return;
-    }
-
-    // 🚫 **HIDE DURING REGION DRAG**: Hide hover tooltip completely when dragging region
-    if (isDragging === 'region' || isDragging === 'region-potential') {
-      setHoverTooltip(null);
-      if (Math.random() < 0.02) { // 2% sampling
-        console.log(`🚫 [HoverTooltip] HIDDEN during ${isDragging} - maintaining clean UI`);
-      }
-      return;
-    }
-
-    // 🎯 **HANDLE DETECTION**: Check if hovering over handles to hide cursor line
-    const { MODERN_HANDLE_WIDTH } = WAVEFORM_CONFIG;
-    const responsiveHandleWidth = canvasWidth < WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT ? 
-      Math.max(6, MODERN_HANDLE_WIDTH * 0.8) : MODERN_HANDLE_WIDTH;
-    
-    const startX = (startTime / duration) * canvasWidth;
-    const endX = (endTime / duration) * canvasWidth;
-    const tolerance = Math.max(responsiveHandleWidth / 2 + 8, WAVEFORM_CONFIG.RESPONSIVE.TOUCH_TOLERANCE);
-    
-    // 🚫 **HIDE HOVER TOOLTIP**: When hovering over handles
-    if (startTime < endTime) {
-      if (Math.abs(mouseX - startX) <= tolerance || Math.abs(mouseX - endX) <= tolerance) {
-        setHoverTooltip(null);
-        return;
-      }
-    }
-
-    // 🎯 **CALCULATE TIME**: Convert mouse X to time position
-    const timeAtPosition = (mouseX / canvasWidth) * duration;
-    const clampedTime = Math.max(0, Math.min(timeAtPosition, duration));
-    
-    // 🆕 **SIMPLE HOVER TOOLTIP**: Set hover data
-    setHoverTooltip({
-      x: mouseX,
-      time: clampedTime,
-      formattedTime: formatTime(clampedTime),
-      visible: true
-    });
-
-    // 🔧 **REDUCED DEBUG LOGGING**
-    if (Math.random() < 0.005) { // 0.5% sampling
-      console.log(`✅ [HoverTooltip] Smooth update: ${clampedTime.toFixed(3)}s at ${mouseX.toFixed(1)}px`);
-    }
-  }, [duration, formatTime, startTime, endTime, isDragging]);
-
-  // 🆕 **ENHANCED MOUSE MOVE HANDLER**: Ultra-smooth processing
   const handleEnhancedMouseMove = useCallback((e) => {
     // 🎯 **CALL ORIGINAL HANDLER**: Maintain existing functionality
     if (onMouseMove) {
       onMouseMove(e);
     }
-
+  
     // 🚀 **ULTRA-SMOOTH CURSOR AND TIME INTELLIGENCE**: No additional throttling
     const canvas = canvasRef.current;
     if (canvas) {
@@ -476,17 +346,7 @@ const WaveformCanvas = React.memo(({
         console.log(`🫥 [CursorReset] Mouse left canvas - forced reset from '${previousCursor}' to 'pointer'`);
       }
     }
-
-    // 🆕 **HIDE TOOLTIP**: Hide hover tooltip when leaving canvas
-    if (hoverTimeoutRef.current) {
-      clearTimeout(hoverTimeoutRef.current);
-    }
-    
-    // 🎯 **DELAYED HIDE**: Small delay to prevent flickering
-    hoverTimeoutRef.current = setTimeout(() => {
-      setHoverTooltip(null);
-      console.log(`⏰ [HoverTooltip] Hidden - mouse left canvas`);
-    }, 50);
+    clearHoverTooltip();
     
   }, [onMouseLeave, canvasRef]);
 
@@ -496,18 +356,12 @@ const WaveformCanvas = React.memo(({
     if (onMouseDown) {
       onMouseDown(e);
     }
-
-    // 🆕 **HIDE HOVER TOOLTIP ON CLICK**: Clear hover tooltip when user clicks
-    setHoverTooltip(null);
-    
-    // 🚫 **CLEAR HOVER TIMEOUT**: Cancel any pending hover timeout
-    if (hoverTimeoutRef.current) {
-      clearTimeout(hoverTimeoutRef.current);
-      hoverTimeoutRef.current = null;
-    }
-
+  
+    // 🆕 **CLEAR HOVER TOOLTIP**: Sử dụng clearHoverTooltip từ hook
+    clearHoverTooltip();
+  
     console.log(`🖱️ [ClickBehavior] Hover tooltip hidden on click`);
-  }, [onMouseDown]);
+  }, [onMouseDown, clearHoverTooltip]); // 🆕 THÊM clearHoverTooltip vào dependencies
 
   // 🔥 **OPTIMIZED ADAPTIVE DATA**: Giảm logging và chỉ log khi cần
   const adaptiveWaveformData = useMemo(() => {
@@ -1069,27 +923,7 @@ const WaveformCanvas = React.memo(({
     }
   }, [renderData, requestRedraw, isPlaying, hoverTooltip]);
 
-  // 🆕 **HANDLE TOOLTIP UPDATES**: Update handle tooltips khi cần thiết
-  useEffect(() => {
-    updateHandleTooltips();
-  }, [startTime, endTime, currentTime, duration, updateHandleTooltips]);
 
-  // 🆕 **DRAGGING TOOLTIP UPDATES**: Update handle tooltips với tần suất cao khi đang drag
-  useEffect(() => {
-    if (isDragging) {
-      // 🔥 **HIGH FREQUENCY UPDATES**: Update tooltips mỗi 16ms khi đang drag để smooth
-      const dragTooltipInterval = setInterval(() => {
-        updateHandleTooltips();
-      }, 16); // 60fps
-
-      console.log(`🏷️ [HandleTooltips] Started high-frequency updates for smooth dragging`);
-
-      return () => {
-        clearInterval(dragTooltipInterval);
-        console.log(`🏷️ [HandleTooltips] Stopped high-frequency updates`);
-      };
-    }
-  }, [isDragging, updateHandleTooltips]);
 
   // 🔥 **CANVAS SETUP**: Minimal setup với reduced logging
   useEffect(() => {
@@ -1138,11 +972,7 @@ const WaveformCanvas = React.memo(({
         cancelAnimationFrame(animationFrameRef.current);
         animationFrameRef.current = null;
       }
-      // 🆕 **HOVER CLEANUP**: Clear hover timeout to prevent memory leaks
-      if (hoverTimeoutRef.current) {
-        clearTimeout(hoverTimeoutRef.current);
-        hoverTimeoutRef.current = null;
-      }
+
     };
   }, []);
 
@@ -1337,91 +1167,17 @@ const WaveformCanvas = React.memo(({
           overflow: 'hidden', // 🚫 **NO CANVAS SCROLLBARS**: Đảm bảo canvas không tạo scrollbar
         }}
       />
-      
-      {/* 🆕 **SIMPLIFIED TOOLTIPS**: Relative positioning tooltips - NO PORTAL */}
-      
-      {/* 🆕 **HOVER TIME TOOLTIP**: Ultra-crisp with no blur effects */}
-      {hoverTooltip && hoverTooltip.visible && (
-        <div
-          className="absolute pointer-events-none text-xs font-bold z-50"
-          style={{
-            left: `${hoverTooltip.x}px`,
-            top: '-25px', // 🎯 **ABOVE CANVAS**: 25px above canvas
-            transform: 'translateX(-50%)',
-            color: '#1e293b', // 🔥 **SOLID COLOR**: No transparency for crisp text
-            whiteSpace: 'nowrap',
-            fontWeight: '700',
-            fontSize: '11px',
-            backgroundColor: '#ffffff', // 🔥 **SOLID BACKGROUND**: No transparency
-            border: '1px solid #e2e8f0', // 🔥 **CRISP BORDER**: Clean border instead of shadows
-            borderRadius: '4px',
-            padding: '2px 6px'
-            // 🚫 **NO BLUR EFFECTS**: Removed textShadow and WebkitTextStroke completely
-          }}
-        >
-          {hoverTooltip.formattedTime}
-        </div>
-      )}
 
-      {/* 🏷️ **START HANDLE TOOLTIP**: Ultra-crisp below waveform */}
-      {handleTooltips.startHandle && handleTooltips.startHandle.visible && (
-        <div
-          className="absolute pointer-events-none text-xs px-2 py-1 rounded font-medium z-40"
-          style={{
-            left: `${handleTooltips.startHandle.x}px`,
-            top: `${WAVEFORM_CONFIG.HEIGHT + 5}px`, // 🎯 **BELOW CANVAS**: 5px below canvas
-            transform: 'translateX(-50%)',
-            backgroundColor: '#14b8a6', // 🔥 **SOLID COLOR**: No transparency
-            color: 'white',
-            whiteSpace: 'nowrap',
-            border: '1px solid #0d9488' // 🔥 **CRISP BORDER**: Clean border instead of shadows
-            // 🚫 **NO BLUR EFFECTS**: Removed boxShadow and backdropFilter completely
-          }}
-        >
-          {handleTooltips.startHandle.formattedTime}
-        </div>
-      )}
+{/* 🆕 **TOOLTIP SYSTEM**: Sử dụng component tách riêng */}
+<WaveformUI 
+  hoverTooltip={hoverTooltip}
+  handleTooltips={handleTooltips}
+/>
 
-      {/* 🏷️ **END HANDLE TOOLTIP**: Ultra-crisp below waveform */}
-      {handleTooltips.endHandle && handleTooltips.endHandle.visible && (
-        <div
-          className="absolute pointer-events-none text-xs px-2 py-1 rounded font-medium z-40"
-          style={{
-            left: `${handleTooltips.endHandle.x}px`,
-            top: `${WAVEFORM_CONFIG.HEIGHT + 5}px`, // 🎯 **BELOW CANVAS**: 5px below canvas
-            transform: 'translateX(-50%)',
-            backgroundColor: '#f97316', // 🔥 **SOLID COLOR**: No transparency
-            color: 'white',
-            whiteSpace: 'nowrap',
-            border: '1px solid #ea580c' // 🔥 **CRISP BORDER**: Clean border instead of shadows
-            // 🚫 **NO BLUR EFFECTS**: Removed boxShadow and backdropFilter completely
-          }}
-        >
-          {handleTooltips.endHandle.formattedTime}
-        </div>
-      )}
-
-      {/* 🏷️ **SELECTION DURATION TOOLTIP**: Ultra-crisp inside waveform */}
-      {handleTooltips.selectionDuration && handleTooltips.selectionDuration.visible && (
-        <div
-          className="absolute pointer-events-none text-sm font-semibold z-30"
-          style={{
-            left: `${handleTooltips.selectionDuration.x}px`,
-            top: `${WAVEFORM_CONFIG.HEIGHT - 30}px`, // 🎯 **INSIDE CANVAS**: 30px from bottom
-            transform: 'translateX(-50%)',
-            color: '#1e293b', // 🔥 **SOLID COLOR**: No transparency for crisp text
-            whiteSpace: 'nowrap',
-            fontWeight: '600',
-            backgroundColor: '#ffffff', // 🔥 **SOLID BACKGROUND**: Clean white background
-            border: '1px solid #e2e8f0', // 🔥 **CRISP BORDER**: Clean border
-            borderRadius: '4px',
-            padding: '4px 8px'
-            // 🚫 **NO BLUR EFFECTS**: Removed textShadow completely
-          }}
-        >
-          {handleTooltips.selectionDuration.formattedDuration}
-        </div>
-      )}
+<WaveformUI 
+  hoverTooltip={hoverTooltip}
+  handleTooltips={handleTooltips}
+/>
     </div>
   );
 });
