@@ -235,7 +235,7 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, mainCursorToolti
           height: handlePositions.start.height,
           color: handlePositions.start.color,
           isActive: handlePositions.start.isActive,
-          leftPos: `${handlePositions.start.x - handlePositions.start.width}px` // 🔧 **UPDATED DEBUG**: Pushed fully left
+          leftPos: `${handlePositions.start.x - handlePositions.start.width}px` // 🔧 **FULL EXTERNAL**: Bây giờ có thể âm
         } : 'NOT_RENDERED',
         endHandle: shouldRenderEndHandle ? {
           x: handlePositions.end.x,
@@ -244,12 +244,19 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, mainCursorToolti
           height: handlePositions.end.height,
           color: handlePositions.end.color,
           isActive: handlePositions.end.isActive,
-          leftPos: `${handlePositions.end.x}px` // 🔧 **UPDATED DEBUG**: Pushed fully right
+          leftPos: `${handlePositions.end.x}px` // End handle vẫn giữ nguyên
         } : 'NOT_RENDERED',
-        technique: '✅ PUSHED OUTSIDE - handles no longer overlap waveform area',
-        visibility: '🔥 FULLY EXTERNAL - zero waveform area overlap!',
+        technique: '✅ START HANDLE FULLY EXTERNAL - có thể đi ra ngoài canvas bounds',
+        visibility: '🔥 ZERO WAVEFORM OVERLAP - start handle hoàn toàn bên ngoài!',
+        positioning: {
+          startHandleRange: shouldRenderStartHandle ? 
+            `[${handlePositions.start.x - handlePositions.start.width}, ${handlePositions.start.x}]px` : 'N/A',
+          endHandleRange: shouldRenderEndHandle ?
+            `[${handlePositions.end.x}, ${handlePositions.end.x + handlePositions.end.width}]px` : 'N/A',
+          note: 'Start handle có thể có position âm để đi ra ngoài canvas'
+        },
         zIndex: 40,
-        pointerEvents: 'none (pass through to canvas)'
+        pointerEvents: 'auto (có thể click và drag)'
       });
     }
 
@@ -646,15 +653,44 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, mainCursorToolti
         <div
           className="absolute z-40"
           style={{
-            left: `${handlePositions.start.x - handlePositions.start.width}px`, // 🔧 **PUSHED LEFT**: Đẩy handle ra ngoài hoàn toàn (từ width/2 → width)
+            left: `${handlePositions.start.x - handlePositions.start.width}px`, // 🔧 **FULL EXTERNAL**: Bỏ Math.max để đẩy hoàn toàn ra ngoài
             top: `${handlePositions.start.y}px`,
             width: `${handlePositions.start.width}px`,
             height: `${handlePositions.start.height}px`,
             backgroundColor: handlePositions.start.color,
-            pointerEvents: 'none', // Let mouse events pass through to canvas
+            pointerEvents: 'auto', // 🔧 **ENABLE MOUSE EVENTS**: Cho phép mouse events trên handles
             borderRadius: '0px', // Sharp edges for handles
             transition: 'background-color 150ms ease', // Smooth color transitions
-            zIndex: 40 // Higher than waveform, lower than tooltips
+            zIndex: 40, // Higher than waveform, lower than tooltips
+            cursor: 'ew-resize' // 🔧 **DIRECT CURSOR**: Set cursor trực tiếp trên handle
+          }}
+          onMouseEnter={() => {
+            console.log('🎯 [HANDLE-HOVER] START handle hovered - direct event');
+          }}
+          onMouseLeave={() => {
+            console.log('🎯 [HANDLE-HOVER] START handle unhovered - direct event');
+          }}
+          onMouseDown={(e) => {
+            console.log('🎯 [HANDLE-DRAG] START handle mouse down - forwarding to canvas');
+            // 🔧 **FORWARD TO CANVAS**: Simulate canvas mouse down tại start position
+            const canvas = document.querySelector('canvas');
+            if (canvas) {
+              const rect = canvas.getBoundingClientRect();
+              const syntheticEvent = {
+                clientX: rect.left + handlePositions.start.x, // startX position trong canvas
+                clientY: rect.top + rect.height / 2,
+                preventDefault: () => {},
+                stopPropagation: () => {}
+              };
+              
+              // Trigger canvas mouse down handler
+              const canvasHandlers = canvas._reactInternalInstance || canvas._reactInternalFiber;
+              if (canvas.onmousedown) {
+                canvas.onmousedown(syntheticEvent);
+              }
+            }
+            e.preventDefault();
+            e.stopPropagation();
           }}
         />
       )}
@@ -664,15 +700,26 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, mainCursorToolti
         <div
           className="absolute z-40"
           style={{
-            left: `${handlePositions.end.x}px`, // 🔧 **PUSHED RIGHT**: Đẩy handle ra ngoài hoàn toàn (từ -width/2 → 0)
+            left: `${handlePositions.end.x}px`, // End handle position OK - không cần adjust
             top: `${handlePositions.end.y}px`,
             width: `${handlePositions.end.width}px`,
             height: `${handlePositions.end.height}px`,
             backgroundColor: handlePositions.end.color,
-            pointerEvents: 'none', // Let mouse events pass through to canvas
+            pointerEvents: 'auto', // 🔧 **ENABLE MOUSE EVENTS**: Cho phép mouse events trên handles
             borderRadius: '0px', // Sharp edges for handles
             transition: 'background-color 150ms ease', // Smooth color transitions
-            zIndex: 40 // Higher than waveform, lower than tooltips
+            zIndex: 40, // Higher than waveform, lower than tooltips
+            cursor: 'ew-resize' // 🔧 **DIRECT CURSOR**: Set cursor trực tiếp trên handle
+          }}
+          onMouseEnter={() => {
+            console.log('🎯 [HANDLE-HOVER] END handle hovered - direct event');
+          }}
+          onMouseLeave={() => {
+            console.log('🎯 [HANDLE-HOVER] END handle unhovered - direct event');
+          }}
+          onMouseDown={(e) => {
+            console.log('🎯 [HANDLE-CLICK] END handle clicked - direct event');
+            e.stopPropagation(); // Prevent canvas handler
           }}
         />
       )}

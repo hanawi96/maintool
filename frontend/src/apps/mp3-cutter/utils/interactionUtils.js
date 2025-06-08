@@ -32,7 +32,7 @@ export const detectHandle = (x, canvasWidth, duration, startTime, endTime) => {
   if (duration === 0 || canvasWidth === 0) return null;
   
   // 🎯 **MODERN HANDLE DETECTION**: Use modern handle width configuration
-  const baseHandleWidth = WAVEFORM_CONFIG.MODERN_HANDLE_WIDTH; // 3px modern handles
+  const baseHandleWidth = WAVEFORM_CONFIG.MODERN_HANDLE_WIDTH; // 8px modern handles
   const mobileBreakpoint = WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT;
   
   const responsiveHandleWidth = canvasWidth < mobileBreakpoint ? 
@@ -41,29 +41,79 @@ export const detectHandle = (x, canvasWidth, duration, startTime, endTime) => {
   const startX = (startTime / duration) * canvasWidth;
   const endX = (endTime / duration) * canvasWidth;
   
-  // 🔧 **OPTIMIZED TOLERANCE**: Match WaveformCanvas tolerance calculation exactly
-  // 🔧 **UPDATED FOR EXTERNAL HANDLES**: Increase tolerance since handles are now outside waveform
-  const baseTolerance = responsiveHandleWidth + 8; // Tăng từ 3px lên 8px cho handles ở ngoài
-  const mobileTolerance = canvasWidth < mobileBreakpoint ? 18 : 12; // Tăng mobile tolerance
-  const tolerance = Math.min(baseTolerance, mobileTolerance); // Chọn giá trị nhỏ hơn
+  // 🔧 **CRITICAL ANALYSIS**: Phân tích chi tiết visual vs detection
+  // Visual rendering (from WaveformUI):
+  // - Start handle: left = startX - width = startX - 8, so visual range is [startX-8, startX]
+  // - End handle: left = endX, so visual range is [endX, endX+8]
   
-  // 🔧 **DEBUG TOLERANCE CALCULATION**: Log để sync với WaveformCanvas
-  if (Math.random() < 0.01) { // 1% sampling
-    console.log(`🔍 [HandleDetect] Tolerance calculation:`, {
-      baseHandleWidth: baseHandleWidth + 'px',
+  // Visual centers:
+  const startHandleVisualCenter = startX - (responsiveHandleWidth / 2); // startX - 4
+  const endHandleVisualCenter = endX + (responsiveHandleWidth / 2);     // endX + 4
+  
+  // Detection tolerance - cần bao phủ toàn bộ visual + buffer
+  const halfWidth = responsiveHandleWidth / 2; // 4px
+  const bufferZone = 2; // 2px buffer each side
+  const detectionTolerance = halfWidth + bufferZone; // 6px total
+  
+  // 🚀 **COMPREHENSIVE DEBUG**: Log tất cả thông tin để verify
+  if (Math.random() < 0.1) { // 10% sampling để debug intensively
+    const startVisualLeft = startX - responsiveHandleWidth;
+    const startVisualRight = startX;
+    const endVisualLeft = endX;
+    const endVisualRight = endX + responsiveHandleWidth;
+    
+    const startDetectionLeft = startHandleVisualCenter - detectionTolerance;
+    const startDetectionRight = startHandleVisualCenter + detectionTolerance;
+    const endDetectionLeft = endHandleVisualCenter - detectionTolerance;
+    const endDetectionRight = endHandleVisualCenter + detectionTolerance;
+    
+    console.log(`🔍 [HANDLE-DEBUG] COMPREHENSIVE ANALYSIS:`, {
+      mouseX: x.toFixed(1),
       responsiveHandleWidth: responsiveHandleWidth + 'px',
-      baseTolerance: baseTolerance + 'px',
-      mobileTolerance: mobileTolerance + 'px',
-      finalTolerance: tolerance + 'px',
-      canvasWidth: canvasWidth + 'px',
-      isMobile: canvasWidth < mobileBreakpoint,
-      handleMode: '🔧 EXTERNAL HANDLES - pushed outside waveform'
+      
+      // VISUAL POSITIONS (where handles are actually drawn)
+      startHandleVisual: `[${startVisualLeft.toFixed(1)}, ${startVisualRight.toFixed(1)}] (width: ${responsiveHandleWidth}px)`,
+      endHandleVisual: `[${endVisualLeft.toFixed(1)}, ${endVisualRight.toFixed(1)}] (width: ${responsiveHandleWidth}px)`,
+      
+      // DETECTION POSITIONS (where we detect mouse)
+      startDetection: `[${startDetectionLeft.toFixed(1)}, ${startDetectionRight.toFixed(1)}] (center: ${startHandleVisualCenter.toFixed(1)})`,
+      endDetection: `[${endDetectionLeft.toFixed(1)}, ${endDetectionRight.toFixed(1)}] (center: ${endHandleVisualCenter.toFixed(1)})`,
+      
+      detectionTolerance: detectionTolerance + 'px',
+      
+      // MOUSE POSITION ANALYSIS
+      mouseInStartVisual: x >= startVisualLeft && x <= startVisualRight,
+      mouseInEndVisual: x >= endVisualLeft && x <= endVisualRight,
+      mouseInStartDetection: Math.abs(x - startHandleVisualCenter) <= detectionTolerance,
+      mouseInEndDetection: Math.abs(x - endHandleVisualCenter) <= detectionTolerance,
+      
+      // DISTANCE ANALYSIS
+      distToStartCenter: Math.abs(x - startHandleVisualCenter).toFixed(1),
+      distToEndCenter: Math.abs(x - endHandleVisualCenter).toFixed(1),
+      
+      // VERDICT
+      shouldDetectStart: Math.abs(x - startHandleVisualCenter) <= detectionTolerance,
+      shouldDetectEnd: Math.abs(x - endHandleVisualCenter) <= detectionTolerance,
+      
+      // DETAILED POSITION INFO
+      timePositions: {
+        startTime: startTime.toFixed(2) + 's',
+        endTime: endTime.toFixed(2) + 's',
+        startX: startX.toFixed(1) + 'px',
+        endX: endX.toFixed(1) + 'px'
+      }
     });
   }
   
-  // Check start handle first (priority for overlapping cases)
-  if (Math.abs(x - startX) <= tolerance) return HANDLE_TYPES.START;
-  if (Math.abs(x - endX) <= tolerance) return HANDLE_TYPES.END;
+  // 🎯 **PRECISE DETECTION**: Check với visual centers
+  if (Math.abs(x - startHandleVisualCenter) <= detectionTolerance) {
+    console.log(`✅ [HANDLE-DETECT] START HANDLE DETECTED at ${x.toFixed(1)}px (center: ${startHandleVisualCenter.toFixed(1)}px, tolerance: ${detectionTolerance}px)`);
+    return HANDLE_TYPES.START;
+  }
+  if (Math.abs(x - endHandleVisualCenter) <= detectionTolerance) {
+    console.log(`✅ [HANDLE-DETECT] END HANDLE DETECTED at ${x.toFixed(1)}px (center: ${endHandleVisualCenter.toFixed(1)}px, tolerance: ${detectionTolerance}px)`);
+    return HANDLE_TYPES.END;
+  }
   
   return HANDLE_TYPES.NONE;
 };

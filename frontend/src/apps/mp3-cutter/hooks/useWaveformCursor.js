@@ -21,14 +21,26 @@ export const useWaveformCursor = (canvasRef, duration, startTime, endTime, isDra
     
     const startX = (startTime / duration) * canvasWidth;
     const endX = (endTime / duration) * canvasWidth;
-    // 🔧 **UPDATED FOR EXTERNAL HANDLES**: Increase tolerance since handles are now outside waveform
-    const baseTolerance = responsiveHandleWidth + 8; // Tăng từ 3px lên 8px cho handles ở ngoài
-    const mobileTolerance = canvasWidth < WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT ? 18 : 12; // Tăng mobile tolerance
-    const tolerance = Math.min(baseTolerance, mobileTolerance);
+    
+    // 🔧 **SYNC WITH INTERACTION UTILS**: Sử dụng chính xác cùng logic
+    const startHandleVisualCenter = startX - (responsiveHandleWidth / 2); // startX - 4
+    const endHandleVisualCenter = endX + (responsiveHandleWidth / 2);     // endX + 4
+    const detectionTolerance = responsiveHandleWidth / 2 + 2; // 6px total
     
     if (startTime < endTime) {
-      const overStartHandle = Math.abs(mouseX - startX) <= tolerance;
-      const overEndHandle = Math.abs(mouseX - endX) <= tolerance;
+      const overStartHandle = Math.abs(mouseX - startHandleVisualCenter) <= detectionTolerance;
+      const overEndHandle = Math.abs(mouseX - endHandleVisualCenter) <= detectionTolerance;
+      
+      // 🚀 **CURSOR DEBUG**: Log khi detect handle
+      if (overStartHandle || overEndHandle) {
+        console.log(`🖱️ [CURSOR-DETECT] Handle detected for cursor change:`, {
+          mouseX: mouseX.toFixed(1),
+          startHandle: overStartHandle ? `YES (center: ${startHandleVisualCenter.toFixed(1)}, dist: ${Math.abs(mouseX - startHandleVisualCenter).toFixed(1)})` : 'NO',
+          endHandle: overEndHandle ? `YES (center: ${endHandleVisualCenter.toFixed(1)}, dist: ${Math.abs(mouseX - endHandleVisualCenter).toFixed(1)})` : 'NO',
+          tolerance: detectionTolerance + 'px',
+          cursor: 'ew-resize'
+        });
+      }
       
       if (overStartHandle || overEndHandle) {
         return 'ew-resize';
@@ -107,11 +119,51 @@ export const useWaveformCursor = (canvasRef, duration, startTime, endTime, isDra
     
     let throttleInterval;
     if (isDragging === 'region' || isDragging === 'region-potential') {
-      throttleInterval = 8;
+      throttleInterval = 4; // Giảm từ 8ms xuống 4ms cho region drag
     } else if (currentCursorRef.current === 'ew-resize') {
-      throttleInterval = 8;
+      throttleInterval = 2; // Giảm từ 8ms xuống 2ms cho handle hover - SIÊU NHẠY
     } else {
-      throttleInterval = 16;
+      // 🚀 **ENHANCED LOGIC**: Check if mouse is near handles to use faster update
+      const canvas = canvasRef.current;
+      if (canvas && duration > 0) {
+        const canvasWidth = canvas.width;
+        const responsiveHandleWidth = canvasWidth < WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT ? 
+          Math.max(6, WAVEFORM_CONFIG.MODERN_HANDLE_WIDTH * 0.8) : WAVEFORM_CONFIG.MODERN_HANDLE_WIDTH;
+        
+        const startX = (startTime / duration) * canvasWidth;
+        const endX = (endTime / duration) * canvasWidth;
+        
+        // 🔧 **SYNC WITH NEW DETECTION**: Sử dụng detection position mới
+        const startHandleVisualCenter = startX - (responsiveHandleWidth / 2);
+        const endHandleVisualCenter = endX + (responsiveHandleWidth / 2);
+        const detectionTolerance = responsiveHandleWidth / 2 + 2;
+        
+        // Check if mouse is near any handle (với visual position chính xác)
+        const nearStartHandle = Math.abs(mouseX - startHandleVisualCenter) <= detectionTolerance * 1.5; // 1.5x tolerance for pre-detection
+        const nearEndHandle = Math.abs(mouseX - endHandleVisualCenter) <= detectionTolerance * 1.5;
+        
+        if (nearStartHandle || nearEndHandle) {
+          throttleInterval = 4; // Faster update when near handles
+          
+          // 🚀 **DEBUG ENHANCED DETECTION**: Log when using enhanced detection với visual sync
+          if (Math.random() < 0.02) { // 2% sampling
+            console.log('🎯 [ENHANCED-CURSOR] Near handle detected - VISUAL SYNC:', {
+              mouseX: mouseX.toFixed(1),
+              startHandleCenter: startHandleVisualCenter.toFixed(1),
+              endHandleCenter: endHandleVisualCenter.toFixed(1),
+              handleTolerance: detectionTolerance.toFixed(1),
+              nearStart: nearStartHandle,
+              nearEnd: nearEndHandle,
+              throttleInterval: throttleInterval + 'ms',
+              improvement: 'PERFECT SYNC - detection khớp visual position'
+            });
+          }
+        } else {
+          throttleInterval = 8; // Normal rate for other areas
+        }
+      } else {
+        throttleInterval = 8; // Fallback
+      }
     }
     
     if (now - lastCursorUpdateRef.current < throttleInterval) return;
