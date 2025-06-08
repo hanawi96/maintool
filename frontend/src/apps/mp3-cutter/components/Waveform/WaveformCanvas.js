@@ -296,59 +296,9 @@ const WaveformCanvas = React.memo(({
       ctx.stroke();
       ctx.setLineDash([]);
     }
-    
-    // 4. 🔵 **MAIN CURSOR**: Blue cursor với ultra-thin design
-    if (duration > 0 && currentTime >= 0) {
-      const cursorX = (currentTime / duration) * width;
-      
-      // 🔵 **CURSOR LINE**
-      ctx.strokeStyle = isPlaying ? '#3b82f6' : '#2563eb';
-      ctx.lineWidth = 0.5;
-      
-      ctx.beginPath();
-      ctx.moveTo(cursorX, 0);
-      ctx.lineTo(cursorX, height);
-      ctx.stroke();
-      
-      // 🔵 **CURSOR TRIANGLE**
-      const triangleSize = 1;
-      ctx.fillStyle = isPlaying ? '#3b82f6' : '#2563eb';
-      
-      ctx.beginPath();
-      ctx.moveTo(cursorX - triangleSize, 0);
-      ctx.lineTo(cursorX + triangleSize, 0);
-      ctx.lineTo(cursorX, triangleSize * 1.5);
-      ctx.closePath();
-      ctx.fill();
-    }
 
-    // 5. **HOVER LINE** - Ultra thin gray line
-    if (hoverTooltip && hoverTooltip.visible && duration > 0 && 
-        isDragging !== 'start' && isDragging !== 'end') { // 🔧 **HIDE WHEN DRAGGING HANDLES**: Ẩn khi drag handles theo yêu cầu user
-      const hoverX = hoverTooltip.x;
-      
-      // 🔧 **ULTRA THIN GRAY HOVER LINE**: Size nhỏ hơn, màu xám theo yêu cầu user
-      ctx.strokeStyle = 'rgba(156, 163, 175, 0.6)'; // Gray color thay vì blue
-      ctx.lineWidth = 0.3; // Nhỏ hơn: từ 0.5 → 0.3
-      
-      ctx.beginPath();
-      ctx.moveTo(hoverX, 0);
-      ctx.lineTo(hoverX, height);
-      ctx.stroke();
-      
-      // 🔧 **DEBUG HOVER LINE**: Log hover line styling
-      if (Math.random() < 0.05) { // 5% sampling
-        console.log('🖱️ [HOVER-LINE] Ultra thin gray line rendered:', {
-          x: `${hoverX.toFixed(1)}px`,
-          lineWidth: 0.3,
-          color: 'rgba(156, 163, 175, 0.6)',
-          note: 'Size nhỏ hơn và màu xám theo yêu cầu user - ẩn khi drag handles'
-        });
-      }
-    }
-
-    // 🎯 **HANDLES NOW RENDERED AS REACT COMPONENTS** - No longer drawn on canvas
-    // Handles are now rendered in WaveformUI using handlePositions prop for perfect visibility
+    // 🎯 **CURSORS & LINES NOW RENDERED AS REACT COMPONENTS** - No longer drawn on canvas
+    // Main cursor, hover line, and handles are now rendered in WaveformUI using React components for perfect control
   }, [canvasRef, renderData, currentTime, isPlaying, hoverTooltip, calculateFadeMultiplier]);
 
   // 🚀 **EFFECT OPTIMIZATIONS**: Controlled re-renders
@@ -403,6 +353,46 @@ const WaveformCanvas = React.memo(({
     };
   }, [canvasRef, duration, startTime, endTime, hoveredHandle, isDragging]);
 
+  // 🆕 **CURSOR POSITION CALCULATOR**: Calculate cursor positions for React rendering
+  const cursorPositions = useMemo(() => {
+    if (!canvasRef.current || duration === 0) {
+      return { mainCursor: null, hoverLine: null };
+    }
+    
+    const canvas = canvasRef.current;
+    const width = canvas.width || 800;
+    const height = canvas.height || WAVEFORM_CONFIG.HEIGHT;
+    
+    // 🔵 **MAIN CURSOR CALCULATION**
+    const mainCursorX = currentTime >= 0 ? (currentTime / duration) * width : -1;
+    
+    // 🖱️ **HOVER LINE CALCULATION** 
+    const shouldShowHoverLine = hoverTooltip && hoverTooltip.visible && 
+      isDragging !== 'start' && isDragging !== 'end';
+    const hoverLineX = shouldShowHoverLine ? hoverTooltip.x : -1;
+    
+    return {
+      mainCursor: {
+        visible: currentTime >= 0 && duration > 0,
+        x: mainCursorX,
+        y: 0,
+        width: 1, // Ultra thin cursor
+        height: height,
+        color: isPlaying ? '#3b82f6' : '#2563eb',
+        showTriangle: true,
+        triangleSize: 1
+      },
+      hoverLine: {
+        visible: shouldShowHoverLine && hoverLineX >= 0,
+        x: hoverLineX,
+        y: 0,
+        width: 0.6, // Ultra thin hover line  
+        height: height,
+        color: 'rgba(156, 163, 175, 0.6)' // Gray color
+      }
+    };
+  }, [canvasRef, duration, currentTime, isPlaying, hoverTooltip, isDragging]);
+
   return (
     <div className="relative" style={{ minWidth: `${WAVEFORM_CONFIG.RESPONSIVE.MIN_WIDTH}px` }}>
       <canvas
@@ -423,6 +413,7 @@ const WaveformCanvas = React.memo(({
         handleTooltips={handleTooltips}
         mainCursorTooltip={mainCursorTooltip}
         handlePositions={handlePositions}
+        cursorPositions={cursorPositions}
       />
     </div>
   );

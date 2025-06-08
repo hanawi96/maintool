@@ -2,7 +2,7 @@ import React, { useEffect, useRef, memo } from 'react';
 import { WAVEFORM_CONFIG } from '../../utils/constants.js';
 
 // 🚀 **ULTRA-OPTIMIZED COMPONENT** - Loại bỏ excessive re-renders
-export const WaveformUI = memo(({ hoverTooltip, handleTooltips, mainCursorTooltip, handlePositions }) => {
+export const WaveformUI = memo(({ hoverTooltip, handleTooltips, mainCursorTooltip, handlePositions, cursorPositions }) => {
   // 🔧 **MINIMAL DEBUG REFS** - Chỉ track cần thiết
   const renderCountRef = useRef(0);
   const lastLogTimeRef = useRef(0);
@@ -164,6 +164,17 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, mainCursorToolti
     !isNaN(handlePositions.end.x) &&
     handlePositions.end.x >= 0;
 
+  // 🆕 **CURSOR RENDER CHECKS**: Check if cursors should be rendered
+  const shouldRenderMainCursor = cursorPositions?.mainCursor?.visible &&
+    typeof cursorPositions.mainCursor.x === 'number' &&
+    !isNaN(cursorPositions.mainCursor.x) &&
+    cursorPositions.mainCursor.x >= 0;
+
+  const shouldRenderHoverLine = cursorPositions?.hoverLine?.visible &&
+    typeof cursorPositions.hoverLine.x === 'number' &&
+    !isNaN(cursorPositions.hoverLine.x) &&
+    cursorPositions.hoverLine.x >= 0;
+
   // 🔧 **INSTANT TOOLTIP DEBUG**: Log instant positioning và verify zero delay
   useEffect(() => {
     if (shouldRenderDurationTooltip && Math.random() < 0.1) { // 10% sampling
@@ -241,8 +252,34 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, mainCursorToolti
         pointerEvents: 'none (pass through to canvas)'
       });
     }
+
+    // 🔵 **CURSOR COMPONENT DEBUG**: Log React cursor rendering
+    if ((shouldRenderMainCursor || shouldRenderHoverLine) && Math.random() < 0.1) { // 10% sampling
+      console.log('🔵 [REACT-CURSOR-SUCCESS] Cursors rendered as React components:', {
+        mainCursor: shouldRenderMainCursor ? {
+          x: cursorPositions.mainCursor.x,
+          y: cursorPositions.mainCursor.y,
+          width: cursorPositions.mainCursor.width,
+          height: cursorPositions.mainCursor.height,
+          color: cursorPositions.mainCursor.color,
+          showTriangle: cursorPositions.mainCursor.showTriangle,
+          triangleSize: cursorPositions.mainCursor.triangleSize
+        } : 'NOT_RENDERED',
+        hoverLine: shouldRenderHoverLine ? {
+          x: cursorPositions.hoverLine.x,
+          y: cursorPositions.hoverLine.y,
+          width: cursorPositions.hoverLine.width,
+          height: cursorPositions.hoverLine.height,
+          color: cursorPositions.hoverLine.color
+        } : 'NOT_RENDERED',
+        technique: '✅ SAME AS TOOLTIPS - absolute positioning with z-index',
+        visibility: '🔥 PERFECT CONTROL - no canvas limitations!',
+        zIndexes: { hoverLine: 20, mainCursor: 30, handles: 40, tooltips: 50 },
+        advantages: 'Smooth animations, perfect positioning, no canvas clipping!'
+      });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shouldRenderDurationTooltip, shouldRenderStartTooltip, shouldRenderEndTooltip, shouldRenderMainCursorTooltip, shouldRenderStartHandle, shouldRenderEndHandle, handleTooltips, mainCursorTooltip, handlePositions]);
+  }, [shouldRenderDurationTooltip, shouldRenderStartTooltip, shouldRenderEndTooltip, shouldRenderMainCursorTooltip, shouldRenderStartHandle, shouldRenderEndHandle, shouldRenderMainCursor, shouldRenderHoverLine, handleTooltips, mainCursorTooltip, handlePositions, cursorPositions]);
 
   // 🆕 **HOVER HANDLE CHANGE DETECTION** - Debug khi handles thay đổi qua hover
   useEffect(() => {
@@ -636,6 +673,58 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, mainCursorToolti
             borderRadius: '0px', // Sharp edges for handles
             transition: 'background-color 150ms ease', // Smooth color transitions
             zIndex: 40 // Higher than waveform, lower than tooltips
+          }}
+        />
+      )}
+
+      {/* 🔵 **MAIN CURSOR COMPONENT** - React component rendering like tooltips */}
+      {shouldRenderMainCursor && (
+        <>
+          {/* Cursor Line */}
+          <div
+            className="absolute z-30"
+            style={{
+              left: `${cursorPositions.mainCursor.x}px`,
+              top: `${cursorPositions.mainCursor.y}px`,
+              width: `${cursorPositions.mainCursor.width}px`,
+              height: `${cursorPositions.mainCursor.height}px`,
+              backgroundColor: cursorPositions.mainCursor.color,
+              pointerEvents: 'none',
+              zIndex: 30 // Between waveform and handles
+            }}
+          />
+          {/* Cursor Triangle */}
+          {cursorPositions.mainCursor.showTriangle && (
+            <div
+              className="absolute z-30"
+              style={{
+                left: `${cursorPositions.mainCursor.x - cursorPositions.mainCursor.triangleSize}px`,
+                top: `${cursorPositions.mainCursor.y}px`,
+                width: 0,
+                height: 0,
+                borderLeft: `${cursorPositions.mainCursor.triangleSize}px solid transparent`,
+                borderRight: `${cursorPositions.mainCursor.triangleSize}px solid transparent`,
+                borderTop: `${cursorPositions.mainCursor.triangleSize * 1.5}px solid ${cursorPositions.mainCursor.color}`,
+                pointerEvents: 'none',
+                zIndex: 30
+              }}
+            />
+          )}
+        </>
+      )}
+
+      {/* 🖱️ **HOVER LINE COMPONENT** - React component rendering like tooltips */}
+      {shouldRenderHoverLine && (
+        <div
+          className="absolute z-20"
+          style={{
+            left: `${cursorPositions.hoverLine.x}px`,
+            top: `${cursorPositions.hoverLine.y}px`,
+            width: `${cursorPositions.hoverLine.width}px`,
+            height: `${cursorPositions.hoverLine.height}px`,
+            backgroundColor: cursorPositions.hoverLine.color,
+            pointerEvents: 'none',
+            zIndex: 20 // Lower than cursor and handles
           }}
         />
       )}
