@@ -61,73 +61,127 @@ const WaveformCanvas = React.memo(({
   const detectCursorType = useCallback((mouseX, canvasWidth) => {
     if (!canvasWidth || duration === 0) return 'pointer'; // 🔧 **FIXED**: Default pointer instead of crosshair
 
-    // 🔧 **DEBUG ENHANCED**: Enhanced logging for cursor detection
-    const shouldLog = currentCursorRef.current !== 'pointer' || Math.random() < 0.05; // 5% sampling for better debugging
+    // 🔧 **DEBUG ENHANCED**: Enhanced logging for cursor detection - more selective logging
+    const shouldLog = Math.random() < 0.02; // 2% sampling to reduce console spam
     if (shouldLog) {
       console.log(`🖱️ [CursorDetect] Analyzing position ${mouseX.toFixed(1)}px of ${canvasWidth}px (duration: ${duration.toFixed(2)}s)`);
     }
 
-    // 🎯 **HANDLE DETECTION**: Check if hovering over handles first (highest priority)
+    // 🔥 **PRIORITY 1: REGION DRAG CURSOR** - Highest priority when dragging region
+    if (isDragging === 'region' || isDragging === 'region-potential') {
+      // 🎯 **CROSS-PLATFORM 4-WAY ARROW**: Use all-scroll which works consistently across OS
+      if (shouldLog) console.log(`🔄 [CursorDetect] REGION DRAG ACTIVE - forcing 4-way arrow cursor`, {
+        mousePosition: mouseX.toFixed(1) + 'px',
+        dragState: isDragging === 'region' ? 'ACTIVE_REGION_DRAG' : 'POTENTIAL_REGION_DRAG',
+        cursorType: 'all-scroll (4-directional arrow - CROSS-PLATFORM)',
+        isDragging: isDragging,
+        note: '4-way arrow LOCKED during region drag/potential - using all-scroll for Windows compatibility'
+      });
+      
+      // 🔧 **ENHANCED DEBUG**: Always log region drag cursor for debugging
+      console.log(`🎯 [CursorDebug] REGION DRAG CURSOR: isDragging=${isDragging} → forcing 'all-scroll' cursor (4-way arrow)`);
+      return 'all-scroll'; // 🔄 **CROSS-PLATFORM 4-WAY ARROW**: Use all-scroll instead of move for better compatibility
+    }
+
+    // 🎯 **PRIORITY 2: HANDLE DETECTION** - Only when NOT dragging region
     const { MODERN_HANDLE_WIDTH } = WAVEFORM_CONFIG;
     const responsiveHandleWidth = canvasWidth < WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT ? 
       Math.max(6, MODERN_HANDLE_WIDTH * 0.8) : MODERN_HANDLE_WIDTH;
     
     const startX = (startTime / duration) * canvasWidth;
     const endX = (endTime / duration) * canvasWidth;
-    const tolerance = Math.max(responsiveHandleWidth / 2 + 8, WAVEFORM_CONFIG.RESPONSIVE.TOUCH_TOLERANCE);
     
-    // 🔍 **HANDLE HOVER DETECTION** (Highest Priority)
+    // 🔧 **OPTIMIZED TOLERANCE**: Much smaller and more precise handle detection
+    // Giảm tolerance để cursor chỉ hiện ew-resize khi thực sự hover over handle
+    const baseTolerance = responsiveHandleWidth + 3; // Chỉ 3px padding thêm thay vì 8px
+    const mobileTolerance = canvasWidth < WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT ? 12 : 8; // Giảm mobile tolerance
+    const tolerance = Math.min(baseTolerance, mobileTolerance); // Chọn giá trị nhỏ hơn
+    
+    // 🔧 **STRICT HANDLE DETECTION**: Only show ew-resize cursor when actually over handles
     if (startTime < endTime) { // Only check handles if there's a valid selection
-      if (Math.abs(mouseX - startX) <= tolerance) {
-        if (shouldLog) console.log(`🎯 [CursorDetect] START HANDLE detected at ${startX.toFixed(1)}px - ew-resize cursor`);
-        return 'ew-resize'; // ← Handle resize cursor
-      }
-      if (Math.abs(mouseX - endX) <= tolerance) {
-        if (shouldLog) console.log(`🎯 [CursorDetect] END HANDLE detected at ${endX.toFixed(1)}px - ew-resize cursor`);
-        return 'ew-resize'; // ← Handle resize cursor
-      }
-    }
-
-    // 🆕 **DRAG STATE DETECTION**: Check if currently dragging region to show move cursor
-    if (isDragging === 'region') {
-      const timeAtPosition = (mouseX / canvasWidth) * duration;
-      const isInsideRegion = timeAtPosition >= startTime && timeAtPosition <= endTime;
+      const overStartHandle = Math.abs(mouseX - startX) <= tolerance;
+      const overEndHandle = Math.abs(mouseX - endX) <= tolerance;
       
-      if (isInsideRegion) {
-        if (shouldLog) console.log(`🔄 [CursorDetect] DRAGGING REGION - move cursor active`, {
-          mousePosition: mouseX.toFixed(1) + 'px',
-          timeAtPosition: timeAtPosition.toFixed(2) + 's', 
-          regionStart: startTime.toFixed(2) + 's',
-          regionEnd: endTime.toFixed(2) + 's',
-          cursorType: 'move (4-directional arrow)',
-          dragState: 'ACTIVE_REGION_DRAG',
-          isDragging: isDragging
+      if (overStartHandle) {
+        // 🔧 **ENHANCED DEBUG**: Log handle detection with precise tolerance info
+        console.log(`🎯 [CursorDetect] START HANDLE detected at ${startX.toFixed(1)}px (mouse: ${mouseX.toFixed(1)}px, tolerance: ${tolerance}px) - ew-resize cursor`);
+        return 'ew-resize'; // ← Handle resize cursor
+      }
+      if (overEndHandle) {
+        // 🔧 **ENHANCED DEBUG**: Log handle detection with precise tolerance info
+        console.log(`🎯 [CursorDetect] END HANDLE detected at ${endX.toFixed(1)}px (mouse: ${mouseX.toFixed(1)}px, tolerance: ${tolerance}px) - ew-resize cursor`);
+        return 'ew-resize'; // ← Handle resize cursor
+      }
+      
+      // 🔧 **DEBUG FALSE NEGATIVES**: Log when close to handle but not detected
+      const distanceToStart = Math.abs(mouseX - startX);
+      const distanceToEnd = Math.abs(mouseX - endX);
+      if (shouldLog && (distanceToStart <= tolerance + 5 || distanceToEnd <= tolerance + 5)) {
+        console.log(`🔍 [CursorDetect] Close to handle but not detected:`, {
+          startDistance: distanceToStart.toFixed(1) + 'px',
+          endDistance: distanceToEnd.toFixed(1) + 'px',
+          tolerance: tolerance + 'px',
+          startPos: startX.toFixed(1) + 'px',
+          endPos: endX.toFixed(1) + 'px',
+          mousePos: mouseX.toFixed(1) + 'px'
         });
-        return 'move'; // 🔄 **ACTIVE DRAG CURSOR**: 4-directional arrow when actually dragging region
       }
     }
 
-    // 🎯 **DEFAULT CURSOR**: Pointer for all normal interactions (including region hover)
+    // 🎯 **PRIORITY 3: DEFAULT CURSOR** - Smart cursor based on position
     if (shouldLog) {
       const timeAtPosition = (mouseX / canvasWidth) * duration;
       const isInsideRegion = timeAtPosition >= startTime && timeAtPosition <= endTime && startTime < endTime;
-      console.log(`🎯 [CursorDetect] Normal interaction - pointer cursor`, {
+      console.log(`🎯 [CursorDetect] Normal interaction cursor logic`, {
         mousePosition: mouseX.toFixed(1) + 'px',
         timeAtPosition: timeAtPosition.toFixed(2) + 's',
         isInsideRegion: isInsideRegion,
-        cursorType: 'pointer (hover or normal interaction)',
-        note: isInsideRegion ? 'Inside region but not dragging - showing pointer as requested' : 'Outside region'
+        tolerance: tolerance + 'px'
       });
     }
-    return 'pointer'; // 🔧 **FIXED**: Always pointer for hover, move only when actually dragging
+    
+    // 🆕 **REGION HOVER DETECTION**: Check if mouse is inside region for grab cursor
+    const timeAtPosition = (mouseX / canvasWidth) * duration;
+    const isInsideRegion = timeAtPosition >= startTime && timeAtPosition <= endTime && startTime < endTime;
+    
+    if (isInsideRegion) {
+      // 🤚 **GRAB CURSOR**: "Hình bàn tay xòe ra" khi hover vào region
+      console.log(`🤚 [CursorDetect] REGION HOVER - grab cursor (open hand)`, {
+        mousePosition: mouseX.toFixed(1) + 'px',
+        timeAtPosition: timeAtPosition.toFixed(2) + 's',
+        regionRange: `${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s`,
+        cursorType: 'grab (bàn tay xòe ra - theo yêu cầu user)',
+        note: 'User requested open hand cursor when hovering over region'
+      });
+      return 'grab'; // 🤚 **GRAB CURSOR**: Bàn tay xòe ra như user yêu cầu
+    }
+    
+    // 👆 **POINTER CURSOR**: Default cursor cho các vùng khác
+    if (shouldLog) {
+      console.log(`👆 [CursorDetect] Outside region - pointer cursor`, {
+        mousePosition: mouseX.toFixed(1) + 'px',
+        timeAtPosition: timeAtPosition.toFixed(2) + 's',
+        cursorType: 'pointer (outside region)'
+      });
+    }
+    return 'pointer'; // 👆 **POINTER**: Default cursor cho hover ngoài region
   }, [duration, startTime, endTime, isDragging]);
 
   // 🚀 **ULTRA-SMOOTH CURSOR UPDATE**: Update cursor with reduced throttling
   const updateCursor = useCallback((mouseX) => {
     const now = performance.now();
     
-    // 🚀 **REDUCED CURSOR THROTTLING**: Smooth cursor updates with minimal throttling
-    if (now - lastCursorUpdateRef.current < 16) return; // 60fps for cursor updates
+    // 🚀 **ADAPTIVE THROTTLING**: Different throttling based on current cursor state
+    let throttleInterval;
+    if (isDragging === 'region' || isDragging === 'region-potential') {
+      throttleInterval = 8; // 125fps for region drag feedback
+    } else if (currentCursorRef.current === 'ew-resize') {
+      throttleInterval = 8; // 125fps for handle hover feedback
+    } else {
+      throttleInterval = 16; // 60fps for normal cursor updates
+    }
+    
+    if (now - lastCursorUpdateRef.current < throttleInterval) return;
     lastCursorUpdateRef.current = now;
 
     const canvas = canvasRef.current;
@@ -136,24 +190,109 @@ const WaveformCanvas = React.memo(({
     const canvasWidth = canvas.width;
     const newCursor = detectCursorType(mouseX, canvasWidth);
     
-    // 🎯 **ONLY UPDATE**: When cursor actually changes để avoid DOM manipulation
-    if (newCursor !== currentCursorRef.current) {
-      canvas.style.cursor = newCursor;
-      currentCursorRef.current = newCursor;
+    // 🎯 **ALWAYS UPDATE WHEN SWITCHING FROM RESIZE CURSOR**: Ensure immediate reset from handle cursor
+    const isLeavingHandle = currentCursorRef.current === 'ew-resize' && newCursor !== 'ew-resize';
+    const isEnteringHandle = currentCursorRef.current !== 'ew-resize' && newCursor === 'ew-resize';
+    const shouldForceUpdate = isLeavingHandle || isEnteringHandle;
+    
+    // 🎯 **UPDATE LOGIC**: When cursor actually changes or when forcing update
+    if (newCursor !== currentCursorRef.current || shouldForceUpdate) {
+      // 🆕 **ENHANCED CROSS-PLATFORM CURSOR**: Unified cursor application with CSS data attributes
+      const applyCursorWithEnhancedFallback = (requestedCursor) => {
+        try {
+          // 🎯 **DETERMINE CURSOR STRATEGY**: Based on requested cursor type
+          let cursorOptions, dataAttribute;
+          
+          if (requestedCursor === 'all-scroll') {
+            // 🔄 **4-WAY ARROW CURSOR**: Region drag cursors
+            dataAttribute = 'region-potential';
+            cursorOptions = ['all-scroll', 'move', '-webkit-grab', 'grab', 'crosshair', 'pointer'];
+          } else if (requestedCursor === 'ew-resize') {
+            // ↔️ **HANDLE RESIZE CURSOR**: Handle drag cursors  
+            dataAttribute = 'handle-resize';
+            cursorOptions = ['ew-resize', 'col-resize', 'e-resize', 'w-resize', 'pointer'];
+          } else if (requestedCursor === 'grab') {
+            // 🤚 **GRAB CURSOR**: Region hover cursors với fallbacks
+            dataAttribute = 'region-hover';
+            cursorOptions = ['grab', '-webkit-grab', 'move', 'pointer'];
+          } else {
+            // 👆 **POINTER CURSOR**: Default cursor
+            dataAttribute = 'pointer';
+            cursorOptions = ['pointer', 'default'];
+          }
+          
+          // 🎯 **APPLY CSS DATA ATTRIBUTE**: For CSS-based styling
+          canvas.setAttribute('data-cursor', dataAttribute);
+          
+          // 🎯 **APPLY CSS CLASS**: Add appropriate cursor class
+          canvas.className = canvas.className.replace(/cursor-\S+/g, '').trim();
+          if (requestedCursor === 'all-scroll') {
+            canvas.className = `${canvas.className} cursor-all-scroll`.trim();
+          } else if (requestedCursor === 'grab') {
+            canvas.className = `${canvas.className} cursor-grab`.trim();
+          }
+          
+          // 🎯 **DIRECT STYLE FALLBACK**: Try multiple cursor values
+          let appliedCursor = 'pointer';
+          
+          for (const cursorValue of cursorOptions) {
+            canvas.style.cursor = cursorValue;
+            
+            // 🔧 **VERIFY APPLICATION**: Check if browser accepted the cursor  
+            const computedCursor = getComputedStyle(canvas).cursor;
+            
+            if (computedCursor === cursorValue || 
+                (cursorValue === 'all-scroll' && computedCursor.includes('scroll')) ||
+                (cursorValue === 'move' && computedCursor.includes('move')) ||
+                (cursorValue === 'ew-resize' && computedCursor.includes('resize')) ||
+                (cursorValue.includes('grab') && computedCursor.includes('grab'))) {
+              appliedCursor = cursorValue;
+              
+              // 🔧 **LOG SUCCESS**: Only log important cursor changes
+              if (isLeavingHandle) {
+                console.log(`✅ [CursorReset] LEFT handle - reset from ew-resize to ${cursorValue}`);
+              } else if (isEnteringHandle) {
+                console.log(`✅ [CursorUpdate] ENTERED handle - applied cursor: ${cursorValue}`);
+              } else if (cursorValue === 'all-scroll') {
+                console.log(`✅ [CursorUpdate] Successfully applied cursor: ${cursorValue} (requested: ${requestedCursor})`);
+              } else if (cursorValue === 'grab' || cursorValue === '-webkit-grab') {
+                console.log(`✅ [CursorUpdate] Successfully applied GRAB cursor: ${cursorValue} (region hover - bàn tay xòe ra)`);
+              }
+              break;
+            }
+          }
+          
+          return appliedCursor;
+          
+        } catch (error) {
+          console.warn(`🚨 [CursorError] Failed to apply cursor ${requestedCursor}:`, error);
+          canvas.style.cursor = 'pointer';
+          canvas.setAttribute('data-cursor', 'pointer');
+          canvas.className = canvas.className.replace(/cursor-\S+/g, '').trim();
+          return 'pointer';
+        }
+      };
       
-      // 🔧 **ENHANCED CURSOR CHANGE LOG**: More detailed logging for debugging
-      const timeAtPosition = duration > 0 ? (mouseX / canvasWidth) * duration : 0;
-      const isInRegion = timeAtPosition >= startTime && timeAtPosition <= endTime && startTime < endTime;
+      const finalCursor = applyCursorWithEnhancedFallback(newCursor);
+      currentCursorRef.current = finalCursor;
       
-      console.log(`🖱️ [CursorUpdate] Changed to '${newCursor}' at ${mouseX.toFixed(1)}px (${timeAtPosition.toFixed(2)}s)`, {
-        cursor: newCursor,
-        position: mouseX.toFixed(1) + 'px',
-        timeAtPosition: timeAtPosition.toFixed(2) + 's',
-        isInRegion: isInRegion,
-        hasValidSelection: startTime < endTime,
-        selectionRange: `${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s`,
-        debugInfo: isDragging ? `Currently dragging: ${isDragging}` : 'Not dragging'
-      });
+      // 🔧 **SELECTIVE LOGGING**: Only log important cursor changes to reduce noise
+      if (shouldForceUpdate || finalCursor === 'all-scroll' || finalCursor === 'ew-resize' || finalCursor === 'grab' || finalCursor === '-webkit-grab') {
+        const timeAtPosition = duration > 0 ? (mouseX / canvasWidth) * duration : 0;
+        const isInRegion = timeAtPosition >= startTime && timeAtPosition <= endTime && startTime < endTime;
+        
+        console.log(`🖱️ [CursorUpdate] Changed to '${finalCursor}' at ${mouseX.toFixed(1)}px (${timeAtPosition.toFixed(2)}s)`, {
+          requestedCursor: newCursor,
+          appliedCursor: finalCursor,
+          position: mouseX.toFixed(1) + 'px',
+          timeAtPosition: timeAtPosition.toFixed(2) + 's',
+          isInRegion: isInRegion,
+          hasValidSelection: startTime < endTime,
+          selectionRange: `${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s`,
+          debugInfo: isDragging ? `Currently dragging: ${isDragging}` : 'Not dragging',
+          reason: shouldForceUpdate ? (isLeavingHandle ? 'LEAVING_HANDLE' : 'ENTERING_HANDLE') : 'CURSOR_CHANGE'
+        });
+      }
     }
   }, [canvasRef, detectCursorType, duration, startTime, endTime, isDragging]);
 
@@ -249,10 +388,10 @@ const WaveformCanvas = React.memo(({
     }
 
     // 🚫 **HIDE DURING REGION DRAG**: Hide hover tooltip completely when dragging region
-    if (isDragging === 'region') {
+    if (isDragging === 'region' || isDragging === 'region-potential') {
       setHoverTooltip(null);
       if (Math.random() < 0.02) { // 2% sampling
-        console.log(`🚫 [HoverTooltip] HIDDEN during region drag - maintaining clean UI`);
+        console.log(`🚫 [HoverTooltip] HIDDEN during ${isDragging} - maintaining clean UI`);
       }
       return;
     }
@@ -320,12 +459,22 @@ const WaveformCanvas = React.memo(({
       onMouseLeave(e);
     }
 
-    // 🆕 **RESET CURSOR**: Reset to pointer when leaving canvas (keeping consistent with waveform cursor)
+    // 🆕 **FORCE CURSOR RESET**: Always reset cursor when leaving canvas, regardless of drag state
     const canvas = canvasRef.current;
-    if (canvas && !isDragging) {
-      canvas.style.cursor = 'pointer'; // 🔧 **FIXED**: Reset to pointer instead of default
+    if (canvas) {
+      // 🔧 **ENHANCED CURSOR RESET**: Force reset with detailed logging
+      const previousCursor = currentCursorRef.current;
+      
+      // 🎯 **APPLY RESET**: Multiple methods to ensure cursor is reset
+      canvas.style.cursor = 'pointer';
+      canvas.setAttribute('data-cursor', 'pointer');
+      canvas.className = canvas.className.replace(/cursor-\S+/g, '').trim();
       currentCursorRef.current = 'pointer';
-      console.log(`🫥 [CursorUpdate] Mouse left canvas - reset to pointer cursor`);
+      
+      // 🔧 **LOG CURSOR RESET**: Only log when actually changing from non-pointer cursor
+      if (previousCursor !== 'pointer') {
+        console.log(`🫥 [CursorReset] Mouse left canvas - forced reset from '${previousCursor}' to 'pointer'`);
+      }
     }
 
     // 🆕 **HIDE TOOLTIP**: Hide hover tooltip when leaving canvas
@@ -339,7 +488,7 @@ const WaveformCanvas = React.memo(({
       console.log(`⏰ [HoverTooltip] Hidden - mouse left canvas`);
     }, 50);
     
-  }, [onMouseLeave, canvasRef, isDragging]);
+  }, [onMouseLeave, canvasRef]);
 
   // 🆕 **ENHANCED MOUSE DOWN HANDLER**: Hide hover tooltip on click
   const handleEnhancedMouseDown = useCallback((e) => {
@@ -788,9 +937,9 @@ const WaveformCanvas = React.memo(({
   // 🚀 **SMOOTH HOVER LINE**: Trigger redraw khi hover tooltip thay đổi
   useEffect(() => {
     // 🚫 **SKIP REDRAW DURING REGION DRAG**: Don't redraw hover line when dragging region
-    if (isDragging === 'region') {
+    if (isDragging === 'region' || isDragging === 'region-potential') {
       if (Math.random() < 0.02) { // 2% sampling
-        console.log(`🚫 [HoverLine] Skipping redraw during region drag - maintaining clean UI`);
+        console.log(`🚫 [HoverLine] Skipping redraw during ${isDragging} - maintaining clean UI`);
       }
       return; // Exit early for region drag
     }
@@ -951,6 +1100,76 @@ const WaveformCanvas = React.memo(({
       updateCursorForSelection();
     }
   }, [canvasRef, startTime, endTime, duration]); // Update when selection changes
+
+  // 🆕 **DRAG STATE CURSOR UPDATE**: Force cursor update when isDragging changes
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    // 🎯 **IMMEDIATE CURSOR UPDATE**: Update cursor immediately when drag state changes
+    if (isDragging === 'region-potential' || isDragging === 'region') {
+      // 🔄 **ENHANCED CROSS-PLATFORM CURSOR**: Multiple fallback strategies
+      const applyCursorWithMultipleFallbacks = () => {
+        try {
+          // 🎯 **METHOD 1: CSS Data Attribute**: Use CSS classes with data attributes
+          canvas.setAttribute('data-cursor', 'region-potential');
+          canvas.className = `${canvas.className.replace(/cursor-\S+/g, '')} cursor-all-scroll`.trim();
+          
+          // 🎯 **METHOD 2: Direct Style with Fallbacks**: Try multiple cursor values
+          const cursorOptions = [
+            'all-scroll',      // Primary: 4-way arrow
+            'move',            // Fallback 1: Move cursor
+            '-webkit-grab',    // Fallback 2: Webkit grab
+            'grab',            // Fallback 3: Standard grab
+            'crosshair',       // Fallback 4: Crosshair
+            'pointer'          // Final fallback: Pointer
+          ];
+          
+          let appliedCursor = 'pointer';
+          
+          for (const cursorValue of cursorOptions) {
+            canvas.style.cursor = cursorValue;
+            
+            // 🔧 **VERIFY APPLICATION**: Check if browser accepted the cursor
+            const computedCursor = getComputedStyle(canvas).cursor;
+            
+            if (computedCursor === cursorValue || 
+                (cursorValue === 'all-scroll' && computedCursor.includes('scroll')) ||
+                (cursorValue === 'move' && computedCursor.includes('move')) ||
+                (cursorValue === 'grab' && computedCursor.includes('grab'))) {
+              appliedCursor = cursorValue;
+              console.log(`✅ [DragStateCursor] Successfully applied cursor: ${cursorValue}`);
+              break;
+            }
+          }
+          
+          currentCursorRef.current = appliedCursor;
+          
+          console.log(`🔄 [DragStateCursor] IMMEDIATE cursor update for isDragging=${isDragging}`);
+          console.log(`🎯 [CursorForced] Applied ${appliedCursor} cursor via enhanced fallback system`);
+          
+          return appliedCursor;
+          
+        } catch (error) {
+          console.warn(`🚨 [CursorError] Failed to apply drag state cursor:`, error);
+          canvas.style.cursor = 'pointer';
+          canvas.setAttribute('data-cursor', 'pointer');
+          currentCursorRef.current = 'pointer';
+          return 'pointer';
+        }
+      };
+      
+      applyCursorWithMultipleFallbacks();
+      
+    } else if (isDragging === null && currentCursorRef.current !== 'pointer') {
+      // 🔄 **RESET CURSOR**: Reset to pointer when drag ends
+      canvas.style.cursor = 'pointer';
+      canvas.setAttribute('data-cursor', 'pointer');
+      canvas.className = canvas.className.replace(/cursor-\S+/g, '').trim();
+      currentCursorRef.current = 'pointer';
+      console.log(`🔄 [DragStateCursor] Reset cursor to pointer - drag ended`);
+    }
+  }, [isDragging, canvasRef]); // Trigger when isDragging changes
 
   // 🆕 **FADE EFFECT LOGGER**: Log khi fade values thay đổi để debug
   useEffect(() => {

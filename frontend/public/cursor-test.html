@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cursor Test - MP3 Cutter Pro</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        .test-area {
+            width: 200px;
+            height: 100px;
+            margin: 10px;
+            border: 2px solid #333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: white;
+            font-weight: bold;
+        }
+        
+        .cursor-all-scroll {
+            cursor: all-scroll !important;
+        }
+        
+        .cursor-move {
+            cursor: move !important;
+        }
+        
+        .cursor-grab {
+            cursor: grab !important;
+        }
+        
+        .cursor-webkit-grab {
+            cursor: -webkit-grab !important;
+        }
+        
+        .cursor-crosshair {
+            cursor: crosshair !important;
+        }
+        
+        /* Fallback for browsers that don't support all-scroll */
+        @supports not (cursor: all-scroll) {
+            .cursor-all-scroll {
+                cursor: move !important;
+            }
+        }
+        
+        /* Webkit specific */
+        @supports (-webkit-appearance: none) {
+            .cursor-all-scroll {
+                cursor: -webkit-grab !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>🖱️ Cursor Test - MP3 Cutter Pro</h1>
+    <p>Hover over each area to test cursor display:</p>
+    
+    <div class="test-area cursor-all-scroll">
+        all-scroll<br>
+        (4-way arrow)
+    </div>
+    
+    <div class="test-area cursor-move">
+        move<br>
+        (move cursor)
+    </div>
+    
+    <div class="test-area cursor-grab">
+        grab<br>
+        (grab cursor - REGION HOVER)
+    </div>
+    
+    <div class="test-area cursor-webkit-grab">
+        -webkit-grab<br>
+        (webkit grab)
+    </div>
+    
+    <div class="test-area cursor-crosshair">
+        crosshair<br>
+        (crosshair)
+    </div>
+    
+    <div id="cursor-info">
+        <h3>🔍 Cursor Detection:</h3>
+        <p id="current-cursor">Move mouse over test areas...</p>
+    </div>
+    
+    <script>
+        // Test cursor detection
+        const testAreas = document.querySelectorAll('.test-area');
+        const cursorInfo = document.getElementById('current-cursor');
+        
+        testAreas.forEach(area => {
+            area.addEventListener('mouseenter', () => {
+                const computedStyle = getComputedStyle(area);
+                const cursor = computedStyle.cursor;
+                cursorInfo.textContent = `Current cursor: ${cursor} (${area.textContent.trim()})`;
+                
+                // Log to console for debugging
+                console.log(`🖱️ [CursorTest] ${area.className} → ${cursor}`);
+            });
+        });
+        
+        // Test all-scroll support
+        const testDiv = document.createElement('div');
+        testDiv.style.cursor = 'all-scroll';
+        document.body.appendChild(testDiv);
+        const supportsAllScroll = getComputedStyle(testDiv).cursor === 'all-scroll';
+        document.body.removeChild(testDiv);
+        
+        console.log(`🔍 [CursorTest] Browser supports all-scroll: ${supportsAllScroll}`);
+        
+        // Add browser info
+        const browserInfo = document.createElement('div');
+        browserInfo.innerHTML = `
+            <h3>🌐 Browser Info:</h3>
+            <p>User Agent: ${navigator.userAgent}</p>
+            <p>Supports all-scroll: ${supportsAllScroll ? '✅ Yes' : '❌ No'}</p>
+        `;
+        document.body.appendChild(browserInfo);
+    </script>
+</body>
+</html> 

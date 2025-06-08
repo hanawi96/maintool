@@ -440,3 +440,82 @@ button[title*="OGG"]:active {
 .export-controls button.bg-indigo-500 {
   transform: translateZ(0) scale(1.05) !important;
 }
+
+/* 🆕 **CURSOR STYLES**: Cross-platform compatible cursor definitions */
+/* Ensure 4-way arrow cursor works on all browsers and OS */
+.cursor-all-scroll {
+  cursor: all-scroll !important;
+}
+
+.cursor-move {
+  cursor: move !important;
+}
+
+.cursor-grab {
+  cursor: grab !important;
+}
+
+.cursor-grabbing {
+  cursor: grabbing !important;
+}
+
+/* 🆕 **WAVEFORM CANVAS CURSOR**: Specific styles for waveform interactions */
+canvas[data-cursor="region-drag"] {
+  cursor: all-scroll !important;
+}
+
+canvas[data-cursor="region-potential"] {
+  cursor: all-scroll !important;
+}
+
+canvas[data-cursor="handle-resize"] {
+  cursor: ew-resize !important;
+}
+
+canvas[data-cursor="pointer"] {
+  cursor: pointer !important;
+}
+
+/* 🆕 **FALLBACK CURSORS**: For browsers that don't support all-scroll or grab */
+@supports not (cursor: all-scroll) {
+  .cursor-all-scroll,
+  canvas[data-cursor="region-drag"],
+  canvas[data-cursor="region-potential"] {
+    cursor: move !important;
+  }
+}
+
+@supports not (cursor: grab) {
+  .cursor-grab,
+  canvas[data-cursor="region-hover"] {
+    cursor: -webkit-grab !important;
+  }
+}
+
+@supports not (cursor: -webkit-grab) {
+  .cursor-grab,
+  canvas[data-cursor="region-hover"] {
+    cursor: move !important;
+  }
+}
+
+/* 🆕 **WEBKIT SPECIFIC**: Additional webkit support */
+@supports (-webkit-appearance: none) {
+  canvas[data-cursor="region-drag"],
+  canvas[data-cursor="region-potential"] {
+    cursor: -webkit-grab !important;
+  }
+  
+  canvas[data-cursor="region-drag"]:active,
+  canvas[data-cursor="region-potential"]:active {
+    cursor: -webkit-grabbing !important;
+  }
+}
+
+canvas[data-cursor="region-hover"] {
+  cursor: grab !important;
+}
+
+canvas[data-cursor="pointer"] {
+  cursor: pointer !important;
+}

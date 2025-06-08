@@ -148,6 +148,9 @@ const MP3CutterMain = React.memo(() => {
     fadeIn,
     fadeOut,
     
+    // 🔧 **FIX MISSING PARAMETER**: Add isDragging state
+    isDragging, // 🆕 **ADDED**: Pass isDragging state to fix undefined error
+    
     // State setters
     setStartTime,
     setEndTime,

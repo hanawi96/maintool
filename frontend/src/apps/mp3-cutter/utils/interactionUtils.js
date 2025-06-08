@@ -29,21 +29,36 @@ export const HANDLE_TYPES = {
  * @returns {string|null} Handle type ('start', 'end', or null)
  */
 export const detectHandle = (x, canvasWidth, duration, startTime, endTime) => {
-  if (duration === 0) return null;
+  if (duration === 0 || canvasWidth === 0) return null;
   
   // 🎯 **MODERN HANDLE DETECTION**: Use modern handle width configuration
-  const baseHandleWidth = WAVEFORM_CONFIG.MODERN_HANDLE_WIDTH; // 🆕 **MODERN HANDLES**: 4px instead of 10px
+  const baseHandleWidth = WAVEFORM_CONFIG.MODERN_HANDLE_WIDTH; // 3px modern handles
   const mobileBreakpoint = WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT;
-  const touchTolerance = WAVEFORM_CONFIG.RESPONSIVE.TOUCH_TOLERANCE;
   
   const responsiveHandleWidth = canvasWidth < mobileBreakpoint ? 
-    Math.max(3, baseHandleWidth * 0.75) : baseHandleWidth; // 🎯 **ADJUSTED FOR MODERN**: Smaller mobile handles
+    Math.max(6, baseHandleWidth * 0.8) : baseHandleWidth; // Smaller mobile handles
   
   const startX = (startTime / duration) * canvasWidth;
   const endX = (endTime / duration) * canvasWidth;
   
-  // 🎯 **ENHANCED TOLERANCE**: Larger tolerance for better UX with thin handles
-  const tolerance = Math.max(responsiveHandleWidth / 2 + 8, touchTolerance); // 🆕 **+8px**: Better interaction area
+  // 🔧 **OPTIMIZED TOLERANCE**: Match WaveformCanvas tolerance calculation exactly
+  // Giảm tolerance để cursor chỉ hiện ew-resize khi thực sự hover over handle
+  const baseTolerance = responsiveHandleWidth + 3; // Chỉ 3px padding thêm thay vì 8px
+  const mobileTolerance = canvasWidth < mobileBreakpoint ? 12 : 8; // Giảm mobile tolerance
+  const tolerance = Math.min(baseTolerance, mobileTolerance); // Chọn giá trị nhỏ hơn
+  
+  // 🔧 **DEBUG TOLERANCE CALCULATION**: Log để sync với WaveformCanvas
+  if (Math.random() < 0.01) { // 1% sampling
+    console.log(`🔍 [HandleDetect] Tolerance calculation:`, {
+      baseHandleWidth: baseHandleWidth + 'px',
+      responsiveHandleWidth: responsiveHandleWidth + 'px',
+      baseTolerance: baseTolerance + 'px',
+      mobileTolerance: mobileTolerance + 'px',
+      finalTolerance: tolerance + 'px',
+      canvasWidth: canvasWidth + 'px',
+      isMobile: canvasWidth < mobileBreakpoint
+    });
+  }
   
   // Check start handle first (priority for overlapping cases)
   if (Math.abs(x - startX) <= tolerance) return HANDLE_TYPES.START;
@@ -516,14 +531,14 @@ export class InteractionManager {
                             startTime < endTime; // Ensure có valid region
           
           if (isInRegion) {
-            // 🔄 **REGION HOVER**: Always pointer cursor for region hover (move cursor only when actually dragging)
-            hoverCursor = 'pointer'; // 🔧 **FIXED**: Pointer for hover, move only when dragging as requested
+            // 🤚 **REGION HOVER**: Grab cursor (bàn tay xòe ra) khi hover vào region - theo yêu cầu user
+            hoverCursor = 'grab'; // 🤚 **GRAB CURSOR**: "Hình bàn tay xòe ra" như user yêu cầu
             
-            console.log(`🔄 [${this.debugId}] Region hover detected - showing pointer cursor (move only when dragging)`, {
+            console.log(`🤚 [${this.debugId}] Region hover detected - showing GRAB cursor (bàn tay xòe ra)`, {
               timeAtPosition: timeAtPosition.toFixed(2) + 's',
               regionRange: `${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s`,
-              cursorType: 'pointer (hover mode)',
-              note: 'Move cursor will show only when actually dragging region'
+              cursorType: 'grab (bàn tay xòe ra - user requirement)',
+              note: 'User requested open hand cursor when hovering over region - IMPLEMENTED'
             });
           }
         }
@@ -633,7 +648,7 @@ export class InteractionManager {
     return {
       action: wasDragging ? 'completeDrag' : 'none',
       saveHistory: wasConfirmedDrag, // 🆕 **CHỈ SAVE** khi đã confirmed drag
-      cursor: this.lastHoveredHandle ? 'grab' : 'pointer', // 🔧 **FIXED**: Default pointer instead of crosshair
+      cursor: this.lastHoveredHandle ? 'ew-resize' : 'pointer', // 🔧 **CURSOR LOGIC**: ew-resize for handle hover, pointer for default
       audioSynced: wasDragging && audioContext && (draggedHandle || wasRegionDrag) && wasConfirmedDrag,
       wasRegionDrag: wasRegionDrag, // 🆕 **FLAG**: Thông báo đã hoàn thành region drag
       // 🆕 **PENDING JUMP RESULT**: Return pending jump info

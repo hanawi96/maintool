@@ -56,19 +56,48 @@ export class SmartClickManager {
    * @returns {string} Click zone classification
    */
   analyzeClickZone(clickTime, startTime, endTime, duration, handleAtPosition) {
+    // 🔧 **ENHANCED DEBUG**: Log all input parameters
+    console.log(`🎯 [${this.debugId}] ClickZone Analysis:`, {
+      clickTime: clickTime.toFixed(2) + 's',
+      startTime: startTime.toFixed(2) + 's', 
+      endTime: endTime.toFixed(2) + 's',
+      duration: duration.toFixed(2) + 's',
+      handleAtPosition: handleAtPosition || 'none',
+      hasValidSelection: startTime < endTime
+    });
+    
     // 🎯 HANDLE DETECTION: Priority check
-    if (handleAtPosition === 'start') return CLICK_ZONES.ON_START_HANDLE;
-    if (handleAtPosition === 'end') return CLICK_ZONES.ON_END_HANDLE;
+    if (handleAtPosition === 'start') {
+      console.log(`🎯 [${this.debugId}] ClickZone Result: ON_START_HANDLE`);
+      return CLICK_ZONES.ON_START_HANDLE;
+    }
+    if (handleAtPosition === 'end') {
+      console.log(`🎯 [${this.debugId}] ClickZone Result: ON_END_HANDLE`);
+      return CLICK_ZONES.ON_END_HANDLE;
+    }
     
     // 🎯 BOUNDARY CHECKS: Duration limits
-    if (clickTime < 0 || clickTime > duration) return CLICK_ZONES.OUTSIDE_DURATION;
+    if (clickTime < 0 || clickTime > duration) {
+      console.log(`🎯 [${this.debugId}] ClickZone Result: OUTSIDE_DURATION (clickTime: ${clickTime.toFixed(2)}s, duration: ${duration.toFixed(2)}s)`);
+      return CLICK_ZONES.OUTSIDE_DURATION;
+    }
     
     // 🎯 POSITION ANALYSIS: Relative to selection
-    if (clickTime < startTime) return CLICK_ZONES.BEFORE_START;
-    if (clickTime > endTime) return CLICK_ZONES.AFTER_END;
-    if (clickTime >= startTime && clickTime <= endTime) return CLICK_ZONES.INSIDE_SELECTION;
+    if (clickTime < startTime) {
+      console.log(`🎯 [${this.debugId}] ClickZone Result: BEFORE_START (${clickTime.toFixed(2)}s < ${startTime.toFixed(2)}s)`);
+      return CLICK_ZONES.BEFORE_START;
+    }
+    if (clickTime > endTime) {
+      console.log(`🎯 [${this.debugId}] ClickZone Result: AFTER_END (${clickTime.toFixed(2)}s > ${endTime.toFixed(2)}s)`);
+      return CLICK_ZONES.AFTER_END;
+    }
+    if (clickTime >= startTime && clickTime <= endTime) {
+      console.log(`🎯 [${this.debugId}] ClickZone Result: INSIDE_SELECTION (${startTime.toFixed(2)}s <= ${clickTime.toFixed(2)}s <= ${endTime.toFixed(2)}s) - REGION DRAG POTENTIAL!`);
+      return CLICK_ZONES.INSIDE_SELECTION;
+    }
     
     // 🎯 FALLBACK: Should not reach here
+    console.warn(`⚠️ [${this.debugId}] ClickZone Result: OUTSIDE_DURATION (fallback case - should not happen)`);
     return CLICK_ZONES.OUTSIDE_DURATION;
   }
   
