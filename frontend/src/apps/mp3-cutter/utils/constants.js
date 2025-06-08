@@ -38,7 +38,7 @@ export const WAVEFORM_CONFIG = {
   HEIGHT: 200,
   HANDLE_WIDTH: 10,        // 🎯 **LEGACY HANDLE WIDTH**: Kept for compatibility
   HANDLE_HEIGHT: 20,       // 🎯 **LEGACY HANDLE HEIGHT**: Kept for compatibility
-  MODERN_HANDLE_WIDTH: 3,  // Mảnh hơn nữa (giảm từ 4px xuống 3px)
+  MODERN_HANDLE_WIDTH: 8,  // Mảnh hơn nữa (giảm từ 4px xuống 3px)
   
   // 🎯 RESPONSIVE: Adaptive configuration for different screen sizes
   RESPONSIVE: {

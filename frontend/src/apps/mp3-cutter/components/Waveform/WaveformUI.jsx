@@ -2,7 +2,7 @@ import React, { useEffect, useRef, memo } from 'react';
 import { WAVEFORM_CONFIG } from '../../utils/constants.js';
 
 // 🚀 **ULTRA-OPTIMIZED COMPONENT** - Loại bỏ excessive re-renders
-export const WaveformUI = memo(({ hoverTooltip, handleTooltips, mainCursorTooltip }) => {
+export const WaveformUI = memo(({ hoverTooltip, handleTooltips, mainCursorTooltip, handlePositions }) => {
   // 🔧 **MINIMAL DEBUG REFS** - Chỉ track cần thiết
   const renderCountRef = useRef(0);
   const lastLogTimeRef = useRef(0);
@@ -153,6 +153,17 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, mainCursorToolti
     !isNaN(mainCursorTooltip.x) &&
     mainCursorTooltip.x >= 0;
 
+  // 🆕 **HANDLE RENDER CHECKS**: Check if handles should be rendered
+  const shouldRenderStartHandle = handlePositions?.start?.visible &&
+    typeof handlePositions.start.x === 'number' &&
+    !isNaN(handlePositions.start.x) &&
+    handlePositions.start.x >= 0;
+
+  const shouldRenderEndHandle = handlePositions?.end?.visible &&
+    typeof handlePositions.end.x === 'number' &&
+    !isNaN(handlePositions.end.x) &&
+    handlePositions.end.x >= 0;
+
   // 🔧 **INSTANT TOOLTIP DEBUG**: Log instant positioning và verify zero delay
   useEffect(() => {
     if (shouldRenderDurationTooltip && Math.random() < 0.1) { // 10% sampling
@@ -202,8 +213,36 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, mainCursorToolti
         }
       });
     }
+
+    // 🤚 **HANDLE COMPONENT DEBUG**: Log React handle rendering
+    if ((shouldRenderStartHandle || shouldRenderEndHandle) && Math.random() < 0.1) { // 10% sampling
+      console.log('🤚 [REACT-HANDLE-SUCCESS] Handles rendered as React components:', {
+        startHandle: shouldRenderStartHandle ? {
+          x: handlePositions.start.x,
+          y: handlePositions.start.y,
+          width: handlePositions.start.width,
+          height: handlePositions.start.height,
+          color: handlePositions.start.color,
+          isActive: handlePositions.start.isActive,
+          leftPos: `${handlePositions.start.x - handlePositions.start.width / 2}px`
+        } : 'NOT_RENDERED',
+        endHandle: shouldRenderEndHandle ? {
+          x: handlePositions.end.x,
+          y: handlePositions.end.y,
+          width: handlePositions.end.width,
+          height: handlePositions.end.height,
+          color: handlePositions.end.color,
+          isActive: handlePositions.end.isActive,
+          leftPos: `${handlePositions.end.x - handlePositions.end.width / 2}px`
+        } : 'NOT_RENDERED',
+        technique: '✅ SAME AS TOOLTIPS - absolute positioning with z-index',
+        visibility: '🔥 SHOULD BE 100% VISIBLE - no canvas clipping!',
+        zIndex: 40,
+        pointerEvents: 'none (pass through to canvas)'
+      });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shouldRenderDurationTooltip, shouldRenderStartTooltip, shouldRenderEndTooltip, shouldRenderMainCursorTooltip, handleTooltips, mainCursorTooltip]);
+  }, [shouldRenderDurationTooltip, shouldRenderStartTooltip, shouldRenderEndTooltip, shouldRenderMainCursorTooltip, shouldRenderStartHandle, shouldRenderEndHandle, handleTooltips, mainCursorTooltip, handlePositions]);
 
   // 🆕 **HOVER HANDLE CHANGE DETECTION** - Debug khi handles thay đổi qua hover
   useEffect(() => {
@@ -563,6 +602,42 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, mainCursorToolti
         >
           {mainCursorTooltip.formattedTime}
         </div>
+      )}
+
+      {/* 🤚 **START HANDLE COMPONENT** - React component rendering like tooltips */}
+      {shouldRenderStartHandle && (
+        <div
+          className="absolute z-40"
+          style={{
+            left: `${handlePositions.start.x - handlePositions.start.width / 2}px`,
+            top: `${handlePositions.start.y}px`,
+            width: `${handlePositions.start.width}px`,
+            height: `${handlePositions.start.height}px`,
+            backgroundColor: handlePositions.start.color,
+            pointerEvents: 'none', // Let mouse events pass through to canvas
+            borderRadius: '0px', // Sharp edges for handles
+            transition: 'background-color 150ms ease', // Smooth color transitions
+            zIndex: 40 // Higher than waveform, lower than tooltips
+          }}
+        />
+      )}
+
+      {/* 🤚 **END HANDLE COMPONENT** - React component rendering like tooltips */}
+      {shouldRenderEndHandle && (
+        <div
+          className="absolute z-40"
+          style={{
+            left: `${handlePositions.end.x - handlePositions.end.width / 2}px`,
+            top: `${handlePositions.end.y}px`,
+            width: `${handlePositions.end.width}px`,
+            height: `${handlePositions.end.height}px`,
+            backgroundColor: handlePositions.end.color,
+            pointerEvents: 'none', // Let mouse events pass through to canvas
+            borderRadius: '0px', // Sharp edges for handles
+            transition: 'background-color 150ms ease', // Smooth color transitions
+            zIndex: 40 // Higher than waveform, lower than tooltips
+          }}
+        />
       )}
     </>
   );

@@ -162,6 +162,22 @@ const WaveformCanvas = React.memo(({
     const ctx = canvas.getContext('2d');
     const { width, height } = canvas;
     
+    // 🔥 **DEBUG CANVAS DIMENSIONS**: Log canvas info
+    if (Math.random() < 0.05) { // 5% sampling
+      console.log('🖼️ [CANVAS-DEBUG] Canvas dimensions:', {
+        canvasWidth: width,
+        canvasHeight: height,
+        canvasStyle: {
+          width: canvas.style.width,
+          height: canvas.style.height,
+          overflow: canvas.style.overflow || 'default',
+          position: canvas.style.position || 'default'
+        },
+        boundingRect: canvas.getBoundingClientRect(),
+        note: 'Checking if handles are being clipped by canvas bounds'
+      });
+    }
+    
     // 🚀 **PERFORMANCE SETUP**: GPU acceleration
     ctx.imageSmoothingEnabled = false;
     canvas.style.willChange = 'transform';
@@ -281,38 +297,7 @@ const WaveformCanvas = React.memo(({
       ctx.setLineDash([]);
     }
     
-    // 4. **HANDLES**
-    if (startTime < endTime) {
-      const { MODERN_HANDLE_WIDTH } = WAVEFORM_CONFIG;
-      const startX = (startTime / duration) * width;
-      const endX = (endTime / duration) * width;
-      
-      const responsiveHandleWidth = width < WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT ? 
-        Math.max(3, MODERN_HANDLE_WIDTH * 0.75) : MODERN_HANDLE_WIDTH;
-      
-      const drawCrispHandle = (x, isLeft, isActive) => {
-        const centerX = Math.round(x);
-        const baseColor = isLeft ? '#14b8a6' : '#f97316';
-        const activeColor = isLeft ? '#0d9488' : '#ea580c';
-        const fillColor = isActive ? activeColor : baseColor;
-        
-        const handleX = Math.round(centerX - responsiveHandleWidth / 2);
-        const handleY = 0;
-        const handleWidth = responsiveHandleWidth;
-        const handleHeight = height;
-        
-        ctx.fillStyle = fillColor;
-        ctx.fillRect(handleX, handleY, handleWidth, handleHeight);
-      };
-      
-      const isStartActive = hoveredHandle === 'start' || isDragging === 'start';
-      drawCrispHandle(startX, true, isStartActive);
-      
-      const isEndActive = hoveredHandle === 'end' || isDragging === 'end';
-      drawCrispHandle(endX, false, isEndActive);
-    }
-    
-    // 5. 🔵 **MAIN CURSOR**: Blue cursor với ultra-thin design
+    // 4. 🔵 **MAIN CURSOR**: Blue cursor với ultra-thin design
     if (duration > 0 && currentTime >= 0) {
       const cursorX = (currentTime / duration) * width;
       
@@ -337,7 +322,7 @@ const WaveformCanvas = React.memo(({
       ctx.fill();
     }
 
-    // 6. **HOVER LINE** - Ultra thin gray line
+    // 5. **HOVER LINE** - Ultra thin gray line
     if (hoverTooltip && hoverTooltip.visible && duration > 0 && 
         isDragging !== 'start' && isDragging !== 'end') { // 🔧 **HIDE WHEN DRAGGING HANDLES**: Ẩn khi drag handles theo yêu cầu user
       const hoverX = hoverTooltip.x;
@@ -361,6 +346,9 @@ const WaveformCanvas = React.memo(({
         });
       }
     }
+
+    // 🎯 **HANDLES NOW RENDERED AS REACT COMPONENTS** - No longer drawn on canvas
+    // Handles are now rendered in WaveformUI using handlePositions prop for perfect visibility
   }, [canvasRef, renderData, currentTime, isPlaying, hoverTooltip, calculateFadeMultiplier]);
 
   // 🚀 **EFFECT OPTIMIZATIONS**: Controlled re-renders
@@ -376,6 +364,45 @@ const WaveformCanvas = React.memo(({
     }
   }, [renderData, requestRedraw, drawWaveform]);
 
+  // 🆕 **HANDLE POSITION CALCULATOR**: Calculate handle positions for React rendering
+  const handlePositions = useMemo(() => {
+    if (!canvasRef.current || duration === 0 || startTime >= endTime) {
+      return { start: null, end: null };
+    }
+    
+    const canvas = canvasRef.current;
+    const width = canvas.width || 800;
+    const height = canvas.height || WAVEFORM_CONFIG.HEIGHT;
+    
+    const startX = (startTime / duration) * width;
+    const endX = (endTime / duration) * width;
+    
+    const { MODERN_HANDLE_WIDTH } = WAVEFORM_CONFIG;
+    const responsiveHandleWidth = width < WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT ? 
+      Math.max(3, MODERN_HANDLE_WIDTH * 0.75) : MODERN_HANDLE_WIDTH;
+    
+    return {
+      start: {
+        visible: true,
+        x: startX,
+        y: 0,
+        width: responsiveHandleWidth,
+        height: height,
+        isActive: hoveredHandle === 'start' || isDragging === 'start',
+        color: hoveredHandle === 'start' || isDragging === 'start' ? '#0d9488' : '#14b8a6'
+      },
+      end: {
+        visible: true,
+        x: endX,
+        y: 0, 
+        width: responsiveHandleWidth,
+        height: height,
+        isActive: hoveredHandle === 'end' || isDragging === 'end',
+        color: hoveredHandle === 'end' || isDragging === 'end' ? '#ea580c' : '#f97316'
+      }
+    };
+  }, [canvasRef, duration, startTime, endTime, hoveredHandle, isDragging]);
+
   return (
     <div className="relative" style={{ minWidth: `${WAVEFORM_CONFIG.RESPONSIVE.MIN_WIDTH}px` }}>
       <canvas
@@ -384,11 +411,10 @@ const WaveformCanvas = React.memo(({
         onMouseMove={handleEnhancedMouseMove}
         onMouseUp={onMouseUp}
         onMouseLeave={handleEnhancedMouseLeave}
-        className="w-full border border-slate-200 rounded-lg"
+        className="w-full border border-slate-200"
         style={{ 
           height: WAVEFORM_CONFIG.HEIGHT,
           touchAction: 'none',
-          overflow: 'hidden',
         }}
       />
 
@@ -396,6 +422,7 @@ const WaveformCanvas = React.memo(({
         hoverTooltip={hoverTooltip}
         handleTooltips={handleTooltips}
         mainCursorTooltip={mainCursorTooltip}
+        handlePositions={handlePositions}
       />
     </div>
   );

@@ -110,10 +110,6 @@ const Waveform = ({
             -ms-overflow-style: none !important;
             scrollbar-width: none !important;
           }
-          
-          .waveform-container-no-scrollbar * {
-            overflow: hidden !important;
-          }
         `}
       </style>
     </div>
