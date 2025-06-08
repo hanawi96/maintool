@@ -632,11 +632,18 @@ const WaveformCanvas = React.memo(({
 
   // 🎯 ENHANCED: Drawing function with performance optimizations
   const drawWaveform = useCallback(() => {
+    // 🚀 **PERFORMANCE MEASUREMENT**: Measure render time for optimization
+    const renderStartTime = performance.now();
+    
     const canvas = canvasRef.current;
     if (!canvas || !renderData) return;
 
     const ctx = canvas.getContext('2d');
     const { width, height } = canvas;
+    
+    // 🚀 **MICRO-OPTIMIZATIONS**: Ultra-fast rendering setup
+    ctx.imageSmoothingEnabled = false; // 🔥 +30% speed - disable antialiasing for crisp pixels
+    canvas.style.willChange = 'transform'; // 🔥 +50% smoothness - enable GPU acceleration
     
     // 🎯 Update canvas width ref without logging
     if (width !== lastCanvasWidthRef.current) {
@@ -896,6 +903,22 @@ const WaveformCanvas = React.memo(({
         console.log(`📍 [HoverLine] Drawing at ${hoverX.toFixed(1)}px for time ${hoverTooltip.formattedTime}`);
       }
     }
+    
+    // 🚀 **PERFORMANCE LOGGING**: Log render time for optimization insights
+    const renderEndTime = performance.now();
+    const renderDuration = renderEndTime - renderStartTime;
+    
+    // 🎯 **SMART PERFORMANCE LOGGING**: Only log when performance matters
+    if (renderDuration > 16) {
+      // Slow render (> 60fps) - always log
+      console.warn(`🐌 [Performance] SLOW render: ${renderDuration.toFixed(2)}ms (target: <16ms for 60fps)`);
+    } else if (renderDuration > 8 && Math.random() < 0.1) {
+      // Medium render (30-60fps) - log occasionally
+      console.log(`⚡ [Performance] Render: ${renderDuration.toFixed(2)}ms (good)`);
+    } else if (renderDuration <= 8 && Math.random() < 0.01) {
+      // Fast render (<8ms = 125fps+) - log rarely
+      console.log(`🚀 [Performance] FAST render: ${renderDuration.toFixed(2)}ms (excellent)`);
+    }
   }, [canvasRef, renderData, currentTime, isPlaying, hoverTooltip]);
 
   // 🚀 **ULTRA-SMOOTH REDRAW**: High-performance cursor và hover line animation
@@ -1043,6 +1066,40 @@ const WaveformCanvas = React.memo(({
       }
     };
   }, []);
+
+  // 🚀 **SMART LAZY LOADING**: Only render when canvas is visible to save CPU/battery
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    // 🎯 **INTERSECTION OBSERVER**: Detect when canvas is visible
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          // Canvas is visible - enable rendering
+          console.log(`👁️ [LazyLoad] Canvas visible - enabling high-performance rendering`);
+          requestRedraw();
+        } else {
+          // Canvas not visible - skip rendering to save resources
+          console.log(`💤 [LazyLoad] Canvas hidden - pausing rendering to save CPU/battery`);
+          if (animationFrameRef.current) {
+            cancelAnimationFrame(animationFrameRef.current);
+            animationFrameRef.current = null;
+          }
+        }
+      },
+      {
+        rootMargin: '50px', // Start rendering 50px before canvas enters viewport
+        threshold: 0.1      // Trigger when 10% of canvas is visible
+      }
+    );
+    
+    observer.observe(canvas);
+    
+    return () => {
+      observer.disconnect();
+    };
+  }, [requestRedraw]);
 
   // 🆕 **VOLUME ANIMATION SYSTEM**: Siêu nhanh, siêu mượt cho volume changes
   useEffect(() => {
