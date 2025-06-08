@@ -15,7 +15,7 @@ const FormatPresets = memo(({ selectedFormat, onFormatChange }) => {
               onClick={() => onFormatChange(format.value)}
               className={`
                 px-2 py-1.5 rounded-md text-xs font-semibold text-center
-                min-h-[40px] flex flex-col justify-center border-2
+                min-h-[40px] flex flex-col justify-center border
                 ${isSelected 
                   ? 'bg-indigo-500 text-white border-indigo-500 shadow-md' 
                   : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-600'
