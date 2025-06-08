@@ -129,18 +129,48 @@ export class InteractionManager {
     const handle = detectHandle(x, canvasWidth, duration, startTime, endTime);
     const clickTime = positionToTime(x, canvasWidth, duration);
     
+    // 🛡️ **PROTECTION AGAINST EDGE HOVER TRIGGERS**: Ngăn handle movement khi đã ở edge
+    const isStartAtEdge = Math.abs(startTime - 0) < 0.1; // Start handle gần đầu file
+    const isEndAtEdge = Math.abs(endTime - duration) < 0.1; // End handle gần cuối file
+    
+    // 🛡️ **BEFORE START PROTECTION**: Nếu click/hover trước start và start đã ở edge
+    if (clickTime < startTime && isStartAtEdge && Math.abs(clickTime - startTime) < 1.0) {
+      console.log(`🛡️ [${this.debugId}] BLOCKING potential start handle movement: start already at edge (${startTime.toFixed(2)}s), ignoring click at ${clickTime.toFixed(2)}s`);
+      return {
+        action: 'none',
+        reason: 'PROTECTED: Start handle already at edge, blocking potential movement',
+        protected: true
+      };
+    }
+    
+    // 🛡️ **AFTER END PROTECTION**: Nếu click/hover sau end và end đã ở edge  
+    if (clickTime > endTime && isEndAtEdge && Math.abs(clickTime - endTime) < 1.0) {
+      console.log(`🛡️ [${this.debugId}] BLOCKING potential end handle movement: end already at edge (${endTime.toFixed(2)}s), ignoring click at ${clickTime.toFixed(2)}s`);
+      return {
+        action: 'none',
+        reason: 'PROTECTED: End handle already at edge, blocking potential movement',
+        protected: true
+      };
+    }
+    
     // 🆕 **TRACK MOUSE DOWN**: Record mouse down event for drag detection
     this.mouseDownTimestamp = performance.now();
     this.lastMousePosition = { x, y: 0 };
     this.isDraggingConfirmed = false;
     
-    console.log(`🖱️ [${this.debugId}] Mouse down (MODERN):`, {
+    console.log(`🖱️ [${this.debugId}] Mouse down (MODERN) WITH PROTECTION:`, {
       x: x.toFixed(1),
       time: clickTime.toFixed(2) + 's',
       handle: handle || 'none',
       currentRegion: `${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s`,
       timestamp: this.mouseDownTimestamp,
-      modernHandles: true
+      modernHandles: true,
+      protectionStatus: {
+        isStartAtEdge,
+        isEndAtEdge,
+        clickBeforeStart: clickTime < startTime,
+        clickAfterEnd: clickTime > endTime
+      }
     });
     
     // 🆕 NEW: Use SmartClickManager for intelligent click analysis

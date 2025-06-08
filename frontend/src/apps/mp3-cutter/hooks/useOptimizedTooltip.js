@@ -8,7 +8,25 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
  * - ⚡ **INSTANT HANDLE TOOLTIPS**: Direct calculation từ startTime/endTime - ZERO DELAY  
  * - ⚡ **INSTANT MAIN CURSOR TOOLTIP**: Direct calculation từ currentTime - ZERO DELAY
  * - 🔥 **NO DELAYS**: Loại bỏ timeouts và animation frames
+ * - 🎯 **SMART DURATION HIDING**: Ẩn duration tooltip khi region quá nhỏ
  */
+
+// 🎯 **DURATION TOOLTIP CONSTANTS**
+const DURATION_TOOLTIP_CONFIG = {
+  // Font size 0.5rem, monospace, format MM.SS.CC = ~9 characters
+  ESTIMATED_CHAR_WIDTH: 3.2, // pixels per character for 0.5rem monospace (~8px)
+  TYPICAL_TIME_FORMAT_LENGTH: 9, // MM.SS.CC = 9 characters
+  PADDING_BUFFER: 8, // Extra padding for 0.5rem font
+  
+  get ESTIMATED_WIDTH() {
+    return this.ESTIMATED_CHAR_WIDTH * this.TYPICAL_TIME_FORMAT_LENGTH;
+  },
+  
+  get MINIMUM_REGION_WIDTH() {
+    return this.ESTIMATED_WIDTH + this.PADDING_BUFFER;
+  }
+};
+
 export const useOptimizedTooltip = (canvasRef, duration, currentTime, isPlaying, audioRef, startTime, endTime, hoveredHandle, isDragging) => {
   // 🎯 **INSTANT HOVER STATE** - Track mouse position cho instant calculation
   const [hoverMousePosition, setHoverMousePosition] = useState(null);
@@ -75,6 +93,16 @@ export const useOptimizedTooltip = (canvasRef, duration, currentTime, isPlaying,
     const selectionDuration = endTime - startTime;
     const durationX = (startX + endX) / 2;
     
+    // 🔧 **REGION WIDTH CALCULATION**: Tính chiều dài region để ẩn tooltip khi quá nhỏ
+    const regionWidthPx = Math.abs(endX - startX);
+    
+    // 🎯 **SMART MINIMUM WIDTH CALCULATION**: Sử dụng constants để tính minimum width
+    const estimatedTooltipWidth = DURATION_TOOLTIP_CONFIG.ESTIMATED_WIDTH; // ~51.6px
+    const minimumRegionWidth = DURATION_TOOLTIP_CONFIG.MINIMUM_REGION_WIDTH; // ~63.6px
+    
+    // 🔧 **SMART DURATION TOOLTIP HIDING**: Ẩn khi region quá nhỏ theo yêu cầu user
+    const shouldShowDurationTooltip = selectionDuration >= 0.1 && regionWidthPx >= minimumRegionWidth;
+    
     // 🔧 **INSTANT CALCULATION DEBUG** - Log khi có drag để verify instant response
     if (isDragging && Math.random() < 0.05) { // 5% sampling chỉ khi drag
       console.log('⚡ [INSTANT-HANDLE] Direct calculation (NO DELAY):', {
@@ -82,9 +110,14 @@ export const useOptimizedTooltip = (canvasRef, duration, currentTime, isPlaying,
         endTime: `${endTime.toFixed(3)}s`,
         startX: `${startX.toFixed(1)}px`,
         endX: `${endX.toFixed(1)}px`,
+        regionWidthPx: `${regionWidthPx.toFixed(1)}px`,
+        estimatedTooltipWidth: `${estimatedTooltipWidth}px`,
+        minimumRegionWidth: `${minimumRegionWidth}px`,
+        shouldShowDuration: shouldShowDurationTooltip,
         isDragging,
         method: 'DIRECT_CALCULATION_FROM_PROPS',
-        performance: 'ZERO_ANIMATION_FRAME_DELAY'
+        performance: 'ZERO_ANIMATION_FRAME_DELAY',
+        note: 'Duration tooltip ẩn khi region < ' + minimumRegionWidth.toFixed(0) + 'px - theo yêu cầu user'
       });
     }
     
@@ -101,12 +134,12 @@ export const useOptimizedTooltip = (canvasRef, duration, currentTime, isPlaying,
         time: endTime,
         formattedTime: formatTime(endTime)
       },
-      selectionDuration: selectionDuration >= 0.1 ? {
+      selectionDuration: shouldShowDurationTooltip ? {
         visible: true,
         x: durationX,
         duration: selectionDuration,
         formattedTime: formatTime(selectionDuration)
-      } : null
+      } : null // 🔧 **HIDE WHEN TOO SMALL**: Ẩn khi region quá nhỏ
     };
   }, [canvasRef, duration, startTime, endTime, formatTime, isDragging]);
   
@@ -229,7 +262,8 @@ export const useOptimizedTooltip = (canvasRef, duration, currentTime, isPlaying,
         endX: tooltips.end?.x?.toFixed(1),
         durationX: tooltips.selectionDuration?.x?.toFixed(1),
         calculation: 'INSTANT_EVERY_RENDER',
-        performance: 'ZERO_DELAY_GUARANTEED'
+        performance: 'ZERO_DELAY_GUARANTEED',
+        note: tooltips.selectionDuration ? 'Duration tooltip hiển thị' : 'Duration tooltip ẩn (region quá nhỏ hoặc < 0.1s)'
       });
     }
     

@@ -40,10 +40,15 @@ export class SmartClickManager {
       requireMinSelection: 0.1,       // Minimum selection duration (seconds)
       allowZeroDuration: false,       // Allow zero-duration selections
       preserveAudioSync: true,        // Maintain audio sync during updates
-      enableRegionDrag: true          // 🆕 NEW: Enable region dragging
+      enableRegionDrag: true,         // 🆕 NEW: Enable region dragging
+      
+      // 🔧 **PROTECTION AGAINST ACCIDENTAL MOVES**: Thêm protection settings
+      preventAccidentalHandleMove: true,  // 🆕 **PROTECTION**: Ngăn chặn handle move khi chỉ hover
+      requireDragConfirmation: true,      // 🆕 **DRAG CONFIRMATION**: Yêu cầu confirm drag trước khi move handles
+      enableHoverProtection: true         // 🆕 **HOVER PROTECTION**: Bảo vệ handles khỏi hover events
     };
     
-    console.log(`🎯 [SmartClickManager] Created with ID: ${this.debugId}`);
+    console.log(`🎯 [SmartClickManager] Created with HOVER PROTECTION enabled - ID: ${this.debugId}`);
   }
   
   /**
@@ -107,9 +112,11 @@ export class SmartClickManager {
    * @param {number} clickTime - Time position of click
    * @param {number} startTime - Current start time
    * @param {number} endTime - Current end time
+   * @param {number} duration - Total duration cho protection logic
+   * @param {boolean} isActualClick - Có phải actual click hay chỉ hover
    * @returns {object} Action details with type and parameters
    */
-  determineAction(clickZone, clickTime, startTime, endTime) {
+  determineAction(clickZone, clickTime, startTime, endTime, duration = Infinity, isActualClick = true) {
     const actionDetails = {
       zone: clickZone,
       action: CLICK_ACTIONS.NO_ACTION,
@@ -158,11 +165,21 @@ export class SmartClickManager {
         break;
         
       case CLICK_ZONES.BEFORE_START:
+        // 🔧 **PROTECTION CHECK**: Kiểm tra có nên cho phép handle update không
+        if (!this.shouldAllowHandleUpdate(clickZone, clickTime, startTime, endTime, duration, isActualClick)) {
+          actionDetails.action = CLICK_ACTIONS.NO_ACTION;
+          actionDetails.cursor = 'pointer';
+          actionDetails.reason = 'PROTECTED: Handle update blocked by protection logic';
+          console.log(`🛡️ [${this.debugId}] BEFORE_START update BLOCKED by protection`);
+          break;
+        }
+        
         if (this.preferences.enableSmartUpdate) {
           actionDetails.action = CLICK_ACTIONS.UPDATE_START;
           actionDetails.newStartTime = clickTime;
           actionDetails.cursor = 'pointer';
           actionDetails.reason = `Moving start from ${startTime.toFixed(2)}s to ${clickTime.toFixed(2)}s`;
+          console.log(`✅ [${this.debugId}] BEFORE_START update ALLOWED: ${startTime.toFixed(2)}s → ${clickTime.toFixed(2)}s`);
         } else {
           actionDetails.action = CLICK_ACTIONS.CREATE_SELECTION;
           actionDetails.newStartTime = clickTime;
@@ -173,11 +190,21 @@ export class SmartClickManager {
         break;
         
       case CLICK_ZONES.AFTER_END:
+        // 🔧 **PROTECTION CHECK**: Kiểm tra có nên cho phép handle update không
+        if (!this.shouldAllowHandleUpdate(clickZone, clickTime, startTime, endTime, duration, isActualClick)) {
+          actionDetails.action = CLICK_ACTIONS.NO_ACTION;
+          actionDetails.cursor = 'pointer';
+          actionDetails.reason = 'PROTECTED: Handle update blocked by protection logic';
+          console.log(`🛡️ [${this.debugId}] AFTER_END update BLOCKED by protection`);
+          break;
+        }
+        
         if (this.preferences.enableSmartUpdate) {
           actionDetails.action = CLICK_ACTIONS.UPDATE_END;
           actionDetails.newEndTime = clickTime;
           actionDetails.cursor = 'pointer';
           actionDetails.reason = `Moving end from ${endTime.toFixed(2)}s to ${clickTime.toFixed(2)}s`;
+          console.log(`✅ [${this.debugId}] AFTER_END update ALLOWED: ${endTime.toFixed(2)}s → ${clickTime.toFixed(2)}s`);
         } else {
           actionDetails.action = CLICK_ACTIONS.CREATE_SELECTION;
           actionDetails.newStartTime = clickTime;
@@ -228,29 +255,33 @@ export class SmartClickManager {
    * @param {number} endTime - Current end time  
    * @param {number} duration - Total audio duration
    * @param {string} handleAtPosition - Handle detected at position
+   * @param {boolean} isActualClick - Có phải actual click hay chỉ hover (default: true)
    * @returns {object} Complete action details
    */
-  processClick(clickTime, startTime, endTime, duration, handleAtPosition) {
+  processClick(clickTime, startTime, endTime, duration, handleAtPosition, isActualClick = true) {
     // 🎯 ANALYZE: Determine click zone
     const clickZone = this.analyzeClickZone(
       clickTime, startTime, endTime, duration, handleAtPosition
     );
     
-    // 🎯 DETERMINE: Choose appropriate action
+    // 🎯 DETERMINE: Choose appropriate action WITH protection logic
     const actionDetails = this.determineAction(
-      clickZone, clickTime, startTime, endTime
+      clickZone, clickTime, startTime, endTime, duration, isActualClick
     );
     
-    // 🎯 ENHANCED LOGGING: Debug information
-    console.log(`🎯 [${this.debugId}] Smart click processed:`, {
+    // 🎯 ENHANCED LOGGING: Debug information with protection status
+    console.log(`🎯 [${this.debugId}] Smart click processed WITH PROTECTION:`, {
       input: {
         clickTime: clickTime.toFixed(2) + 's',
         currentSelection: `${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s`,
-        handle: handleAtPosition || 'none'
+        handle: handleAtPosition || 'none',
+        isActualClick: isActualClick,
+        duration: duration.toFixed(2) + 's'
       },
       analysis: {
         zone: clickZone,
-        action: actionDetails.action
+        action: actionDetails.action,
+        protected: actionDetails.reason.includes('PROTECTED')
       },
       result: {
         newSelection: `${actionDetails.newStartTime.toFixed(2)}s - ${actionDetails.newEndTime.toFixed(2)}s`,
@@ -282,6 +313,60 @@ export class SmartClickManager {
       supportedZones: Object.values(CLICK_ZONES),
       supportedActions: Object.values(CLICK_ACTIONS)
     };
+  }
+
+  /**
+   * 🔧 **PROTECTION CHECK**: Kiểm tra có nên cho phép handle update hay không
+   * @param {string} clickZone - Zone được click
+   * @param {number} clickTime - Time position click
+   * @param {number} startTime - Current start time
+   * @param {number} endTime - Current end time  
+   * @param {number} duration - Total duration
+   * @param {boolean} isActualClick - Có phải actual click event hay chỉ hover
+   * @returns {boolean} True nếu handle update được phép
+   */
+  shouldAllowHandleUpdate(clickZone, clickTime, startTime, endTime, duration, isActualClick = true) {
+    // 🚫 **HOVER PROTECTION**: Nếu chỉ hover và protection enabled, không cho phép update
+    if (!isActualClick && this.preferences.enableHoverProtection) {
+      console.log(`🛡️ [${this.debugId}] HOVER PROTECTION: Blocking handle update for hover event`);
+      return false;
+    }
+    
+    // 🔧 **EDGE POSITION PROTECTION**: Kiểm tra xem handles có ở edge positions không
+    const isStartAtEdge = Math.abs(startTime - 0) < 0.1; // Start handle gần đầu file (< 0.1s)
+    const isEndAtEdge = Math.abs(endTime - duration) < 0.1; // End handle gần cuối file (< 0.1s)
+    
+    // 🔧 **BEFORE_START PROTECTION**: Protect start handle khi đã ở edge
+    if (clickZone === CLICK_ZONES.BEFORE_START && isStartAtEdge && this.preferences.preventAccidentalHandleMove) {
+      console.log(`🛡️ [${this.debugId}] EDGE PROTECTION: Start handle đã ở edge (${startTime.toFixed(2)}s), blocking BEFORE_START update`);
+      return false;
+    }
+    
+    // 🔧 **AFTER_END PROTECTION**: Protect end handle khi đã ở edge  
+    if (clickZone === CLICK_ZONES.AFTER_END && isEndAtEdge && this.preferences.preventAccidentalHandleMove) {
+      console.log(`🛡️ [${this.debugId}] EDGE PROTECTION: End handle đã ở edge (${endTime.toFixed(2)}s), blocking AFTER_END update`);
+      return false;
+    }
+    
+    // 🔧 **MINIMAL MOVEMENT PROTECTION**: Tránh movement quá nhỏ
+    const minMovementThreshold = 0.5; // 0.5 giây threshold
+    if (clickZone === CLICK_ZONES.BEFORE_START) {
+      const movementDistance = Math.abs(startTime - clickTime);
+      if (movementDistance < minMovementThreshold) {
+        console.log(`🛡️ [${this.debugId}] MINIMAL MOVEMENT PROTECTION: Start movement too small (${movementDistance.toFixed(2)}s < ${minMovementThreshold}s)`);
+        return false;
+      }
+    }
+    
+    if (clickZone === CLICK_ZONES.AFTER_END) {
+      const movementDistance = Math.abs(endTime - clickTime);
+      if (movementDistance < minMovementThreshold) {
+        console.log(`🛡️ [${this.debugId}] MINIMAL MOVEMENT PROTECTION: End movement too small (${movementDistance.toFixed(2)}s < ${minMovementThreshold}s)`);
+        return false;
+      }
+    }
+    
+    return true;
   }
 }
 
