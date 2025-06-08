@@ -284,17 +284,6 @@ const WaveformCanvas = React.memo(({
       
       ctx.fillStyle = 'rgba(139, 92, 246, 0.15)';
       ctx.fillRect(startX, 0, endX - startX, height);
-      
-      ctx.strokeStyle = 'rgba(139, 92, 246, 0.6)';
-      ctx.lineWidth = 1;
-      ctx.setLineDash([4, 2]);
-      ctx.beginPath();
-      ctx.moveTo(startX, 0);
-      ctx.lineTo(startX, height);
-      ctx.moveTo(endX, 0);
-      ctx.lineTo(endX, height);
-      ctx.stroke();
-      ctx.setLineDash([]);
     }
 
     // 🎯 **CURSORS & LINES NOW RENDERED AS REACT COMPONENTS** - No longer drawn on canvas
