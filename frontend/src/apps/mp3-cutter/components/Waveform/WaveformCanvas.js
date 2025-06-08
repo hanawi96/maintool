@@ -337,17 +337,29 @@ const WaveformCanvas = React.memo(({
       ctx.fill();
     }
 
-    // 6. **HOVER LINE**
-    if (hoverTooltip && hoverTooltip.visible && duration > 0) {
+    // 6. **HOVER LINE** - Ultra thin gray line
+    if (hoverTooltip && hoverTooltip.visible && duration > 0 && 
+        isDragging !== 'start' && isDragging !== 'end') { // 🔧 **HIDE WHEN DRAGGING HANDLES**: Ẩn khi drag handles theo yêu cầu user
       const hoverX = hoverTooltip.x;
       
-      ctx.strokeStyle = 'rgba(59, 130, 246, 0.7)';
-      ctx.lineWidth = 0.5;
+      // 🔧 **ULTRA THIN GRAY HOVER LINE**: Size nhỏ hơn, màu xám theo yêu cầu user
+      ctx.strokeStyle = 'rgba(156, 163, 175, 0.6)'; // Gray color thay vì blue
+      ctx.lineWidth = 0.3; // Nhỏ hơn: từ 0.5 → 0.3
       
       ctx.beginPath();
       ctx.moveTo(hoverX, 0);
       ctx.lineTo(hoverX, height);
       ctx.stroke();
+      
+      // 🔧 **DEBUG HOVER LINE**: Log hover line styling
+      if (Math.random() < 0.05) { // 5% sampling
+        console.log('🖱️ [HOVER-LINE] Ultra thin gray line rendered:', {
+          x: `${hoverX.toFixed(1)}px`,
+          lineWidth: 0.3,
+          color: 'rgba(156, 163, 175, 0.6)',
+          note: 'Size nhỏ hơn và màu xám theo yêu cầu user - ẩn khi drag handles'
+        });
+      }
     }
   }, [canvasRef, renderData, currentTime, isPlaying, hoverTooltip, calculateFadeMultiplier]);
 

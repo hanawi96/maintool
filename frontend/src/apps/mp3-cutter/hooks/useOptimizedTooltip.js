@@ -112,7 +112,9 @@ export const useOptimizedTooltip = (canvasRef, duration, currentTime, isPlaying,
   
   // ⚡ **INSTANT HOVER CALCULATOR** - Direct calculation từ mouse position
   const calculateHoverTooltip = useCallback(() => {
-    if (!isHoverActive || !hoverMousePosition || !canvasRef?.current || !duration) {
+    // 🔧 **HIDE WHEN DRAGGING HANDLES**: Ẩn hover tooltip khi đang drag handles theo yêu cầu user
+    if (!isHoverActive || !hoverMousePosition || !canvasRef?.current || !duration ||
+        isDragging === 'start' || isDragging === 'end') {
       return null;
     }
     
@@ -131,8 +133,10 @@ export const useOptimizedTooltip = (canvasRef, duration, currentTime, isPlaying,
         mouseX: `${mouseX.toFixed(1)}px`,
         time: `${time.toFixed(3)}s`,
         canvasWidth: `${canvas.width}px`,
+        isDragging,
         method: 'DIRECT_CALCULATION_FROM_MOUSE',
-        performance: 'ZERO_STATE_DELAY'
+        performance: 'ZERO_STATE_DELAY',
+        note: 'Ẩn khi drag handles start/end - theo yêu cầu user'
       });
     }
     
@@ -142,7 +146,7 @@ export const useOptimizedTooltip = (canvasRef, duration, currentTime, isPlaying,
       time,
       formattedTime: formatTime(time)
     };
-  }, [isHoverActive, hoverMousePosition, canvasRef, duration, formatTime]);
+  }, [isHoverActive, hoverMousePosition, canvasRef, duration, formatTime, isDragging]);
   
   // 🚀 **ULTRA INSTANT HOVER UPDATE** - Chỉ track mouse position, calculation ở useMemo
   const updateHoverTooltip = useCallback((mouseEvent) => {
@@ -246,7 +250,7 @@ export const useOptimizedTooltip = (canvasRef, duration, currentTime, isPlaying,
         isDragging, // 🆕 **DRAG STATE**: Track drag state
         calculation: 'INSTANT_FROM_MOUSE_POSITION',
         performance: 'ZERO_CALCULATION_DELAY',
-        note: 'Hover tooltip sẽ bị ẩn khi drag - theo yêu cầu user mới'
+        note: 'Hover tooltip ẩn khi drag handles start/end - theo yêu cầu user mới'
       });
     }
     

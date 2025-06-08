@@ -13,8 +13,8 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, mainCursorToolti
   
   // 🎯 **MINIMAL TOOLTIP STYLING** - Ultra compact và subtle design
   const TOOLTIP_CONFIG = {
-    // 🔤 **ULTRA SMALL FONT**: Giảm từ 9px xuống 7px để ultra compact
-    FONT_SIZE: '7px',
+    // 🔤 **ULTRA SMALL FONT**: Giảm thêm 3px nữa theo yêu cầu user: 7px → 4px
+    FONT_SIZE: '4px',
     
     // 📏 **DURATION ULTRA CLOSE**: Sát đáy waveform hơn nữa (giảm từ -20 xuống -8)
     DURATION_OFFSET: -8, // 200-8=192px from top, cực kì sát đáy
@@ -22,20 +22,20 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, mainCursorToolti
     // 🤚 **HANDLE TOOLTIPS**: Giữ nguyên khoảng cách tránh handles
     HANDLE_OFFSET: 15, // 200+15=215px from top, tránh overlap với handles
     
-    // 🖱️ **HOVER TOOLTIP**: Giữ nguyên position trên waveform
-    HOVER_OFFSET: -25,
+    // 🖱️ **HOVER TOOLTIP**: Cực kì gần hover line - theo yêu cầu user
+    HOVER_OFFSET: -3, // Chỉ 3px trên hover line - cực kì gần theo yêu cầu user
     
-    // 🔵 **MAIN CURSOR TOOLTIP**: Position rất gần main cursor - theo yêu cầu user
-    MAIN_CURSOR_OFFSET: -5, // Chỉ 5px trên cursor line - cực kì gần cursor
+    // 🔵 **MAIN CURSOR TOOLTIP**: Position cực kì gần main cursor - theo yêu cầu user mới
+    MAIN_CURSOR_OFFSET: -3, // Chỉ 3px trên cursor line - gần hơn nữa theo yêu cầu user
     
-    // 🎨 **MINIMAL STYLING**: Bỏ tất cả hiệu ứng màu sắc và tô đậm
-    COLOR: '#9ca3af', // Màu xám neutral cho tất cả tooltips
+    // 🎨 **NEW COLOR STYLING**: Màu mới theo yêu cầu user
+    COLOR: '#2d3436', // Màu mới thay thế #9ca3af theo yêu cầu user
     FONT_WEIGHT: '400', // Normal weight thay vì bold
     
     // 🆕 **MAIN CURSOR STYLING**: Styling riêng cho main cursor tooltip
-    MAIN_CURSOR_FONT_SIZE: '6px', // Font nhỏ hơn cho main cursor
-    MAIN_CURSOR_COLOR: '#374151', // Màu đậm hơn cho main cursor
-    MAIN_CURSOR_FONT_WEIGHT: '600' // Bold cho main cursor
+    MAIN_CURSOR_FONT_SIZE: '3px', // Font nhỏ hơn nữa: 6px → 3px (giảm 3px theo yêu cầu)
+    MAIN_CURSOR_COLOR: '#2d3436', // Same color như các tooltip khác
+    MAIN_CURSOR_FONT_WEIGHT: '400' // Normal weight thay vì bold - bỏ tô đậm theo yêu cầu user
   };
 
   // 🚀 **HEAVY THROTTLED DEBUG** - Chỉ log mỗi 3 giây hoặc khi có thay đổi lớn
@@ -90,21 +90,21 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, mainCursorToolti
             `ACTIVE (${currentState.mainCursorX?.toFixed(0)}px)` : 'INACTIVE',
           positioning: {
             waveformHeight: `${WAVEFORM_HEIGHT}px`,
-            hoverTooltip: `${TOOLTIP_CONFIG.HOVER_OFFSET}px (above waveform)`,
+            hoverTooltip: `${TOOLTIP_CONFIG.HOVER_OFFSET}px (chỉ 3px trên hover line - cực kì gần!)`,
             durationTooltip: `${WAVEFORM_HEIGHT + TOOLTIP_CONFIG.DURATION_OFFSET}px (chỉ ${Math.abs(TOOLTIP_CONFIG.DURATION_OFFSET)}px từ đáy!)`,
             handleTooltips: `${WAVEFORM_HEIGHT + TOOLTIP_CONFIG.HANDLE_OFFSET}px (${TOOLTIP_CONFIG.HANDLE_OFFSET}px below waveform)`,
-            // 🆕 **MAIN CURSOR POSITION**: Thêm main cursor position
-            mainCursorTooltip: `${TOOLTIP_CONFIG.MAIN_CURSOR_OFFSET}px (chỉ 5px trên main cursor line - cực kì gần!)`
+            // 🆕 **MAIN CURSOR POSITION**: Main cursor position mới gần hơn
+            mainCursorTooltip: `${TOOLTIP_CONFIG.MAIN_CURSOR_OFFSET}px (chỉ 3px trên main cursor line - gần hơn nữa!)`
           },
           styling: {
             fontSize: TOOLTIP_CONFIG.FONT_SIZE,
             color: TOOLTIP_CONFIG.COLOR,
             fontWeight: TOOLTIP_CONFIG.FONT_WEIGHT,
-            // 🆕 **MAIN CURSOR STYLING**: Bao gồm styling riêng cho main cursor
+            // 🆕 **MAIN CURSOR STYLING**: Bao gồm styling mới cho main cursor
             mainCursorFontSize: TOOLTIP_CONFIG.MAIN_CURSOR_FONT_SIZE,
             mainCursorColor: TOOLTIP_CONFIG.MAIN_CURSOR_COLOR,
             mainCursorFontWeight: TOOLTIP_CONFIG.MAIN_CURSOR_FONT_WEIGHT,
-            improvements: 'Ultra compact: 7px font, no colors, no bold, main cursor 6px+đậm+gần'
+            improvements: 'Ultra mini: 4px font, main cursor 3px NO BOLD+3px gần, ẩn hover khi drag handles, màu #2d3436'
           }
         });
       }
@@ -163,7 +163,7 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, mainCursorToolti
           fontSize: TOOLTIP_CONFIG.FONT_SIZE,
           color: TOOLTIP_CONFIG.COLOR,
           fontWeight: TOOLTIP_CONFIG.FONT_WEIGHT,
-          note: 'Bỏ hết màu sắc và tô đậm - minimal design + instant response'
+          note: 'Font 4px cực nhỏ, màu #2d3436 - theo yêu cầu user mới'
         }
       });
     }
@@ -177,12 +177,12 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, mainCursorToolti
         formattedTime: mainCursorTooltip.formattedTime,
         method: 'INSTANT_SYNC_FROM_CURRENT_TIME',
         performance: 'ZERO_DELAY_GUARANTEED',
-        positioning: 'Chỉ 5px trên main cursor line - cực kì gần theo yêu cầu user',
+        positioning: 'Chỉ 3px trên main cursor line - gần hơn nữa theo yêu cầu user',
         styling: {
-          fontSize: TOOLTIP_CONFIG.MAIN_CURSOR_FONT_SIZE, // 6px
-          color: TOOLTIP_CONFIG.MAIN_CURSOR_COLOR, // darker
-          fontWeight: TOOLTIP_CONFIG.MAIN_CURSOR_FONT_WEIGHT, // bold
-          note: 'Font nhỏ hơn (6px), màu đậm hơn, bold - theo yêu cầu user'
+          fontSize: TOOLTIP_CONFIG.MAIN_CURSOR_FONT_SIZE, // 3px
+          color: TOOLTIP_CONFIG.MAIN_CURSOR_COLOR, // #2d3436
+          fontWeight: TOOLTIP_CONFIG.MAIN_CURSOR_FONT_WEIGHT, // normal weight
+          note: 'Font cực nhỏ (3px), màu #2d3436, NO BOLD, position 3px - theo yêu cầu user mới'
         }
       });
     }
@@ -191,16 +191,16 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, mainCursorToolti
 
   return (
     <>
-      {/* 🖱️ **HOVER TOOLTIP** - ULTRA MINIMAL: Font cực nhỏ, màu neutral */}
+      {/* 🖱️ **HOVER TOOLTIP** - ULTRA MINIMAL: Font cực nhỏ (4px), màu #2d3436 */}
       {shouldRenderHoverTooltip && (
         <div
           className="absolute pointer-events-none text-xs z-50"
           style={{
             left: `${hoverTooltip.x}px`,
-            top: `${TOOLTIP_CONFIG.HOVER_OFFSET}px`, // Giữ nguyên -25px
+            top: `${TOOLTIP_CONFIG.HOVER_OFFSET}px`, // -3px trên hover line
             transform: 'translateX(-50%)',
-            color: TOOLTIP_CONFIG.COLOR, // 🎨 **NEUTRAL**: Màu xám thay vì màu riêng
-            fontSize: TOOLTIP_CONFIG.FONT_SIZE, // 🔤 **ULTRA SMALL**: 7px cực compact
+            color: TOOLTIP_CONFIG.COLOR, // 🎨 **NEW COLOR**: Màu #2d3436 theo yêu cầu user
+            fontSize: TOOLTIP_CONFIG.FONT_SIZE, // 🔤 **ULTRA MINI**: 4px cực compact
             fontWeight: TOOLTIP_CONFIG.FONT_WEIGHT, // 🚫 **NO BOLD**: Normal weight
             fontFamily: 'monospace', // 🆕 **MONOSPACE**: Font mono cho số
             whiteSpace: 'nowrap'
@@ -210,7 +210,7 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, mainCursorToolti
         </div>
       )}
 
-      {/* 🤚 **START HANDLE TOOLTIP** - MINIMAL STYLING: Bỏ màu teal, bỏ bold */}
+      {/* 🤚 **START HANDLE TOOLTIP** - ULTRA MINIMAL: Font 4px, màu #2d3436 */}
       {shouldRenderStartTooltip && (
         <div
           className="absolute pointer-events-none text-xs z-50"
@@ -218,8 +218,8 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, mainCursorToolti
             left: `${handleTooltips.start.x}px`,
             top: `${WAVEFORM_HEIGHT + TOOLTIP_CONFIG.HANDLE_OFFSET}px`, // Giữ nguyên +15px
             transform: 'translateX(-50%)',
-            color: TOOLTIP_CONFIG.COLOR, // 🎨 **NEUTRAL**: Bỏ màu teal, dùng xám
-            fontSize: TOOLTIP_CONFIG.FONT_SIZE, // 🔤 **ULTRA SMALL**: 7px cực compact
+            color: TOOLTIP_CONFIG.COLOR, // 🎨 **NEW COLOR**: Màu #2d3436 theo yêu cầu user
+            fontSize: TOOLTIP_CONFIG.FONT_SIZE, // 🔤 **ULTRA MINI**: 4px cực compact
             fontWeight: TOOLTIP_CONFIG.FONT_WEIGHT, // 🚫 **NO BOLD**: Bỏ tô đậm
             fontFamily: 'monospace', // 🆕 **MONOSPACE**: Font mono cho số
             whiteSpace: 'nowrap'
@@ -229,7 +229,7 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, mainCursorToolti
         </div>
       )}
 
-      {/* 🤚 **END HANDLE TOOLTIP** - MINIMAL STYLING: Bỏ màu orange, bỏ bold */}
+      {/* 🤚 **END HANDLE TOOLTIP** - ULTRA MINIMAL: Font 4px, màu #2d3436 */}
       {shouldRenderEndTooltip && (
         <div
           className="absolute pointer-events-none text-xs z-50"
@@ -237,8 +237,8 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, mainCursorToolti
             left: `${handleTooltips.end.x}px`,
             top: `${WAVEFORM_HEIGHT + TOOLTIP_CONFIG.HANDLE_OFFSET}px`, // Giữ nguyên +15px
             transform: 'translateX(-50%)',
-            color: TOOLTIP_CONFIG.COLOR, // 🎨 **NEUTRAL**: Bỏ màu orange, dùng xám
-            fontSize: TOOLTIP_CONFIG.FONT_SIZE, // 🔤 **ULTRA SMALL**: 7px cực compact
+            color: TOOLTIP_CONFIG.COLOR, // 🎨 **NEW COLOR**: Màu #2d3436 theo yêu cầu user
+            fontSize: TOOLTIP_CONFIG.FONT_SIZE, // 🔤 **ULTRA MINI**: 4px cực compact
             fontWeight: TOOLTIP_CONFIG.FONT_WEIGHT, // 🚫 **NO BOLD**: Bỏ tô đậm
             fontFamily: 'monospace', // 🆕 **MONOSPACE**: Font mono cho số
             whiteSpace: 'nowrap'
@@ -248,7 +248,7 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, mainCursorToolti
         </div>
       )}
 
-      {/* 📏 **DURATION TOOLTIP** - ULTRA CLOSE TO BOTTOM: Cực kì sát đáy waveform */}
+      {/* 📏 **DURATION TOOLTIP** - ULTRA MINIMAL: Font 4px, màu #2d3436, cực sát đáy */}
       {shouldRenderDurationTooltip && (
         <div
           className="absolute pointer-events-none text-xs z-50"
@@ -256,8 +256,8 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, mainCursorToolti
             left: `${handleTooltips.selectionDuration.x}px`,
             top: `${WAVEFORM_HEIGHT + TOOLTIP_CONFIG.DURATION_OFFSET}px`, // 🔧 **ULTRA CLOSE**: -8px từ đáy!
             transform: 'translateX(-50%)',
-            color: TOOLTIP_CONFIG.COLOR, // 🎨 **NEUTRAL**: Bỏ màu purple, dùng xám
-            fontSize: TOOLTIP_CONFIG.FONT_SIZE, // 🔤 **ULTRA SMALL**: 7px cực compact
+            color: TOOLTIP_CONFIG.COLOR, // 🎨 **NEW COLOR**: Màu #2d3436 theo yêu cầu user
+            fontSize: TOOLTIP_CONFIG.FONT_SIZE, // 🔤 **ULTRA MINI**: 4px cực compact
             fontWeight: TOOLTIP_CONFIG.FONT_WEIGHT, // 🚫 **NO BOLD**: Bỏ tô đậm
             fontFamily: 'monospace', // 🆕 **MONOSPACE**: Font mono cho số
             whiteSpace: 'nowrap'
@@ -267,17 +267,17 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, mainCursorToolti
         </div>
       )}
 
-      {/* 🔵 **MAIN CURSOR TOOLTIP** - MINIMAL STYLING: Trên main cursor line khi đang play */}
+      {/* 🔵 **MAIN CURSOR TOOLTIP** - ULTRA MINIMAL: Font 3px, màu #2d3436, NO BOLD, chỉ 3px trên cursor */}
       {shouldRenderMainCursorTooltip && (
         <div
           className="absolute pointer-events-none text-xs z-50"
           style={{
             left: `${mainCursorTooltip.x}px`,
-            top: `${TOOLTIP_CONFIG.MAIN_CURSOR_OFFSET}px`, // 🔧 **ABOVE CURSOR**: -5px để gần cursor hơn
+            top: `${TOOLTIP_CONFIG.MAIN_CURSOR_OFFSET}px`, // 🔧 **ULTRA CLOSE**: -3px để cực gần cursor
             transform: 'translateX(-50%)',
-            color: TOOLTIP_CONFIG.MAIN_CURSOR_COLOR, // 🎨 **DARKER**: Màu đậm hơn cho main cursor
-            fontSize: TOOLTIP_CONFIG.MAIN_CURSOR_FONT_SIZE, // 🔤 **SMALLER**: Font nhỏ hơn cho main cursor
-            fontWeight: TOOLTIP_CONFIG.MAIN_CURSOR_FONT_WEIGHT, // 🚫 **BOLD**: Bold cho main cursor
+            color: TOOLTIP_CONFIG.MAIN_CURSOR_COLOR, // 🎨 **NEW COLOR**: Màu #2d3436 theo yêu cầu user
+            fontSize: TOOLTIP_CONFIG.MAIN_CURSOR_FONT_SIZE, // 🔤 **ULTRA MINI**: Font 3px cực nhỏ
+            fontWeight: TOOLTIP_CONFIG.MAIN_CURSOR_FONT_WEIGHT, // 🚫 **NO BOLD**: Normal weight theo yêu cầu user
             fontFamily: 'monospace', // 🆕 **MONOSPACE**: Font mono cho số
             whiteSpace: 'nowrap'
           }}
