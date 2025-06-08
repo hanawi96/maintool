@@ -1334,7 +1334,7 @@ const WaveformCanvas = React.memo(({
       
       {/* 🆕 **SIMPLIFIED TOOLTIPS**: Relative positioning tooltips - NO PORTAL */}
       
-      {/* 🆕 **HOVER TIME TOOLTIP**: Simple relative positioning */}
+      {/* 🆕 **HOVER TIME TOOLTIP**: Ultra-crisp with no blur effects */}
       {hoverTooltip && hoverTooltip.visible && (
         <div
           className="absolute pointer-events-none text-xs font-bold z-50"
@@ -1342,19 +1342,22 @@ const WaveformCanvas = React.memo(({
             left: `${hoverTooltip.x}px`,
             top: '-25px', // 🎯 **ABOVE CANVAS**: 25px above canvas
             transform: 'translateX(-50%)',
-            color: 'rgba(30, 41, 59, 0.95)',
+            color: '#1e293b', // 🔥 **SOLID COLOR**: No transparency for crisp text
             whiteSpace: 'nowrap',
             fontWeight: '700',
             fontSize: '11px',
-            textShadow: '0 1px 4px rgba(255, 255, 255, 0.9), 0 -1px 2px rgba(0, 0, 0, 0.8), 1px 0 3px rgba(255, 255, 255, 0.8), -1px 0 3px rgba(255, 255, 255, 0.8)',
-            WebkitTextStroke: '0.5px rgba(255, 255, 255, 0.9)'
+            backgroundColor: '#ffffff', // 🔥 **SOLID BACKGROUND**: No transparency
+            border: '1px solid #e2e8f0', // 🔥 **CRISP BORDER**: Clean border instead of shadows
+            borderRadius: '4px',
+            padding: '2px 6px'
+            // 🚫 **NO BLUR EFFECTS**: Removed textShadow and WebkitTextStroke completely
           }}
         >
           {hoverTooltip.formattedTime}
         </div>
       )}
 
-      {/* 🏷️ **START HANDLE TOOLTIP**: Below waveform */}
+      {/* 🏷️ **START HANDLE TOOLTIP**: Ultra-crisp below waveform */}
       {handleTooltips.startHandle && handleTooltips.startHandle.visible && (
         <div
           className="absolute pointer-events-none text-xs px-2 py-1 rounded font-medium z-40"
@@ -1362,18 +1365,18 @@ const WaveformCanvas = React.memo(({
             left: `${handleTooltips.startHandle.x}px`,
             top: `${WAVEFORM_CONFIG.HEIGHT + 5}px`, // 🎯 **BELOW CANVAS**: 5px below canvas
             transform: 'translateX(-50%)',
-            backgroundColor: 'rgba(20, 184, 166, 0.95)',
+            backgroundColor: '#14b8a6', // 🔥 **SOLID COLOR**: No transparency
             color: 'white',
             whiteSpace: 'nowrap',
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.4)',
-            backdropFilter: 'blur(6px)'
+            border: '1px solid #0d9488' // 🔥 **CRISP BORDER**: Clean border instead of shadows
+            // 🚫 **NO BLUR EFFECTS**: Removed boxShadow and backdropFilter completely
           }}
         >
           {handleTooltips.startHandle.formattedTime}
         </div>
       )}
 
-      {/* 🏷️ **END HANDLE TOOLTIP**: Below waveform */}
+      {/* 🏷️ **END HANDLE TOOLTIP**: Ultra-crisp below waveform */}
       {handleTooltips.endHandle && handleTooltips.endHandle.visible && (
         <div
           className="absolute pointer-events-none text-xs px-2 py-1 rounded font-medium z-40"
@@ -1381,18 +1384,18 @@ const WaveformCanvas = React.memo(({
             left: `${handleTooltips.endHandle.x}px`,
             top: `${WAVEFORM_CONFIG.HEIGHT + 5}px`, // 🎯 **BELOW CANVAS**: 5px below canvas
             transform: 'translateX(-50%)',
-            backgroundColor: 'rgba(249, 115, 22, 0.95)',
+            backgroundColor: '#f97316', // 🔥 **SOLID COLOR**: No transparency
             color: 'white',
             whiteSpace: 'nowrap',
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.4)',
-            backdropFilter: 'blur(6px)'
+            border: '1px solid #ea580c' // 🔥 **CRISP BORDER**: Clean border instead of shadows
+            // 🚫 **NO BLUR EFFECTS**: Removed boxShadow and backdropFilter completely
           }}
         >
           {handleTooltips.endHandle.formattedTime}
         </div>
       )}
 
-      {/* 🏷️ **SELECTION DURATION TOOLTIP**: Inside waveform */}
+      {/* 🏷️ **SELECTION DURATION TOOLTIP**: Ultra-crisp inside waveform */}
       {handleTooltips.selectionDuration && handleTooltips.selectionDuration.visible && (
         <div
           className="absolute pointer-events-none text-sm font-semibold z-30"
@@ -1400,10 +1403,14 @@ const WaveformCanvas = React.memo(({
             left: `${handleTooltips.selectionDuration.x}px`,
             top: `${WAVEFORM_CONFIG.HEIGHT - 30}px`, // 🎯 **INSIDE CANVAS**: 30px from bottom
             transform: 'translateX(-50%)',
-            color: 'rgba(30, 41, 59, 0.9)',
+            color: '#1e293b', // 🔥 **SOLID COLOR**: No transparency for crisp text
             whiteSpace: 'nowrap',
-            textShadow: '0 1px 2px rgba(255, 255, 255, 0.8), 0 -1px 1px rgba(0, 0, 0, 0.2)',
-            fontWeight: '600'
+            fontWeight: '600',
+            backgroundColor: '#ffffff', // 🔥 **SOLID BACKGROUND**: Clean white background
+            border: '1px solid #e2e8f0', // 🔥 **CRISP BORDER**: Clean border
+            borderRadius: '4px',
+            padding: '4px 8px'
+            // 🚫 **NO BLUR EFFECTS**: Removed textShadow completely
           }}
         >
           {handleTooltips.selectionDuration.formattedDuration}

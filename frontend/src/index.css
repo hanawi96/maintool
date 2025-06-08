@@ -519,3 +519,58 @@ canvas[data-cursor="region-hover"] {
 canvas[data-cursor="pointer"] {
   cursor: pointer !important;
 }
+
+/* 🔥 **ULTRA-CRISP WAVEFORM**: Remove all blur effects from waveform components */
+.waveform-container-no-scrollbar,
+.waveform-container-no-scrollbar *,
+canvas[class*="waveform"],
+canvas[style*="height"] {
+  /* 🚫 **NO BLUR EFFECTS**: Disable all blur and shadow effects */
+  backdrop-filter: none !important;
+  filter: none !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  
+  /* 🔥 **PIXEL-PERFECT RENDERING**: Enable crisp rendering */
+  image-rendering: pixelated !important;
+  image-rendering: crisp-edges !important;
+  image-rendering: -webkit-crisp-edges !important;
+  
+  /* 🎯 **DISABLE ANTIALIASING**: For ultra-sharp lines and cursors */
+  -webkit-font-smoothing: none !important;
+  -moz-osx-font-smoothing: unset !important;
+}
+
+/* 🔥 **ULTRA-CRISP CURSORS**: Remove all cursor enhancement effects */
+canvas[data-cursor],
+canvas[class*="cursor-"] {
+  /* 🚫 **NO CURSOR EFFECTS**: Disable any cursor enhancement */
+  filter: none !important;
+  backdrop-filter: none !important;
+  
+  /* 🎯 **PIXEL-PERFECT CURSOR**: Ensure cursors are crisp */
+  cursor-visibility: auto !important;
+  pointer-events: auto !important;
+}
+
+/* 🔥 **ULTRA-CRISP TOOLTIPS**: CSS backup for clean tooltips */
+.absolute.pointer-events-none[style*="transform"] {
+  /* 🚫 **NO TOOLTIP BLUR**: Disable any blur effects on tooltips */
+  backdrop-filter: none !important;
+  filter: none !important;
+  
+  /* 🔥 **SOLID BORDERS**: Ensure clean borders */
+  box-shadow: none !important;
+  text-shadow: none !important;
+  -webkit-text-stroke: none !important;
+}
+
+/* 🎯 **CROSS-PLATFORM CURSOR SUPPORT**: Enhanced cursor definitions */
+.cursor-all-scroll {
+  cursor: all-scroll !important;
+}
+
+.cursor-grab {
+  cursor: grab !important;
+  cursor: -webkit-grab !important;
+}
