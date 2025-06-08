@@ -2,7 +2,7 @@ import React, { useEffect, useRef, memo } from 'react';
 import { WAVEFORM_CONFIG } from '../../utils/constants.js';
 
 // 🚀 **ULTRA-OPTIMIZED COMPONENT** - Loại bỏ excessive re-renders
-export const WaveformUI = memo(({ hoverTooltip, handleTooltips, currentTimeTooltip }) => {
+export const WaveformUI = memo(({ hoverTooltip, handleTooltips }) => {
   // 🔧 **MINIMAL DEBUG REFS** - Chỉ track cần thiết
   const renderCountRef = useRef(0);
   const lastLogTimeRef = useRef(0);
@@ -10,9 +10,22 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, currentTimeToolt
   
   // 🆕 **WAVEFORM CONSTANTS** - Sử dụng height từ config để positioning chính xác
   const WAVEFORM_HEIGHT = WAVEFORM_CONFIG.HEIGHT; // 200px
-  const HANDLE_TOOLTIP_OFFSET = 15; // Khoảng cách từ đáy waveform xuống handle tooltips
-  const DURATION_TOOLTIP_OFFSET = 35; // Khoảng cách từ đáy waveform xuống duration tooltip (thấp hơn)
   
+  // 🎯 **OPTIMIZED TOOLTIP POSITIONING** - Calculated positions cho better UX
+  const TOOLTIP_CONFIG = {
+    // 🔤 **SMALLER FONT**: Giảm từ 11px xuống 9px để compact hơn
+    FONT_SIZE: '9px',
+    
+    // 📏 **DURATION TOOLTIP**: Sát đáy waveform hơn (giảm từ -35 xuống -20)
+    DURATION_OFFSET: -20, // 200-20=180px from top, sát đáy hơn
+    
+    // 🤚 **HANDLE TOOLTIPS**: Hạ thấp hơn để tránh handles (tăng từ +5 lên +15)
+    HANDLE_OFFSET: 15, // 200+15=215px from top, tránh overlap với handles
+    
+    // 🖱️ **HOVER TOOLTIP**: Giữ nguyên position trên waveform
+    HOVER_OFFSET: -25
+  };
+
   // 🚀 **HEAVY THROTTLED DEBUG** - Chỉ log mỗi 3 giây hoặc khi có thay đổi lớn
   useEffect(() => {
     renderCountRef.current++;
@@ -20,61 +33,64 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, currentTimeToolt
     
     // 🎯 **SIGNIFICANT CHANGE DETECTION** - Chỉ log khi thực sự cần thiết
     const currentState = {
-      hasCurrentTime: !!currentTimeTooltip,
-      currentTimeVisible: currentTimeTooltip?.visible,
-      currentTimeX: currentTimeTooltip?.x,
-      isPlaying: currentTimeTooltip?.isPlaying,
-      handleStart: !!handleTooltips?.start,
-      handleEnd: !!handleTooltips?.end
+      hasHover: !!hoverTooltip,
+      hoverVisible: hoverTooltip?.visible,
+      hoverX: hoverTooltip?.x,
+      hasHandles: !!handleTooltips,
+      startVisible: handleTooltips?.start?.visible,
+      endVisible: handleTooltips?.end?.visible,
+      durationVisible: handleTooltips?.selectionDuration?.visible
     };
     
     const lastState = lastTooltipStateRef.current;
     const hasSignificantChange = !lastState ||
-      currentState.hasCurrentTime !== lastState.hasCurrentTime ||
-      currentState.currentTimeVisible !== lastState.currentTimeVisible ||
-      currentState.isPlaying !== lastState.isPlaying ||
-      currentState.handleStart !== lastState.handleStart ||
-      currentState.handleEnd !== lastState.handleEnd ||
-      Math.abs((currentState.currentTimeX || 0) - (lastState.currentTimeX || 0)) > 10; // 10px threshold
+      currentState.hasHover !== lastState.hasHover ||
+      currentState.hoverVisible !== lastState.hoverVisible ||
+      currentState.hoverX !== lastState.hoverX ||
+      currentState.hasHandles !== lastState.hasHandles ||
+      currentState.startVisible !== lastState.startVisible ||
+      currentState.endVisible !== lastState.endVisible ||
+      currentState.durationVisible !== lastState.durationVisible ||
+      Math.abs((currentState.hoverX || 0) - (lastState.hoverX || 0)) > 10; // 10px threshold
     
     // 🚀 **ULTRA REDUCED LOGGING** - Chỉ log mỗi 5 giây hoặc changes lớn
     if ((now - lastLogTimeRef.current > 5000) || hasSignificantChange) {
       lastLogTimeRef.current = now;
       lastTooltipStateRef.current = currentState;
       
-      // 🎯 **MINIMAL LOG** - Chỉ thông tin cần thiết
+      // 🎯 **ENHANCED DEBUG LOG** - Bao gồm positioning info
       if (renderCountRef.current % 50 === 0 || hasSignificantChange) {
-        console.log(`🎨 [WaveformUI] Render #${renderCountRef.current}:`, {
-          tooltip: currentState.hasCurrentTime ? 'ACTIVE' : 'INACTIVE',
-          playing: currentState.isPlaying ? 'YES' : 'NO',
-          x: currentState.currentTimeX ? `${currentState.currentTimeX.toFixed(0)}px` : 'N/A',
-          handles: `Start:${currentState.handleStart} End:${currentState.handleEnd}`,
-          positioning: `Height:${WAVEFORM_HEIGHT}px, HandleOffset:+${HANDLE_TOOLTIP_OFFSET}px, DurationOffset:+${DURATION_TOOLTIP_OFFSET}px`,
-          styling: 'Simple text-only tooltips, no background/icons',
-          format: '00.00.00 (mm.ss.cs)',
-          visibility: 'Start/End always visible when selection exists'
+        console.log(`🎨 [WaveformUI] Tooltip Positioning Update #${renderCountRef.current}:`, {
+          tooltip: currentState.hasHover ? 'ACTIVE' : 'INACTIVE',
+          x: currentState.hoverX ? `${currentState.hoverX.toFixed(0)}px` : 'N/A',
+          handles: `Start:${currentState.startVisible} End:${currentState.endVisible}`,
+          positioning: {
+            waveformHeight: `${WAVEFORM_HEIGHT}px`,
+            hoverTooltip: `${TOOLTIP_CONFIG.HOVER_OFFSET}px (above waveform)`,
+            durationTooltip: `${WAVEFORM_HEIGHT + TOOLTIP_CONFIG.DURATION_OFFSET}px (${TOOLTIP_CONFIG.DURATION_OFFSET}px from bottom)`,
+            handleTooltips: `${WAVEFORM_HEIGHT + TOOLTIP_CONFIG.HANDLE_OFFSET}px (${TOOLTIP_CONFIG.HANDLE_OFFSET}px below waveform)`
+          },
+          styling: {
+            fontSize: TOOLTIP_CONFIG.FONT_SIZE,
+            improvements: 'Font nhỏ hơn, Duration sát đáy hơn, Handles tránh overlap'
+          }
         });
       }
     }
   });
 
   // 🚀 **CONDITIONAL RENDERING** - Chỉ render khi thực sự cần thiết
-  const shouldRenderCurrentTimeTooltip = currentTimeTooltip?.visible && 
-    typeof currentTimeTooltip.x === 'number' && 
-    !isNaN(currentTimeTooltip.x) &&
-    currentTimeTooltip.x >= 0;
-
   const shouldRenderHoverTooltip = hoverTooltip?.visible && 
     typeof hoverTooltip.x === 'number' && 
     !isNaN(hoverTooltip.x) &&
     hoverTooltip.x >= 0;
 
-  const shouldRenderStartHandle = handleTooltips?.start?.visible &&
+  const shouldRenderStartTooltip = handleTooltips?.start?.visible &&
     typeof handleTooltips.start.x === 'number' &&
     !isNaN(handleTooltips.start.x) &&
     handleTooltips.start.x >= 0;
 
-  const shouldRenderEndHandle = handleTooltips?.end?.visible &&
+  const shouldRenderEndTooltip = handleTooltips?.end?.visible &&
     typeof handleTooltips.end.x === 'number' &&
     !isNaN(handleTooltips.end.x) &&
     handleTooltips.end.x >= 0;
@@ -84,84 +100,61 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, currentTimeToolt
     !isNaN(handleTooltips.selectionDuration.x) &&
     handleTooltips.selectionDuration.x >= 0;
 
+  // 🔧 **POSITION DEBUG**: Log positioning khi có tooltip hiển thị
+  useEffect(() => {
+    if (shouldRenderDurationTooltip && Math.random() < 0.1) { // 10% sampling
+      console.log('📏 [Tooltip Position Debug] Duration tooltip positioning:', {
+        x: handleTooltips.selectionDuration.x,
+        calculatedTop: WAVEFORM_HEIGHT + TOOLTIP_CONFIG.DURATION_OFFSET,
+        waveformHeight: WAVEFORM_HEIGHT,
+        offset: TOOLTIP_CONFIG.DURATION_OFFSET,
+        result: `Sát đáy waveform ${Math.abs(TOOLTIP_CONFIG.DURATION_OFFSET)}px`
+      });
+    }
+    
+    if ((shouldRenderStartTooltip || shouldRenderEndTooltip) && Math.random() < 0.1) { // 10% sampling
+      console.log('🤚 [Tooltip Position Debug] Handle tooltips positioning:', {
+        startX: shouldRenderStartTooltip ? handleTooltips.start.x : 'N/A',
+        endX: shouldRenderEndTooltip ? handleTooltips.end.x : 'N/A',
+        calculatedTop: WAVEFORM_HEIGHT + TOOLTIP_CONFIG.HANDLE_OFFSET,
+        waveformHeight: WAVEFORM_HEIGHT,
+        offset: TOOLTIP_CONFIG.HANDLE_OFFSET,
+        result: `Dưới waveform ${TOOLTIP_CONFIG.HANDLE_OFFSET}px, tránh handles`
+      });
+    }
+  }, [shouldRenderDurationTooltip, shouldRenderStartTooltip, shouldRenderEndTooltip, handleTooltips]);
+
   return (
     <>
-      {/* 🎵 **CURRENT TIME TOOLTIP** - Tooltip theo cursor phát nhạc (PRIORITY 1) */}
-      {shouldRenderCurrentTimeTooltip && (
-        <div
-          className="absolute pointer-events-none text-xs font-bold z-60"
-          style={{
-            left: `${currentTimeTooltip.x}px`,
-            top: '-35px',
-            transform: 'translateX(-50%)',
-            color: '#ffffff',
-            whiteSpace: 'nowrap',
-            fontWeight: '700',
-            fontSize: '12px',
-            backgroundColor: currentTimeTooltip.isPlaying ? '#3b82f6' : '#6366f1', // Blue khi phát, indigo khi pause
-            padding: '4px 8px',
-            borderRadius: '6px',
-            border: '1px solid rgba(255, 255, 255, 0.2)',
-            boxShadow: currentTimeTooltip.isPlaying 
-              ? '0 4px 12px rgba(59, 130, 246, 0.4), 0 0 0 1px rgba(59, 130, 246, 0.3)' 
-              : '0 4px 12px rgba(99, 102, 241, 0.4), 0 0 0 1px rgba(99, 102, 241, 0.3)',
-            backdropFilter: 'blur(8px)',
-            zIndex: 60
-          }}
-        >
-          <div className="flex items-center gap-1">
-            {/* 🎵 **STATUS ICON** - Icon thể hiện trạng thái */}
-            <span className="text-white opacity-90" style={{ fontSize: '10px' }}>
-              {currentTimeTooltip.isPlaying ? '▶️' : '⏸️'}
-            </span>
-            <span className="text-white font-mono tracking-wider">
-              {currentTimeTooltip.formattedTime}
-            </span>
-          </div>
-          
-          {/* 🎯 **ANIMATED INDICATOR** - Chấm nhấp nháy khi đang phát */}
-          {currentTimeTooltip.isPlaying && (
-            <div 
-              className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-white rounded-full opacity-80"
-              style={{
-                animation: 'pulse 1.5s ease-in-out infinite'
-              }}
-            />
-          )}
-        </div>
-      )}
-
-      {/* 🖱️ **HOVER TOOLTIP** - Tooltip khi hover chuột (PRIORITY 2) */}
+      {/* 🖱️ **HOVER TOOLTIP** - COMPACT FONT: Font nhỏ hơn cho UX tốt hơn */}
       {shouldRenderHoverTooltip && (
         <div
           className="absolute pointer-events-none text-xs z-50"
           style={{
             left: `${hoverTooltip.x}px`,
-            top: '-25px',
+            top: `${TOOLTIP_CONFIG.HOVER_OFFSET}px`, // Giữ nguyên -25px
             transform: 'translateX(-50%)',
-            color: '#ffffff',
-            backgroundColor: 'rgba(0, 0, 0, 0.8)',
-            padding: '2px 6px',
-            borderRadius: '4px',
-            fontSize: '11px',
-            whiteSpace: 'nowrap',
-            border: '1px solid rgba(255, 255, 255, 0.1)'
+            color: '#6b7280', // 🎯 **SIMPLE**: Chỉ màu text xám
+            fontSize: TOOLTIP_CONFIG.FONT_SIZE, // 🔤 **SMALLER**: 9px thay vì 11px
+            fontWeight: '600',
+            fontFamily: 'monospace', // 🆕 **MONOSPACE**: Font mono cho số
+            whiteSpace: 'nowrap'
           }}
         >
-          🖱️ {hoverTooltip.formattedTime}
+          {hoverTooltip.formattedTime}
         </div>
       )}
 
-      {/* 🎛️ **START HANDLE TOOLTIP** - SIMPLE DESIGN: Chỉ text đơn giản */}
-      {shouldRenderStartHandle && (
+      {/* 🟢 **START HANDLE TOOLTIP** - LOWER POSITION: Hạ thấp để tránh handles */}
+      {shouldRenderStartTooltip && (
         <div
           className="absolute pointer-events-none text-xs z-50"
           style={{
             left: `${handleTooltips.start.x}px`,
-            top: `${WAVEFORM_HEIGHT + HANDLE_TOOLTIP_OFFSET}px`,
+            top: `${WAVEFORM_HEIGHT + TOOLTIP_CONFIG.HANDLE_OFFSET}px`, // 🔧 **LOWER**: +15px thay vì +5px
             transform: 'translateX(-50%)',
-            color: '#10b981', // 🎯 **SIMPLE**: Chỉ màu text, không background
-            fontSize: '11px',
+            color: '#14b8a6', // 🎯 **SIMPLE**: Chỉ màu text teal như handle
+            fontSize: TOOLTIP_CONFIG.FONT_SIZE, // 🔤 **SMALLER**: 9px thay vì 11px
             fontWeight: '600',
             fontFamily: 'monospace', // 🆕 **MONOSPACE**: Font mono cho số
             whiteSpace: 'nowrap'
@@ -171,16 +164,16 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, currentTimeToolt
         </div>
       )}
 
-      {/* 🎛️ **END HANDLE TOOLTIP** - SIMPLE DESIGN: Chỉ text đơn giản */}
-      {shouldRenderEndHandle && (
+      {/* 🟠 **END HANDLE TOOLTIP** - LOWER POSITION: Hạ thấp để tránh handles */}
+      {shouldRenderEndTooltip && (
         <div
           className="absolute pointer-events-none text-xs z-50"
           style={{
             left: `${handleTooltips.end.x}px`,
-            top: `${WAVEFORM_HEIGHT + HANDLE_TOOLTIP_OFFSET}px`,
+            top: `${WAVEFORM_HEIGHT + TOOLTIP_CONFIG.HANDLE_OFFSET}px`, // 🔧 **LOWER**: +15px thay vì +5px
             transform: 'translateX(-50%)',
-            color: '#ef4444', // 🎯 **SIMPLE**: Chỉ màu text, không background
-            fontSize: '11px',
+            color: '#f97316', // 🎯 **SIMPLE**: Chỉ màu text orange như handle
+            fontSize: TOOLTIP_CONFIG.FONT_SIZE, // 🔤 **SMALLER**: 9px thay vì 11px
             fontWeight: '600',
             fontFamily: 'monospace', // 🆕 **MONOSPACE**: Font mono cho số
             whiteSpace: 'nowrap'
@@ -190,16 +183,16 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, currentTimeToolt
         </div>
       )}
 
-      {/* 📏 **SELECTION DURATION TOOLTIP** - SIMPLE DESIGN: Chỉ text đơn giản */}
+      {/* 📏 **SELECTION DURATION TOOLTIP** - CLOSER TO BOTTOM: Sát đáy waveform hơn */}
       {shouldRenderDurationTooltip && (
         <div
           className="absolute pointer-events-none text-xs z-50"
           style={{
             left: `${handleTooltips.selectionDuration.x}px`,
-            top: `${WAVEFORM_HEIGHT + DURATION_TOOLTIP_OFFSET}px`,
+            top: `${WAVEFORM_HEIGHT + TOOLTIP_CONFIG.DURATION_OFFSET}px`, // 🔧 **CLOSER**: -20px thay vì -35px
             transform: 'translateX(-50%)',
             color: '#8b5cf6', // 🎯 **SIMPLE**: Chỉ màu text, không background
-            fontSize: '11px',
+            fontSize: TOOLTIP_CONFIG.FONT_SIZE, // 🔤 **SMALLER**: 9px thay vì 11px
             fontWeight: '600',
             fontFamily: 'monospace', // 🆕 **MONOSPACE**: Font mono cho số
             whiteSpace: 'nowrap'

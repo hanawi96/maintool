@@ -33,9 +33,8 @@ const WaveformCanvas = React.memo(({
 
   const lastRenderDataRef = useRef(null);
 
-  // 🚀 **OPTIMIZED TOOLTIP HOOK** - Thay thế useWaveformTooltips cũ với đầy đủ handle support
+  // 🚀 **OPTIMIZED TOOLTIP HOOK** - Chỉ hover và handle tooltips
   const {
-    currentTimeTooltip,
     hoverTooltip,
     handleTooltips,
     updateHoverTooltip,
@@ -53,7 +52,7 @@ const WaveformCanvas = React.memo(({
     requestRedraw
   } = useWaveformRender(canvasRef, waveformData, volume, isDragging, isPlaying, hoverTooltip);
 
-  // 🚀 **OPTIMIZED MOUSE HANDLERS** - Tối ưu với hook mới
+  // 🚀 **ENHANCED MOUSE HANDLERS**
   const handleEnhancedMouseMove = useCallback((e) => {
     if (onMouseMove) onMouseMove(e);
   
@@ -62,6 +61,7 @@ const WaveformCanvas = React.memo(({
       const rect = canvas.getBoundingClientRect();
       const mouseX = e.clientX - rect.left;
       
+      // 🎯 **STANDARD UPDATES**: Cursor và hover
       updateCursor(mouseX);
       updateHoverTooltip(e);
     }
@@ -367,7 +367,6 @@ const WaveformCanvas = React.memo(({
       <WaveformUI 
         hoverTooltip={hoverTooltip}
         handleTooltips={handleTooltips}
-        currentTimeTooltip={currentTimeTooltip}
       />
     </div>
   );

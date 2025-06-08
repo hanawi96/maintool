@@ -650,13 +650,17 @@ const MP3CutterMain = React.memo(() => {
     };
   }, [audioFile?.name, audioRef, setCurrentTime, setDuration, setIsPlaying, setEndTime, fileValidation, setAudioError]); // 🔥 **FIXED DEPS**: Added missing audioRef
 
-  // 🚀 **OPTIMIZED SINGLE ANIMATION LOOP** - Tích hợp với tooltip animation
+  // 🚀 **ULTRA-SMOOTH MAIN ANIMATION LOOP** - Tối ưu coordination với tooltip animation
   useEffect(() => {
     let animationId = null;
+    let frameCount = 0;
+    let lastLogTime = 0;
     
     const updateCursor = () => {
       if (isPlaying && audioRef.current) {
         const audioCurrentTime = audioRef.current.currentTime;
+        
+        // 🔥 **INSTANT CURRENTTIME UPDATE** - Cập nhật ngay lập tức cho tooltip sync
         setCurrentTime(audioCurrentTime);
         
         // 🎯 **ENHANCED AUTO-RETURN LOGIC**: Xử lý khi đến cuối region
@@ -684,13 +688,27 @@ const MP3CutterMain = React.memo(() => {
           }
         }
         
+        // 🔧 **PERFORMANCE TRACKING** - Log mỗi 2 giây để track framerate
+        frameCount++;
+        const now = performance.now();
+        if (now - lastLogTime > 2000) { // Log every 2 seconds
+          const fps = (frameCount / 2).toFixed(1);
+          console.log(`🚀 [ULTRA-SMOOTH] Main cursor animation performance: ${fps}fps`, {
+            currentTime: audioCurrentTime.toFixed(3) + 's',
+            framesSinceLastLog: frameCount,
+            note: 'Coordinated with tooltip animation for ultra-smooth experience'
+          });
+          frameCount = 0;
+          lastLogTime = now;
+        }
+        
         animationId = requestAnimationFrame(updateCursor);
       }
     };
     
     // 🎯 **SINGLE ANIMATION CONTROL** - Chỉ start khi thực sự cần thiết
     if (isPlaying && audioRef.current) {
-      console.log('🎬 [MainAnimation] Starting MAIN cursor animation');
+      console.log('🎬 [ULTRA-SMOOTH] Starting MAIN cursor animation - coordinated with tooltips');
       animationId = requestAnimationFrame(updateCursor);
     }
     

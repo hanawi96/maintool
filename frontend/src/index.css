@@ -662,25 +662,6 @@ html body div.bg-white\/70.backdrop-blur-sm {
   -webkit-mask: none !important;
 }
 
-/* 🆕 **CURRENT TIME TOOLTIP ANIMATIONS**: Smooth animations cho main cursor tooltip */
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-    transform: translateX(-50%) scale(1);
-  }
-  50% {
-    opacity: 0.9;
-    transform: translateX(-50%) scale(1.05);
-  }
-}
-
-/* 🔥 **CURRENT TIME TOOLTIP STYLES**: Enhanced styling cho main cursor tooltip */
-.absolute.pointer-events-none.z-60 {
-  transition: all 0.1s ease-out !important;
-  backdrop-filter: blur(4px) !important;
-  will-change: transform !important;
-}
-
 /* 🚀 **TOOLTIP PERFORMANCE**: GPU acceleration cho all tooltips */
 .absolute.pointer-events-none {
   will-change: transform, opacity !important;
@@ -688,7 +669,6 @@ html body div.bg-white\/70.backdrop-blur-sm {
 }
 
 /* 🎯 **Z-INDEX HIERARCHY**: Proper z-index order cho all tooltips */
-.z-60 { z-index: 60 !important; } /* Current time tooltip - highest */
 .z-50 { z-index: 50 !important; } /* Hover tooltip */
 .z-40 { z-index: 40 !important; } /* Handle tooltips */
 .z-30 { z-index: 30 !important; } /* Duration tooltip */

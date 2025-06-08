@@ -15,11 +15,11 @@ export class AudioSyncManager {
     
     // 🎯 Sync preferences
     this.preferences = {
-      syncStartHandle: true,  // Sync cursor when dragging start handle
-      syncEndHandle: true,    // 🆕 ENABLE: Sync cursor when dragging end handle  
-      syncOnlyWhenPlaying: false, // Sync even when paused
-      smoothTransition: true,  // Smooth cursor transitions
-      endHandleOffset: 3.0     // 🆕 NEW: Offset seconds for end handle (seek 3s before end)
+      syncStartHandle: true,       // Sync start handle cursor
+      syncEndHandle: true,         // Sync end handle cursor
+      syncOnlyWhenPlaying: true,   // 🔥 **FIXED**: Only sync when playing - prevents tooltip contamination during handle drag
+      smoothTransition: true,      // Enable smooth transitions
+      endHandleOffset: 3           // Seconds offset for end handle
     };
     
     console.log(`🔄 [AudioSyncManager] Created with ULTRA-SMOOTH settings:`, {
