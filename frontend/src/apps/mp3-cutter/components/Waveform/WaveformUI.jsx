@@ -1,120 +1,88 @@
 import React, { useEffect, useRef, memo } from 'react';
 import { WAVEFORM_CONFIG } from '../../utils/constants.js';
 
-// 🚀 **MEMOIZED COMPONENT**: Prevent unnecessary re-renders
+// 🚀 **ULTRA-OPTIMIZED COMPONENT** - Loại bỏ excessive re-renders
 export const WaveformUI = memo(({ hoverTooltip, handleTooltips, currentTimeTooltip }) => {
-  // 🔧 **DEBUG REFS**: Track render counts (reduced logging)
+  // 🔧 **MINIMAL DEBUG REFS** - Chỉ track cần thiết
   const renderCountRef = useRef(0);
-  const lastCurrentTimeTooltipRef = useRef(null);
   const lastLogTimeRef = useRef(0);
+  const lastTooltipStateRef = useRef(null);
   
-  // 🔧 **THROTTLED DEBUG**: Only log significant changes
+  // 🚀 **HEAVY THROTTLED DEBUG** - Chỉ log mỗi 3 giây hoặc khi có thay đổi lớn
   useEffect(() => {
     renderCountRef.current++;
     const now = performance.now();
     
-    // 🚀 **REDUCED DEBUG FREQUENCY**: Only log every 1 second or on significant changes
-    if (now - lastLogTimeRef.current > 1000 || renderCountRef.current <= 5) {
+    // 🎯 **SIGNIFICANT CHANGE DETECTION** - Chỉ log khi thực sự cần thiết
+    const currentState = {
+      hasCurrentTime: !!currentTimeTooltip,
+      currentTimeVisible: currentTimeTooltip?.visible,
+      currentTimeX: currentTimeTooltip?.x,
+      isPlaying: currentTimeTooltip?.isPlaying
+    };
+    
+    const lastState = lastTooltipStateRef.current;
+    const hasSignificantChange = !lastState ||
+      currentState.hasCurrentTime !== lastState.hasCurrentTime ||
+      currentState.currentTimeVisible !== lastState.currentTimeVisible ||
+      currentState.isPlaying !== lastState.isPlaying ||
+      Math.abs((currentState.currentTimeX || 0) - (lastState.currentTimeX || 0)) > 10; // 10px threshold
+    
+    // 🚀 **ULTRA REDUCED LOGGING** - Chỉ log mỗi 5 giây hoặc changes lớn
+    if ((now - lastLogTimeRef.current > 5000) || hasSignificantChange) {
       lastLogTimeRef.current = now;
+      lastTooltipStateRef.current = currentState;
       
-      console.log(`🎨 [WaveformUI] Render #${renderCountRef.current}:`, {
-        currentTimeTooltip: {
-          exists: !!currentTimeTooltip,
-          visible: currentTimeTooltip?.visible || false,
-          x: currentTimeTooltip?.x || 'N/A',
-          time: currentTimeTooltip?.time || 'N/A',
-          formattedTime: currentTimeTooltip?.formattedTime || 'N/A',
-          isPlaying: currentTimeTooltip?.isPlaying || false
-        },
-        hoverTooltip: {
-          exists: !!hoverTooltip,
-          visible: hoverTooltip?.visible || false
-        },
-        handleTooltips: {
-          startHandle: !!handleTooltips?.startHandle,
-          endHandle: !!handleTooltips?.endHandle,
-          selectionDuration: !!handleTooltips?.selectionDuration
-        }
-      });
+      // 🎯 **MINIMAL LOG** - Chỉ thông tin cần thiết
+      if (renderCountRef.current % 50 === 0 || hasSignificantChange) {
+        console.log(`🎨 [WaveformUI] Render #${renderCountRef.current}:`, {
+          tooltip: currentState.hasCurrentTime ? 'ACTIVE' : 'INACTIVE',
+          playing: currentState.isPlaying ? 'YES' : 'NO',
+          x: currentState.currentTimeX ? `${currentState.currentTimeX.toFixed(0)}px` : 'N/A'
+        });
+      }
     }
   });
 
-  // 🔧 **CHANGE TRACKING**: Only log when currentTimeTooltip actually changes
-  useEffect(() => {
-    const current = currentTimeTooltip;
-    const last = lastCurrentTimeTooltipRef.current;
-    
-    // 🚀 **SIGNIFICANT CHANGE DETECTION**: Only log meaningful changes
-    if (current && (!last || 
-        Math.abs(current.x - (last.x || 0)) > 1 || // 1px threshold
-        current.visible !== last.visible ||
-        current.isPlaying !== last.isPlaying)) {
-      
-      console.log('🎨 [WaveformUI] CurrentTimeTooltip CHANGED:', {
-        from: last ? {
-          x: last.x?.toFixed(1),
-          time: last.time?.toFixed(3),
-          visible: last.visible,
-          isPlaying: last.isPlaying
-        } : null,
-        to: {
-          x: current.x?.toFixed(1),
-          time: current.time?.toFixed(3),
-          visible: current.visible,
-          isPlaying: current.isPlaying
-        }
-      });
-    }
-    
-    lastCurrentTimeTooltipRef.current = current;
-  }, [currentTimeTooltip]);
-
-  // 🚀 **CONDITIONAL RENDERING**: Only render when needed
+  // 🚀 **CONDITIONAL RENDERING** - Chỉ render khi thực sự cần thiết
   const shouldRenderCurrentTimeTooltip = currentTimeTooltip?.visible && 
     typeof currentTimeTooltip.x === 'number' && 
-    !isNaN(currentTimeTooltip.x);
+    !isNaN(currentTimeTooltip.x) &&
+    currentTimeTooltip.x >= 0;
 
-  // 🔧 **SINGLE DEBUG LOG**: Reduced console spam
-  if (shouldRenderCurrentTimeTooltip && renderCountRef.current % 60 === 0) {
-    console.log('🎨 [WaveformUI] RENDERING currentTimeTooltip:', {
-      x: currentTimeTooltip.x,
-      time: currentTimeTooltip.time,
-      formattedTime: currentTimeTooltip.formattedTime,
-      visible: currentTimeTooltip.visible,
-      isPlaying: currentTimeTooltip.isPlaying
-    });
-  }
+  const shouldRenderHoverTooltip = hoverTooltip?.visible && 
+    typeof hoverTooltip.x === 'number' && 
+    !isNaN(hoverTooltip.x) &&
+    hoverTooltip.x >= 0;
 
   return (
     <>
-      {/* 🆕 **CURRENT TIME TOOLTIP**: Tooltip cho main cursor phát nhạc */}
+      {/* 🎵 **CURRENT TIME TOOLTIP** - Tooltip theo cursor phát nhạc (PRIORITY 1) */}
       {shouldRenderCurrentTimeTooltip && (
         <div
           className="absolute pointer-events-none text-xs font-bold z-60"
           style={{
             left: `${currentTimeTooltip.x}px`,
-            top: '-35px', // Cao hơn hover tooltip để tránh overlap
+            top: '-35px',
             transform: 'translateX(-50%)',
             color: '#ffffff',
             whiteSpace: 'nowrap',
             fontWeight: '700',
             fontSize: '12px',
-            backgroundColor: currentTimeTooltip.isPlaying ? '#3b82f6' : '#2563eb', // Blue khi phát, dark blue khi pause
+            backgroundColor: currentTimeTooltip.isPlaying ? '#3b82f6' : '#6366f1', // Blue khi phát, indigo khi pause
             padding: '4px 8px',
             borderRadius: '6px',
             border: '1px solid rgba(255, 255, 255, 0.2)',
             boxShadow: currentTimeTooltip.isPlaying 
               ? '0 4px 12px rgba(59, 130, 246, 0.4), 0 0 0 1px rgba(59, 130, 246, 0.3)' 
-              : '0 4px 12px rgba(37, 99, 235, 0.4), 0 0 0 1px rgba(37, 99, 235, 0.3)',
+              : '0 4px 12px rgba(99, 102, 241, 0.4), 0 0 0 1px rgba(99, 102, 241, 0.3)',
             backdropFilter: 'blur(8px)',
-            zIndex: 60,
-            transition: currentTimeTooltip.isPlaying ? 'none' : 'all 0.2s ease-out', // No transition khi phát để smooth
-            animation: currentTimeTooltip.isPlaying ? 'pulse 2s ease-in-out infinite' : 'none' // Pulse animation khi phát
+            zIndex: 60
           }}
         >
           <div className="flex items-center gap-1">
-            {/* 🎵 **MUSIC ICON**: Icon cho current time */}
-            <span className="text-white opacity-90">
+            {/* 🎵 **STATUS ICON** - Icon thể hiện trạng thái */}
+            <span className="text-white opacity-90" style={{ fontSize: '10px' }}>
               {currentTimeTooltip.isPlaying ? '▶️' : '⏸️'}
             </span>
             <span className="text-white font-mono tracking-wider">
@@ -122,20 +90,20 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, currentTimeToolt
             </span>
           </div>
           
-          {/* 🆕 **ANIMATED INDICATOR**: Moving dot khi đang phát */}
+          {/* 🎯 **ANIMATED INDICATOR** - Chấm nhấp nháy khi đang phát */}
           {currentTimeTooltip.isPlaying && (
             <div 
-              className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-white rounded-full"
+              className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-white rounded-full opacity-80"
               style={{
-                animation: 'bounce 1s ease-in-out infinite'
+                animation: 'pulse 1.5s ease-in-out infinite'
               }}
             />
           )}
         </div>
       )}
 
-      {/* 🔄 **HOVER TOOLTIP**: Tooltip khi hover chuột */}
-      {hoverTooltip?.visible && (
+      {/* 🖱️ **HOVER TOOLTIP** - Tooltip khi hover chuột (PRIORITY 2) */}
+      {shouldRenderHoverTooltip && (
         <div
           className="absolute pointer-events-none text-xs z-50"
           style={{
@@ -147,14 +115,15 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, currentTimeToolt
             padding: '2px 6px',
             borderRadius: '4px',
             fontSize: '11px',
-            whiteSpace: 'nowrap'
+            whiteSpace: 'nowrap',
+            border: '1px solid rgba(255, 255, 255, 0.1)'
           }}
         >
-          {hoverTooltip.formattedTime}
+          🖱️ {hoverTooltip.formattedTime}
         </div>
       )}
 
-      {/* 🎛️ **HANDLE TOOLTIPS**: Tooltips cho start/end handles */}
+      {/* 🎛️ **START HANDLE TOOLTIP** */}
       {handleTooltips?.startHandle?.visible && (
         <div
           className="absolute pointer-events-none text-xs z-50"
@@ -175,6 +144,7 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, currentTimeToolt
         </div>
       )}
 
+      {/* 🎛️ **END HANDLE TOOLTIP** */}
       {handleTooltips?.endHandle?.visible && (
         <div
           className="absolute pointer-events-none text-xs z-50"
@@ -195,7 +165,7 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, currentTimeToolt
         </div>
       )}
 
-      {/* 📏 **SELECTION DURATION**: Tooltip cho duration */}
+      {/* 📏 **SELECTION DURATION TOOLTIP** */}
       {handleTooltips?.selectionDuration?.visible && (
         <div
           className="absolute pointer-events-none text-xs z-50"
@@ -212,9 +182,11 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, currentTimeToolt
             fontWeight: '600'
           }}
         >
-          ⏱ {handleTooltips.selectionDuration.formattedDuration}
+          📏 {handleTooltips.selectionDuration.formattedTime}
         </div>
       )}
     </>
   );
 });
+
+WaveformUI.displayName = 'WaveformUI';

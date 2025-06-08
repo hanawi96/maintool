@@ -1,3 +1,7 @@
+// 🔄 **LEGACY HOOK** - Backup của useWaveformTooltips cũ
+// ⚠️ **DEPRECATED**: Đã được thay thế bởi useOptimizedTooltip.js
+// 📝 **GIỮ LẠI**: Để reference và rollback nếu cần
+
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 
 export const useWaveformTooltips = (canvasRef, duration, startTime, endTime, isDragging, currentTime, isPlaying, audioRef) => {

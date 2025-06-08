@@ -2,7 +2,7 @@
 import React, { useEffect, useCallback, useRef, useMemo } from 'react';
 import { WAVEFORM_CONFIG } from '../../utils/constants';
 import { WaveformUI } from './WaveformUI';
-import { useWaveformTooltips } from '../../hooks/useWaveformTooltips';
+import { useOptimizedTooltip } from '../../hooks/useOptimizedTooltip';
 import { useWaveformCursor } from '../../hooks/useWaveformCursor';
 import { useWaveformRender } from '../../hooks/useWaveformRender';
 
@@ -33,14 +33,14 @@ const WaveformCanvas = React.memo(({
 
   const lastRenderDataRef = useRef(null);
 
-  // 🆕 **SEPARATED HOOKS**: Sử dụng hooks đã tách riêng
+  // 🚀 **OPTIMIZED TOOLTIP HOOK** - Thay thế useWaveformTooltips cũ
   const {
+    currentTimeTooltip,
     hoverTooltip,
     handleTooltips,
-    currentTimeTooltip,
-    updateHoverTime,
+    updateHoverTooltip,
     clearHoverTooltip
-  } = useWaveformTooltips(canvasRef, duration, startTime, endTime, isDragging, currentTime, isPlaying, audioRef);
+  } = useOptimizedTooltip(canvasRef, duration, currentTime, isPlaying, audioRef);
 
   const {
     updateCursor,
@@ -53,7 +53,7 @@ const WaveformCanvas = React.memo(({
     requestRedraw
   } = useWaveformRender(canvasRef, waveformData, volume, isDragging, isPlaying, hoverTooltip);
 
-  // 🚀 **OPTIMIZED MOUSE HANDLERS**: Giảm thiểu re-computation
+  // 🚀 **OPTIMIZED MOUSE HANDLERS** - Tối ưu với hook mới
   const handleEnhancedMouseMove = useCallback((e) => {
     if (onMouseMove) onMouseMove(e);
   
@@ -63,9 +63,9 @@ const WaveformCanvas = React.memo(({
       const mouseX = e.clientX - rect.left;
       
       updateCursor(mouseX);
-      updateHoverTime(e);
+      updateHoverTooltip(e);
     }
-  }, [onMouseMove, canvasRef, updateCursor, updateHoverTime]);
+  }, [onMouseMove, canvasRef, updateCursor, updateHoverTooltip]);
 
   const handleEnhancedMouseLeave = useCallback((e) => {
     if (onMouseLeave) onMouseLeave(e);

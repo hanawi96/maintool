@@ -650,7 +650,7 @@ const MP3CutterMain = React.memo(() => {
     };
   }, [audioFile?.name, audioRef, setCurrentTime, setDuration, setIsPlaying, setEndTime, fileValidation, setAudioError]); // 🔥 **FIXED DEPS**: Added missing audioRef
 
-  // 🔥 **CURSOR UPDATE ANIMATION**: Simple animation loop với proper cleanup
+  // 🚀 **OPTIMIZED SINGLE ANIMATION LOOP** - Tích hợp với tooltip animation
   useEffect(() => {
     let animationId = null;
     
@@ -688,14 +688,17 @@ const MP3CutterMain = React.memo(() => {
       }
     };
     
-    if (isPlaying) {
+    // 🎯 **SINGLE ANIMATION CONTROL** - Chỉ start khi thực sự cần thiết
+    if (isPlaying && audioRef.current) {
+      console.log('🎬 [MainAnimation] Starting MAIN cursor animation');
       animationId = requestAnimationFrame(updateCursor);
     }
     
-    // 🚨 **CRITICAL CLEANUP**: Prevent memory leaks
+    // 🧹 **CLEANUP**: Prevent memory leaks
     return () => {
       if (animationId) {
         cancelAnimationFrame(animationId);
+        console.log('🧹 [MainAnimation] Cleaned up MAIN cursor animation');
       }
     };
   }, [isPlaying, startTime, endTime, audioRef, setCurrentTime, setIsPlaying]);
