@@ -8,6 +8,11 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, currentTimeToolt
   const lastLogTimeRef = useRef(0);
   const lastTooltipStateRef = useRef(null);
   
+  // 🆕 **WAVEFORM CONSTANTS** - Sử dụng height từ config để positioning chính xác
+  const WAVEFORM_HEIGHT = WAVEFORM_CONFIG.HEIGHT; // 200px
+  const HANDLE_TOOLTIP_OFFSET = 15; // Khoảng cách từ đáy waveform xuống handle tooltips
+  const DURATION_TOOLTIP_OFFSET = 35; // Khoảng cách từ đáy waveform xuống duration tooltip (thấp hơn)
+  
   // 🚀 **HEAVY THROTTLED DEBUG** - Chỉ log mỗi 3 giây hoặc khi có thay đổi lớn
   useEffect(() => {
     renderCountRef.current++;
@@ -18,7 +23,9 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, currentTimeToolt
       hasCurrentTime: !!currentTimeTooltip,
       currentTimeVisible: currentTimeTooltip?.visible,
       currentTimeX: currentTimeTooltip?.x,
-      isPlaying: currentTimeTooltip?.isPlaying
+      isPlaying: currentTimeTooltip?.isPlaying,
+      handleStart: !!handleTooltips?.start,
+      handleEnd: !!handleTooltips?.end
     };
     
     const lastState = lastTooltipStateRef.current;
@@ -26,6 +33,8 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, currentTimeToolt
       currentState.hasCurrentTime !== lastState.hasCurrentTime ||
       currentState.currentTimeVisible !== lastState.currentTimeVisible ||
       currentState.isPlaying !== lastState.isPlaying ||
+      currentState.handleStart !== lastState.handleStart ||
+      currentState.handleEnd !== lastState.handleEnd ||
       Math.abs((currentState.currentTimeX || 0) - (lastState.currentTimeX || 0)) > 10; // 10px threshold
     
     // 🚀 **ULTRA REDUCED LOGGING** - Chỉ log mỗi 5 giây hoặc changes lớn
@@ -38,7 +47,12 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, currentTimeToolt
         console.log(`🎨 [WaveformUI] Render #${renderCountRef.current}:`, {
           tooltip: currentState.hasCurrentTime ? 'ACTIVE' : 'INACTIVE',
           playing: currentState.isPlaying ? 'YES' : 'NO',
-          x: currentState.currentTimeX ? `${currentState.currentTimeX.toFixed(0)}px` : 'N/A'
+          x: currentState.currentTimeX ? `${currentState.currentTimeX.toFixed(0)}px` : 'N/A',
+          handles: `Start:${currentState.handleStart} End:${currentState.handleEnd}`,
+          positioning: `Height:${WAVEFORM_HEIGHT}px, HandleOffset:+${HANDLE_TOOLTIP_OFFSET}px, DurationOffset:+${DURATION_TOOLTIP_OFFSET}px`,
+          styling: 'Simple text-only tooltips, no background/icons',
+          format: '00.00.00 (mm.ss.cs)',
+          visibility: 'Start/End always visible when selection exists'
         });
       }
     }
@@ -54,6 +68,21 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, currentTimeToolt
     typeof hoverTooltip.x === 'number' && 
     !isNaN(hoverTooltip.x) &&
     hoverTooltip.x >= 0;
+
+  const shouldRenderStartHandle = handleTooltips?.start?.visible &&
+    typeof handleTooltips.start.x === 'number' &&
+    !isNaN(handleTooltips.start.x) &&
+    handleTooltips.start.x >= 0;
+
+  const shouldRenderEndHandle = handleTooltips?.end?.visible &&
+    typeof handleTooltips.end.x === 'number' &&
+    !isNaN(handleTooltips.end.x) &&
+    handleTooltips.end.x >= 0;
+
+  const shouldRenderDurationTooltip = handleTooltips?.selectionDuration?.visible &&
+    typeof handleTooltips.selectionDuration.x === 'number' &&
+    !isNaN(handleTooltips.selectionDuration.x) &&
+    handleTooltips.selectionDuration.x >= 0;
 
   return (
     <>
@@ -123,66 +152,60 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, currentTimeToolt
         </div>
       )}
 
-      {/* 🎛️ **START HANDLE TOOLTIP** */}
-      {handleTooltips?.startHandle?.visible && (
+      {/* 🎛️ **START HANDLE TOOLTIP** - SIMPLE DESIGN: Chỉ text đơn giản */}
+      {shouldRenderStartHandle && (
         <div
           className="absolute pointer-events-none text-xs z-50"
           style={{
-            left: `${handleTooltips.startHandle.x}px`,
-            top: '-45px',
+            left: `${handleTooltips.start.x}px`,
+            top: `${WAVEFORM_HEIGHT + HANDLE_TOOLTIP_OFFSET}px`,
             transform: 'translateX(-50%)',
-            color: '#10b981',
-            backgroundColor: 'rgba(16, 185, 129, 0.1)',
-            border: '1px solid #10b981',
-            padding: '3px 8px',
-            borderRadius: '6px',
+            color: '#10b981', // 🎯 **SIMPLE**: Chỉ màu text, không background
             fontSize: '11px',
-            fontWeight: '600'
+            fontWeight: '600',
+            fontFamily: 'monospace', // 🆕 **MONOSPACE**: Font mono cho số
+            whiteSpace: 'nowrap'
           }}
         >
-          ⏭ {handleTooltips.startHandle.formattedTime}
+          {handleTooltips.start.formattedTime}
         </div>
       )}
 
-      {/* 🎛️ **END HANDLE TOOLTIP** */}
-      {handleTooltips?.endHandle?.visible && (
+      {/* 🎛️ **END HANDLE TOOLTIP** - SIMPLE DESIGN: Chỉ text đơn giản */}
+      {shouldRenderEndHandle && (
         <div
           className="absolute pointer-events-none text-xs z-50"
           style={{
-            left: `${handleTooltips.endHandle.x}px`,
-            top: '-45px',
+            left: `${handleTooltips.end.x}px`,
+            top: `${WAVEFORM_HEIGHT + HANDLE_TOOLTIP_OFFSET}px`,
             transform: 'translateX(-50%)',
-            color: '#ef4444',
-            backgroundColor: 'rgba(239, 68, 68, 0.1)',
-            border: '1px solid #ef4444',
-            padding: '3px 8px',
-            borderRadius: '6px',
+            color: '#ef4444', // 🎯 **SIMPLE**: Chỉ màu text, không background
             fontSize: '11px',
-            fontWeight: '600'
+            fontWeight: '600',
+            fontFamily: 'monospace', // 🆕 **MONOSPACE**: Font mono cho số
+            whiteSpace: 'nowrap'
           }}
         >
-          ⏹ {handleTooltips.endHandle.formattedTime}
+          {handleTooltips.end.formattedTime}
         </div>
       )}
 
-      {/* 📏 **SELECTION DURATION TOOLTIP** */}
-      {handleTooltips?.selectionDuration?.visible && (
+      {/* 📏 **SELECTION DURATION TOOLTIP** - SIMPLE DESIGN: Chỉ text đơn giản */}
+      {shouldRenderDurationTooltip && (
         <div
           className="absolute pointer-events-none text-xs z-50"
           style={{
             left: `${handleTooltips.selectionDuration.x}px`,
-            top: '-65px',
+            top: `${WAVEFORM_HEIGHT + DURATION_TOOLTIP_OFFSET}px`,
             transform: 'translateX(-50%)',
-            color: '#8b5cf6',
-            backgroundColor: 'rgba(139, 92, 246, 0.1)',
-            border: '1px solid #8b5cf6',
-            padding: '3px 8px',
-            borderRadius: '6px',
+            color: '#8b5cf6', // 🎯 **SIMPLE**: Chỉ màu text, không background
             fontSize: '11px',
-            fontWeight: '600'
+            fontWeight: '600',
+            fontFamily: 'monospace', // 🆕 **MONOSPACE**: Font mono cho số
+            whiteSpace: 'nowrap'
           }}
         >
-          📏 {handleTooltips.selectionDuration.formattedTime}
+          {handleTooltips.selectionDuration.formattedTime}
         </div>
       )}
     </>

@@ -50,7 +50,8 @@ const Waveform = ({
   const minWidth = WAVEFORM_CONFIG.RESPONSIVE.MIN_WIDTH;
   
   return (
-    <div className="bg-white/70 backdrop-blur-sm rounded-xl p-4 border border-slate-200/50 shadow-sm">
+    <div className="bg-white/70 backdrop-blur-sm rounded-xl p-4 border border-slate-200/50 shadow-sm"
+         style={{ paddingBottom: '60px' }}> {/* 🆕 **TOOLTIP SPACE**: 60px extra space để hiển thị handle + duration tooltips bên dưới */}
       <div 
         className="w-full"
         style={{

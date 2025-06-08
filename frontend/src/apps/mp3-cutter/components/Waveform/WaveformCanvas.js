@@ -33,14 +33,14 @@ const WaveformCanvas = React.memo(({
 
   const lastRenderDataRef = useRef(null);
 
-  // 🚀 **OPTIMIZED TOOLTIP HOOK** - Thay thế useWaveformTooltips cũ
+  // 🚀 **OPTIMIZED TOOLTIP HOOK** - Thay thế useWaveformTooltips cũ với đầy đủ handle support
   const {
     currentTimeTooltip,
     hoverTooltip,
     handleTooltips,
     updateHoverTooltip,
     clearHoverTooltip
-  } = useOptimizedTooltip(canvasRef, duration, currentTime, isPlaying, audioRef);
+  } = useOptimizedTooltip(canvasRef, duration, currentTime, isPlaying, audioRef, startTime, endTime, hoveredHandle, isDragging);
 
   const {
     updateCursor,
