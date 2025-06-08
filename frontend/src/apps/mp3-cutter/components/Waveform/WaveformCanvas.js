@@ -940,24 +940,30 @@ const WaveformCanvas = React.memo(({
       }
     }
 
-    // 6. 🆕 **HOVER TIME LINE**: Thin 1px line showing hover position
+    // 6. 🆕 **ULTRA-THIN HOVER TIME LINE**: Solid thin line showing hover position
     if (hoverTooltip && hoverTooltip.visible && duration > 0) {
       const hoverX = hoverTooltip.x;
       
-      // 🎯 **ULTRA-THIN HOVER LINE**: 1px line as requested
-      ctx.strokeStyle = 'rgba(59, 130, 246, 0.8)'; // Blue with transparency
-      ctx.lineWidth = 1; // ← Exactly 1px as requested
-      ctx.setLineDash([2, 2]); // Dashed line to distinguish from cursor
+      // 🎯 **ULTRA-THIN SOLID HOVER LINE**: Thinner and solid as requested by user
+      ctx.strokeStyle = 'rgba(59, 130, 246, 0.7)'; // Blue with slightly less opacity for subtlety
+      ctx.lineWidth = 0.5; // 🔥 **ULTRA-THIN**: Reduced from 1px to 0.5px (50% thinner)
+      // 🚫 **NO DASHES**: Removed setLineDash completely for solid line as requested
       
       ctx.beginPath();
       ctx.moveTo(hoverX, 0);
       ctx.lineTo(hoverX, height);
       ctx.stroke();
-      ctx.setLineDash([]); // Reset dash
+      // 🚫 **NO DASH RESET**: No longer needed since we're not using dashes
       
-      // 🔧 **DEBUG HOVER LINE**: Occasional logging
+      // 🔧 **DEBUG ULTRA-THIN SOLID HOVER LINE**: Enhanced logging
       if (Math.random() < 0.02) { // 2% sampling
-        console.log(`📍 [HoverLine] Drawing at ${hoverX.toFixed(1)}px for time ${hoverTooltip.formattedTime}`);
+        console.log(`📍 [UltraThinHoverLine] Drawing SOLID line at ${hoverX.toFixed(1)}px:`, {
+          time: hoverTooltip.formattedTime,
+          lineWidth: '0.5px (ultra-thin)',
+          style: 'SOLID (not dashed)',
+          color: 'rgba(59, 130, 246, 0.7) - blue with subtle opacity',
+          userRequest: 'THINNER + SOLID line instead of dashed'
+        });
       }
     }
     

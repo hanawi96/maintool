@@ -51,10 +51,12 @@ const Waveform = ({
       <div 
         className="w-full"
         style={{
-          overflow: 'hidden', // 🚫 **NO SCROLLBARS**: Loại bỏ hoàn toàn scrollbars
+          overflow: 'visible', // 🔧 **TOOLTIP FIX**: Allow tooltips to overflow container
           scrollbarWidth: 'none', // Firefox
           msOverflowStyle: 'none', // IE/Edge
-          WebkitOverflowScrolling: 'touch' // iOS smooth scrolling (if needed)
+          WebkitOverflowScrolling: 'touch', // iOS smooth scrolling (if needed)
+          position: 'relative', // 🔧 **STACKING CONTEXT**: Establish proper stacking context
+          zIndex: 1 // 🔧 **CONTAINER Z-INDEX**: Ensure container has lower z-index than tooltips
         }}
       >
         <div 
@@ -63,7 +65,9 @@ const Waveform = ({
             // 🚫 **WEBKIT SCROLLBAR HIDE**: Chrome, Safari, Edge - inline styles
             WebkitScrollbar: 'none',
             scrollbarWidth: 'none',
-            msOverflowStyle: 'none'
+            msOverflowStyle: 'none',
+            overflow: 'visible', // 🔧 **TOOLTIP FIX**: Allow nested overflow
+            position: 'relative' // 🔧 **POSITIONING**: Proper positioning context
           }}
           className="waveform-container-no-scrollbar"
         >

@@ -6,43 +6,52 @@ const ArrowTimeInput = React.memo(({ value, onChange, label, max, min = 0, isSta
   const [tempValue, setTempValue] = useState('');
   const inputRef = useRef(null);
 
-  // 🎯 **NEW FORMAT**: MM.SS.CS (minutes.seconds.centiseconds - 2 chữ số cuối)
-  const formattedTime = useMemo(() => {
-    const stableValue = Math.round(value * 100) / 100; // Round to 0.01s precision cho centiseconds
-    const minutes = Math.floor(stableValue / 60);
-    const seconds = Math.floor(stableValue % 60);
-    const centiseconds = Math.floor((stableValue % 1) * 100); // Extract centiseconds (0-99)
-    
-    // 🚀 **ALWAYS 2 DIGITS**: Đảm bảo luôn hiển thị 2 chữ số cho centiseconds
-    return `${minutes.toString().padStart(2, '0')}.${seconds.toString().padStart(2, '0')}.${centiseconds.toString().padStart(2, '0')}`;
+  // 🔥 **CHUẨN HÓA GIÁ TRỊ**: Normalize value để loại bỏ floating point errors ngay từ đầu
+  const normalizedValue = useMemo(() => {
+    // 🎯 **ROUND TO DECISECOND**: Làm tròn về bội số của 0.1s (decisecond)
+    // Đảm bảo value luôn là multiple của 0.1s để tránh precision errors
+    return Math.round(value * 10) / 10;
   }, [value]);
 
-  // 🎯 **SMART DISABLE LOGIC**: Logic disable với INTEGER ARITHMETIC cho consistency
+  // 🎯 **HIỂN THỊ THỜI GIAN**: Format MM.SS.CS (minutes.seconds.centiseconds - 2 chữ số cuối) - GIỮ NGUYÊN FORMAT CŨ
+  const formattedTime = useMemo(() => {
+    const stableValue = normalizedValue; // Sử dụng normalized value
+    const minutes = Math.floor(stableValue / 60);
+    const seconds = Math.floor(stableValue % 60);
+    const deciseconds = Math.round((stableValue % 1) * 10); // Extract deciseconds (0-9)
+    
+    // 🔥 **FORMAT MM.SS.CS**: Hiển thị theo format cũ với centiseconds (luôn là bội số của 10)
+    // Vì tăng/giảm 0.1s nên centiseconds sẽ luôn là: 00, 10, 20, 30, 40, 50, 60, 70, 80, 90
+    const centiseconds = deciseconds * 10; // Convert deciseconds to centiseconds display
+    return `${minutes.toString().padStart(2, '0')}.${seconds.toString().padStart(2, '0')}.${centiseconds.toString().padStart(2, '0')}`;
+  }, [normalizedValue]);
+
+  // 🎯 **SMART DISABLE LOGIC**: Logic disable với DECISECOND ARITHMETIC cho consistency
   const canIncrease = useMemo(() => {
-    if (isEndTime && Math.abs(value - duration) < 0.01) {
-      // End time đã ở cuối duration, không thể tăng thêm
+    if (isEndTime && Math.abs(normalizedValue - duration) < 0.05) {
+      // End time đã gần cuối duration, không thể tăng thêm
       return false;
     }
     
-    // 🔥 **INTEGER CHECK**: Sử dụng centiseconds để kiểm tra chính xác
-    const currentCentiseconds = Math.round(value * 100);
-    const maxCentiseconds = Math.round(max * 100);
-    return currentCentiseconds + 10 <= maxCentiseconds; // Check if can add 10cs (0.1s)
-  }, [value, max, isEndTime, duration]);
+    // 🔥 **DECISECOND CHECK**: Sử dụng deciseconds để kiểm tra chính xác (0.1s steps)
+    const currentDeciseconds = Math.round(normalizedValue * 10);
+    const maxDeciseconds = Math.round(max * 10);
+    return currentDeciseconds + 1 <= maxDeciseconds; // Check if can add 1 decisecond (0.1s)
+  }, [normalizedValue, max, isEndTime, duration]);
 
   const canDecrease = useMemo(() => {
-    if (isStartTime && Math.abs(value - 0) < 0.01) {
+    if (isStartTime && Math.abs(normalizedValue - 0) < 0.05) {
       // Start time đã ở 0, không thể giảm thêm
       return false;
     }
     
-    // 🔥 **INTEGER CHECK**: Sử dụng centiseconds để kiểm tra chính xác
-    const currentCentiseconds = Math.round(value * 100);
-    const minCentiseconds = Math.round(min * 100);
-    return currentCentiseconds - 10 >= minCentiseconds; // Check if can subtract 10cs (0.1s)
-  }, [value, min, isStartTime]);
+    // 🔥 **DECISECOND CHECK**: Sử dụng deciseconds để kiểm tra chính xác (0.1s steps)
+    const currentDeciseconds = Math.round(normalizedValue * 10);
+    const minDeciseconds = Math.round(min * 10);
+    return currentDeciseconds - 1 >= minDeciseconds; // Check if can subtract 1 decisecond (0.1s)
+  }, [normalizedValue, min, isStartTime]);
 
-  // 🎯 **ARROW HANDLERS**: Tăng/giảm 0.1s CHÍNH XÁC với integer arithmetic
+  // 🎯 **ARROW HANDLERS**: Tăng/giảm CHÍNH XÁC 0.1s với decisecond arithmetic
   const handleArrowUp = useCallback((e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -52,25 +61,27 @@ const ArrowTimeInput = React.memo(({ value, onChange, label, max, min = 0, isSta
       return;
     }
     
-    // 🔥 **INTEGER ARITHMETIC**: Tránh floating point precision errors
-    const currentCentiseconds = Math.round(value * 100); // Convert to centiseconds (integer)
-    const newCentiseconds = currentCentiseconds + 10; // Add exactly 10 centiseconds (0.1s)
-    const maxCentiseconds = Math.round(max * 100);
+    // 🔥 **DECISECOND ARITHMETIC**: Hoàn toàn chính xác với integer arithmetic
+    const currentDeciseconds = Math.round(normalizedValue * 10); // Convert to deciseconds (integer)
+    const newDeciseconds = currentDeciseconds + 1; // Add exactly 1 decisecond (0.1s)
+    const maxDeciseconds = Math.round(max * 10);
     
-    // Clamp to max và convert back to seconds
-    const clampedCentiseconds = Math.min(newCentiseconds, maxCentiseconds);
-    const newValue = clampedCentiseconds / 100; // Convert back to seconds
+    // Clamp to max và convert back to seconds với precision cao
+    const clampedDeciseconds = Math.min(newDeciseconds, maxDeciseconds);
+    const newValue = clampedDeciseconds / 10; // Convert back to seconds (exact 0.1s multiple)
     
-    // 🔥 **ENHANCED DEBUG**: Show exact centiseconds calculation  
-    console.log(`⬆️ [ArrowTimeInput] ${label} UP precision:`, {
-      original: `${value.toFixed(2)}s (${currentCentiseconds}cs)`,
-      step: '+10cs (+0.10s)',
-      result: `${newValue.toFixed(2)}s (${clampedCentiseconds}cs)`,
-      exact_diff: `+${(newValue - value).toFixed(2)}s`
+    // 🔥 **ENHANCED DEBUG**: Show exact deciseconds calculation để verify  
+    console.log(`⬆️ [ArrowTimeInput] ${label} UP PRECISE:`, {
+      original: `${normalizedValue.toFixed(1)}s (${currentDeciseconds}ds)`,
+      step: '+1ds (+0.1s EXACT)',
+      result: `${newValue.toFixed(1)}s (${clampedDeciseconds}ds)`,
+      exact_diff: `+${(newValue - normalizedValue).toFixed(1)}s`,
+      format_display: formattedTime,
+      test_verification: `From ${formattedTime} → Next should show centiseconds ending in: ${((Math.round(((normalizedValue%1)*10 + 1)%10)) * 10).toString().padStart(2,'0')}`
     });
     
     onChange(newValue);
-  }, [value, max, onChange, label, canIncrease]);
+  }, [normalizedValue, max, onChange, label, canIncrease, formattedTime]);
 
   const handleArrowDown = useCallback((e) => {
     e.preventDefault();
@@ -81,25 +92,27 @@ const ArrowTimeInput = React.memo(({ value, onChange, label, max, min = 0, isSta
       return;
     }
     
-    // 🔥 **INTEGER ARITHMETIC**: Tránh floating point precision errors
-    const currentCentiseconds = Math.round(value * 100); // Convert to centiseconds (integer)
-    const newCentiseconds = currentCentiseconds - 10; // Subtract exactly 10 centiseconds (0.1s)
-    const minCentiseconds = Math.round(min * 100);
+    // 🔥 **DECISECOND ARITHMETIC**: Hoàn toàn chính xác với integer arithmetic
+    const currentDeciseconds = Math.round(normalizedValue * 10); // Convert to deciseconds (integer)
+    const newDeciseconds = currentDeciseconds - 1; // Subtract exactly 1 decisecond (0.1s)
+    const minDeciseconds = Math.round(min * 10);
     
-    // Clamp to min và convert back to seconds
-    const clampedCentiseconds = Math.max(newCentiseconds, minCentiseconds);
-    const newValue = clampedCentiseconds / 100; // Convert back to seconds
+    // Clamp to min và convert back to seconds với precision cao
+    const clampedDeciseconds = Math.max(newDeciseconds, minDeciseconds);
+    const newValue = clampedDeciseconds / 10; // Convert back to seconds (exact 0.1s multiple)
     
-    // 🔥 **ENHANCED DEBUG**: Show exact centiseconds calculation
-    console.log(`⬇️ [ArrowTimeInput] ${label} DOWN precision:`, {
-      original: `${value.toFixed(2)}s (${currentCentiseconds}cs)`,
-      step: '-10cs (-0.10s)',
-      result: `${newValue.toFixed(2)}s (${clampedCentiseconds}cs)`,
-      exact_diff: `${(newValue - value).toFixed(2)}s`
+    // 🔥 **ENHANCED DEBUG**: Show exact deciseconds calculation để verify
+    console.log(`⬇️ [ArrowTimeInput] ${label} DOWN PRECISE:`, {
+      original: `${normalizedValue.toFixed(1)}s (${currentDeciseconds}ds)`,
+      step: '-1ds (-0.1s EXACT)',
+      result: `${newValue.toFixed(1)}s (${clampedDeciseconds}ds)`,
+      exact_diff: `${(newValue - normalizedValue).toFixed(1)}s`,
+      format_display: formattedTime,
+      test_verification: `From ${formattedTime} → Next should show centiseconds ending in: ${(Math.max(0, Math.round(((normalizedValue%1)*10 - 1))) * 10).toString().padStart(2,'0')}`
     });
     
     onChange(newValue);
-  }, [value, min, onChange, label, canDecrease]);
+  }, [normalizedValue, min, onChange, label, canDecrease, formattedTime]);
 
   // 🎯 EDIT MODE: Click to edit
   const handleClick = useCallback(() => {
@@ -114,12 +127,12 @@ const ArrowTimeInput = React.memo(({ value, onChange, label, max, min = 0, isSta
     }, 0);
   }, [formattedTime]);
 
-  // 🎯 COMMIT: Validate and commit changes với INTEGER ARITHMETIC
+  // 🎯 COMMIT: Validate and commit changes với DECISECOND ARITHMETIC
   const handleCommit = useCallback(() => {
-    let newValue = value; // Default to current value
+    let newValue = normalizedValue; // Default to current normalized value
     
     try {
-      // Parse MM.SS.CS format (support cả : và . separator)
+      // Parse MM.SS.CS format (support cả : và . separator) - GIỮ NGUYÊN PARSER CŨ
       const timeParts = tempValue.split(/[.:]/).filter(part => part.length > 0);
       
       if (timeParts.length >= 3) {
@@ -127,50 +140,56 @@ const ArrowTimeInput = React.memo(({ value, onChange, label, max, min = 0, isSta
         const seconds = parseInt(timeParts[1]) || 0;
         const centiseconds = parseInt(timeParts[2]) || 0;
         
-        // 🔥 **INTEGER CALCULATION**: Tính bằng centiseconds rồi chia 100
-        const totalCentiseconds = minutes * 6000 + seconds * 100 + centiseconds;
-        newValue = totalCentiseconds / 100; // Convert to seconds
+        // 🔥 **CONVERT CS TO DS**: Convert centiseconds input to deciseconds for calculation
+        // Làm tròn centiseconds về deciseconds gần nhất (multiples of 10)
+        const deciseconds = Math.round(centiseconds / 10); // Convert CS to DS (0-9)
         
-        // Validate range với INTEGER ARITHMETIC
-        const minCentiseconds = Math.round(min * 100);
-        const maxCentiseconds = Math.round(max * 100);
-        const clampedCentiseconds = Math.max(minCentiseconds, Math.min(totalCentiseconds, maxCentiseconds));
-        newValue = clampedCentiseconds / 100;
+        // 🔥 **DECISECOND CALCULATION**: Tính bằng deciseconds để đảm bảo precision
+        const totalDeciseconds = minutes * 600 + seconds * 10 + deciseconds;
+        newValue = totalDeciseconds / 10; // Convert to seconds (multiple của 0.1s)
+        
+        // Validate range với DECISECOND ARITHMETIC
+        const minDeciseconds = Math.round(min * 10);
+        const maxDeciseconds = Math.round(max * 10);
+        const clampedDeciseconds = Math.max(minDeciseconds, Math.min(totalDeciseconds, maxDeciseconds));
+        newValue = clampedDeciseconds / 10;
         
       } else if (timeParts.length === 2) {
-        // Support MM.SS format
+        // Support MM.SS format (set deciseconds = 0)
         const minutes = parseInt(timeParts[0]) || 0;
         const seconds = parseInt(timeParts[1]) || 0;
         
-        // 🔥 **INTEGER CALCULATION**: Tính bằng centiseconds  
-        const totalCentiseconds = minutes * 6000 + seconds * 100;
-        newValue = totalCentiseconds / 100;
+        // 🔥 **DECISECOND CALCULATION**: Tính bằng deciseconds với 0 deciseconds
+        const totalDeciseconds = minutes * 600 + seconds * 10;
+        newValue = totalDeciseconds / 10;
         
-        // Validate range với INTEGER ARITHMETIC
-        const minCentiseconds = Math.round(min * 100);
-        const maxCentiseconds = Math.round(max * 100);
-        const clampedCentiseconds = Math.max(minCentiseconds, Math.min(totalCentiseconds, maxCentiseconds));
-        newValue = clampedCentiseconds / 100;
+        // Validate range với DECISECOND ARITHMETIC
+        const minDeciseconds = Math.round(min * 10);
+        const maxDeciseconds = Math.round(max * 10);
+        const clampedDeciseconds = Math.max(minDeciseconds, Math.min(totalDeciseconds, maxDeciseconds));
+        newValue = clampedDeciseconds / 10;
       }
     } catch (error) {
       console.warn(`⚠️ [ArrowTimeInput] Parse error for ${label}:`, error);
-      // Keep current value on error
-      newValue = value;
+      // Keep current normalized value on error
+      newValue = normalizedValue;
     }
     
-    // 🔥 **DEBUG LOG**: Log manual edits với centiseconds detail
-    const oldCs = Math.round(value * 100);
-    const newCs = Math.round(newValue * 100);
-    console.log(`✏️ [ArrowTimeInput] ${label} manual edit precision:`, {
+    // 🔥 **DEBUG LOG**: Log manual edits với deciseconds detail để verify precision
+    const oldDs = Math.round(normalizedValue * 10);
+    const newDs = Math.round(newValue * 10);
+    console.log(`✏️ [ArrowTimeInput] ${label} manual edit PRECISE:`, {
       input: tempValue,
-      original: `${value.toFixed(2)}s (${oldCs}cs)`,
-      result: `${newValue.toFixed(2)}s (${newCs}cs)`,
-      exact_diff: `${(newValue - value).toFixed(2)}s`
+      original: `${normalizedValue.toFixed(1)}s (${oldDs}ds)`,
+      result: `${newValue.toFixed(1)}s (${newDs}ds)`,
+      exact_diff: `${(newValue - normalizedValue).toFixed(1)}s`,
+      is_0_1s_multiple: (newDs % 1 === 0) ? '✅ EXACT 0.1s' : '❌ NOT 0.1s multiple',
+      display_format: formattedTime
     });
     
     onChange(newValue);
     setIsEditing(false);
-  }, [tempValue, onChange, value, max, min, label]);
+  }, [tempValue, onChange, normalizedValue, max, min, label, formattedTime]);
 
   // 🎯 CANCEL: Revert changes
   const handleCancel = useCallback(() => {
@@ -226,11 +245,11 @@ const ArrowTimeInput = React.memo(({ value, onChange, label, max, min = 0, isSta
 
   return (
     <div className="flex items-center">
-      {/* 🎯 **TIME DISPLAY BUTTON** - Tăng width để fit format mới */}
+      {/* 🎯 **TIME DISPLAY BUTTON** - Hiển thị format MM.SS.CS */}
       <button
         onClick={handleClick}
         className="w-24 px-3 py-1.5 text-sm text-center border border-slate-300 rounded-l bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors font-mono compact-time-input text-color-timeselector"
-        title={`Click to edit ${label} (Format: MM.SS.CS)`}
+        title={`Click to edit ${label} (Format: MM.SS.CS - 0.1s steps)`}
       >
         {formattedTime}
       </button>
@@ -263,7 +282,7 @@ const ArrowTimeInput = React.memo(({ value, onChange, label, max, min = 0, isSta
 
 ArrowTimeInput.displayName = 'ArrowTimeInput';
 
-// 🎯 **COMPACT TIME SELECTOR** - Updated với logic disable thông minh
+// 🎯 **COMPACT TIME SELECTOR** - Updated với precise 0.1s logic
 const CompactTimeSelector = React.memo(({ 
   startTime, 
   endTime, 
@@ -280,11 +299,11 @@ const CompactTimeSelector = React.memo(({
       setupCompleteRef.current = true;
       // 🔥 **ASYNC LOG**: Move out of render cycle
       setTimeout(() => {
-        console.log('⏰ [CompactTimeSelector] Enhanced ArrowTimeInput setup complete:', {
-          timeRange: `${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s`,
-          duration: duration.toFixed(2),
-          format: 'MM.SS.CS với ±0.1s steps',
-          improvements: 'Smart disable logic, 2-digit centiseconds, 0.1s increments'
+        console.log('⏰ [CompactTimeSelector] PRECISE 0.1s ArrowTimeInput setup complete:', {
+          timeRange: `${startTime.toFixed(1)}s - ${endTime.toFixed(1)}s`,
+          duration: duration.toFixed(1),
+          format: 'MM.SS.CS với PRECISE ±0.1s steps',
+          improvements: 'Decisecond arithmetic, exact 0.1s increments, no floating point errors'
         });
       }, 0);
     }
@@ -292,21 +311,21 @@ const CompactTimeSelector = React.memo(({
 
   return (
     <div className="flex items-center justify-center gap-4 flex-wrap">
-      {/* Start Time với Smart Disable Logic */}
+      {/* Start Time với Precise 0.1s Logic */}
       <div className="flex items-center gap-2">
         <label className="text-sm font-medium text-slate-600">Start:</label>
         <ArrowTimeInput
           value={startTime}
           onChange={onStartTimeChange}
           label="start time"
-          max={Math.max(0, endTime - 0.1)} // Ensure start < end
+          max={Math.max(0, endTime - 0.1)} // Ensure start < end với 0.1s spacing
           min={0}
           isStartTime={true}
           duration={duration}
         />
       </div>
 
-      {/* End Time với Smart Disable Logic */}
+      {/* End Time với Precise 0.1s Logic */}
       <div className="flex items-center gap-2">
         <label className="text-sm font-medium text-slate-600">End:</label>
         <ArrowTimeInput
@@ -314,7 +333,7 @@ const CompactTimeSelector = React.memo(({
           onChange={onEndTimeChange}
           label="end time"
           max={duration}
-          min={Math.min(duration, startTime + 0.1)} // Ensure end > start
+          min={Math.min(duration, startTime + 0.1)} // Ensure end > start với 0.1s spacing
           isEndTime={true}
           duration={duration}
         />

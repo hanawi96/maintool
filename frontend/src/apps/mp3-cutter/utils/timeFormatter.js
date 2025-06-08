@@ -42,9 +42,26 @@ export const formatTimeWithMs = (time) => {
 };
 
 /**
+ * �� **FORMAT TIME WITH CENTISECONDS** - Format MM.SS.CS với 0.1s precision cho consistency
+ * @param {number} time - Time in seconds
+ * @returns {string} - Formatted time string with centiseconds (0.1s steps)
+ */
+export const formatTimeWithCS = (time) => {
+  // 🔥 **NORMALIZE TO 0.1s**: Đảm bảo time là multiple của 0.1s
+  const normalizedTime = Math.round(time * 10) / 10;
+  const minutes = Math.floor(normalizedTime / 60);
+  const seconds = Math.floor(normalizedTime % 60);
+  const deciseconds = Math.round((normalizedTime % 1) * 10); // Extract deciseconds (0-9)
+  
+  // 🔥 **FORMAT MM.SS.CS**: Convert deciseconds to centiseconds display (00, 10, 20, etc.)
+  const centiseconds = deciseconds * 10;
+  return `${minutes.toString().padStart(2, '0')}.${seconds.toString().padStart(2, '0')}.${centiseconds.toString().padStart(2, '0')}`;
+};
+
+/**
  * 🕒 **SMART TIME FORMATTER** - Auto-choose format based on context
  * @param {number} time - Time in seconds
- * @param {string} context - Context: 'display', 'input', 'compact'
+ * @param {string} context - Context: 'display', 'input', 'compact', 'selector'
  * @returns {string} - Formatted time string
  */
 export const formatTimeContext = (time, context = 'display') => {
@@ -55,6 +72,9 @@ export const formatTimeContext = (time, context = 'display') => {
     case 'input':
       // For time inputs - MM:SS.mmm
       return formatTimeWithMs(time);
+    case 'selector':
+      // For time selectors with 0.1s precision - MM.SS.CS
+      return formatTimeWithCS(time);
     case 'display':
     default:
       // Default display - MM:SS.mmm

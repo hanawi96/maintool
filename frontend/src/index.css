@@ -539,6 +539,9 @@ canvas[style*="height"] {
   /* 🎯 **DISABLE ANTIALIASING**: For ultra-sharp lines and cursors */
   -webkit-font-smoothing: none !important;
   -moz-osx-font-smoothing: unset !important;
+  
+  /* 🔧 **CANVAS Z-INDEX**: Ensure canvas stays below tooltips */
+  z-index: 1 !important;
 }
 
 /* 🔥 **ULTRA-CRISP CURSORS**: Remove all cursor enhancement effects */
@@ -573,4 +576,88 @@ canvas[class*="cursor-"] {
 .cursor-grab {
   cursor: grab !important;
   cursor: -webkit-grab !important;
+}
+
+/* 🔥 **TOOLTIP Z-INDEX FIX**: Ensure all waveform tooltips are always on top */
+.relative .absolute.pointer-events-none {
+  z-index: 9999 !important;
+  position: absolute !important;
+}
+
+/* 🔥 **WAVEFORM TOOLTIP SPECIFIC**: Ultra-specific targeting for waveform tooltips */
+.waveform-container-no-scrollbar ~ div[style*="position: absolute"],
+.waveform-container-no-scrollbar + div[style*="position: absolute"],
+div[style*="backgroundColor: #ffffff"][style*="position: absolute"] {
+  z-index: 9999 !important;
+  position: absolute !important;
+  transform: translateZ(0) !important; /* Force GPU layer */
+}
+
+div[style*="backgroundColor: #14b8a6"][style*="position: absolute"] {
+  z-index: 9998 !important;
+  position: absolute !important;
+  transform: translateZ(0) !important; /* Force GPU layer */
+}
+
+div[style*="backgroundColor: #f97316"][style*="position: absolute"] {
+  z-index: 9997 !important;
+  position: absolute !important;
+  transform: translateZ(0) !important; /* Force GPU layer */
+}
+
+/* 🔥 **CONTAINER Z-INDEX CONTROL**: Ensure containers don't interfere */
+.bg-white\/70,
+.backdrop-blur-sm,
+.waveform-container-no-scrollbar {
+  z-index: 1 !important;
+  position: relative !important;
+  overflow: visible !important;
+}
+
+/* 🔥 **CANVAS SPECIFIC**: Ensure canvas stays below tooltips */
+canvas {
+  z-index: 2 !important;
+  position: relative !important;
+}
+
+/* 🔥 **FORCE TOOLTIP VISIBILITY**: Nuclear option for tooltip visibility */
+div.absolute.pointer-events-none.text-xs,
+div.absolute.pointer-events-none.text-sm {
+  z-index: 99999 !important;
+  position: fixed !important; /* Use fixed positioning to escape all containers */
+  pointer-events: none !important;
+  transform: translateZ(1000px) !important; /* Force to front */
+}
+
+/* 🔥 **ULTIMATE TOOLTIP OVERRIDE**: Maximum specificity for waveform tooltips */
+html body div.relative div.absolute.pointer-events-none[style*="left"][style*="top"] {
+  z-index: 999999 !important;
+  position: fixed !important;
+  pointer-events: none !important;
+  visibility: visible !important;
+  display: block !important;
+  opacity: 1 !important;
+  transform: translateZ(2000px) !important;
+}
+
+/* 🔥 **WAVEFORM CONTAINER OVERRIDE**: Ensure containers don't clip tooltips */
+html body div[style*="overflow: visible"] {
+  overflow: visible !important;
+  contain: none !important;
+}
+
+/* 🔥 **BACKDROP BLUR CONTAINER FIX**: Specifically target waveform container */
+html body div.bg-white\/70.backdrop-blur-sm {
+  overflow: visible !important;
+  z-index: 1 !important;
+  contain: none !important;
+}
+
+/* 🔥 **DISABLE BACKDROP CLIPPING**: Prevent backdrop elements from clipping tooltips */
+.backdrop-blur-sm,
+.bg-white\/70 {
+  -webkit-clip-path: none !important;
+  clip-path: none !important;
+  mask: none !important;
+  -webkit-mask: none !important;
 }
