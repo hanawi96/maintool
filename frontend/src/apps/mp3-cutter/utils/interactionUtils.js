@@ -151,7 +151,7 @@ export class InteractionManager {
     this.isDraggingConfirmed = false;          // True chỉ khi thực sự đang drag
     this.mouseDownTimestamp = null;            // Track mouse down time
     this.lastMousePosition = null;             // Track mouse movement
-    this.dragMoveThreshold = 1;                // 🚀 **FAST DRAG FIX**: Giảm từ 3px xuống 1px để responsive hơn với fast drag
+    this.dragMoveThreshold = 0.5;              // 🚀 **ULTRA RESPONSIVE**: Giảm từ 1px xuống 0.5px để responsive hơn và lưu history dễ hơn
     
     // 🛡️ **MOUSE RE-ENTRY PROTECTION**: Track mouse leave timing
     this.lastMouseLeaveTime = null;            // Track when mouse left canvas
@@ -216,6 +216,29 @@ export class InteractionManager {
           mouseEvent: 'real_mouse_up_outside_canvas',
           reason: 'User released mouse - reset drag as per requirements'
         });
+        
+        // 🆕 **SAVE HISTORY ON GLOBAL MOUSE UP**: Trigger history save before reset
+        if (this.onGlobalDragUpdate && this.onGlobalDragUpdate.callback) {
+          const historyData = {
+            action: 'saveHistoryOnGlobalMouseUp',
+            saveHistory: true, // Always save history for confirmed drags
+            isDraggingConfirmed: this.isDraggingConfirmed,
+            activeHandle: this.activeHandle,
+            wasRegionDrag: this.isDraggingRegion,
+            globalMouseUp: true
+          };
+          
+          console.log(`💾 [${this.debugId}] GLOBAL HISTORY SAVE - Triggering history save from global mouse up:`, {
+            activeHandle: this.activeHandle,
+            wasConfirmedDrag: this.isDraggingConfirmed,
+            wasRegionDrag: this.isDraggingRegion,
+            reason: 'Mouse up outside canvas - ensuring history is saved',
+            historyWillBeSaved: true
+          });
+          
+          // 🎯 **TRIGGER HISTORY SAVE**: Call the callback to save history
+          this.onGlobalDragUpdate.callback(historyData);
+        }
         
         // 🚨 **COMPLETE RESET ON MOUSE UP**: Reset tất cả khi user thật sự mouse up
         this.state = INTERACTION_STATES.IDLE;
@@ -642,7 +665,7 @@ export class InteractionManager {
       const timeSinceMouseDown = performance.now() - (this.mouseDownTimestamp || 0);
       
       // 🆕 **CONFIRM DRAG**: Chỉ confirm drag khi di chuyển đủ xa HOẶC đủ lâu
-      if (pixelsMoved >= this.dragMoveThreshold || timeSinceMouseDown > 50) { // 🚀 **FAST DRAG FIX**: Giảm từ 100ms xuống 50ms để catch fast drag nhanh hơn
+      if (pixelsMoved >= this.dragMoveThreshold || timeSinceMouseDown > 25) { // 🚀 **ULTRA RESPONSIVE**: Giảm từ 1px xuống 0.5px để responsive hơn và lưu history dễ hơn
         this.isDraggingConfirmed = true;
         
         // 🆕 **CANCEL PENDING JUMP**: Cancel pending jump khi confirm drag để tránh jump đột ngột
@@ -977,7 +1000,7 @@ export class InteractionManager {
     
     return {
       action: wasDragging ? 'completeDrag' : 'none',
-      saveHistory: wasConfirmedDrag, // 🆕 **CHỈ SAVE** khi đã confirmed drag
+      saveHistory: wasConfirmedDrag || executePendingHandleUpdate, // 🆕 **LƯU HISTORY CHO HANDLE UPDATES**: Lưu history cho cả confirmed drag và pending handle updates
       cursor: this.lastHoveredHandle ? 'ew-resize' : 'pointer', // 🔧 **CURSOR LOGIC**: ew-resize for handle hover, pointer for default
       audioSynced: wasDragging && audioContext && (draggedHandle || wasRegionDrag) && wasConfirmedDrag,
       wasRegionDrag: wasRegionDrag, // 🆕 **FLAG**: Thông báo đã hoàn thành region drag

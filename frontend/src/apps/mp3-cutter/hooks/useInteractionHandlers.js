@@ -86,7 +86,26 @@ export const useInteractionHandlers = ({
     if (manager && canvasRef.current) {
       // 🎯 **GLOBAL DRAG CALLBACK**: Callback để update UI từ global drag
       const globalDragCallback = (result) => {
-        // 🚀 **IMMEDIATE UI UPDATE**: Update UI ngay từ global drag
+        // 🆕 **HANDLE GLOBAL MOUSE UP HISTORY SAVE**: Process history save from global mouse up
+        if (result.action === 'saveHistoryOnGlobalMouseUp' && result.saveHistory) {
+          console.log(`💾 [GlobalHistorySave] Saving history from global mouse up - drag ended outside canvas:`, {
+            activeHandle: result.activeHandle,
+            wasConfirmedDrag: result.isDraggingConfirmed,
+            wasRegionDrag: result.wasRegionDrag,
+            currentSelection: `${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s`,
+            source: 'global_mouse_up_outside_canvas'
+          });
+          
+          // 🎯 **IMMEDIATE HISTORY SAVE**: Save history immediately
+          setTimeout(() => {
+            console.log(`💾 [GlobalHistorySaveExecute] Executing history save for: ${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s`);
+            saveState({ startTime, endTime, fadeIn, fadeOut });
+          }, 100);
+          
+          return; // Early return for history save action
+        }
+        
+        // 🚀 **IMMEDIATE UI UPDATE**: Update UI ngay từ global drag (existing logic)
         if (result.startTime !== undefined) setStartTime(result.startTime);
         if (result.endTime !== undefined) setEndTime(result.endTime);
         
@@ -350,10 +369,8 @@ export const useInteractionHandlers = ({
             setCurrentTime(updateData.newTime);
           }
           
-          // 🚀 **SAVE HISTORY**: Save state after handle update
-          setTimeout(() => {
-            saveState({ startTime: updateData.newTime, endTime, fadeIn, fadeOut });
-          }, 100);
+          // 🚀 **SAVE HISTORY**: Save state after handle update - automated through result.saveHistory flag
+          console.log(`💾 [HistoryDebug] Saving history for start handle update: ${updateData.newTime.toFixed(2)}s`);
           
         } else if (updateData.type === 'end') {
           // 🚀 **UPDATE END HANDLE**: Update end time and sync cursor with preview
@@ -367,11 +384,25 @@ export const useInteractionHandlers = ({
             setCurrentTime(previewTime);
           }
           
-          // 🚀 **SAVE HISTORY**: Save state after handle update
-          setTimeout(() => {
-            saveState({ startTime, endTime: updateData.newTime, fadeIn, fadeOut });
-          }, 100);
+          // 🚀 **SAVE HISTORY**: Save state after handle update - automated through result.saveHistory flag
+          console.log(`💾 [HistoryDebug] Saving history for end handle update: ${updateData.newTime.toFixed(2)}s`);
         }
+      }
+      
+      // 🆕 **UNIFIED HISTORY SAVE**: Save history once for all types of changes (drag completion or handle updates)
+      if (result.saveHistory) {
+        setTimeout(() => {
+          // 🎯 **DETERMINE FINAL STATE**: Use the latest state after all updates
+          const finalStartTime = result.executePendingHandleUpdate && result.pendingHandleUpdate?.type === 'start' 
+            ? result.pendingHandleUpdate.newTime 
+            : startTime;
+          const finalEndTime = result.executePendingHandleUpdate && result.pendingHandleUpdate?.type === 'end' 
+            ? result.pendingHandleUpdate.newTime 
+            : endTime;
+            
+          console.log(`💾 [UnifiedHistorySave] Saving state: ${finalStartTime.toFixed(2)}s - ${finalEndTime.toFixed(2)}s`);
+          saveState({ startTime: finalStartTime, endTime: finalEndTime, fadeIn, fadeOut });
+        }, 100);
       }
     };
     
