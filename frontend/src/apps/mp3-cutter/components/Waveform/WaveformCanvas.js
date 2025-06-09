@@ -64,7 +64,6 @@ const WaveformCanvas = React.memo(({
       const rect = canvas.getBoundingClientRect();
       const mouseX = e.clientX - rect.left;
       
-      // 🎯 **STANDARD UPDATES**: Cursor và hover
       updateCursor(mouseX);
       updateHoverTooltip(e);
     }
@@ -78,123 +77,60 @@ const WaveformCanvas = React.memo(({
 
   const handleEnhancedMouseDown = useCallback((e) => {
     if (onMouseDown) onMouseDown(e);
-    
-    // 🔧 **CLEAR HOVER TOOLTIP**: Ẩn hover tooltip khi nhấn giữ/drag theo yêu cầu user
     clearHoverTooltip();
-    
-    // 🔧 **DEBUG MOUSE DOWN**: Log mouse down events
-    if (Math.random() < 0.1) { // 10% sampling để track mouse down
-      const canvas = canvasRef.current;
-      if (canvas) {
-        const rect = canvas.getBoundingClientRect();
-        const mouseX = e.clientX - rect.left;
-        console.log('🖱️ [MOUSE-DOWN] Enhanced mouse down - hover tooltip cleared:', {
-          mouseX: `${mouseX.toFixed(1)}px`,
-          note: 'Hover tooltip bị ẩn khi nhấn giữ/drag - theo yêu cầu user'
-        });
-      }
-    }
-  }, [onMouseDown, canvasRef, clearHoverTooltip]);
+  }, [onMouseDown, clearHoverTooltip]);
 
   // 🆕 **HANDLE EVENT HANDLERS**: Direct handlers cho handles
   const handleHandleMouseDown = useCallback((e) => {
-    console.log('🤚 [HANDLE-MOUSE-DOWN] Direct handle mouse down:', {
-      handleType: e.handleType,
-      clientX: e.clientX,
-      clientY: e.clientY,
-      isHandleEvent: e.isHandleEvent
-    });
-    
     // 🔧 **CLEAR HOVER TOOLTIP**: Ẩn hover tooltip khi bắt đầu drag handle
     clearHoverTooltip();
     
-    // 🔧 **CONVERT TO CANVAS COORDINATES**: Chuyển đổi handle mouse position thành canvas coordinates
+    // 🔧 **DIRECT CANVAS EVENT**: Optimized direct forwarding
     const canvas = canvasRef.current;
     if (canvas && onMouseDown) {
       const rect = canvas.getBoundingClientRect();
-      
-      // 🔧 **CALCULATE CANVAS POSITION**: Tính toán vị trí trong canvas
-      const canvasX = e.clientX - rect.left;
-      const canvasY = e.clientY - rect.top;
-      
-      // 🔧 **CREATE CANVAS EVENT**: Tạo event tương tự canvas event
       const canvasEvent = {
-        ...e,
-        clientX: e.clientX, // Giữ nguyên global position
+        clientX: e.clientX,
         clientY: e.clientY,
-        target: canvas, // Set target là canvas
-        currentTarget: canvas,
-        handleType: e.handleType, // Preserve handle type info
-        isHandleEvent: e.isHandleEvent,
-        canvasX: canvasX, // 🆕 **CANVAS COORDINATES**: Thêm canvas coordinates
-        canvasY: canvasY
+        target: canvas,
+        handleType: e.handleType,
+        isHandleEvent: true,
+        canvasX: e.clientX - rect.left,
+        canvasY: e.clientY - rect.top
       };
       
-      console.log('🔄 [HANDLE-TO-CANVAS] Converting handle event to canvas event:', {
-        handleType: e.handleType,
-        globalPos: `${e.clientX}, ${e.clientY}`,
-        canvasPos: `${canvasX.toFixed(1)}, ${canvasY.toFixed(1)}`,
-        conversion: 'success'
-      });
-      
-      // 🔧 **FORWARD TO CANVAS HANDLER**: Gọi canvas mouse down handler
       onMouseDown(canvasEvent);
     }
   }, [canvasRef, onMouseDown, clearHoverTooltip]);
 
   const handleHandleMouseMove = useCallback((e) => {
-    // 🔧 **HANDLE MOUSE MOVE**: Xử lý mouse move trên handle
     const canvas = canvasRef.current;
     if (canvas && onMouseMove) {
       const rect = canvas.getBoundingClientRect();
-      const canvasX = e.clientX - rect.left;
-      const canvasY = e.clientY - rect.top;
-      
-      // 🆕 **CREATE EVENT INFO**: Create eventInfo for cursor update
-      const eventInfo = {
-        isHandleEvent: e.isHandleEvent,
-        handleType: e.handleType,
-        originalEvent: e.originalEvent || e
-      };
-      
       const canvasEvent = {
-        ...e,
         clientX: e.clientX,
         clientY: e.clientY,
         target: canvas,
-        currentTarget: canvas,
         handleType: e.handleType,
-        isHandleEvent: e.isHandleEvent,
-        canvasX: canvasX,
-        canvasY: canvasY
+        isHandleEvent: true,
+        canvasX: e.clientX - rect.left,
+        canvasY: e.clientY - rect.top
       };
       
-      // 🔧 **FORWARD TO CANVAS HANDLER**: Gọi canvas mouse move handler
       onMouseMove(canvasEvent);
-      
-      // 🔧 **UPDATE CURSOR WITH EVENT INFO**: Cập nhật cursor với eventInfo
-      updateCursor(canvasX, eventInfo);
+      updateCursor(canvasEvent.canvasX, { isHandleEvent: true, handleType: e.handleType });
     }
   }, [canvasRef, onMouseMove, updateCursor]);
 
   const handleHandleMouseUp = useCallback((e) => {
-    console.log('🤚 [HANDLE-MOUSE-UP] Direct handle mouse up:', {
-      handleType: e.handleType,
-      isHandleEvent: e.isHandleEvent
-    });
-    
-    // 🔧 **HANDLE MOUSE UP**: Xử lý mouse up trên handle
     const canvas = canvasRef.current;
     if (canvas && onMouseUp) {
       const canvasEvent = {
-        ...e,
         target: canvas,
-        currentTarget: canvas,
         handleType: e.handleType,
-        isHandleEvent: e.isHandleEvent
+        isHandleEvent: true
       };
       
-      // 🔧 **FORWARD TO CANVAS HANDLER**: Gọi canvas mouse up handler
       onMouseUp(canvasEvent);
     }
   }, [canvasRef, onMouseUp]);

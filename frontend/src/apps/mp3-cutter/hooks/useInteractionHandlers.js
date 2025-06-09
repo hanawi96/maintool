@@ -1,6 +1,6 @@
-import { useCallback, useRef, useMemo, useEffect } from 'react';
+import { useCallback, useRef, useMemo } from 'react';
 
-// 🎯 **INTERACTION HANDLERS HOOK**: Extract interaction logic for better code organization
+// 🎯 **60FPS OPTIMIZED INTERACTION HANDLERS**
 export const useInteractionHandlers = ({
   canvasRef,
   duration,
@@ -30,218 +30,59 @@ export const useInteractionHandlers = ({
   // 🔥 **PERFORMANCE REF**: Throttling reference
   const lastMouseTimeRef = useRef(0);
 
-  // 🚀 **OPTIMIZE OBJECT CREATION**: Memoize audioContext to prevent recreation
+  // 🚀 **MEMOIZED AUDIO CONTEXT**
   const audioContext = useMemo(() => ({
     audioRef,
     setCurrentTime,
     isPlaying
   }), [audioRef, setCurrentTime, isPlaying]);
 
-  // 🔧 **DEBUG HOVER STATE**: Track hover state changes for cursor debugging
-  useEffect(() => {
-    if (hoveredHandle !== null) {
-      console.log(`🎯 [HoverState] Handle hover set to: ${hoveredHandle} - should trigger cursor update to ew-resize`);
-    } else {
-      console.log(`🎯 [HoverState] Handle hover cleared - should trigger cursor update to pointer`);
-    }
-  }, [hoveredHandle]);
-
-  // 🎯 **MOUSE DOWN HANDLER**
+  // 🎯 **OPTIMIZED MOUSE DOWN** - Minimal logic for 60fps
   const handleCanvasMouseDown = useCallback((e) => {
     if (!canvasRef.current || duration <= 0) return;
     
     const rect = canvasRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
-    
-    // 🆕 **EXTRACT EVENT INFO**: Extract additional event information
     const eventInfo = {
       isHandleEvent: e.isHandleEvent || false,
-      handleType: e.handleType || null,
-      originalEvent: e.originalEvent || e
+      handleType: e.handleType || null
     };
     
-    // 🆕 **END HANDLE INTENSIVE DEBUG**: Log intensively for end handle events
-    const isEndHandleEvent = eventInfo.handleType === 'end';
-    const debugLevel = isEndHandleEvent ? '🔴 [END-HANDLE-MOUSE-DOWN-CRITICAL]' : '🖱️ [MOUSE-DOWN]';
-    
-    console.log(`${debugLevel} Event info extracted:`, {
-      isHandleEvent: eventInfo.isHandleEvent,
-      handleType: eventInfo.handleType,
-      mouseX: x.toFixed(1),
-      eventSource: eventInfo.isHandleEvent ? 'HANDLE' : 'CANVAS',
-      isEndHandle: isEndHandleEvent,
-      // 🆕 **END HANDLE TRACKING**
-      endHandleTracking: isEndHandleEvent ? {
-        hasInteractionManager: !!interactionManagerRef.current,
-        canvasWidth: canvasRef.current?.width,
-        duration: duration,
-        startTime: startTime.toFixed(2),
-        endTime: endTime.toFixed(2),
-        eventProcessingTimestamp: performance.now()
-      } : null
-    });
-    
-    // 🆕 **SETUP GLOBAL DRAG CONTEXT**: Setup context for global drag outside canvas
     const manager = interactionManagerRef.current;
     if (manager && canvasRef.current) {
-      // 🎯 **GLOBAL DRAG CALLBACK**: Callback để update UI từ global drag
       const globalDragCallback = (result) => {
-        // 🆕 **HANDLE GLOBAL MOUSE UP HISTORY SAVE**: Process history save from global mouse up
         if (result.action === 'saveHistoryOnGlobalMouseUp' && result.saveHistory) {
-          console.log(`💾 [GlobalHistorySave] Saving history from global mouse up - drag ended outside canvas:`, {
-            activeHandle: result.activeHandle,
-            wasConfirmedDrag: result.isDraggingConfirmed,
-            wasRegionDrag: result.wasRegionDrag,
-            currentSelection: `${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s`,
-            source: 'global_mouse_up_outside_canvas'
-          });
-          
-          // 🎯 **IMMEDIATE HISTORY SAVE**: Save history immediately
-          setTimeout(() => {
-            console.log(`💾 [GlobalHistorySaveExecute] Executing history save for: ${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s`);
-            saveState({ startTime, endTime, fadeIn, fadeOut });
-          }, 100);
-          
-          return; // Early return for history save action
+          setTimeout(() => saveState({ startTime, endTime, fadeIn, fadeOut }), 100);
+          return;
         }
-        
-        // 🚀 **IMMEDIATE UI UPDATE**: Update UI ngay từ global drag (existing logic)
         if (result.startTime !== undefined) setStartTime(result.startTime);
         if (result.endTime !== undefined) setEndTime(result.endTime);
-        
-        console.log(`🌍 [GlobalDragCallback] UI updated from global drag:`, {
-          newStartTime: result.startTime?.toFixed(2),
-          newEndTime: result.endTime?.toFixed(2),
-          source: 'global_mouse_move_outside_canvas'
-        });
       };
       
-      manager.setupGlobalDragContext(
-        rect, 
-        canvasRef.current.width, 
-        duration, 
-        startTime, 
-        endTime, 
-        audioContext, 
-        globalDragCallback
-      );
+      manager.setupGlobalDragContext(rect, canvasRef.current.width, duration, startTime, endTime, audioContext, globalDragCallback);
     }
     
-    // 🎯 Use InteractionManager for smart handling with eventInfo
-    const result = manager.handleMouseDown(
-      x, canvasRef.current.width, duration, startTime, endTime, eventInfo
-    );
+    const result = manager.handleMouseDown(x, canvasRef.current.width, duration, startTime, endTime, eventInfo);
     
-    // 🆕 **END HANDLE RESULT DEBUG**: Log intensively for end handle results
-    if (isEndHandleEvent) {
-      console.log('🔴 [END-HANDLE-RESULT-CRITICAL] InteractionManager result for end handle:', {
-        action: result.action,
-        handle: result.handle,
-        cursor: result.cursor,
-        resultDetails: result,
-        processingSuccess: true,
-        nextStep: 'Processing action in switch statement'
-      });
+    // 🚀 **IMMEDIATE PROCESSING** - No delays for 60fps
+    switch (result.action) {
+      case 'startDrag':
+        setIsDragging(result.handle);
+        break;
+      case 'pendingJump':
+        if (result.regionDragPotential) setIsDragging('region-potential');
+        break;
+      case 'createSelection':
+        setStartTime(result.startTime);
+        setEndTime(result.endTime);
+        break;
     }
-    
-    // 🎯 Process action based on result
-    const processAction = () => {
-      // 🆕 **END HANDLE ACTION DEBUG**: Log action processing for end handle
-      if (isEndHandleEvent) {
-        console.log(`🔴 [END-HANDLE-ACTION-CRITICAL] Processing action for end handle: ${result.action}`, {
-          action: result.action,
-          handle: result.handle,
-          currentIsDragging: isDragging,
-          willSetIsDragging: result.handle || 'no change'
-        });
-      }
-      
-      switch (result.action) {
-        case 'startDrag':
-          setIsDragging(result.handle);
-          
-          // 🆕 **END HANDLE DRAG DEBUG**: Log drag start for end handle
-          if (isEndHandleEvent || result.handle === 'end') {
-            console.log('🔴 [END-HANDLE-DRAG-START-CRITICAL] End handle drag started:', {
-              handle: result.handle,
-              isDraggingSet: true,
-              dragStartSuccess: true,
-              immediateSync: result.immediateSync
-            });
-          }
-          
-          // 🚫 **REMOVE IMMEDIATE CURSOR SYNC**: Don't sync cursor on mousedown - only on mouseup
-          console.log(`🎯 [HandleMouseDown] Handle drag started: ${result.handle} - cursor sync DELAYED until mouseup`);
-          break;
-          
-        case 'pendingJump':
-          // 🆕 **DELAYED JUMP**: Setup pending jump để tránh shock khi drag region
-          console.log(`⏳ [HandleMouseDown] Pending jump setup - cursor sync DELAYED until mouseup`);
-          
-          // 🔧 **FIX REGION DRAG POTENTIAL**: Xử lý regionDragPotential trong case pendingJump
-          if (result.regionDragPotential) {
-            // 🎯 **IMMEDIATE CURSOR FEEDBACK**: Set drag state for immediate cursor change to move arrow
-            setIsDragging('region-potential'); // Special state for immediate cursor feedback
-            console.log(`🔄 [RegionDragPotential] Set cursor to region-potential for IMMEDIATE move cursor feedback (4-way arrow) - FIXED in pendingJump case`);
-            
-            // 🔧 **ENHANCED DEBUG**: Extra debug để track state change
-            console.log(`🎯 [StateDebug] isDragging state changed to 'region-potential' for immediate move cursor`);
-            
-            // 🆕 **CURSOR UPDATE VERIFICATION**: Verify cursor will be updated
-            console.log(`🔄 [CursorTrigger] State change should trigger cursor update in WaveformCanvas detectCursorType()`);
-            
-            // 🆕 **FORCE CURSOR UPDATE DEBUG**: Log để verify cursor sẽ được update
-            console.log(`🎯 [CursorDebug] isDragging='region-potential' should trigger useEffect in WaveformCanvas for immediate cursor change`);
-          }
-          break;
-          
-        case 'createSelection':
-          setStartTime(result.startTime);
-          setEndTime(result.endTime);
-          setIsDragging(result.handle || 'end');
-          console.log(`🆕 [HandleMouseDown] Selection created - drag handle: ${result.handle || 'end'}`);
-          break;
-          
-        case 'startRegionDrag':
-          // 🆕 **REGION DRAG**: Setup region dragging - cursor đổi ngay lập tức
-          setIsDragging('region'); // Special drag type for region
-          
-          // 🚫 **NO IMMEDIATE CURSOR SYNC**: Don't move audio cursor on mousedown for region drag
-          console.log(`🔄 [HandleMouseDown] Region drag started - cursor will stay at current position until mouseup`);
-          break;
-          
-        case 'pendingHandleUpdate':
-          // 🆕 **DELAYED HANDLE UPDATE**: Setup pending handle update
-          console.log(`⏳ [HandleMouseDown] Pending handle update setup - will execute on mouseup`);
-          break;
-          
-        case 'none':
-        default:
-          // 🔥 **REGION DRAG POTENTIAL**: Check if this is a potential region drag (fallback case)
-          if (result.regionDragPotential) {
-            // 🎯 **IMMEDIATE CURSOR FEEDBACK**: Set drag state for immediate cursor change to move arrow
-            setIsDragging('region-potential'); // Special state for immediate cursor feedback
-            console.log(`🔄 [RegionDragPotential] Set cursor to region-potential for IMMEDIATE move cursor feedback (4-way arrow) - fallback case`);
-            
-            // 🆕 **CURSOR UPDATE VERIFICATION**: Verify cursor will be updated
-            console.log(`🔄 [CursorTrigger] State change should trigger cursor update in WaveformCanvas detectCursorType()`);
-          }
-          break;
-      }
-    };
-    
-    // 🚀 **IMMEDIATE PROCESSING**: Process action ngay lập tức
-    processAction();
-  }, [canvasRef, duration, startTime, endTime, setStartTime, setEndTime, setIsDragging, interactionManagerRef]);
+  }, [canvasRef, duration, startTime, endTime, setStartTime, setEndTime, setIsDragging, interactionManagerRef, audioContext, saveState, fadeIn, fadeOut]);
 
-  // 🎯 **MOUSE MOVE HANDLER**
+  // 🎯 **60FPS MOUSE MOVE** - Ultra optimized
   const handleCanvasMouseMove = useCallback((e) => {
     const now = performance.now();
-    
-    // 🚀 **SIMPLIFIED THROTTLING**: 60fps max cho tất cả interactions
-    const throttleInterval = 16; // 60fps - sufficient for smooth UX
-    
-    if (now - lastMouseTimeRef.current < throttleInterval) return;
+    if (now - lastMouseTimeRef.current < 16) return; // 60fps cap
     lastMouseTimeRef.current = now;
     
     const canvas = canvasRef.current;
@@ -249,200 +90,93 @@ export const useInteractionHandlers = ({
     
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
-    
-    // 🎯 Use InteractionManager for smart handling WITH audio sync
     const manager = interactionManagerRef.current;
-    const result = manager.handleMouseMove(
-      x, canvas.width, duration, startTime, endTime, audioContext
-    );
+    const result = manager.handleMouseMove(x, canvas.width, duration, startTime, endTime, audioContext);
     
-    // 🆕 **ENHANCED VALIDATION**: Chỉ process action nếu logic hợp lệ
-    const processAction = () => {
-      switch (result.action) {
-        case 'updateRegion':
-          // 🆕 **STRICT VALIDATION**: CHỈ update region nếu đã confirmed drag
-          if (result.isDraggingConfirmed) {
-            // 🆕 **REGION DRAG ACTIVATION**: Set drag state when region drag is activated
-            if (result.isRegionDrag && isDragging !== 'region') {
-              setIsDragging('region'); // Upgrade from region-potential to region
-              console.log(`🔄 [RegionDragActivation] Upgraded from ${isDragging} to region - drag confirmed`);
-            }
-            
-            if (result.startTime !== undefined) setStartTime(result.startTime);
-            if (result.endTime !== undefined) setEndTime(result.endTime);
-            
-            // 🆕 **UPDATE GLOBAL DRAG CONTEXT**: Update context với new times
-            if (manager && (result.startTime !== undefined || result.endTime !== undefined)) {
-              const newStartTime = result.startTime !== undefined ? result.startTime : startTime;
-              const newEndTime = result.endTime !== undefined ? result.endTime : endTime;
-              manager.updateGlobalDragContext(newStartTime, newEndTime);
-            }
-            
-            // 🚫 **NO AUDIO SYNC DURING DRAG**: Audio cursor stays at current position during drag
-            console.log(`🔄 [RegionUpdate] Region updated during drag - audio cursor unchanged`);
+    // 🚀 **DIRECT UPDATES** - No processing delays
+    switch (result.action) {
+      case 'updateRegion':
+        if (result.isDraggingConfirmed) {
+          if (result.isRegionDrag && isDragging !== 'region') setIsDragging('region');
+          if (result.startTime !== undefined) setStartTime(result.startTime);
+          if (result.endTime !== undefined) setEndTime(result.endTime);
+          if (manager && (result.startTime !== undefined || result.endTime !== undefined)) {
+            const newStartTime = result.startTime !== undefined ? result.startTime : startTime;
+            const newEndTime = result.endTime !== undefined ? result.endTime : endTime;
+            manager.updateGlobalDragContext(newStartTime, newEndTime);
           }
-          break;
-          
-        case 'updateHover':
-          // 🆕 **SMOOTH HOVER**: Process hover immediately
-          // 🔧 **ENHANCED HOVER LOGGING**: Track hover state changes for cursor debugging
-          if (result.handle !== hoveredHandle) {
-            console.log(`🔄 [HoverStateChange] Handle hover: ${hoveredHandle || 'none'} → ${result.handle || 'none'}`);
-          }
-          setHoveredHandle(result.handle);
-          break;
-          
-        default:
-          break;
-      }
-    };
-    
-    // 🚀 **IMMEDIATE PROCESSING**: Process ALL actions immediately
-    if (result.significant && result.isDraggingConfirmed) {
-      processAction(); // Immediate for confirmed dragging
-    } else if (result.action === 'updateHover') {
-      processAction(); // 🚀 **IMMEDIATE HOVER**: Process hover immediately
-    } else if (result.action !== 'none') {
-      if (window.requestIdleCallback) {
-        window.requestIdleCallback(processAction);
-      } else {
-        setTimeout(processAction, 0);
-      }
+        }
+        break;
+      case 'updateHover':
+        setHoveredHandle(result.handle);
+        break;
     }
-  }, [canvasRef, duration, startTime, endTime, setStartTime, setEndTime, setHoveredHandle, setIsDragging, interactionManagerRef, audioContext, isDragging, hoveredHandle]); // 🔧 **REMOVED UNNECESSARY DEPENDENCIES**
+  }, [canvasRef, duration, startTime, endTime, setStartTime, setEndTime, setHoveredHandle, setIsDragging, interactionManagerRef, audioContext, isDragging]);
 
-  // 🎯 **MOUSE UP HANDLER**
+  // 🎯 **OPTIMIZED MOUSE UP**
   const handleCanvasMouseUp = useCallback(() => {
     const manager = interactionManagerRef.current;
-    
-    // 🎯 Use InteractionManager for smart handling WITH final audio sync
     const result = manager.handleMouseUp(startTime, endTime, audioContext);
     
-    // 🎯 Process action based on result
-    const processAction = () => {
-      switch (result.action) {
-        case 'completeDrag':
-          setIsDragging(null);
-          
-          // 🎯 Save history after drag completion
-          if (result.saveHistory) {
-            setTimeout(() => {
-              saveState({ startTime, endTime, fadeIn, fadeOut });
-            }, 100);
-          }
-          break;
-          
-        default:
-          // 🔥 **RESET POTENTIAL DRAG**: Reset any potential drag state on mouse up
-          if (isDragging === 'region-potential') {
-            console.log(`🔄 [RegionDragReset] Reset from region-potential to null - no drag confirmed`);
-          }
-          setIsDragging(null);
-          break;
-      }
-      
-      // 🆕 **EXECUTE DELAYED JUMP**: Execute pending jump nếu không có drag movement
-      if (result.executePendingJump && result.pendingJumpTime !== null) {
-        // 🚀 **DELAYED CURSOR SYNC**: Jump cursor ONLY on mouseup as requested
-        console.log(`🎯 [DelayedCursorSync] Moving audio cursor to ${result.pendingJumpTime.toFixed(2)}s on mouseup`);
-        jumpToTime(result.pendingJumpTime);
-        
-        // 🚀 **FORCE IMMEDIATE UPDATE**: Đảm bảo cursor update ngay lập tức
-        if (audioRef.current) {
-          audioRef.current.currentTime = result.pendingJumpTime;
-          setCurrentTime(result.pendingJumpTime);
+    switch (result.action) {
+      case 'completeDrag':
+        setIsDragging(null);
+        if (result.saveHistory) {
+          setTimeout(() => saveState({ startTime, endTime, fadeIn, fadeOut }), 100);
         }
-      }
-      
-      // 🆕 **EXECUTE DELAYED HANDLE UPDATE**: Execute pending handle update
-      if (result.executePendingHandleUpdate && result.pendingHandleUpdate !== null) {
-        const updateData = result.pendingHandleUpdate;
-        
-        if (updateData.type === 'start') {
-          // 🚀 **UPDATE START HANDLE**: Update start time and sync cursor
-          setStartTime(updateData.newTime);
-          
-          // 🚀 **DELAYED CURSOR SYNC**: Sync audio cursor to new start position ONLY on mouseup
-          console.log(`🎯 [DelayedHandleSync] Moving audio cursor to start handle: ${updateData.newTime.toFixed(2)}s on mouseup`);
-          if (audioRef.current) {
-            audioRef.current.currentTime = updateData.newTime;
-            setCurrentTime(updateData.newTime);
-          }
-          
-          // 🚀 **SAVE HISTORY**: Save state after handle update - automated through result.saveHistory flag
-          console.log(`💾 [HistoryDebug] Saving history for start handle update: ${updateData.newTime.toFixed(2)}s`);
-          
-        } else if (updateData.type === 'end') {
-          // 🚀 **UPDATE END HANDLE**: Update end time and sync cursor with preview
-          setEndTime(updateData.newTime);
-          
-          // 🚀 **DELAYED CURSOR SYNC**: Sync to preview position (3s before end) ONLY on mouseup
-          const previewTime = Math.max(0, updateData.newTime - 3.0);
-          console.log(`🎯 [DelayedHandleSync] Moving audio cursor to end handle preview: ${previewTime.toFixed(2)}s on mouseup`);
-          if (audioRef.current) {
-            audioRef.current.currentTime = previewTime;
-            setCurrentTime(previewTime);
-          }
-          
-          // 🚀 **SAVE HISTORY**: Save state after handle update - automated through result.saveHistory flag
-          console.log(`💾 [HistoryDebug] Saving history for end handle update: ${updateData.newTime.toFixed(2)}s`);
-        }
-      }
-      
-      // 🆕 **UNIFIED HISTORY SAVE**: Save history once for all types of changes (drag completion or handle updates)
-      if (result.saveHistory) {
-        setTimeout(() => {
-          // 🎯 **DETERMINE FINAL STATE**: Use the latest state after all updates
-          const finalStartTime = result.executePendingHandleUpdate && result.pendingHandleUpdate?.type === 'start' 
-            ? result.pendingHandleUpdate.newTime 
-            : startTime;
-          const finalEndTime = result.executePendingHandleUpdate && result.pendingHandleUpdate?.type === 'end' 
-            ? result.pendingHandleUpdate.newTime 
-            : endTime;
-            
-          console.log(`💾 [UnifiedHistorySave] Saving state: ${finalStartTime.toFixed(2)}s - ${finalEndTime.toFixed(2)}s`);
-          saveState({ startTime: finalStartTime, endTime: finalEndTime, fadeIn, fadeOut });
-        }, 100);
-      }
-    };
-    
-    // 🎯 BATCH UPDATES
-    if (window.requestIdleCallback) {
-      window.requestIdleCallback(processAction);
-    } else {
-      setTimeout(processAction, 0);
+        break;
+      default:
+        setIsDragging(null);
+        break;
     }
-  }, [startTime, endTime, fadeIn, fadeOut, saveState, setIsDragging, audioRef, setCurrentTime, jumpToTime, setStartTime, setEndTime, interactionManagerRef, audioContext, isDragging]); // 🔧 **REMOVED isPlaying DEPENDENCY**
+    
+    // Execute pending actions
+    if (result.executePendingJump && result.pendingJumpTime !== null) {
+      jumpToTime(result.pendingJumpTime);
+      if (audioRef.current) {
+        audioRef.current.currentTime = result.pendingJumpTime;
+        setCurrentTime(result.pendingJumpTime);
+      }
+    }
+    
+    if (result.executePendingHandleUpdate && result.pendingHandleUpdate !== null) {
+      const updateData = result.pendingHandleUpdate;
+      if (updateData.type === 'start') {
+        setStartTime(updateData.newTime);
+        if (audioRef.current) {
+          audioRef.current.currentTime = updateData.newTime;
+          setCurrentTime(updateData.newTime);
+        }
+      } else if (updateData.type === 'end') {
+        setEndTime(updateData.newTime);
+        const previewTime = Math.max(0, updateData.newTime - 3.0);
+        if (audioRef.current) {
+          audioRef.current.currentTime = previewTime;
+          setCurrentTime(previewTime);
+        }
+      }
+    }
+    
+    if (result.saveHistory) {
+      setTimeout(() => {
+        const finalStartTime = result.executePendingHandleUpdate && result.pendingHandleUpdate?.type === 'start' 
+          ? result.pendingHandleUpdate.newTime : startTime;
+        const finalEndTime = result.executePendingHandleUpdate && result.pendingHandleUpdate?.type === 'end' 
+          ? result.pendingHandleUpdate.newTime : endTime;
+        saveState({ startTime: finalStartTime, endTime: finalEndTime, fadeIn, fadeOut });
+      }, 100);
+    }
+  }, [startTime, endTime, fadeIn, fadeOut, saveState, setIsDragging, audioRef, setCurrentTime, jumpToTime, setStartTime, setEndTime, interactionManagerRef, audioContext]);
 
-  // 🎯 **MOUSE LEAVE HANDLER**
+  // 🎯 **OPTIMIZED MOUSE LEAVE**
   const handleCanvasMouseLeave = useCallback(() => {
     const manager = interactionManagerRef.current;
-    
-    // 🎯 Use InteractionManager for smart handling
     const result = manager.handleMouseLeave();
     
-    // 🎯 Process action based on result
-    const processAction = () => {
-      if (result.action === 'clearHover') {
-        setHoveredHandle(null);
-        
-        // 🚀 **SIMPLIFIED LOGIC**: KHÔNG BAO GIỜ reset drag state khi mouse leave
-        if (result.continueDragOutside) {
-          console.log(`🔄 [ContinueDragOutside] Drag continues outside canvas - NO drag state reset`);
-          // 🚀 **KEEP DRAG STATE**: Giữ nguyên isDragging state
-        } else if (result.pendingActionsCleared) {
-          console.log(`🛡️ [PendingActionsCleared] Pending actions cleared - drag state preserved`);
-          // 🚀 **NO FORCE RESET**: Không reset drag state
-        }
-        
-        // 🚀 **NEVER RESET isDragging ON MOUSE LEAVE**: Tuyệt đối không reset
-        console.log(`🚀 [MouseLeaveProtection] Drag state preserved - isDragging remains: ${isDragging}`);
-      }
-    };
-    
-    // 🎯 IMMEDIATE PROCESSING for mouse leave
-    processAction();
-  }, [setHoveredHandle, interactionManagerRef, isDragging]); // 🔧 **REMOVED setIsDragging**: Không reset drag state
+    if (result.action === 'clearHover') {
+      setHoveredHandle(null);
+    }
+  }, [setHoveredHandle, interactionManagerRef]);
 
   return {
     handleCanvasMouseDown,
