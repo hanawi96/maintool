@@ -1076,7 +1076,7 @@ export class InteractionManager {
       activeHandle: this.activeHandle,
       lastHoveredHandle: this.lastHoveredHandle,
       isDragging: this.state === INTERACTION_STATES.DRAGGING,
-      isDraggingConfirmed: this.isDraggingConfirmed, // 🆕 **ENHANCED DEBUG**
+      isDraggingConfirmed: this.isDraggingConfirmed, // 🆕 **ENHANCED DEBUG***
       mouseDownTimestamp: this.mouseDownTimestamp,
       lastMousePosition: this.lastMousePosition,
       // 🆕 **REGION DRAG DEBUG**
