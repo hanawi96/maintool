@@ -11,8 +11,10 @@ export const useWaveformRender = (canvasRef, waveformData, volume, isDragging, i
   const animationFrameRef = useRef(null);
   const lastDrawTimeRef = useRef(0);
 
-  // Canvas setup
+  // 🆕 **ENHANCED CANVAS TRACKING**: Container width tracking for better responsive
+  const [containerWidth, setContainerWidth] = useState(800);
   const lastCanvasWidthRef = useRef(0);
+  const resizeObserverRef = useRef(null);
 
   // Volume animation effect
   useEffect(() => {
@@ -40,17 +42,14 @@ export const useWaveformRender = (canvasRef, waveformData, volume, isDragging, i
     };
   }, [volume, animatedVolume]);
 
-  // Adaptive waveform data
+  // 🚀 **SMART ADAPTIVE WAVEFORM DATA**: Based on container width for perfect responsive
   const adaptiveWaveformData = useMemo(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || !waveformData.length) return [];
+    if (!waveformData.length) return [];
     
-    const canvasWidth = canvas.width || 800;
-    const currentWidth = lastCanvasWidthRef.current || canvasWidth;
-    
+    const currentWidth = containerWidth || 800;
     const { SAMPLING_RULES } = WAVEFORM_CONFIG.RESPONSIVE;
-    let rule;
     
+    let rule;
     if (currentWidth <= SAMPLING_RULES.SMALL.maxWidth) {
       rule = SAMPLING_RULES.SMALL;
     } else if (currentWidth <= SAMPLING_RULES.MEDIUM.maxWidth) {
@@ -59,31 +58,45 @@ export const useWaveformRender = (canvasRef, waveformData, volume, isDragging, i
       rule = SAMPLING_RULES.LARGE;
     }
     
-    const targetSamples = Math.max(100, Math.floor(currentWidth * rule.samplesPerPx));
-    const finalSamples = Math.min(waveformData.length, targetSamples);
+    // 🎯 **ENHANCED CALCULATION**: Better targetSamples calculation for smooth bars
+    const rawBarWidth = currentWidth / waveformData.length;
+    const minBarWidth = WAVEFORM_CONFIG.RESPONSIVE.MIN_BAR_WIDTH;
     
-    if (waveformData.length > finalSamples) {
-      const step = waveformData.length / finalSamples;
-      const adaptedData = [];
-      
-      for (let i = 0; i < finalSamples; i++) {
-        const startIdx = Math.floor(i * step);
-        const endIdx = Math.min(Math.floor((i + 1) * step), waveformData.length);
-        
-        let sum = 0;
-        let count = 0;
-        for (let j = startIdx; j < endIdx; j++) {
-          sum += waveformData[j];
-          count++;
-        }
-        adaptedData.push(count > 0 ? sum / count : 0);
-      }
-      
-      return adaptedData;
+    let targetSamples;
+    if (rawBarWidth < minBarWidth) {
+      // Many bars → reduce samples for smooth rendering
+      targetSamples = Math.floor(currentWidth / minBarWidth);
+    } else {
+      // Few bars → increase samples for better resolution 
+      targetSamples = Math.min(waveformData.length, Math.floor(currentWidth * rule.samplesPerPx));
     }
     
-    return waveformData;
-  }, [waveformData, canvasRef]);
+    targetSamples = Math.max(100, Math.min(targetSamples, waveformData.length));
+    
+    if (waveformData.length <= targetSamples) {
+      return waveformData;
+    }
+    
+    // 🎯 **SMOOTH RESAMPLING**: Better averaging for smooth waveform
+    const step = waveformData.length / targetSamples;
+    const adaptedData = [];
+    
+    for (let i = 0; i < targetSamples; i++) {
+      const startIdx = Math.floor(i * step);
+      const endIdx = Math.min(Math.floor((i + 1) * step), waveformData.length);
+      
+      // Use RMS for better visual representation
+      let sumSquared = 0;
+      let count = 0;
+      for (let j = startIdx; j < endIdx; j++) {
+        sumSquared += waveformData[j] * waveformData[j];
+        count++;
+      }
+      adaptedData.push(count > 0 ? Math.sqrt(sumSquared / count) : 0);
+    }
+    
+    return adaptedData;
+  }, [waveformData, containerWidth]);
 
   // Request redraw function
   const requestRedraw = useCallback((drawFunction) => {
@@ -112,7 +125,7 @@ export const useWaveformRender = (canvasRef, waveformData, volume, isDragging, i
     });
   }, [isDragging, isPlaying, hoverTooltip]);
 
-  // Canvas setup
+  // 🆕 **RESPONSIVE CANVAS SETUP**: Enhanced with ResizeObserver
   const setupCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas || !canvas.parentElement) return;
@@ -122,28 +135,64 @@ export const useWaveformRender = (canvasRef, waveformData, volume, isDragging, i
     const newWidth = Math.max(WAVEFORM_CONFIG.RESPONSIVE.MIN_WIDTH, parentWidth);
     const newHeight = WAVEFORM_CONFIG.HEIGHT;
     
+    // Update container width state for adaptive data calculation
+    if (containerWidth !== newWidth) {
+      setContainerWidth(newWidth);
+    }
+    
     if (canvas.width !== newWidth || canvas.height !== newHeight) {
       canvas.width = newWidth;
       canvas.height = newHeight;
       lastCanvasWidthRef.current = newWidth;
+      
+      // 🎯 **REDRAW TRIGGER**: Force redraw on size change
+      requestRedraw(() => {
+        // Redraw will be handled by parent component
+      });
     }
-  }, [canvasRef]);
+  }, [canvasRef, containerWidth, requestRedraw]);
 
-  // Canvas setup effect
+  // 🚀 **ENHANCED RESIZE OBSERVER**: Better responsive handling
   useEffect(() => {
-    let resizeTimeoutRef = null;
+    const canvas = canvasRef.current;
+    if (!canvas || !canvas.parentElement) return;
     
-    const handleResize = () => {
-      if (resizeTimeoutRef) clearTimeout(resizeTimeoutRef);
-      resizeTimeoutRef = setTimeout(setupCanvas, 100);
+    // Clean up previous observer
+    if (resizeObserverRef.current) {
+      resizeObserverRef.current.disconnect();
+    }
+    
+    // Setup new ResizeObserver for smooth responsive
+    resizeObserverRef.current = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        // Use requestAnimationFrame to prevent layout thrashing
+        requestAnimationFrame(() => {
+          setupCanvas();
+        });
+      }
+    });
+    
+    // Observe the parent container
+    resizeObserverRef.current.observe(canvas.parentElement);
+    
+    // Initial setup
+    setupCanvas();
+    
+    // Fallback window resize listener
+    const handleWindowResize = () => {
+      requestAnimationFrame(() => {
+        setupCanvas();
+      });
     };
     
-    setupCanvas();
-    window.addEventListener('resize', handleResize);
+    window.addEventListener('resize', handleWindowResize);
     
     return () => {
-      window.removeEventListener('resize', handleResize);
-      if (resizeTimeoutRef) clearTimeout(resizeTimeoutRef);
+      window.removeEventListener('resize', handleWindowResize);
+      if (resizeObserverRef.current) {
+        resizeObserverRef.current.disconnect();
+        resizeObserverRef.current = null;
+      }
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
         animationFrameRef.current = null;
@@ -175,6 +224,7 @@ export const useWaveformRender = (canvasRef, waveformData, volume, isDragging, i
     adaptiveWaveformData,
     requestRedraw,
     setupCanvas,
-    lastCanvasWidthRef
+    lastCanvasWidthRef,
+    containerWidth // 🆕 **EXPORT CONTAINER WIDTH**: For use in parent components
   };
 };

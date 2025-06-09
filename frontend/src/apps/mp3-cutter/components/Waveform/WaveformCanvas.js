@@ -47,10 +47,13 @@ const WaveformCanvas = React.memo(({
     resetCursor
   } = useWaveformCursor(canvasRef, duration, startTime, endTime, isDragging);
 
+  // 🚀 **OPTIMIZED HOOK**: Responsive waveform rendering
   const {
     animatedVolume,
     adaptiveWaveformData,
-    requestRedraw
+    requestRedraw,
+    setupCanvas,
+    containerWidth
   } = useWaveformRender(canvasRef, waveformData, volume, isDragging, isPlaying, hoverTooltip);
 
   // 🚀 **ENHANCED MOUSE HANDLERS**
@@ -197,38 +200,21 @@ const WaveformCanvas = React.memo(({
     }
   }, [canvasRef, onMouseUp]);
 
-  // 🔥 **STABLE RENDER DATA**: Optimized memoization
-  const renderData = useMemo(() => {    
-    if (!adaptiveWaveformData.length || duration === 0) return null;
+  // 🎯 **RENDER DATA MEMOIZATION**: Prevent unnecessary recalculations  
+  const renderData = useMemo(() => {
+    if (!adaptiveWaveformData.length || duration <= 0) return null;
     
-    const canvas = canvasRef.current;
-    const canvasWidth = canvas?.width || 800;
-    
-    // 🎯 **ROUND VALUES**: Prevent floating point precision issues
-    const stableStartTime = Math.round(startTime * 100) / 100;
-    const stableEndTime = Math.round(endTime * 100) / 100;
-    const stableDuration = Math.round(duration * 100) / 100;
-    const stableVolume = Math.round(animatedVolume * 1000) / 1000;
-    const stableFadeIn = Math.round(fadeIn * 100) / 100;
-    const stableFadeOut = Math.round(fadeOut * 100) / 100;
-    
-    const data = {
-      waveformData: adaptiveWaveformData,
-      duration: stableDuration,
-      startTime: stableStartTime,
-      endTime: stableEndTime,
-      hoveredHandle,
-      isDragging,
-      canvasWidth,
-      volume: stableVolume,
-      fadeIn: stableFadeIn,
-      fadeOut: stableFadeOut,
-      dataHash: `${adaptiveWaveformData.length}-${stableDuration}-${stableStartTime}-${stableEndTime}-${hoveredHandle || 'none'}-${isDragging || 'none'}-${canvasWidth}-${stableVolume}-${stableFadeIn}-${stableFadeOut}`
+    return {
+      waveformData: adaptiveWaveformData, // 🆕 **USE ADAPTIVE DATA**: Smart responsive data
+      duration,
+      startTime,
+      endTime,
+      volume: animatedVolume,
+      fadeIn,
+      fadeOut,
+      containerWidth // 🆕 **CONTAINER WIDTH**: For responsive calculations
     };
-    
-    lastRenderDataRef.current = data;
-    return data;
-  }, [adaptiveWaveformData, duration, startTime, endTime, hoveredHandle, isDragging, canvasRef, animatedVolume, fadeIn, fadeOut]);
+  }, [adaptiveWaveformData, duration, startTime, endTime, animatedVolume, fadeIn, fadeOut, containerWidth]);
 
   // 🆕 **FADE EFFECT CALCULATOR**: Optimized fade calculation
   const calculateFadeMultiplier = useCallback((barTime, selectionStart, selectionEnd, fadeInDuration, fadeOutDuration) => {
@@ -296,14 +282,33 @@ const WaveformCanvas = React.memo(({
     ctx.fillRect(0, 0, width, height);
     
     // 2. **WAVEFORM BARS**: Ultra-optimized rendering
-    const { waveformData, duration, startTime, endTime, volume: currentVolume, fadeIn: currentFadeIn, fadeOut: currentFadeOut } = renderData;
+    const { waveformData, duration, startTime, endTime, volume: currentVolume, fadeIn: currentFadeIn, fadeOut: currentFadeOut, containerWidth: currentContainerWidth } = renderData;
     const centerY = height / 2;
     
-    // 🎯 **BAR CALCULATIONS**
-    const rawBarWidth = width / waveformData.length;
+    // 🚀 **SMART RESPONSIVE CALCULATIONS**: Enhanced bar calculations
+    const currentWidth = currentContainerWidth || width;
+    const rawBarWidth = currentWidth / waveformData.length;
     const minBarWidth = WAVEFORM_CONFIG.RESPONSIVE.MIN_BAR_WIDTH;
-    const barWidth = Math.max(minBarWidth, rawBarWidth);
-    const useOptimizedSpacing = rawBarWidth < minBarWidth;
+    
+    // 🎯 **ADAPTIVE BAR WIDTH**: Smart responsive bar sizing
+    let finalBarWidth, barSpacing, renderMode;
+    
+    if (rawBarWidth >= minBarWidth * 2) {
+      // WIDE BARS MODE: Có đủ không gian cho bars to và spacing
+      finalBarWidth = Math.min(rawBarWidth * 0.7, minBarWidth * 3);
+      barSpacing = rawBarWidth;
+      renderMode = 'wide';
+    } else if (rawBarWidth >= minBarWidth) {
+      // STANDARD BARS MODE: Kích thước bars tiêu chuẩn
+      finalBarWidth = Math.max(minBarWidth, rawBarWidth * 0.8);
+      barSpacing = rawBarWidth;
+      renderMode = 'standard';
+    } else {
+      // COMPACT BARS MODE: Bars siêu mỏng cho nhiều data
+      finalBarWidth = minBarWidth * 0.6;
+      barSpacing = currentWidth / waveformData.length;
+      renderMode = 'compact';
+    }
     
     // 🎯 **VOLUME SYSTEM**: Perfect linear scaling
     const FLAT_BAR_HEIGHT_PX = 1;
@@ -320,9 +325,7 @@ const WaveformCanvas = React.memo(({
       
       const fadeEffectsActive = currentFadeIn > 0 || currentFadeOut > 0;
       
-      if (useOptimizedSpacing) {
-        const spacing = width / waveformData.length;
-        
+      if (renderMode === 'wide') {
         for (let i = 0; i < waveformData.length; i++) {
           const value = waveformData[i];
           const barTime = (i / waveformData.length) * duration;
@@ -340,13 +343,37 @@ const WaveformCanvas = React.memo(({
           }
           
           const finalBarHeight = effectiveBarHeight * fadeMultiplier;
-          const x = i * spacing;
+          const x = i * barSpacing;
           
           const isInSelection = barTime >= startTime && barTime <= endTime;
           ctx.fillStyle = isInSelection ? '#7c3aed' : '#cbd5e1';
           
-          const ultraThinWidth = Math.max(0.5, minBarWidth * 0.7);
-          ctx.fillRect(Math.floor(x), centerY - finalBarHeight, ultraThinWidth, finalBarHeight * 2);
+          ctx.fillRect(Math.floor(x), centerY - finalBarHeight, finalBarWidth, finalBarHeight * 2);
+        }
+      } else if (renderMode === 'standard') {
+        for (let i = 0; i < waveformData.length; i++) {
+          const value = waveformData[i];
+          const barTime = (i / waveformData.length) * duration;
+          
+          const fadeMultiplier = fadeEffectsActive ? 
+            calculateFadeMultiplier(barTime, startTime, endTime, currentFadeIn, currentFadeOut) : 1.0;
+          
+          let effectiveBarHeight;
+          if (waveformVariation === 0) {
+            effectiveBarHeight = FLAT_BAR_HEIGHT_PX;
+          } else {
+            const flatHeight = FLAT_BAR_HEIGHT_PX;
+            const dynamicHeight = absoluteBarHeightPx * value;
+            effectiveBarHeight = flatHeight + (dynamicHeight - flatHeight) * waveformVariation;
+          }
+          
+          const finalBarHeight = effectiveBarHeight * fadeMultiplier;
+          const x = i * barSpacing;
+          
+          const isInSelection = barTime >= startTime && barTime <= endTime;
+          ctx.fillStyle = isInSelection ? '#7c3aed' : '#cbd5e1';
+          
+          ctx.fillRect(Math.floor(x), centerY - finalBarHeight, finalBarWidth, finalBarHeight * 2);
         }
       } else {
         for (let i = 0; i < waveformData.length; i++) {
@@ -366,14 +393,12 @@ const WaveformCanvas = React.memo(({
           }
           
           const finalBarHeight = effectiveBarHeight * fadeMultiplier;
-          const x = i * barWidth;
+          const x = i * barSpacing;
           
           const isInSelection = barTime >= startTime && barTime <= endTime;
           ctx.fillStyle = isInSelection ? '#7c3aed' : '#cbd5e1';
           
-          const refinedWidth = Math.max(0.4, barWidth * 0.6);
-          const spacingGap = barWidth * 0.4;
-          ctx.fillRect(Math.floor(x + spacingGap/2), centerY - finalBarHeight, refinedWidth, finalBarHeight * 2);
+          ctx.fillRect(Math.floor(x), centerY - finalBarHeight, finalBarWidth, finalBarHeight * 2);
         }
       }
       
@@ -413,14 +438,14 @@ const WaveformCanvas = React.memo(({
     }
     
     const canvas = canvasRef.current;
-    const width = canvas.width || 800;
+    const currentWidth = containerWidth || canvas.width || 800; // 🚀 **USE CONTAINER WIDTH**: Better responsive
     const height = canvas.height || WAVEFORM_CONFIG.HEIGHT;
     
-    const startX = (startTime / duration) * width;
-    const endX = (endTime / duration) * width;
+    const startX = (startTime / duration) * currentWidth;
+    const endX = (endTime / duration) * currentWidth;
     
     const { MODERN_HANDLE_WIDTH } = WAVEFORM_CONFIG;
-    const responsiveHandleWidth = width < WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT ? 
+    const responsiveHandleWidth = currentWidth < WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT ? 
       Math.max(3, MODERN_HANDLE_WIDTH * 0.75) : MODERN_HANDLE_WIDTH;
     
     return {
@@ -443,7 +468,7 @@ const WaveformCanvas = React.memo(({
         color: hoveredHandle === 'end' || isDragging === 'end' ? '#0d9488' : '#14b8a6'
       }
     };
-  }, [canvasRef, duration, startTime, endTime, hoveredHandle, isDragging]);
+  }, [canvasRef, duration, startTime, endTime, hoveredHandle, isDragging, containerWidth]);
 
   // 🆕 **CURSOR POSITION CALCULATOR**: Calculate cursor positions for React rendering
   const cursorPositions = useMemo(() => {
@@ -452,11 +477,11 @@ const WaveformCanvas = React.memo(({
     }
     
     const canvas = canvasRef.current;
-    const width = canvas.width || 800;
+    const currentWidth = containerWidth || canvas.width || 800; // 🚀 **USE CONTAINER WIDTH**: Better responsive
     const height = canvas.height || WAVEFORM_CONFIG.HEIGHT;
     
     // 🔵 **MAIN CURSOR CALCULATION**
-    const mainCursorX = currentTime >= 0 ? (currentTime / duration) * width : -1;
+    const mainCursorX = currentTime >= 0 ? (currentTime / duration) * currentWidth : -1;
     
     // 🖱️ **HOVER LINE CALCULATION** 
     const shouldShowHoverLine = hoverTooltip && hoverTooltip.visible && 
@@ -483,7 +508,7 @@ const WaveformCanvas = React.memo(({
         color: 'rgba(156, 163, 175, 0.6)' // Gray color
       }
     };
-  }, [canvasRef, duration, currentTime, isPlaying, hoverTooltip, isDragging]);
+  }, [canvasRef, duration, currentTime, isPlaying, hoverTooltip, isDragging, containerWidth]);
 
   return (
     <div className="relative" style={{ 

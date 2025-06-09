@@ -43,15 +43,22 @@ export const WAVEFORM_CONFIG = {
   // 🎯 RESPONSIVE: Adaptive configuration for different screen sizes
   RESPONSIVE: {
     MIN_WIDTH: 250,           // Minimum canvas width (px)
-    MIN_BAR_WIDTH: 0.8,       // 🔥 **SIÊU MỎNG**: Giảm từ 1px xuống 0.8px cho bars mịn hơn
+    MIN_BAR_WIDTH: 0.6,       // 🔥 **ULTRA THIN**: Bars siêu mỏng cho responsive tốt hơn
     MOBILE_BREAKPOINT: 600,   // Mobile breakpoint (px)
     TOUCH_TOLERANCE: 15,      // Touch area tolerance on mobile (px)
     
-    // 🎯 **ENHANCED SAMPLING**: Tăng density cho bars mịn hơn
+    // 🚀 **ENHANCED SAMPLING**: Optimized density cho responsive bars
     SAMPLING_RULES: {
-      SMALL: { maxWidth: 400, samplesPerPx: 1/2.5 },    // 🔥 Tăng từ 1/3 lên 1/2.5 - nhiều bars hơn
-      MEDIUM: { maxWidth: 800, samplesPerPx: 1/2 },     // 🔥 Tăng từ 1/2.5 lên 1/2 - dày đặc hơn  
-      LARGE: { maxWidth: Infinity, samplesPerPx: 1/1.5 } // 🔥 Tăng từ 1/2 lên 1/1.5 - siêu mịn
+      SMALL: { maxWidth: 400, samplesPerPx: 1/2 },      // 🔥 Tăng density cho mobile
+      MEDIUM: { maxWidth: 800, samplesPerPx: 1/1.5 },   // 🔥 Smooth density cho tablet  
+      LARGE: { maxWidth: Infinity, samplesPerPx: 1/1 }  // 🔥 Maximum detail cho desktop
+    },
+    
+    // 🆕 **BAR MODES**: Different rendering modes for various screen sizes
+    BAR_MODES: {
+      WIDE: { minBarWidth: 1.2, spacing: 0.7, quality: 'high' },      // Bars to với spacing
+      STANDARD: { minBarWidth: 0.8, spacing: 0.8, quality: 'medium' }, // Bars tiêu chuẩn
+      COMPACT: { minBarWidth: 0.4, spacing: 1.0, quality: 'optimized' } // Bars siêu mỏng
     }
   },
 
