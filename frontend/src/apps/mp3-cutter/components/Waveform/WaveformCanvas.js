@@ -486,7 +486,10 @@ const WaveformCanvas = React.memo(({
   }, [canvasRef, duration, currentTime, isPlaying, hoverTooltip, isDragging]);
 
   return (
-    <div className="relative" style={{ minWidth: `${WAVEFORM_CONFIG.RESPONSIVE.MIN_WIDTH}px` }}>
+    <div className="relative" style={{ 
+      minWidth: `${WAVEFORM_CONFIG.RESPONSIVE.MIN_WIDTH}px`,
+      overflow: 'visible'
+    }}>
       <canvas
         ref={canvasRef}
         onMouseDown={handleEnhancedMouseDown}

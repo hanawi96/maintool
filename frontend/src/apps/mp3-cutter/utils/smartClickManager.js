@@ -340,7 +340,7 @@ export class SmartClickManager {
     const isEndAtEdge = Math.abs(endTime - duration) < 0.1; // End handle gần cuối file (< 0.1s)
     
     // 🛡️ **ENHANCED EDGE PROTECTION**: Tăng cường protection với threshold lớn hơn
-    const edgeProtectionThreshold = 2.0; // Tăng từ 1.0s lên 2.0s cho protection mạnh hơn
+    const edgeProtectionThreshold = 0.5; // 🚀 REDUCED: 2.0s → 0.5s để cho phép drag handles dễ hơn
     
     // 🔧 **BEFORE_START PROTECTION**: Protect start handle khi đã ở edge
     if (clickZone === CLICK_ZONES.BEFORE_START && isStartAtEdge && this.preferences.preventAccidentalHandleMove) {
@@ -363,7 +363,7 @@ export class SmartClickManager {
     }
     
     // 🔧 **MINIMAL MOVEMENT PROTECTION**: Tránh movement quá nhỏ
-    const minMovementThreshold = 1.0; // Tăng từ 0.5s lên 1.0s cho protection mạnh hơn
+    const minMovementThreshold = 0.3; // 🚀 REDUCED: 1.0s → 0.3s để cho phép movements nhỏ hơn
     if (clickZone === CLICK_ZONES.BEFORE_START) {
       const movementDistance = Math.abs(startTime - clickTime);
       if (movementDistance < minMovementThreshold) {
