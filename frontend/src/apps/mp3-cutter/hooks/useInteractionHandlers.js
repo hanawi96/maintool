@@ -81,8 +81,35 @@ export const useInteractionHandlers = ({
       } : null
     });
     
+    // 🆕 **SETUP GLOBAL DRAG CONTEXT**: Setup context for global drag outside canvas
+    const manager = interactionManagerRef.current;
+    if (manager && canvasRef.current) {
+      // 🎯 **GLOBAL DRAG CALLBACK**: Callback để update UI từ global drag
+      const globalDragCallback = (result) => {
+        // 🚀 **IMMEDIATE UI UPDATE**: Update UI ngay từ global drag
+        if (result.startTime !== undefined) setStartTime(result.startTime);
+        if (result.endTime !== undefined) setEndTime(result.endTime);
+        
+        console.log(`🌍 [GlobalDragCallback] UI updated from global drag:`, {
+          newStartTime: result.startTime?.toFixed(2),
+          newEndTime: result.endTime?.toFixed(2),
+          source: 'global_mouse_move_outside_canvas'
+        });
+      };
+      
+      manager.setupGlobalDragContext(
+        rect, 
+        canvasRef.current.width, 
+        duration, 
+        startTime, 
+        endTime, 
+        audioContext, 
+        globalDragCallback
+      );
+    }
+    
     // 🎯 Use InteractionManager for smart handling with eventInfo
-    const result = interactionManagerRef.current.handleMouseDown(
+    const result = manager.handleMouseDown(
       x, canvasRef.current.width, duration, startTime, endTime, eventInfo
     );
     
@@ -224,6 +251,13 @@ export const useInteractionHandlers = ({
             
             if (result.startTime !== undefined) setStartTime(result.startTime);
             if (result.endTime !== undefined) setEndTime(result.endTime);
+            
+            // 🆕 **UPDATE GLOBAL DRAG CONTEXT**: Update context với new times
+            if (manager && (result.startTime !== undefined || result.endTime !== undefined)) {
+              const newStartTime = result.startTime !== undefined ? result.startTime : startTime;
+              const newEndTime = result.endTime !== undefined ? result.endTime : endTime;
+              manager.updateGlobalDragContext(newStartTime, newEndTime);
+            }
             
             // 🚫 **NO AUDIO SYNC DURING DRAG**: Audio cursor stays at current position during drag
             console.log(`🔄 [RegionUpdate] Region updated during drag - audio cursor unchanged`);

@@ -246,6 +246,15 @@ export class InteractionManager {
     this.globalMouseMoveHandler = null;
     this.isGlobalMoveListenerActive = false;
     
+    // 🆕 **CANVAS BOUNDS TRACKING**: Track canvas bounds để convert global coordinates
+    this.canvasBounds = null;
+    this.canvasWidth = 0;
+    this.audioDuration = 0;
+    this.audioContext = null;
+    
+    // 🆕 **CALLBACK MECHANISM**: Callback để update từ global events
+    this.onGlobalDragUpdate = null;
+    
     // 🆕 **DEBUG ID**: Unique debug identifier
     this.debugId = Math.random().toString(36).substring(2, 8);
     
@@ -328,22 +337,55 @@ export class InteractionManager {
    */
   setupGlobalMouseMoveListener() {
     this.globalMouseMoveHandler = (e) => {
-      // Chỉ track khi đang drag và mouse đã leave canvas
+      // Chỉ process khi đang drag và có canvas bounds
       if (this.state === INTERACTION_STATES.DRAGGING && 
           this.isDraggingConfirmed && 
-          this.lastMouseLeaveTime !== null) {
+          this.lastMouseLeaveTime !== null &&
+          this.canvasBounds && 
+          this.canvasWidth > 0 && 
+          this.audioDuration > 0) {
         
-        console.log(`🌍 [${this.debugId}] GLOBAL MOUSE MOVE - Continuing drag outside canvas:`, {
-          clientX: e.clientX,
-          clientY: e.clientY,
+        // 🎯 **CONVERT GLOBAL TO CANVAS COORDINATES**: Chuyển đổi global coordinates sang canvas coordinates
+        const canvasX = e.clientX - this.canvasBounds.left;
+        
+        console.log(`🌍 [${this.debugId}] GLOBAL DRAG CONTINUE - Processing outside canvas:`, {
+          globalX: e.clientX,
+          globalY: e.clientY,
+          canvasBoundsLeft: this.canvasBounds.left,
+          convertedCanvasX: canvasX.toFixed(1),
+          canvasWidth: this.canvasWidth,
           activeHandle: this.activeHandle,
           isDraggingRegion: this.isDraggingRegion,
           timeSinceMouseLeave: performance.now() - this.lastMouseLeaveTime,
-          note: 'Drag continues outside canvas - awaiting mouse up or re-entry'
+          note: 'Converting global coords and continuing drag'
         });
         
-        // 🎯 **CONTINUE DRAG TRACKING**: Đánh dấu drag đang active
-        // Không cần update position vì không biết canvas bounds, chỉ track drag state
+        // 🚀 **CONTINUE DRAG OUTSIDE CANVAS**: Call normal mouse move handler với converted coordinates
+        if (this.onGlobalDragUpdate) {
+          // 🎯 **DELEGATE TO NORMAL HANDLER**: Sử dụng logic mouse move bình thường
+          const result = this.handleMouseMove(
+            canvasX, 
+            this.canvasWidth, 
+            this.audioDuration, 
+            this.onGlobalDragUpdate.startTime, 
+            this.onGlobalDragUpdate.endTime,
+            this.audioContext
+          );
+          
+          // 🚀 **TRIGGER CALLBACK**: Notify UI về drag update
+          if (result.action === 'updateRegion' && result.isDraggingConfirmed) {
+            console.log(`🌍 [${this.debugId}] GLOBAL DRAG SUCCESS - Updating handle outside canvas:`, {
+              canvasX: canvasX.toFixed(1),
+              newStartTime: result.startTime?.toFixed(2),
+              newEndTime: result.endTime?.toFixed(2),
+              handleType: this.activeHandle,
+              continuedOutsideCanvas: true
+            });
+            
+            // 🎯 **CALLBACK TO UI**: Trigger UI update via callback
+            this.onGlobalDragUpdate.callback(result);
+          }
+        }
       }
     };
     
@@ -1204,6 +1246,50 @@ export class InteractionManager {
   getHandleAtPosition(x, canvasWidth, duration, startTime, endTime, eventInfo = null) {
     // 🔧 **USE SAME DETECTION LOGIC**: Sử dụng cùng logic với handleMouseDown
     return detectHandle(x, canvasWidth, duration, startTime, endTime, eventInfo);
+  }
+  
+  /**
+   * 🆕 **SETUP GLOBAL DRAG CONTEXT**: Setup context cho global drag outside canvas
+   * @param {DOMRect} canvasBounds - Canvas bounding rect
+   * @param {number} canvasWidth - Canvas width
+   * @param {number} duration - Audio duration
+   * @param {number} startTime - Current start time
+   * @param {number} endTime - Current end time
+   * @param {object} audioContext - Audio context
+   * @param {function} callback - Callback để update UI
+   */
+  setupGlobalDragContext(canvasBounds, canvasWidth, duration, startTime, endTime, audioContext, callback) {
+    this.canvasBounds = canvasBounds;
+    this.canvasWidth = canvasWidth;
+    this.audioDuration = duration;
+    this.audioContext = audioContext;
+    this.onGlobalDragUpdate = {
+      startTime: startTime,
+      endTime: endTime,
+      callback: callback
+    };
+    
+    console.log(`🌍 [${this.debugId}] Global drag context SETUP:`, {
+      canvasLeft: canvasBounds.left.toFixed(1),
+      canvasTop: canvasBounds.top.toFixed(1),
+      canvasWidth: canvasWidth,
+      duration: duration.toFixed(2) + 's',
+      selection: `${startTime.toFixed(2)}-${endTime.toFixed(2)}s`,
+      callbackProvided: !!callback,
+      note: 'Ready for global drag outside canvas'
+    });
+  }
+  
+  /**
+   * 🆕 **UPDATE GLOBAL DRAG CONTEXT**: Update current times trong global context
+   * @param {number} startTime - Current start time
+   * @param {number} endTime - Current end time
+   */
+  updateGlobalDragContext(startTime, endTime) {
+    if (this.onGlobalDragUpdate) {
+      this.onGlobalDragUpdate.startTime = startTime;
+      this.onGlobalDragUpdate.endTime = endTime;
+    }
   }
 }
 
