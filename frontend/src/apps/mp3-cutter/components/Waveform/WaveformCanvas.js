@@ -311,7 +311,7 @@ const WaveformCanvas = React.memo(({
         width: responsiveHandleWidth,
         height: height,
         isActive: hoveredHandle === 'start' || isDragging === 'start',
-        color: hoveredHandle === 'start' || isDragging === 'start' ? '#0d9488' : '#14b8a6'
+        color: isDragging === 'start' ? '#0d9488' : '#14b8a6' // 🔧 **DRAG-ONLY COLOR**: Chỉ đổi màu khi drag, không đổi khi hover
       },
       end: {
         visible: true,
@@ -320,7 +320,7 @@ const WaveformCanvas = React.memo(({
         width: responsiveHandleWidth,
         height: height,
         isActive: hoveredHandle === 'end' || isDragging === 'end',
-        color: hoveredHandle === 'end' || isDragging === 'end' ? '#0d9488' : '#14b8a6'
+        color: isDragging === 'end' ? '#0d9488' : '#14b8a6' // 🔧 **DRAG-ONLY COLOR**: Chỉ đổi màu khi drag, không đổi khi hover
       }
     };
   }, [canvasRef, duration, startTime, endTime, hoveredHandle, isDragging, containerWidth]);
