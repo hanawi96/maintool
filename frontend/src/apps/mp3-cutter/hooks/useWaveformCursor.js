@@ -32,38 +32,36 @@ export const useWaveformCursor = (canvasRef, duration, startTime, endTime, isDra
     const startX = (startTime / duration) * canvasWidth;
     const endX = (endTime / duration) * canvasWidth;
     
-    // 🎯 **EXACT VISUAL AREA DETECTION**: Match chính xác với visual area của handle
+    // 🎯 **ZERO DETECTION AREA**: Detection area = 0, chỉ detect khi hover chính xác vào handle
+    // Handle left: từ [startX - 8px] đến [startX]  
+    // Handle right: từ [endX - 8px] đến [endX]
     const startHandleLeftEdge = startX - responsiveHandleWidth; // Visual left edge
     const startHandleRightEdge = startX;                        // Visual right edge  
     const endHandleLeftEdge = endX - responsiveHandleWidth;     // Visual left edge
     const endHandleRightEdge = endX;                            // Visual right edge
     
     if (startTime < endTime) {
+      // 🔧 **EXACT HANDLE AREA ONLY**: Chỉ detect khi mouse nằm chính xác trong visual area của handle
       const overStartHandle = mouseX >= startHandleLeftEdge && mouseX <= startHandleRightEdge;
-      // 🔧 **END HANDLE FIX**: Chỉ detect khi mouse NGOÀI canvas (vì handle được đẩy ra ngoài)
-      const overEndHandle = mouseX >= Math.max(endHandleLeftEdge, canvasWidth) && mouseX <= endHandleRightEdge;
+      const overEndHandle = mouseX >= endHandleLeftEdge && mouseX <= endHandleRightEdge;
       
-      // 🚀 **CURSOR DEBUG**: Log khi detect handle - đặc biệt intensive cho end handle
+      // 🚀 **CURSOR DEBUG**: Log khi detect handle với zero tolerance
       if (overStartHandle || overEndHandle) {
-        const debugLevel = overEndHandle ? '🔴 [END-HANDLE-CURSOR-CRITICAL]' : '🖱️ [CURSOR-DETECT]';
-        console.log(`${debugLevel} Handle detected for cursor change:`, {
+        console.log(`🖱️ [CURSOR-DETECT-ZERO-AREA] Handle detected with ZERO detection area:`, {
           mouseX: mouseX.toFixed(1),
-          startHandle: overStartHandle ? `YES (center: ${startX.toFixed(1)}, dist: ${Math.abs(mouseX - startX).toFixed(1)}, tolerance: ${responsiveHandleWidth})` : 'NO',
-          endHandle: overEndHandle ? `YES (center: ${endX.toFixed(1)}, dist: ${Math.abs(mouseX - endX).toFixed(1)}, tolerance: ${responsiveHandleWidth})` : 'NO',
-          standardTolerance: responsiveHandleWidth + 'px',
+          startHandle: overStartHandle ? {
+            detected: true,
+            visualArea: `[${startHandleLeftEdge.toFixed(1)}, ${startHandleRightEdge.toFixed(1)}]`,
+            width: responsiveHandleWidth + 'px'
+          } : { detected: false },
+          endHandle: overEndHandle ? {
+            detected: true, 
+            visualArea: `[${endHandleLeftEdge.toFixed(1)}, ${endHandleRightEdge.toFixed(1)}]`,
+            width: responsiveHandleWidth + 'px'
+          } : { detected: false },
+          detectionArea: '0px (ZERO TOLERANCE)',
           cursor: 'ew-resize',
-          // 🆕 **END HANDLE SPECIFIC DEBUG**
-          endHandleDebug: overEndHandle ? {
-            endX: endX.toFixed(1),
-            endHandleLeft: (endX - responsiveHandleWidth).toFixed(1),
-            endHandleRight: endX.toFixed(1),
-            endHandleCenter: endX.toFixed(1),
-            mouseDistance: Math.abs(mouseX - endX).toFixed(1),
-            detectionFormula: `|${mouseX.toFixed(1)} - ${endX.toFixed(1)}| = ${Math.abs(mouseX - endX).toFixed(1)} <= ${responsiveHandleWidth}`,
-            detectionSuccess: Math.abs(mouseX - endX) <= responsiveHandleWidth,
-            toleranceIncrease: `+${responsiveHandleWidth - responsiveHandleWidth}px extra for end handle`,
-            userIssueFix: 'Now uses same positioning pattern as start handle + consistent tolerance for cursor detection'
-          } : null
+          userFix: 'Now 8px area before handle right is clickable for cursor movement'
         });
       }
       

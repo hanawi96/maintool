@@ -60,7 +60,7 @@ export const detectHandle = (x, canvasWidth, duration, startTime, endTime, event
   
   // 🚀 **REDUCED TOLERANCE**: Giảm tolerance để precision cao hơn
   const baseDetectionTolerance = responsiveHandleWidth; // 8px base
-  const detectionTolerance = baseDetectionTolerance - 2; // 6px for both handles (giảm từ 10px xuống 6px)
+  const detectionTolerance = 0; // 🔧 **ZERO DETECTION AREA**: Set to 0 so 8px area before handles is clickable
   
   // 🎯 **EXACT VISUAL AREA DETECTION**: Match chính xác với visual area của handle
   const startHandleLeftEdge = startX - responsiveHandleWidth; // Visual left edge  
@@ -68,48 +68,41 @@ export const detectHandle = (x, canvasWidth, duration, startTime, endTime, event
   const endHandleLeftEdge = endX - responsiveHandleWidth;     // Visual left edge
   const endHandleRightEdge = endX;                            // Visual right edge
   
-  // 🎯 **SMART DETECTION**: Chỉ detect handle khi không gây conflict với waveform click
+  // 🎯 **ZERO TOLERANCE DETECTION**: Chỉ detect handle khi mouse nằm chính xác trong visual area
   const startDetected = x >= startHandleLeftEdge && x <= startHandleRightEdge;
-  // 🔧 **END HANDLE FIX**: Chỉ detect khi mouse NGOÀI canvas (vì handle được đẩy ra ngoài)
-  const endDetected = x >= Math.max(endHandleLeftEdge, canvasWidth) && x <= endHandleRightEdge;
+  const endDetected = x >= endHandleLeftEdge && x <= endHandleRightEdge;
   
   // 🔍 **ENHANCED DEBUG**: More detailed logging for end handle issues
   const shouldLogDebug = Math.random() < 0.15 || eventInfo?.forceDebug; // Increased sampling
   
   if (shouldLogDebug || eventInfo?.isHandleEvent) {
-    console.log(`🔍 [HANDLE-DETECTION] FIXED Visual Center Analysis:`, {
+    console.log(`🔍 [HANDLE-DETECTION-ZERO-AREA] Zero Detection Area Analysis:`, {
       mouseX: x.toFixed(1) + 'px',
       startHandle: {
         visualRange: `[${(startX - responsiveHandleWidth).toFixed(1)}, ${startX.toFixed(1)}]`,
-        center: startHandleVisualCenter.toFixed(1) + 'px',
-        tolerance: detectionTolerance + 'px',
-        detected: startDetected
+        detected: startDetected,
+        exactArea: 'Only visual handle area, no extra tolerance'
       },
       endHandle: {
-        visualRange: `[${(endX - responsiveHandleWidth).toFixed(1)}, ${endX.toFixed(1)}]`, // CORRECTED!
-        center: endHandleVisualCenter.toFixed(1) + 'px (FIXED: endX - 4, not endX + 4)',
-        tolerance: detectionTolerance + 'px',
-        strategies: {
-          centerBased: Math.abs(x - endHandleVisualCenter) <= detectionTolerance,
-          rightSide: (x >= endX - 4 && x <= endX + detectionTolerance),
-          extended: (x >= canvasWidth && x <= canvasWidth + 20 && endX >= canvasWidth - responsiveHandleWidth),
-          fullVisual: (x >= endX - responsiveHandleWidth && x <= endX + 4)
-        },
-        detected: endDetected
+        visualRange: `[${(endX - responsiveHandleWidth).toFixed(1)}, ${endX.toFixed(1)}]`,
+        detected: endDetected,
+        exactArea: 'Only visual handle area, no extra tolerance'
       },
-      fix: 'Visual center corrected from endX + 4 to endX - 4 to match UI rendering'
+      detectionArea: '0px (ZERO TOLERANCE)',
+      userFix: '8px area before handle right is now clickable for cursor movement',
+      improvement: 'No more cursor conflicts - precise handle detection only'
     });
   }
   
   if (startDetected) {
-    console.log(`✅ [START-DETECTED] at ${x.toFixed(1)}px (center: ${startHandleVisualCenter.toFixed(1)}px, tolerance: ${detectionTolerance}px)`);
+    console.log(`✅ [START-DETECTED-ZERO-AREA] at ${x.toFixed(1)}px (exact visual area: [${(startX - responsiveHandleWidth).toFixed(1)}, ${startX.toFixed(1)}], zero tolerance)`);
     return HANDLE_TYPES.START;
   }
   
   if (endDetected) {
-    console.log(`✅ [END-DETECTED] at ${x.toFixed(1)}px (center: ${endHandleVisualCenter.toFixed(1)}px, EXPANDED tolerance: ${detectionTolerance}px)`, {
-      improvement: `${detectionTolerance}px tolerance vs ${detectionTolerance}px for start handle`,
-      note: 'End handle now much easier to click anywhere on its surface!'
+    console.log(`✅ [END-DETECTED-ZERO-AREA] at ${x.toFixed(1)}px (exact visual area: [${(endX - responsiveHandleWidth).toFixed(1)}, ${endX.toFixed(1)}], zero tolerance)`, {
+      userFix: '8px area before handle right is now clickable for cursor movement',
+      note: 'Zero tolerance - precise handle detection only'
     });
     return HANDLE_TYPES.END;
   }

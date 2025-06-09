@@ -315,8 +315,8 @@ const WaveformCanvas = React.memo(({
       },
       end: {
         visible: true,
-        x: endX + responsiveHandleWidth,
-        y: 0, 
+        x: endX,
+        y: 0,
         width: responsiveHandleWidth,
         height: height,
         isActive: hoveredHandle === 'end' || isDragging === 'end',
@@ -390,6 +390,8 @@ const WaveformCanvas = React.memo(({
         onHandleMouseDown={handleHandleMouseDown}
         onHandleMouseMove={handleHandleMouseMove}
         onHandleMouseUp={handleHandleMouseUp}
+        isPlaying={isPlaying}
+        isDragging={isDragging}
       />
     </div>
   );
