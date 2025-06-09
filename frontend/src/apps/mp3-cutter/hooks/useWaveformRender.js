@@ -125,70 +125,38 @@ export const useWaveformRender = (canvasRef, waveformData, volume, isDragging, i
     });
   }, [isDragging, isPlaying, hoverTooltip]);
 
-  // 🆕 **RESPONSIVE CANVAS SETUP**: Enhanced with ResizeObserver
-  const setupCanvas = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || !canvas.parentElement) return;
-    
-    const parent = canvas.parentElement;
-    const parentWidth = parent.offsetWidth;
-    const newWidth = Math.max(WAVEFORM_CONFIG.RESPONSIVE.MIN_WIDTH, parentWidth);
-    const newHeight = WAVEFORM_CONFIG.HEIGHT;
-    
-    // Update container width state for adaptive data calculation
-    if (containerWidth !== newWidth) {
-      setContainerWidth(newWidth);
-    }
-    
-    if (canvas.width !== newWidth || canvas.height !== newHeight) {
-      canvas.width = newWidth;
-      canvas.height = newHeight;
-      lastCanvasWidthRef.current = newWidth;
-      
-      // 🎯 **REDRAW TRIGGER**: Force redraw on size change
-      requestRedraw(() => {
-        // Redraw will be handled by parent component
-      });
-    }
-  }, [canvasRef, containerWidth, requestRedraw]);
-
   // 🚀 **ENHANCED RESIZE OBSERVER**: Better responsive handling
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !canvas.parentElement) return;
     
-    // Clean up previous observer
-    if (resizeObserverRef.current) {
-      resizeObserverRef.current.disconnect();
-    }
-    
-    // Setup new ResizeObserver for smooth responsive
-    resizeObserverRef.current = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        // Use requestAnimationFrame to prevent layout thrashing
-        requestAnimationFrame(() => {
-          setupCanvas();
-        });
+    // 🎯 **SMOOTH RESIZE**: Tránh flicker bằng cách không clear canvas ngay lập tức
+    const smoothResize = () => {
+      const parent = canvas.parentElement;
+      const parentWidth = parent.offsetWidth;
+      const newWidth = Math.max(WAVEFORM_CONFIG.RESPONSIVE.MIN_WIDTH, parentWidth);
+      
+      if (containerWidth !== newWidth) {
+        setContainerWidth(newWidth);
+        
+        // 🔥 **IMMEDIATE CANVAS RESIZE**: Resize canvas ngay lập tức để tránh flicker
+        if (canvas.width !== newWidth) {
+          canvas.width = newWidth;
+          canvas.height = WAVEFORM_CONFIG.HEIGHT;
+          lastCanvasWidthRef.current = newWidth;
+        }
       }
-    });
-    
-    // Observe the parent container
-    resizeObserverRef.current.observe(canvas.parentElement);
-    
-    // Initial setup
-    setupCanvas();
-    
-    // Fallback window resize listener
-    const handleWindowResize = () => {
-      requestAnimationFrame(() => {
-        setupCanvas();
-      });
     };
     
-    window.addEventListener('resize', handleWindowResize);
+    // Setup ResizeObserver
+    resizeObserverRef.current = new ResizeObserver(() => {
+      smoothResize();
+    });
+    
+    resizeObserverRef.current.observe(canvas.parentElement);
+    smoothResize(); // Initial setup
     
     return () => {
-      window.removeEventListener('resize', handleWindowResize);
       if (resizeObserverRef.current) {
         resizeObserverRef.current.disconnect();
         resizeObserverRef.current = null;
@@ -198,7 +166,7 @@ export const useWaveformRender = (canvasRef, waveformData, volume, isDragging, i
         animationFrameRef.current = null;
       }
     };
-  }, [setupCanvas]);
+  }, [canvasRef, containerWidth]);
 
   // Lazy loading with intersection observer
   useEffect(() => {
@@ -223,8 +191,6 @@ export const useWaveformRender = (canvasRef, waveformData, volume, isDragging, i
     animatedVolume,
     adaptiveWaveformData,
     requestRedraw,
-    setupCanvas,
-    lastCanvasWidthRef,
-    containerWidth // 🆕 **EXPORT CONTAINER WIDTH**: For use in parent components
+    containerWidth
   };
 };

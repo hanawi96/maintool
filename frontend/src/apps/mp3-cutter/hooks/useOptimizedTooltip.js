@@ -39,6 +39,11 @@ export const useOptimizedTooltip = (canvasRef, duration, currentTime, isPlaying,
   // 🎯 **UNIFIED TIME FORMATTER** - Perfect consistency với CompactTimeSelector
   const formatTime = useCallback(formatTimeUnified, []);
   
+  // 🚀 **RESPONSIVE FIX**: Get effective canvas width (displayed size vs internal size)
+  const getEffectiveCanvasWidth = useCallback((canvas) => {
+    return canvas.getBoundingClientRect().width;
+  }, []);
+  
   // ⚡ **INSTANT MAIN CURSOR CALCULATOR** - Direct calculation từ currentTime
   const calculateMainCursorTooltip = useCallback(() => {
     // 🔧 **SHOW WHEN HAS AUDIO FILE**: Hiện khi có file mp3, không cần đang play
@@ -47,10 +52,11 @@ export const useOptimizedTooltip = (canvasRef, duration, currentTime, isPlaying,
     }
     
     const canvas = canvasRef.current;
-    const cursorX = (currentTime / duration) * canvas.width;
+    const canvasWidth = getEffectiveCanvasWidth(canvas); // 🚀 **RESPONSIVE FIX**
+    const cursorX = (currentTime / duration) * canvasWidth;
     
     // 🔧 **BOUNDARY CHECK**: Ensure cursor trong phạm vi canvas
-    if (cursorX < 0 || cursorX > canvas.width || currentTime < 0 || currentTime > duration) {
+    if (cursorX < 0 || cursorX > canvasWidth || currentTime < 0 || currentTime > duration) {
       return null;
     }
     
@@ -59,7 +65,7 @@ export const useOptimizedTooltip = (canvasRef, duration, currentTime, isPlaying,
       console.log('⚡ [INSTANT-MAIN-CURSOR] Direct calculation from currentTime:', {
         currentTime: `${currentTime.toFixed(3)}s`,
         cursorX: `${cursorX.toFixed(1)}px`,
-        canvasWidth: `${canvas.width}px`,
+        canvasWidth: `${canvasWidth}px`,
         isPlaying,
         hasAudioFile: duration > 0,
         method: 'DIRECT_CALCULATION_FROM_CURRENT_TIME',
@@ -74,7 +80,7 @@ export const useOptimizedTooltip = (canvasRef, duration, currentTime, isPlaying,
       time: currentTime,
       formattedTime: formatTime(currentTime)
     };
-  }, [canvasRef, duration, currentTime, formatTime, isPlaying]);
+  }, [canvasRef, duration, currentTime, formatTime, isPlaying, getEffectiveCanvasWidth]);
   
   // ⚡ **INSTANT HANDLE TOOLTIPS CALCULATOR** - Tính toán trực tiếp từ props
   const calculateHandleTooltips = useCallback(() => {
@@ -83,11 +89,11 @@ export const useOptimizedTooltip = (canvasRef, duration, currentTime, isPlaying,
       return { start: null, end: null, selectionDuration: null };
     }
     
-          const canvasWidth = canvas.width;
-          const startX = (startTime / duration) * canvasWidth;
-          const endX = (endTime / duration) * canvasWidth;
-          const selectionDuration = endTime - startTime;
-          const durationX = (startX + endX) / 2;
+    const canvasWidth = getEffectiveCanvasWidth(canvas); // 🚀 **RESPONSIVE FIX**
+    const startX = (startTime / duration) * canvasWidth;
+    const endX = (endTime / duration) * canvasWidth;
+    const selectionDuration = endTime - startTime;
+    const durationX = (startX + endX) / 2;
           
     // 🔧 **REGION WIDTH CALCULATION**: Tính chiều dài region để ẩn tooltip khi quá nhỏ
     const regionWidthPx = Math.abs(endX - startX);
@@ -137,7 +143,7 @@ export const useOptimizedTooltip = (canvasRef, duration, currentTime, isPlaying,
                 formattedTime: formatTime(selectionDuration)
       } : null // 🔧 **HIDE WHEN TOO SMALL**: Ẩn khi region quá nhỏ
     };
-  }, [canvasRef, duration, startTime, endTime, formatTime, isDragging]);
+  }, [canvasRef, duration, startTime, endTime, formatTime, isDragging, getEffectiveCanvasWidth]);
   
   // ⚡ **INSTANT HOVER CALCULATOR** - Direct calculation từ mouse position
   const calculateHoverTooltip = useCallback(() => {
@@ -149,10 +155,11 @@ export const useOptimizedTooltip = (canvasRef, duration, currentTime, isPlaying,
     
     const canvas = canvasRef.current;
     const { x: mouseX } = hoverMousePosition;
-    const time = (mouseX / canvas.width) * duration;
+    const canvasWidth = getEffectiveCanvasWidth(canvas); // 🚀 **RESPONSIVE FIX**
+    const time = (mouseX / canvasWidth) * duration;
     
     // 🔧 **VALIDATION**: Ensure valid position
-    if (time < 0 || time > duration || mouseX < 0 || mouseX > canvas.width) {
+    if (time < 0 || time > duration || mouseX < 0 || mouseX > canvasWidth) {
       return null;
     }
     
@@ -161,7 +168,7 @@ export const useOptimizedTooltip = (canvasRef, duration, currentTime, isPlaying,
       console.log('⚡ [INSTANT-HOVER] Direct calculation from mouse:', {
         mouseX: `${mouseX.toFixed(1)}px`,
         time: `${time.toFixed(3)}s`,
-        canvasWidth: `${canvas.width}px`,
+        canvasWidth: `${canvasWidth}px`,
         isDragging,
         method: 'DIRECT_CALCULATION_FROM_MOUSE',
         performance: 'ZERO_STATE_DELAY',
@@ -175,7 +182,7 @@ export const useOptimizedTooltip = (canvasRef, duration, currentTime, isPlaying,
       time,
       formattedTime: formatTime(time)
     };
-  }, [isHoverActive, hoverMousePosition, canvasRef, duration, formatTime, isDragging]);
+  }, [isHoverActive, hoverMousePosition, canvasRef, duration, formatTime, isDragging, getEffectiveCanvasWidth]);
   
   // 🚀 **ULTRA INSTANT HOVER UPDATE** - Chỉ track mouse position, calculation ở useMemo
   const updateHoverTooltip = useCallback((mouseEvent) => {

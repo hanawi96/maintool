@@ -52,7 +52,6 @@ const WaveformCanvas = React.memo(({
     animatedVolume,
     adaptiveWaveformData,
     requestRedraw,
-    setupCanvas,
     containerWidth
   } = useWaveformRender(canvasRef, waveformData, volume, isDragging, isPlaying, hoverTooltip);
 
@@ -243,7 +242,7 @@ const WaveformCanvas = React.memo(({
     return Math.max(0.05, Math.min(1.0, fadeMultiplier));
   }, []);
 
-  // 🎯 **OPTIMIZED DRAW FUNCTION**: Ultra-fast rendering
+  // 🎯 **OPTIMIZED DRAW FUNCTION**: Ultra-fast rendering without flicker
   const drawWaveform = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas || !renderData) return;
@@ -251,27 +250,10 @@ const WaveformCanvas = React.memo(({
     const ctx = canvas.getContext('2d');
     const { width, height } = canvas;
     
-    // 🔥 **DEBUG CANVAS DIMENSIONS**: Log canvas info
-    if (Math.random() < 0.05) { // 5% sampling
-      console.log('🖼️ [CANVAS-DEBUG] Canvas dimensions:', {
-        canvasWidth: width,
-        canvasHeight: height,
-        canvasStyle: {
-          width: canvas.style.width,
-          height: canvas.style.height,
-          overflow: canvas.style.overflow || 'default',
-          position: canvas.style.position || 'default'
-        },
-        boundingRect: canvas.getBoundingClientRect(),
-        note: 'Checking if handles are being clipped by canvas bounds'
-      });
-    }
-    
     // 🚀 **PERFORMANCE SETUP**: GPU acceleration
     ctx.imageSmoothingEnabled = false;
-    canvas.style.willChange = 'transform';
     
-    // 🎯 **CLEAR CANVAS**
+    // 🎯 **SMART CLEAR**: Only clear if actually needed
     ctx.clearRect(0, 0, width, height);
     
     // 1. **BACKGROUND GRADIENT**
