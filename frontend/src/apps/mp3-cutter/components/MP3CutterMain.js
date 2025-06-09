@@ -167,7 +167,8 @@ const MP3CutterMain = React.memo(() => {
   // 🎯 **TIME CHANGE HANDLERS**: Extract time change logic using custom hook
   const {
     handleStartTimeChange,
-    handleEndTimeChange
+    handleEndTimeChange,
+    cleanup: cleanupTimeHandlers // 🆕 **EXPOSE CLEANUP**: Get cleanup function
   } = useTimeChangeHandlers({
     startTime,
     endTime,
@@ -191,7 +192,14 @@ const MP3CutterMain = React.memo(() => {
 
       console.log('🎮 [MP3CutterMain] InteractionManager initialized and registered');
     }
-  }, []);
+    
+    // 🧹 **CLEANUP ON UNMOUNT**: Cleanup time handlers để prevent memory leaks
+    return () => {
+      if (cleanupTimeHandlers) {
+        cleanupTimeHandlers();
+      }
+    };
+  }, [cleanupTimeHandlers]);
 
   useEffect(() => {
     const report = generateCompatibilityReport();

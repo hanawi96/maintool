@@ -57,8 +57,7 @@ const ArrowTimeInput = React.memo(({ value, onChange, label, max, min = 0, isSta
     e.stopPropagation();
     
     if (!canIncrease) {
-      console.log(`🚫 [ArrowTimeInput] ${label} UP blocked - at limit`);
-      return;
+      return; // 🚀 **SILENT WHEN BLOCKED**: Không log để reduce noise
     }
     
     // 🔥 **DECISECOND ARITHMETIC**: Hoàn toàn chính xác với integer arithmetic
@@ -70,26 +69,21 @@ const ArrowTimeInput = React.memo(({ value, onChange, label, max, min = 0, isSta
     const clampedDeciseconds = Math.min(newDeciseconds, maxDeciseconds);
     const newValue = clampedDeciseconds / 10; // Convert back to seconds (exact 0.1s multiple)
     
-    // 🔥 **ENHANCED DEBUG**: Show exact deciseconds calculation để verify  
-    console.log(`⬆️ [ArrowTimeInput] ${label} UP PRECISE:`, {
-      original: `${normalizedValue.toFixed(1)}s (${currentDeciseconds}ds)`,
-      step: '+1ds (+0.1s EXACT)',
-      result: `${newValue.toFixed(1)}s (${clampedDeciseconds}ds)`,
-      exact_diff: `+${(newValue - normalizedValue).toFixed(1)}s`,
-      format_display: formattedTime,
-      test_verification: `From ${formattedTime} → Next should show centiseconds ending in: ${((Math.round(((normalizedValue%1)*10 + 1)%10)) * 10).toString().padStart(2,'0')}`
-    });
+    // 🚀 **OPTIMIZED DEBUG**: Chỉ log essential info khi cần debug
+    if (Math.random() < 0.1) { // 10% sampling để giảm noise
+      console.log(`⬆️ [ArrowTimeInput] ${label} UP: ${normalizedValue.toFixed(1)}s → ${newValue.toFixed(1)}s (+0.1s)`);
+    }
     
+    // ⚡ **INSTANT CHANGE**: Call onChange ngay lập tức
     onChange(newValue);
-  }, [normalizedValue, max, onChange, label, canIncrease, formattedTime]);
+  }, [normalizedValue, max, onChange, label, canIncrease]);
 
   const handleArrowDown = useCallback((e) => {
     e.preventDefault();
     e.stopPropagation();
     
     if (!canDecrease) {
-      console.log(`🚫 [ArrowTimeInput] ${label} DOWN blocked - at limit`);
-      return;
+      return; // 🚀 **SILENT WHEN BLOCKED**: Không log để reduce noise
     }
     
     // 🔥 **DECISECOND ARITHMETIC**: Hoàn toàn chính xác với integer arithmetic
@@ -101,18 +95,14 @@ const ArrowTimeInput = React.memo(({ value, onChange, label, max, min = 0, isSta
     const clampedDeciseconds = Math.max(newDeciseconds, minDeciseconds);
     const newValue = clampedDeciseconds / 10; // Convert back to seconds (exact 0.1s multiple)
     
-    // 🔥 **ENHANCED DEBUG**: Show exact deciseconds calculation để verify
-    console.log(`⬇️ [ArrowTimeInput] ${label} DOWN PRECISE:`, {
-      original: `${normalizedValue.toFixed(1)}s (${currentDeciseconds}ds)`,
-      step: '-1ds (-0.1s EXACT)',
-      result: `${newValue.toFixed(1)}s (${clampedDeciseconds}ds)`,
-      exact_diff: `${(newValue - normalizedValue).toFixed(1)}s`,
-      format_display: formattedTime,
-      test_verification: `From ${formattedTime} → Next should show centiseconds ending in: ${(Math.max(0, Math.round(((normalizedValue%1)*10 - 1))) * 10).toString().padStart(2,'0')}`
-    });
+    // 🚀 **OPTIMIZED DEBUG**: Chỉ log essential info khi cần debug
+    if (Math.random() < 0.1) { // 10% sampling để giảm noise
+      console.log(`⬇️ [ArrowTimeInput] ${label} DOWN: ${normalizedValue.toFixed(1)}s → ${newValue.toFixed(1)}s (-0.1s)`);
+    }
     
+    // ⚡ **INSTANT CHANGE**: Call onChange ngay lập tức
     onChange(newValue);
-  }, [normalizedValue, min, onChange, label, canDecrease, formattedTime]);
+  }, [normalizedValue, min, onChange, label, canDecrease]);
 
   // 🎯 EDIT MODE: Click to edit
   const handleClick = useCallback(() => {
