@@ -36,12 +36,25 @@ export const useOptimizedTooltip = (canvasRef, duration, currentTime, isPlaying,
   
   const hoverTimeoutRef = useRef(null);
   
+  // 🚀 **RESIZE TRIGGER STATE** - Force tooltip update on window resize
+  const [resizeTrigger, setResizeTrigger] = useState(0);
+  
   // 🎯 **UNIFIED TIME FORMATTER** - Perfect consistency với CompactTimeSelector
   const formatTime = useCallback(formatTimeUnified, []);
   
-  // 🚀 **RESPONSIVE FIX**: Get effective canvas width (displayed size vs internal size)
-  const getEffectiveCanvasWidth = useCallback((canvas) => {
+  // 🚀 **RESPONSIVE FIX**: Get effective canvas width (no caching for realtime updates)
+  const getEffectiveCanvasWidth = (canvas) => {
     return canvas.getBoundingClientRect().width;
+  };
+  
+  // 🚀 **WINDOW RESIZE LISTENER** - Update tooltips on window resize
+  useEffect(() => {
+    const handleResize = () => {
+      setResizeTrigger(prev => prev + 1);
+    };
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
   
   // ⚡ **INSTANT MAIN CURSOR CALCULATOR** - Direct calculation từ currentTime
@@ -80,7 +93,7 @@ export const useOptimizedTooltip = (canvasRef, duration, currentTime, isPlaying,
       time: currentTime,
       formattedTime: formatTime(currentTime)
     };
-  }, [canvasRef, duration, currentTime, formatTime, isPlaying, getEffectiveCanvasWidth]);
+  }, [canvasRef, duration, currentTime, formatTime, isPlaying, resizeTrigger]);
   
   // ⚡ **INSTANT HANDLE TOOLTIPS CALCULATOR** - Tính toán trực tiếp từ props
   const calculateHandleTooltips = useCallback(() => {
@@ -143,7 +156,7 @@ export const useOptimizedTooltip = (canvasRef, duration, currentTime, isPlaying,
                 formattedTime: formatTime(selectionDuration)
       } : null // 🔧 **HIDE WHEN TOO SMALL**: Ẩn khi region quá nhỏ
     };
-  }, [canvasRef, duration, startTime, endTime, formatTime, isDragging, getEffectiveCanvasWidth]);
+  }, [canvasRef, duration, startTime, endTime, formatTime, isDragging, resizeTrigger]);
   
   // ⚡ **INSTANT HOVER CALCULATOR** - Direct calculation từ mouse position
   const calculateHoverTooltip = useCallback(() => {
@@ -182,7 +195,7 @@ export const useOptimizedTooltip = (canvasRef, duration, currentTime, isPlaying,
       time,
       formattedTime: formatTime(time)
     };
-  }, [isHoverActive, hoverMousePosition, canvasRef, duration, formatTime, isDragging, getEffectiveCanvasWidth]);
+  }, [isHoverActive, hoverMousePosition, canvasRef, duration, formatTime, isDragging, resizeTrigger]);
   
   // 🚀 **ULTRA INSTANT HOVER UPDATE** - Chỉ track mouse position, calculation ở useMemo
   const updateHoverTooltip = useCallback((mouseEvent) => {
