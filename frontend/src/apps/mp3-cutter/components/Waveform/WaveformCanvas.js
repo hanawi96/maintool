@@ -94,6 +94,109 @@ const WaveformCanvas = React.memo(({
     }
   }, [onMouseDown, canvasRef, clearHoverTooltip]);
 
+  // 🆕 **HANDLE EVENT HANDLERS**: Direct handlers cho handles
+  const handleHandleMouseDown = useCallback((e) => {
+    console.log('🤚 [HANDLE-MOUSE-DOWN] Direct handle mouse down:', {
+      handleType: e.handleType,
+      clientX: e.clientX,
+      clientY: e.clientY,
+      isHandleEvent: e.isHandleEvent
+    });
+    
+    // 🔧 **CLEAR HOVER TOOLTIP**: Ẩn hover tooltip khi bắt đầu drag handle
+    clearHoverTooltip();
+    
+    // 🔧 **CONVERT TO CANVAS COORDINATES**: Chuyển đổi handle mouse position thành canvas coordinates
+    const canvas = canvasRef.current;
+    if (canvas && onMouseDown) {
+      const rect = canvas.getBoundingClientRect();
+      
+      // 🔧 **CALCULATE CANVAS POSITION**: Tính toán vị trí trong canvas
+      const canvasX = e.clientX - rect.left;
+      const canvasY = e.clientY - rect.top;
+      
+      // 🔧 **CREATE CANVAS EVENT**: Tạo event tương tự canvas event
+      const canvasEvent = {
+        ...e,
+        clientX: e.clientX, // Giữ nguyên global position
+        clientY: e.clientY,
+        target: canvas, // Set target là canvas
+        currentTarget: canvas,
+        handleType: e.handleType, // Preserve handle type info
+        isHandleEvent: e.isHandleEvent,
+        canvasX: canvasX, // 🆕 **CANVAS COORDINATES**: Thêm canvas coordinates
+        canvasY: canvasY
+      };
+      
+      console.log('🔄 [HANDLE-TO-CANVAS] Converting handle event to canvas event:', {
+        handleType: e.handleType,
+        globalPos: `${e.clientX}, ${e.clientY}`,
+        canvasPos: `${canvasX.toFixed(1)}, ${canvasY.toFixed(1)}`,
+        conversion: 'success'
+      });
+      
+      // 🔧 **FORWARD TO CANVAS HANDLER**: Gọi canvas mouse down handler
+      onMouseDown(canvasEvent);
+    }
+  }, [canvasRef, onMouseDown, clearHoverTooltip]);
+
+  const handleHandleMouseMove = useCallback((e) => {
+    // 🔧 **HANDLE MOUSE MOVE**: Xử lý mouse move trên handle
+    const canvas = canvasRef.current;
+    if (canvas && onMouseMove) {
+      const rect = canvas.getBoundingClientRect();
+      const canvasX = e.clientX - rect.left;
+      const canvasY = e.clientY - rect.top;
+      
+      // 🆕 **CREATE EVENT INFO**: Create eventInfo for cursor update
+      const eventInfo = {
+        isHandleEvent: e.isHandleEvent,
+        handleType: e.handleType,
+        originalEvent: e.originalEvent || e
+      };
+      
+      const canvasEvent = {
+        ...e,
+        clientX: e.clientX,
+        clientY: e.clientY,
+        target: canvas,
+        currentTarget: canvas,
+        handleType: e.handleType,
+        isHandleEvent: e.isHandleEvent,
+        canvasX: canvasX,
+        canvasY: canvasY
+      };
+      
+      // 🔧 **FORWARD TO CANVAS HANDLER**: Gọi canvas mouse move handler
+      onMouseMove(canvasEvent);
+      
+      // 🔧 **UPDATE CURSOR WITH EVENT INFO**: Cập nhật cursor với eventInfo
+      updateCursor(canvasX, eventInfo);
+    }
+  }, [canvasRef, onMouseMove, updateCursor]);
+
+  const handleHandleMouseUp = useCallback((e) => {
+    console.log('🤚 [HANDLE-MOUSE-UP] Direct handle mouse up:', {
+      handleType: e.handleType,
+      isHandleEvent: e.isHandleEvent
+    });
+    
+    // 🔧 **HANDLE MOUSE UP**: Xử lý mouse up trên handle
+    const canvas = canvasRef.current;
+    if (canvas && onMouseUp) {
+      const canvasEvent = {
+        ...e,
+        target: canvas,
+        currentTarget: canvas,
+        handleType: e.handleType,
+        isHandleEvent: e.isHandleEvent
+      };
+      
+      // 🔧 **FORWARD TO CANVAS HANDLER**: Gọi canvas mouse up handler
+      onMouseUp(canvasEvent);
+    }
+  }, [canvasRef, onMouseUp]);
+
   // 🔥 **STABLE RENDER DATA**: Optimized memoization
   const renderData = useMemo(() => {    
     if (!adaptiveWaveformData.length || duration === 0) return null;
@@ -403,6 +506,9 @@ const WaveformCanvas = React.memo(({
         mainCursorTooltip={mainCursorTooltip}
         handlePositions={handlePositions}
         cursorPositions={cursorPositions}
+        onHandleMouseDown={handleHandleMouseDown}
+        onHandleMouseMove={handleHandleMouseMove}
+        onHandleMouseUp={handleHandleMouseUp}
       />
     </div>
   );

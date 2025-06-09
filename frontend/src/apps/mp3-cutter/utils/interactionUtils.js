@@ -26,10 +26,21 @@ export const HANDLE_TYPES = {
  * @param {number} duration - Audio duration in seconds
  * @param {number} startTime - Selection start time in seconds
  * @param {number} endTime - Selection end time in seconds
+ * @param {Object} eventInfo - Additional event information (optional)
  * @returns {string|null} Handle type ('start', 'end', or null)
  */
-export const detectHandle = (x, canvasWidth, duration, startTime, endTime) => {
+export const detectHandle = (x, canvasWidth, duration, startTime, endTime, eventInfo = null) => {
   if (duration === 0 || canvasWidth === 0) return null;
+  
+  // 🆕 **DIRECT HANDLE EVENT**: Nếu event đến từ handle trực tiếp, return ngay
+  if (eventInfo?.isHandleEvent && eventInfo?.handleType) {
+    console.log(`🎯 [DIRECT-HANDLE-DETECT] Direct handle event detected:`, {
+      handleType: eventInfo.handleType,
+      mouseX: x.toFixed(1),
+      note: 'Bypassing detection - using direct handle type from event'
+    });
+    return eventInfo.handleType;
+  }
   
   // 🎯 **MODERN HANDLE DETECTION**: Use modern handle width configuration
   const baseHandleWidth = WAVEFORM_CONFIG.MODERN_HANDLE_WIDTH; // 8px modern handles
@@ -248,19 +259,62 @@ export class InteractionManager {
   }
   
   /**
-   * 🎯 Handle mouse down event with smart click analysis
+   * 🎯 Handle mouse down events with smart logic
+   * @param {number} x - Mouse X position relative to canvas
+   * @param {number} canvasWidth - Canvas width in pixels
+   * @param {number} duration - Audio duration in seconds
+   * @param {number} startTime - Selection start time in seconds
+   * @param {number} endTime - Selection end time in seconds
+   * @param {Object} eventInfo - Additional event information (optional)
+   * @returns {Object} Action result object
    */
-  handleMouseDown(x, canvasWidth, duration, startTime, endTime) {
-    const handle = detectHandle(x, canvasWidth, duration, startTime, endTime);
-    const clickTime = positionToTime(x, canvasWidth, duration);
+  handleMouseDown(x, canvasWidth, duration, startTime, endTime, eventInfo = null) {
+    // 🚨 **RESET PREVIOUS STATE**: Clear any previous interaction state
+    this.state = INTERACTION_STATES.IDLE;
+    this.activeHandle = HANDLE_TYPES.NONE;
+    this.lastHoveredHandle = HANDLE_TYPES.NONE;
+    this.dragStartPosition = null;
+    this.dragStartTime = null;
+    this.isDraggingConfirmed = false;
+    this.isDraggingRegion = false;
+    this.regionDragStartTime = null;
+    this.regionDragOffset = 0;
+    
+    // Clear pending actions
+    this.pendingJumpTime = null;
+    this.hasPendingJump = false;
+    this.pendingHandleUpdate = null;
+    this.hasPendingHandleUpdate = false;
+    
+    // 🆕 **ENHANCED DEBUG**: Log with event info
+    const debugInfo = {
+      mouseX: x.toFixed(1),
+      isHandleEvent: eventInfo?.isHandleEvent || false,
+      handleType: eventInfo?.handleType || 'none',
+      canvasWidth: canvasWidth,
+      duration: duration.toFixed(2) + 's',
+      selection: `${startTime.toFixed(2)}-${endTime.toFixed(2)}s`,
+      debugId: this.debugId
+    };
+    
+    console.log(`🖱️ [${this.debugId}] Mouse down START (MODERN):`, debugInfo);
+    
+    // 🎯 **SMART HANDLE DETECTION**: Updated to use eventInfo
+    const detectedHandle = detectHandle(x, canvasWidth, duration, startTime, endTime, eventInfo);
+    const currentTimePosition = positionToTime(x, canvasWidth, duration);
+    
+    // Record interaction start
+    this.mouseDownTimestamp = performance.now();
+    this.lastMousePosition = { x, y: 0 };
+    this.dragStartPosition = { x, y: 0 };
     
     // 🛡️ **PROTECTION AGAINST EDGE HOVER TRIGGERS**: Ngăn handle movement khi đã ở edge
     const isStartAtEdge = Math.abs(startTime - 0) < 0.1; // Start handle gần đầu file
     const isEndAtEdge = Math.abs(endTime - duration) < 0.1; // End handle gần cuối file
     
     // 🛡️ **BEFORE START PROTECTION**: Nếu click/hover trước start và start đã ở edge
-    if (clickTime < startTime && isStartAtEdge && Math.abs(clickTime - startTime) < 1.0) {
-      console.log(`🛡️ [${this.debugId}] BLOCKING potential start handle movement: start already at edge (${startTime.toFixed(2)}s), ignoring click at ${clickTime.toFixed(2)}s`);
+    if (currentTimePosition < startTime && isStartAtEdge && Math.abs(currentTimePosition - startTime) < 1.0) {
+      console.log(`🛡️ [${this.debugId}] BLOCKING potential start handle movement: start already at edge (${startTime.toFixed(2)}s), ignoring click at ${currentTimePosition.toFixed(2)}s`);
       return {
         action: 'none',
         reason: 'PROTECTED: Start handle already at edge, blocking potential movement',
@@ -269,8 +323,8 @@ export class InteractionManager {
     }
     
     // 🛡️ **AFTER END PROTECTION**: Nếu click/hover sau end và end đã ở edge  
-    if (clickTime > endTime && isEndAtEdge && Math.abs(clickTime - endTime) < 1.0) {
-      console.log(`🛡️ [${this.debugId}] BLOCKING potential end handle movement: end already at edge (${endTime.toFixed(2)}s), ignoring click at ${clickTime.toFixed(2)}s`);
+    if (currentTimePosition > endTime && isEndAtEdge && Math.abs(currentTimePosition - endTime) < 1.0) {
+      console.log(`🛡️ [${this.debugId}] BLOCKING potential end handle movement: end already at edge (${endTime.toFixed(2)}s), ignoring click at ${currentTimePosition.toFixed(2)}s`);
       return {
         action: 'none',
         reason: 'PROTECTED: End handle already at edge, blocking potential movement',
@@ -279,28 +333,26 @@ export class InteractionManager {
     }
     
     // 🆕 **TRACK MOUSE DOWN**: Record mouse down event for drag detection
-    this.mouseDownTimestamp = performance.now();
-    this.lastMousePosition = { x, y: 0 };
     this.isDraggingConfirmed = false;
     
-    console.log(`🖱️ [${this.debugId}] Mouse down (MODERN) WITH PROTECTION:`, {
+    console.log(`🎯 [${this.debugId}] Mouse down (MODERN) WITH PROTECTION:`, {
       x: x.toFixed(1),
-      time: clickTime.toFixed(2) + 's',
-      handle: handle || 'none',
+      time: currentTimePosition.toFixed(2) + 's',
+      handle: detectedHandle || 'none',
       currentRegion: `${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s`,
       timestamp: this.mouseDownTimestamp,
       modernHandles: true,
       protectionStatus: {
         isStartAtEdge,
         isEndAtEdge,
-        clickBeforeStart: clickTime < startTime,
-        clickAfterEnd: clickTime > endTime
+        clickBeforeStart: currentTimePosition < startTime,
+        clickAfterEnd: currentTimePosition > endTime
       }
     });
     
     // 🆕 NEW: Use SmartClickManager for intelligent click analysis
     const smartAction = this.smartClickManager.processClick(
-      clickTime, startTime, endTime, duration, handle
+      currentTimePosition, startTime, endTime, duration, detectedHandle
     );
     
     // 🎯 Process smart action
@@ -340,13 +392,13 @@ export class InteractionManager {
           // 🔧 **SETUP POTENTIAL REGION DRAG**: Prepare for possible region drag on movement
           this.state = INTERACTION_STATES.DRAGGING; // Set drag state but await confirmation
           this.isDraggingRegion = false; // Not yet confirmed as region drag
-          this.regionDragStartTime = clickTime;
-          this.regionDragOffset = clickTime - startTime; // Offset từ click đến start của region
+          this.regionDragStartTime = currentTimePosition;
+          this.regionDragOffset = currentTimePosition - startTime; // Offset từ click đến start của region
           this.dragStartPosition = x;
-          this.dragStartTime = clickTime;
+          this.dragStartTime = currentTimePosition;
           
           console.log(`🔄 [${this.debugId}] JUMP_TO_TIME with region drag potential setup:`, {
-            clickTime: clickTime.toFixed(2) + 's',
+            clickTime: currentTimePosition.toFixed(2) + 's',
             regionStart: startTime.toFixed(2) + 's',
             regionEnd: endTime.toFixed(2) + 's',
             offset: this.regionDragOffset.toFixed(2) + 's',
@@ -421,11 +473,11 @@ export class InteractionManager {
         };
         
       case CLICK_ACTIONS.CREATE_SELECTION:
-        console.log(`🆕 [${this.debugId}] Creating new selection at ${clickTime.toFixed(2)}s`);
+        console.log(`🆕 [${this.debugId}] Creating new selection at ${currentTimePosition.toFixed(2)}s`);
         this.state = INTERACTION_STATES.DRAGGING;
         this.activeHandle = HANDLE_TYPES.END;
         this.dragStartPosition = x;
-        this.dragStartTime = clickTime;
+        this.dragStartTime = currentTimePosition;
         // 🆕 **NOTE**: isDraggingConfirmed still false until movement detected
         
         return {
@@ -437,17 +489,17 @@ export class InteractionManager {
         
       case CLICK_ACTIONS.DRAG_REGION:
         // 🆕 **REGION DRAG**: Setup region dragging
-        console.log(`🔄 [${this.debugId}] Setting up region drag from ${clickTime.toFixed(2)}s`);
+        console.log(`🔄 [${this.debugId}] Setting up region drag from ${currentTimePosition.toFixed(2)}s`);
         this.state = INTERACTION_STATES.DRAGGING;
         this.isDraggingRegion = true;
-        this.regionDragStartTime = clickTime;
-        this.regionDragOffset = clickTime - startTime; // Offset từ click đến start của region
+        this.regionDragStartTime = currentTimePosition;
+        this.regionDragOffset = currentTimePosition - startTime; // Offset từ click đến start của region
         this.dragStartPosition = x;
-        this.dragStartTime = clickTime;
+        this.dragStartTime = currentTimePosition;
         // 🆕 **NOTE**: isDraggingConfirmed still false until movement detected
         
         console.log(`🔄 [${this.debugId}] Region drag setup:`, {
-          clickTime: clickTime.toFixed(2) + 's',
+          clickTime: currentTimePosition.toFixed(2) + 's',
           regionStart: startTime.toFixed(2) + 's',
           regionEnd: endTime.toFixed(2) + 's',
           offset: this.regionDragOffset.toFixed(2) + 's'
@@ -457,7 +509,7 @@ export class InteractionManager {
           action: 'startRegionDrag',
           cursor: smartAction.cursor,
           regionData: {
-            clickTime,
+            clickTime: currentTimePosition,
             offset: this.regionDragOffset,
             originalStart: startTime,
             originalEnd: endTime
@@ -1027,10 +1079,18 @@ export class InteractionManager {
   }
   
   /**
-   * 🎯 Get handle at position (legacy compatibility) - UPDATED FOR MODERN HANDLES
+   * 🎯 Get handle at specific position for cursor management
+   * @param {number} x - Mouse X position relative to canvas
+   * @param {number} canvasWidth - Canvas width in pixels
+   * @param {number} duration - Audio duration in seconds
+   * @param {number} startTime - Selection start time in seconds
+   * @param {number} endTime - Selection end time in seconds
+   * @param {Object} eventInfo - Additional event information (optional)
+   * @returns {string|null} Handle type ('start', 'end', or null)
    */
-  getHandleAtPosition(x, canvasWidth, duration, startTime, endTime) {
-    return detectHandle(x, canvasWidth, duration || 0, startTime || 0, endTime || 0);
+  getHandleAtPosition(x, canvasWidth, duration, startTime, endTime, eventInfo = null) {
+    // 🔧 **USE SAME DETECTION LOGIC**: Sử dụng cùng logic với handleMouseDown
+    return detectHandle(x, canvasWidth, duration, startTime, endTime, eventInfo);
   }
 }
 

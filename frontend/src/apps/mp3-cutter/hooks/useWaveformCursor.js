@@ -6,8 +6,18 @@ export const useWaveformCursor = (canvasRef, duration, startTime, endTime, isDra
   const lastCursorUpdateRef = useRef(0);
 
   // Detect cursor type based on mouse position
-  const detectCursorType = useCallback((mouseX, canvasWidth) => {
+  const detectCursorType = useCallback((mouseX, canvasWidth, eventInfo = null) => {
     if (!canvasWidth || duration === 0) return 'pointer';
+
+    // 🆕 **DIRECT HANDLE EVENT**: Nếu event từ handle trực tiếp, return resize cursor
+    if (eventInfo?.isHandleEvent && eventInfo?.handleType) {
+      console.log(`🖱️ [CURSOR-DIRECT] Handle event detected, cursor: ew-resize`, {
+        handleType: eventInfo.handleType,
+        mouseX: mouseX.toFixed(1),
+        source: 'DIRECT_HANDLE'
+      });
+      return 'ew-resize';
+    }
 
     // Priority 1: Region drag cursor
     if (isDragging === 'region' || isDragging === 'region-potential') {
@@ -25,7 +35,7 @@ export const useWaveformCursor = (canvasRef, duration, startTime, endTime, isDra
     // 🔧 **SYNC WITH INTERACTION UTILS**: Sử dụng chính xác cùng logic
     const startHandleVisualCenter = startX - (responsiveHandleWidth / 2); // startX - 4
     const endHandleVisualCenter = endX + (responsiveHandleWidth / 2);     // endX + 4
-    const detectionTolerance = responsiveHandleWidth / 2 + 2; // 6px total
+    const detectionTolerance = responsiveHandleWidth / 2 + 2;
     
     if (startTime < endTime) {
       const overStartHandle = Math.abs(mouseX - startHandleVisualCenter) <= detectionTolerance;
@@ -113,76 +123,33 @@ export const useWaveformCursor = (canvasRef, duration, startTime, endTime, isDra
     }
   }, []);
 
-  // Update cursor
-  const updateCursor = useCallback((mouseX) => {
-    const now = performance.now();
-    
-    let throttleInterval;
-    if (isDragging === 'region' || isDragging === 'region-potential') {
-      throttleInterval = 4; // Giảm từ 8ms xuống 4ms cho region drag
-    } else if (currentCursorRef.current === 'ew-resize') {
-      throttleInterval = 2; // Giảm từ 8ms xuống 2ms cho handle hover - SIÊU NHẠY
-    } else {
-      // 🚀 **ENHANCED LOGIC**: Check if mouse is near handles to use faster update
-      const canvas = canvasRef.current;
-      if (canvas && duration > 0) {
-        const canvasWidth = canvas.width;
-        const responsiveHandleWidth = canvasWidth < WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT ? 
-          Math.max(6, WAVEFORM_CONFIG.MODERN_HANDLE_WIDTH * 0.8) : WAVEFORM_CONFIG.MODERN_HANDLE_WIDTH;
-        
-        const startX = (startTime / duration) * canvasWidth;
-        const endX = (endTime / duration) * canvasWidth;
-        
-        // 🔧 **SYNC WITH NEW DETECTION**: Sử dụng detection position mới
-        const startHandleVisualCenter = startX - (responsiveHandleWidth / 2);
-        const endHandleVisualCenter = endX + (responsiveHandleWidth / 2);
-        const detectionTolerance = responsiveHandleWidth / 2 + 2;
-        
-        // Check if mouse is near any handle (với visual position chính xác)
-        const nearStartHandle = Math.abs(mouseX - startHandleVisualCenter) <= detectionTolerance * 1.5; // 1.5x tolerance for pre-detection
-        const nearEndHandle = Math.abs(mouseX - endHandleVisualCenter) <= detectionTolerance * 1.5;
-        
-        if (nearStartHandle || nearEndHandle) {
-          throttleInterval = 4; // Faster update when near handles
-          
-          // 🚀 **DEBUG ENHANCED DETECTION**: Log when using enhanced detection với visual sync
-          if (Math.random() < 0.02) { // 2% sampling
-            console.log('🎯 [ENHANCED-CURSOR] Near handle detected - VISUAL SYNC:', {
-              mouseX: mouseX.toFixed(1),
-              startHandleCenter: startHandleVisualCenter.toFixed(1),
-              endHandleCenter: endHandleVisualCenter.toFixed(1),
-              handleTolerance: detectionTolerance.toFixed(1),
-              nearStart: nearStartHandle,
-              nearEnd: nearEndHandle,
-              throttleInterval: throttleInterval + 'ms',
-              improvement: 'PERFECT SYNC - detection khớp visual position'
-            });
-          }
-        } else {
-          throttleInterval = 8; // Normal rate for other areas
-        }
-      } else {
-        throttleInterval = 8; // Fallback
-      }
-    }
-    
-    if (now - lastCursorUpdateRef.current < throttleInterval) return;
-    lastCursorUpdateRef.current = now;
-
+  // Update cursor based on mouse position
+  const updateCursor = useCallback((mouseX, eventInfo = null) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const newCursor = detectCursorType(mouseX, canvas.width);
-    
-    const isLeavingHandle = currentCursorRef.current === 'ew-resize' && newCursor !== 'ew-resize';
-    const isEnteringHandle = currentCursorRef.current !== 'ew-resize' && newCursor === 'ew-resize';
-    const shouldForceUpdate = isLeavingHandle || isEnteringHandle;
-    
-    if (newCursor !== currentCursorRef.current || shouldForceUpdate) {
-      const finalCursor = applyCursorWithFallbacks(canvas, newCursor);
-      currentCursorRef.current = finalCursor;
+    // 🚀 **THROTTLE CURSOR UPDATES**: Limit to 120fps for performance
+    const now = performance.now();
+    if (now - lastCursorUpdateRef.current < 8) return; // 8ms = 120fps
+    lastCursorUpdateRef.current = now;
+
+    const canvasWidth = canvas.width;
+    const newCursor = detectCursorType(mouseX, canvasWidth, eventInfo);
+
+    // 🚀 **ONLY UPDATE IF CHANGED**: Prevent excessive DOM updates
+    if (newCursor !== currentCursorRef.current) {
+      canvas.style.cursor = newCursor;
+      currentCursorRef.current = newCursor;
+      
+      // 🔧 **CURSOR CHANGE LOG**: Enhanced logging với eventInfo
+      console.log(`🖱️ [CURSOR-UPDATE] Cursor changed to: ${newCursor}`, {
+        mouseX: mouseX.toFixed(1),
+        previous: currentCursorRef.current,
+        eventSource: eventInfo?.isHandleEvent ? 'HANDLE' : 'CANVAS',
+        handleType: eventInfo?.handleType || 'none'
+      });
     }
-  }, [canvasRef, detectCursorType, applyCursorWithFallbacks, isDragging]);
+  }, [canvasRef, detectCursorType]);
 
   // Reset cursor
   const resetCursor = useCallback(() => {

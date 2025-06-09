@@ -53,9 +53,23 @@ export const useInteractionHandlers = ({
     const rect = canvasRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     
-    // 🎯 Use InteractionManager for smart handling
+    // 🆕 **EXTRACT EVENT INFO**: Extract additional event information
+    const eventInfo = {
+      isHandleEvent: e.isHandleEvent || false,
+      handleType: e.handleType || null,
+      originalEvent: e.originalEvent || e
+    };
+    
+    console.log('🖱️ [MOUSE-DOWN] Event info extracted:', {
+      isHandleEvent: eventInfo.isHandleEvent,
+      handleType: eventInfo.handleType,
+      mouseX: x.toFixed(1),
+      eventSource: eventInfo.isHandleEvent ? 'HANDLE' : 'CANVAS'
+    });
+    
+    // 🎯 Use InteractionManager for smart handling with eventInfo
     const result = interactionManagerRef.current.handleMouseDown(
-      x, canvasRef.current.width, duration, startTime, endTime
+      x, canvasRef.current.width, duration, startTime, endTime, eventInfo
     );
     
     // 🎯 Process action based on result

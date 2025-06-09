@@ -2,7 +2,10 @@ import React, { useEffect, useRef, memo } from 'react';
 import { WAVEFORM_CONFIG } from '../../utils/constants.js';
 
 // 🚀 **ULTRA-OPTIMIZED COMPONENT** - Loại bỏ excessive re-renders
-export const WaveformUI = memo(({ hoverTooltip, handleTooltips, mainCursorTooltip, handlePositions, cursorPositions }) => {
+export const WaveformUI = memo(({ hoverTooltip, handleTooltips, mainCursorTooltip, handlePositions, cursorPositions, 
+  // 🆕 **INTERACTION PROPS**: Thêm props cần thiết cho direct handle interaction
+  onHandleMouseDown, onHandleMouseMove, onHandleMouseUp 
+}) => {
   // 🔧 **MINIMAL DEBUG REFS** - Chỉ track cần thiết
   const renderCountRef = useRef(0);
   const lastLogTimeRef = useRef(0);
@@ -659,7 +662,7 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, mainCursorToolti
             height: `${handlePositions.start.height}px`,
             backgroundColor: handlePositions.start.color,
             pointerEvents: 'auto', // 🔧 **ENABLE MOUSE EVENTS**: Cho phép mouse events trên handles
-            borderRadius: '6px 0 0 6px', // 🎨 **LEFT HANDLE RADIUS**: Top-left và bottom-left có 4px radius
+            borderRadius: '4px 0 0 4px', // 🎨 **PROPER RADIUS**: 4px như yêu cầu user
             transition: 'background-color 150ms ease', // Smooth color transitions
             zIndex: 40, // Higher than waveform, lower than tooltips
             cursor: 'ew-resize' // 🔧 **DIRECT CURSOR**: Set cursor trực tiếp trên handle
@@ -671,26 +674,54 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, mainCursorToolti
             console.log('🎯 [HANDLE-HOVER] START handle unhovered - direct event');
           }}
           onMouseDown={(e) => {
-            console.log('🎯 [HANDLE-DRAG] START handle mouse down - forwarding to canvas');
-            // 🔧 **FORWARD TO CANVAS**: Simulate canvas mouse down tại start position
-            const canvas = document.querySelector('canvas');
-            if (canvas) {
-              const rect = canvas.getBoundingClientRect();
+            console.log('🎯 [HANDLE-DRAG] START handle mouse down - direct interaction');
+            
+            // 🔧 **DIRECT INTERACTION**: Gọi trực tiếp handle mouse down handler
+            if (onHandleMouseDown) {
+              // Tạo event object tương tự canvas event
               const syntheticEvent = {
-                clientX: rect.left + handlePositions.start.x, // startX position trong canvas
-                clientY: rect.top + rect.height / 2,
-                preventDefault: () => {},
-                stopPropagation: () => {}
+                ...e,
+                clientX: e.clientX, // Giữ nguyên mouse position
+                clientY: e.clientY,
+                handleType: 'start', // 🆕 **HANDLE TYPE**: Thêm thông tin handle type
+                originalEvent: e,
+                isHandleEvent: true // 🆕 **HANDLE FLAG**: Đánh dấu đây là handle event
               };
               
-              // Trigger canvas mouse down handler
-              const canvasHandlers = canvas._reactInternalInstance || canvas._reactInternalFiber;
-              if (canvas.onmousedown) {
-                canvas.onmousedown(syntheticEvent);
-              }
+              onHandleMouseDown(syntheticEvent);
             }
+            
+            // 🚫 **PREVENT DEFAULT**: Ngăn browser default behavior
             e.preventDefault();
             e.stopPropagation();
+          }}
+          onMouseMove={(e) => {
+            // 🔧 **DIRECT MOUSE MOVE**: Handle mouse move on handle
+            if (onHandleMouseMove) {
+              const syntheticEvent = {
+                ...e,
+                clientX: e.clientX,
+                clientY: e.clientY,
+                handleType: 'start',
+                originalEvent: e,
+                isHandleEvent: true
+              };
+              
+              onHandleMouseMove(syntheticEvent);
+            }
+          }}
+          onMouseUp={(e) => {
+            // 🔧 **DIRECT MOUSE UP**: Handle mouse up on handle
+            if (onHandleMouseUp) {
+              const syntheticEvent = {
+                ...e,
+                handleType: 'start',
+                originalEvent: e,
+                isHandleEvent: true
+              };
+              
+              onHandleMouseUp(syntheticEvent);
+            }
           }}
         />
       )}
@@ -706,7 +737,7 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, mainCursorToolti
             height: `${handlePositions.end.height}px`,
             backgroundColor: handlePositions.end.color,
             pointerEvents: 'auto', // 🔧 **ENABLE MOUSE EVENTS**: Cho phép mouse events trên handles
-            borderRadius: '0 6px 6px 0', // 🎨 **RIGHT HANDLE RADIUS**: Top-right và bottom-right có 4px radius
+            borderRadius: '0 4px 4px 0', // 🎨 **PROPER RADIUS**: 4px như yêu cầu user
             transition: 'background-color 150ms ease', // Smooth color transitions
             zIndex: 40, // Higher than waveform, lower than tooltips
             cursor: 'ew-resize' // 🔧 **DIRECT CURSOR**: Set cursor trực tiếp trên handle
@@ -718,25 +749,54 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, mainCursorToolti
             console.log('🎯 [HANDLE-HOVER] END handle unhovered - direct event');
           }}
           onMouseDown={(e) => {
-            console.log('🎯 [HANDLE-DRAG] END handle mouse down - forwarding to canvas');
-            // 🔧 **FORWARD TO CANVAS**: Simulate canvas mouse down tại end position
-            const canvas = document.querySelector('canvas');
-            if (canvas) {
-              const rect = canvas.getBoundingClientRect();
+            console.log('🎯 [HANDLE-DRAG] END handle mouse down - direct interaction');
+            
+            // 🔧 **DIRECT INTERACTION**: Gọi trực tiếp handle mouse down handler
+            if (onHandleMouseDown) {
+              // Tạo event object tương tự canvas event
               const syntheticEvent = {
-                clientX: rect.left + handlePositions.end.x, // endX position trong canvas
-                clientY: rect.top + rect.height / 2,
-                preventDefault: () => {},
-                stopPropagation: () => {}
+                ...e,
+                clientX: e.clientX, // Giữ nguyên mouse position
+                clientY: e.clientY,
+                handleType: 'end', // 🆕 **HANDLE TYPE**: Thêm thông tin handle type
+                originalEvent: e,
+                isHandleEvent: true // 🆕 **HANDLE FLAG**: Đánh dấu đây là handle event
               };
               
-              // Trigger canvas mouse down handler
-              if (canvas.onmousedown) {
-                canvas.onmousedown(syntheticEvent);
-              }
+              onHandleMouseDown(syntheticEvent);
             }
+            
+            // 🚫 **PREVENT DEFAULT**: Ngăn browser default behavior
             e.preventDefault();
             e.stopPropagation();
+          }}
+          onMouseMove={(e) => {
+            // 🔧 **DIRECT MOUSE MOVE**: Handle mouse move on handle
+            if (onHandleMouseMove) {
+              const syntheticEvent = {
+                ...e,
+                clientX: e.clientX,
+                clientY: e.clientY,
+                handleType: 'end',
+                originalEvent: e,
+                isHandleEvent: true
+              };
+              
+              onHandleMouseMove(syntheticEvent);
+            }
+          }}
+          onMouseUp={(e) => {
+            // 🔧 **DIRECT MOUSE UP**: Handle mouse up on handle
+            if (onHandleMouseUp) {
+              const syntheticEvent = {
+                ...e,
+                handleType: 'end',
+                originalEvent: e,
+                isHandleEvent: true
+              };
+              
+              onHandleMouseUp(syntheticEvent);
+            }
           }}
         />
       )}
