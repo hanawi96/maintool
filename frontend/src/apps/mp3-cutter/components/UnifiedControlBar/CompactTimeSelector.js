@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback, useMemo, useEffect } from 'react';
+import { formatTimeUnified } from '../../utils/timeFormatter';
 
 // 🎯 **ARROW TIME INPUT** - Input with up/down arrows for 0.1s increments
 const ArrowTimeInput = React.memo(({ value, onChange, label, max, min = 0, isStartTime = false, isEndTime = false, duration = 0 }) => {
@@ -13,17 +14,9 @@ const ArrowTimeInput = React.memo(({ value, onChange, label, max, min = 0, isSta
     return Math.round(value * 10) / 10;
   }, [value]);
 
-  // 🎯 **HIỂN THỊ THỜI GIAN**: Format MM.SS.CS (minutes.seconds.centiseconds - 2 chữ số cuối) - GIỮ NGUYÊN FORMAT CŨ
+  // 🎯 **UNIFIED TIME FORMATTING**: Sử dụng formatTimeUnified để perfect consistency với tooltip
   const formattedTime = useMemo(() => {
-    const stableValue = normalizedValue; // Sử dụng normalized value
-    const minutes = Math.floor(stableValue / 60);
-    const seconds = Math.floor(stableValue % 60);
-    const deciseconds = Math.round((stableValue % 1) * 10); // Extract deciseconds (0-9)
-    
-    // 🔥 **FORMAT MM.SS.CS**: Hiển thị theo format cũ với centiseconds (luôn là bội số của 10)
-    // Vì tăng/giảm 0.1s nên centiseconds sẽ luôn là: 00, 10, 20, 30, 40, 50, 60, 70, 80, 90
-    const centiseconds = deciseconds * 10; // Convert deciseconds to centiseconds display
-    return `${minutes.toString().padStart(2, '0')}.${seconds.toString().padStart(2, '0')}.${centiseconds.toString().padStart(2, '0')}`;
+    return formatTimeUnified(normalizedValue);
   }, [normalizedValue]);
 
   // 🎯 **SMART DISABLE LOGIC**: Logic disable với DECISECOND ARITHMETIC cho consistency

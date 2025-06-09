@@ -42,21 +42,34 @@ export const formatTimeWithMs = (time) => {
 };
 
 /**
- * �� **FORMAT TIME WITH CENTISECONDS** - Format MM.SS.CS với 0.1s precision cho consistency
+ * 🎯 **UNIFIED TIME FORMATTER** - Single source of truth cho tất cả time displays
+ * 🔥 **PERFECT CONSISTENCY**: Đảm bảo CompactTimeSelector và tooltip hiển thị y hệt nhau
  * @param {number} time - Time in seconds
- * @returns {string} - Formatted time string with centiseconds (0.1s steps)
+ * @returns {string} - Formatted time string MM.SS.CS with perfect 0.1s precision
  */
-export const formatTimeWithCS = (time) => {
-  // 🔥 **NORMALIZE TO 0.1s**: Đảm bảo time là multiple của 0.1s
-  const normalizedTime = Math.round(time * 10) / 10;
+export const formatTimeUnified = (time) => {
+  if (typeof time !== 'number' || isNaN(time)) return '00.00.00';
+  
+  // 🔥 **DECISECOND ARITHMETIC**: Same exact logic as CompactTimeSelector
+  const normalizedTime = Math.round(time * 10) / 10; // Round to 0.1s precision
   const minutes = Math.floor(normalizedTime / 60);
   const seconds = Math.floor(normalizedTime % 60);
   const deciseconds = Math.round((normalizedTime % 1) * 10); // Extract deciseconds (0-9)
   
-  // 🔥 **FORMAT MM.SS.CS**: Convert deciseconds to centiseconds display (00, 10, 20, etc.)
-  const centiseconds = deciseconds * 10;
+  // 🔥 **CENTISECONDS DISPLAY**: Convert to display format (00, 10, 20, 30...)
+  const centiseconds = deciseconds * 10; // Always multiples of 10
+  
   return `${minutes.toString().padStart(2, '0')}.${seconds.toString().padStart(2, '0')}.${centiseconds.toString().padStart(2, '0')}`;
 };
+
+/**
+ * 🔄 **UPDATE EXISTING FUNCTION**: Use unified logic
+ * 🎯 **FORMAT TIME WITH CENTISECONDS** - Format MM.SS.CS với 0.1s precision cho consistency
+ * 🚀 **UPDATED**: Same exact logic as CompactTimeSelector để đảm bảo perfect consistency
+ * @param {number} time - Time in seconds
+ * @returns {string} - Formatted time string with centiseconds (0.1s steps)
+ */
+export const formatTimeWithCS = formatTimeUnified;
 
 /**
  * 🕒 **SMART TIME FORMATTER** - Auto-choose format based on context
@@ -73,8 +86,10 @@ export const formatTimeContext = (time, context = 'display') => {
       // For time inputs - MM:SS.mmm
       return formatTimeWithMs(time);
     case 'selector':
-      // For time selectors with 0.1s precision - MM.SS.CS
-      return formatTimeWithCS(time);
+    case 'tooltip':
+    case 'unified':
+      // 🚀 **UNIFIED FORMAT**: For time selectors và tooltips - MM.SS.CS với perfect consistency
+      return formatTimeUnified(time);
     case 'display':
     default:
       // Default display - MM:SS.mmm

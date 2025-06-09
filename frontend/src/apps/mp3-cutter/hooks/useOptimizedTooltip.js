@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { formatTimeUnified } from '../utils/timeFormatter';
 
 /**
  * 🚀 **ULTRA INSTANT TOOLTIP HOOK** - Zero delay cho tất cả tooltips
@@ -9,6 +10,7 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
  * - ⚡ **INSTANT MAIN CURSOR TOOLTIP**: Direct calculation từ currentTime - ZERO DELAY
  * - 🔥 **NO DELAYS**: Loại bỏ timeouts và animation frames
  * - 🎯 **SMART DURATION HIDING**: Ẩn duration tooltip khi region quá nhỏ
+ * - 🔥 **PERFECT CONSISTENCY**: Unified time formatter cho consistency với CompactTimeSelector
  */
 
 // 🎯 **DURATION TOOLTIP CONSTANTS**
@@ -34,14 +36,8 @@ export const useOptimizedTooltip = (canvasRef, duration, currentTime, isPlaying,
   
   const hoverTimeoutRef = useRef(null);
   
-  // 🎯 **TIME FORMATTER**
-  const formatTime = useCallback((time) => {
-    if (typeof time !== 'number' || isNaN(time)) return '00.00.00';
-    const minutes = Math.floor(time / 60);
-    const seconds = Math.floor(time % 60);
-    const centiseconds = Math.floor((time % 1) * 100);
-    return `${minutes.toString().padStart(2, '0')}.${seconds.toString().padStart(2, '0')}.${centiseconds.toString().padStart(2, '0')}`;
-  }, []);
+  // 🎯 **UNIFIED TIME FORMATTER** - Perfect consistency với CompactTimeSelector
+  const formatTime = useCallback(formatTimeUnified, []);
   
   // ⚡ **INSTANT MAIN CURSOR CALCULATOR** - Direct calculation từ currentTime
   const calculateMainCursorTooltip = useCallback(() => {
