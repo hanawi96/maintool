@@ -116,9 +116,18 @@ export const useWaveformRender = (canvasRef, waveformData, volume, isDragging, i
         minInterval = 16;  // 60fps for static
       }
       
-      if (timestamp - lastDrawTimeRef.current >= minInterval) {
+      // 🚀 **RESIZE THROTTLING**: Extra throttling during potential resize
+      const timeSinceLastDraw = timestamp - lastDrawTimeRef.current;
+      if (timeSinceLastDraw >= minInterval) {
         if (drawFunction) drawFunction();
         lastDrawTimeRef.current = timestamp;
+      } else {
+        // 🔄 **RE-SCHEDULE**: Re-schedule if too soon
+        animationFrameRef.current = requestAnimationFrame((nextTimestamp) => {
+          if (drawFunction) drawFunction();
+          lastDrawTimeRef.current = nextTimestamp;
+        });
+        return;
       }
       
       animationFrameRef.current = null;
@@ -130,33 +139,60 @@ export const useWaveformRender = (canvasRef, waveformData, volume, isDragging, i
     const canvas = canvasRef.current;
     if (!canvas || !canvas.parentElement) return;
     
-    // 🎯 **SMOOTH RESIZE**: Tránh flicker bằng cách không clear canvas ngay lập tức
+    let resizeTimeoutId = null;
+    let lastResizeTime = 0;
+    
+    // 🚀 **SMOOTH RESIZE WITH DEBOUNCE**: Tránh nhấp nháy với debounce
     const smoothResize = () => {
+      const now = performance.now();
+      if (now - lastResizeTime < 16) return; // Throttle to 60fps
+      lastResizeTime = now;
+      
       const parent = canvas.parentElement;
       const parentWidth = parent.offsetWidth;
       const newWidth = Math.max(WAVEFORM_CONFIG.RESPONSIVE.MIN_WIDTH, parentWidth);
       
-      if (containerWidth !== newWidth) {
+      if (Math.abs(containerWidth - newWidth) > 2) { // Only update if significant change
+        // 🔥 **PRESERVE CANVAS CONTENT**: Không clear canvas ngay lập tức
+        const imageData = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+        
         setContainerWidth(newWidth);
         
-        // 🔥 **IMMEDIATE CANVAS RESIZE**: Resize canvas ngay lập tức để tránh flicker
-        if (canvas.width !== newWidth) {
+        // 🔥 **IMMEDIATE CANVAS RESIZE**: Resize canvas với preserved content
+        if (Math.abs(canvas.width - newWidth) > 2) {
           canvas.width = newWidth;
           canvas.height = WAVEFORM_CONFIG.HEIGHT;
+          
+          // 🚀 **RESTORE CONTENT TEMPORARILY**: Restore content để tránh flicker
+          canvas.getContext('2d').putImageData(imageData, 0, 0);
+          
           lastCanvasWidthRef.current = newWidth;
         }
       }
     };
     
-    // Setup ResizeObserver
-    resizeObserverRef.current = new ResizeObserver(() => {
+    // 🚀 **DEBOUNCED RESIZE HANDLER**: Debounce resize events
+    const debouncedResize = () => {
+      if (resizeTimeoutId) clearTimeout(resizeTimeoutId);
+      
+      // Immediate resize for visual smoothness
       smoothResize();
-    });
+      
+      // Debounced final resize for accuracy
+      resizeTimeoutId = setTimeout(() => {
+        smoothResize();
+        resizeTimeoutId = null;
+      }, 150);
+    };
+    
+    // Setup ResizeObserver with debouncing
+    resizeObserverRef.current = new ResizeObserver(debouncedResize);
     
     resizeObserverRef.current.observe(canvas.parentElement);
     smoothResize(); // Initial setup
     
     return () => {
+      if (resizeTimeoutId) clearTimeout(resizeTimeoutId);
       if (resizeObserverRef.current) {
         resizeObserverRef.current.disconnect();
         resizeObserverRef.current = null;
