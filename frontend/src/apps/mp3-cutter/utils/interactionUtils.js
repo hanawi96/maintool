@@ -58,27 +58,20 @@ export const detectHandle = (x, canvasWidth, duration, startTime, endTime, event
   const startHandleVisualCenter = startX - (responsiveHandleWidth / 2); // startX - 4 ✅
   const endHandleVisualCenter = endX - (responsiveHandleWidth / 2);     // endX - 4 ✅ FIXED!
   
-  // 🚀 **OPTIMIZED TOLERANCE**: Better tolerance distribution
+  // 🚀 **REDUCED TOLERANCE**: Giảm tolerance để precision cao hơn
   const baseDetectionTolerance = responsiveHandleWidth; // 8px base
-  const startDetectionTolerance = baseDetectionTolerance + 2; // 10px for start
-  const endDetectionTolerance = baseDetectionTolerance + 8;   // 16px for end (more forgiving)
+  const detectionTolerance = baseDetectionTolerance - 2; // 6px for both handles (giảm từ 10px xuống 6px)
   
-  // 🆕 **ENHANCED END DETECTION**: Multiple detection strategies for end handle
-  const startDetected = Math.abs(x - startHandleVisualCenter) <= startDetectionTolerance;
+  // 🎯 **EXACT VISUAL AREA DETECTION**: Match chính xác với visual area của handle
+  const startHandleLeftEdge = startX - responsiveHandleWidth; // Visual left edge  
+  const startHandleRightEdge = startX;                        // Visual right edge
+  const endHandleLeftEdge = endX - responsiveHandleWidth;     // Visual left edge
+  const endHandleRightEdge = endX;                            // Visual right edge
   
-  // 🔥 **MULTI-STRATEGY END DETECTION**: Comprehensive approach for end handle
-  const endDetected = 
-    // Strategy 1: Standard center-based detection with expanded tolerance
-    Math.abs(x - endHandleVisualCenter) <= endDetectionTolerance ||
-    
-    // Strategy 2: Right-side detection (for clicks on right part of handle)
-    (x >= endX - 4 && x <= endX + endDetectionTolerance) ||
-    
-    // Strategy 3: Extended right detection (for edge cases and outside canvas)
-    (x >= canvasWidth && x <= canvasWidth + 20 && endX >= canvasWidth - responsiveHandleWidth) ||
-    
-    // Strategy 4: Full visual area detection (backup - covers entire visual handle)
-    (x >= endX - responsiveHandleWidth && x <= endX + 4);
+  // 🎯 **SMART DETECTION**: Chỉ detect handle khi không gây conflict với waveform click
+  const startDetected = x >= startHandleLeftEdge && x <= startHandleRightEdge;
+  // 🔧 **END HANDLE FIX**: Chỉ detect khi mouse NGOÀI canvas (vì handle được đẩy ra ngoài)
+  const endDetected = x >= Math.max(endHandleLeftEdge, canvasWidth) && x <= endHandleRightEdge;
   
   // 🔍 **ENHANCED DEBUG**: More detailed logging for end handle issues
   const shouldLogDebug = Math.random() < 0.15 || eventInfo?.forceDebug; // Increased sampling
@@ -89,16 +82,16 @@ export const detectHandle = (x, canvasWidth, duration, startTime, endTime, event
       startHandle: {
         visualRange: `[${(startX - responsiveHandleWidth).toFixed(1)}, ${startX.toFixed(1)}]`,
         center: startHandleVisualCenter.toFixed(1) + 'px',
-        tolerance: startDetectionTolerance + 'px',
+        tolerance: detectionTolerance + 'px',
         detected: startDetected
       },
       endHandle: {
         visualRange: `[${(endX - responsiveHandleWidth).toFixed(1)}, ${endX.toFixed(1)}]`, // CORRECTED!
         center: endHandleVisualCenter.toFixed(1) + 'px (FIXED: endX - 4, not endX + 4)',
-        tolerance: endDetectionTolerance + 'px',
+        tolerance: detectionTolerance + 'px',
         strategies: {
-          centerBased: Math.abs(x - endHandleVisualCenter) <= endDetectionTolerance,
-          rightSide: (x >= endX - 4 && x <= endX + endDetectionTolerance),
+          centerBased: Math.abs(x - endHandleVisualCenter) <= detectionTolerance,
+          rightSide: (x >= endX - 4 && x <= endX + detectionTolerance),
           extended: (x >= canvasWidth && x <= canvasWidth + 20 && endX >= canvasWidth - responsiveHandleWidth),
           fullVisual: (x >= endX - responsiveHandleWidth && x <= endX + 4)
         },
@@ -109,13 +102,13 @@ export const detectHandle = (x, canvasWidth, duration, startTime, endTime, event
   }
   
   if (startDetected) {
-    console.log(`✅ [START-DETECTED] at ${x.toFixed(1)}px (center: ${startHandleVisualCenter.toFixed(1)}px, tolerance: ${startDetectionTolerance}px)`);
+    console.log(`✅ [START-DETECTED] at ${x.toFixed(1)}px (center: ${startHandleVisualCenter.toFixed(1)}px, tolerance: ${detectionTolerance}px)`);
     return HANDLE_TYPES.START;
   }
   
   if (endDetected) {
-    console.log(`✅ [END-DETECTED] at ${x.toFixed(1)}px (center: ${endHandleVisualCenter.toFixed(1)}px, EXPANDED tolerance: ${endDetectionTolerance}px)`, {
-      improvement: `${endDetectionTolerance}px tolerance vs ${startDetectionTolerance}px for start handle`,
+    console.log(`✅ [END-DETECTED] at ${x.toFixed(1)}px (center: ${endHandleVisualCenter.toFixed(1)}px, EXPANDED tolerance: ${detectionTolerance}px)`, {
+      improvement: `${detectionTolerance}px tolerance vs ${detectionTolerance}px for start handle`,
       note: 'End handle now much easier to click anywhere on its surface!'
     });
     return HANDLE_TYPES.END;

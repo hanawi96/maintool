@@ -359,7 +359,7 @@ const UnifiedControlBar = React.memo(({
         <div className="flex-1 hidden xl:block"></div>
         
         {/* 6. ✅ Start Time + End Time - Moved to end */}
-        <div className="px-4 border-l border-slate-300/50">
+        <div className="px-4">
           <CompactTimeSelector
             startTime={startTime}
             endTime={endTime}

@@ -414,9 +414,7 @@ const WaveformCanvas = React.memo(({
         y: 0,
         width: 1, // Ultra thin cursor
         height: height,
-        color: isPlaying ? '#3b82f6' : '#2563eb',
-        showTriangle: true,
-        triangleSize: 1
+        color: isPlaying ? '#3b82f6' : '#2563eb'
       },
       hoverLine: {
         visible: shouldShowHoverLine && hoverLineX >= 0,

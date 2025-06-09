@@ -32,42 +32,37 @@ export const useWaveformCursor = (canvasRef, duration, startTime, endTime, isDra
     const startX = (startTime / duration) * canvasWidth;
     const endX = (endTime / duration) * canvasWidth;
     
-    // 🔧 **SYNC WITH INTERACTION UTILS**: Sử dụng chính xác cùng logic như interactionUtils.js
-    const startHandleVisualCenter = startX - (responsiveHandleWidth / 2); // startX - 4
-    const endHandleVisualCenter = endX - (responsiveHandleWidth / 2);     // endX - 4 (UPDATED to match start handle pattern)
-    
-    // 🆕 **ENHANCED TOLERANCE FOR END HANDLE**: Match with interactionUtils.js
-    const halfWidth = responsiveHandleWidth / 2; // 4px
-    const bufferZone = 6; // Same as interactionUtils.js
-    const detectionTolerance = halfWidth + bufferZone; // 10px total
-    const endHandleDetectionTolerance = detectionTolerance + 2; // 12px for end handle - ENHANCED
+    // 🎯 **EXACT VISUAL AREA DETECTION**: Match chính xác với visual area của handle
+    const startHandleLeftEdge = startX - responsiveHandleWidth; // Visual left edge
+    const startHandleRightEdge = startX;                        // Visual right edge  
+    const endHandleLeftEdge = endX - responsiveHandleWidth;     // Visual left edge
+    const endHandleRightEdge = endX;                            // Visual right edge
     
     if (startTime < endTime) {
-      const overStartHandle = Math.abs(mouseX - startHandleVisualCenter) <= detectionTolerance;
-      const overEndHandle = Math.abs(mouseX - endHandleVisualCenter) <= endHandleDetectionTolerance; // ENHANCED TOLERANCE
+      const overStartHandle = mouseX >= startHandleLeftEdge && mouseX <= startHandleRightEdge;
+      // 🔧 **END HANDLE FIX**: Chỉ detect khi mouse NGOÀI canvas (vì handle được đẩy ra ngoài)
+      const overEndHandle = mouseX >= Math.max(endHandleLeftEdge, canvasWidth) && mouseX <= endHandleRightEdge;
       
       // 🚀 **CURSOR DEBUG**: Log khi detect handle - đặc biệt intensive cho end handle
       if (overStartHandle || overEndHandle) {
         const debugLevel = overEndHandle ? '🔴 [END-HANDLE-CURSOR-CRITICAL]' : '🖱️ [CURSOR-DETECT]';
         console.log(`${debugLevel} Handle detected for cursor change:`, {
           mouseX: mouseX.toFixed(1),
-          startHandle: overStartHandle ? `YES (center: ${startHandleVisualCenter.toFixed(1)}, dist: ${Math.abs(mouseX - startHandleVisualCenter).toFixed(1)}, tolerance: ${detectionTolerance})` : 'NO',
-          endHandle: overEndHandle ? `YES (center: ${endHandleVisualCenter.toFixed(1)}, dist: ${Math.abs(mouseX - endHandleVisualCenter).toFixed(1)}, tolerance: ${endHandleDetectionTolerance})` : 'NO',
-          standardTolerance: detectionTolerance + 'px',
-          enhancedEndTolerance: endHandleDetectionTolerance + 'px',
+          startHandle: overStartHandle ? `YES (center: ${startX.toFixed(1)}, dist: ${Math.abs(mouseX - startX).toFixed(1)}, tolerance: ${responsiveHandleWidth})` : 'NO',
+          endHandle: overEndHandle ? `YES (center: ${endX.toFixed(1)}, dist: ${Math.abs(mouseX - endX).toFixed(1)}, tolerance: ${responsiveHandleWidth})` : 'NO',
+          standardTolerance: responsiveHandleWidth + 'px',
           cursor: 'ew-resize',
           // 🆕 **END HANDLE SPECIFIC DEBUG**
           endHandleDebug: overEndHandle ? {
             endX: endX.toFixed(1),
             endHandleLeft: (endX - responsiveHandleWidth).toFixed(1),
             endHandleRight: endX.toFixed(1),
-            endHandleCenter: endHandleVisualCenter.toFixed(1),
-            mouseDistance: Math.abs(mouseX - endHandleVisualCenter).toFixed(1),
-            enhancedTolerance: endHandleDetectionTolerance,
-            detectionFormula: `|${mouseX.toFixed(1)} - ${endHandleVisualCenter.toFixed(1)}| = ${Math.abs(mouseX - endHandleVisualCenter).toFixed(1)} <= ${endHandleDetectionTolerance}`,
-            detectionSuccess: Math.abs(mouseX - endHandleVisualCenter) <= endHandleDetectionTolerance,
-            toleranceIncrease: `+${endHandleDetectionTolerance - detectionTolerance}px extra for end handle`,
-            userIssueFix: 'Now uses same positioning pattern as start handle + enhanced tolerance for cursor detection'
+            endHandleCenter: endX.toFixed(1),
+            mouseDistance: Math.abs(mouseX - endX).toFixed(1),
+            detectionFormula: `|${mouseX.toFixed(1)} - ${endX.toFixed(1)}| = ${Math.abs(mouseX - endX).toFixed(1)} <= ${responsiveHandleWidth}`,
+            detectionSuccess: Math.abs(mouseX - endX) <= responsiveHandleWidth,
+            toleranceIncrease: `+${responsiveHandleWidth - responsiveHandleWidth}px extra for end handle`,
+            userIssueFix: 'Now uses same positioning pattern as start handle + consistent tolerance for cursor detection'
           } : null
         });
       }

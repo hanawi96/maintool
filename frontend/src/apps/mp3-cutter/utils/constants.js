@@ -38,14 +38,14 @@ export const WAVEFORM_CONFIG = {
   HEIGHT: 200,
   HANDLE_WIDTH: 10,        // 🎯 **LEGACY HANDLE WIDTH**: Kept for compatibility
   HANDLE_HEIGHT: 20,       // 🎯 **LEGACY HANDLE HEIGHT**: Kept for compatibility
-  MODERN_HANDLE_WIDTH: 8,  // Mảnh hơn nữa (giảm từ 4px xuống 3px) + ENHANCED TOLERANCE (15px+) cho hover nhạy bén
+  MODERN_HANDLE_WIDTH: 8,  // 🔧 **BALANCED**: 8px cho balance giữa usability và precision
   
   // 🆕 **RESPONSIVE**: Enhanced responsive waveform configuration
   RESPONSIVE: {
     MIN_WIDTH: 300,           // Minimum container width (px)
     MOBILE_BREAKPOINT: 640,   // Mobile breakpoint (px)
-    MAX_BAR_WIDTH: 0.8,       // 🚀 **HYBRID SYSTEM**: Maximum bar width (px)
-    MIN_BAR_WIDTH: 0.3,       // 🚀 **HYBRID SYSTEM**: Minimum bar width (px)
+    MAX_BAR_WIDTH: 1,         // 🚀 **HYBRID SYSTEM**: Maximum bar width (px) - Updated to 1px
+    MIN_BAR_WIDTH: 0.6,       // 🚀 **HYBRID SYSTEM**: Minimum bar width (px) - Updated to 0.6px
     
     // 🎯 **SAMPLING RULES**: Different strategies for different screen sizes
     SAMPLING_RULES: {
@@ -74,8 +74,8 @@ export const WAVEFORM_CONFIG = {
     CURSOR_PLAYING: '#3b82f6',        // Màu xanh dương cho cursor khi đang play
     CURSOR_PAUSED: '#2563eb',         // Màu xanh dương đậm cho cursor khi pause
     HOVER_LINE: 'rgba(59, 130, 246, 0.7)',  // Màu hover line với opacity
-    HANDLE_START: '#14b8a6',          // Màu teal cho start handle
-    HANDLE_END: '#f97316',            // Màu cam cho end handle
+    HANDLE_START: '#0d9488',          // Màu teal đậm hơn cho start handle (từ #14b8a6 thành #0d9488)
+    HANDLE_END: '#ea580c',            // Màu cam đậm hơn cho end handle (từ #f97316 thành #ea580c)
     SELECTION_OVERLAY: 'rgba(139, 92, 246, 0.15)',  // Màu nền selection area
     SELECTION_BORDER: 'rgba(139, 92, 246, 0.6)',    // Màu viền selection
     BACKGROUND_GRADIENT_START: 'rgba(99, 102, 241, 0.04)',   // Gradient background start

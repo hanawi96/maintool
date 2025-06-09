@@ -115,43 +115,32 @@
 .volume-slider::-webkit-slider-thumb,
 .speed-slider::-webkit-slider-thumb {
   appearance: none;
-  width: 18px; /* Increased from 16px */
-  height: 18px; /* Increased from 16px */
+  width: 14px; /* Reduced from 18px for better precision */
+  height: 14px; /* Reduced from 18px for better precision */
   border-radius: 50%;
   background: #ffffff;
-  border: 2px solid #6366f1;
+  border: 1px solid #6366f1; /* Reduced from 2px to 1px */
   cursor: pointer;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1); /* Reduced shadow */
   transition: all 0.2s ease;
   position: relative;
   z-index: 1;
-}
-
-.volume-slider::-webkit-slider-thumb:hover,
-.speed-slider::-webkit-slider-thumb:hover {
-  border-color: #4f46e5;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-  transform: scale(1.1);
 }
 
 .speed-slider::-webkit-slider-thumb {
   border-color: #8b5cf6;
 }
 
-.speed-slider::-webkit-slider-thumb:hover {
-  border-color: #7c3aed;
-}
-
 /* 🎯 **FIREFOX SLIDER STYLES** - Enhanced sizing */
 .volume-slider::-moz-range-thumb,
 .speed-slider::-moz-range-thumb {
-  width: 18px; /* Increased from 16px */
-  height: 18px; /* Increased from 16px */
+  width: 14px; /* Reduced from 18px for better precision */
+  height: 14px; /* Reduced from 18px for better precision */
   border-radius: 50%;
   background: #ffffff;
-  border: 2px solid #6366f1;
+  border: 1px solid #6366f1; /* Reduced from 2px to 1px */
   cursor: pointer;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1); /* Reduced shadow */
   transition: all 0.2s ease;
 }
 
@@ -353,8 +342,8 @@
   
   .unified-control-bar .volume-slider::-webkit-slider-thumb,
   .unified-control-bar .speed-slider::-webkit-slider-thumb {
-    width: 20px;
-    height: 20px;
+    width: 16px; /* Slightly larger for touch but still smaller than before */
+    height: 16px; /* Slightly larger for touch but still smaller than before */
   }
 }
 

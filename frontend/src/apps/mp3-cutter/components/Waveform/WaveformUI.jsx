@@ -663,8 +663,7 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, mainCursorToolti
             backgroundColor: handlePositions.start.color,
             pointerEvents: 'auto', // 🔧 **ENABLE MOUSE EVENTS**: Cho phép mouse events trên handles
             borderRadius: '4px 0 0 4px', // 🎨 **PROPER RADIUS**: 4px như yêu cầu user
-            transition: 'background-color 150ms ease', // Smooth color transitions
-            zIndex: 40, // Higher than waveform, lower than tooltips
+            zIndex: 35, // 🔧 **REDUCED Z-INDEX**: Giảm từ 40 xuống 35 để ít che mất canvas clicks
             cursor: 'ew-resize', // 🔧 **DIRECT CURSOR**: Set cursor trực tiếp trên handle
             display: 'flex',
             flexDirection: 'column',
@@ -763,8 +762,7 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, mainCursorToolti
             backgroundColor: handlePositions.end.color,
             pointerEvents: 'auto', // 🔧 **ENABLE MOUSE EVENTS**: Cho phép mouse events trên handles
             borderRadius: '0 4px 4px 0', // 🎨 **PROPER RADIUS**: 4px như yêu cầu user
-            transition: 'background-color 150ms ease', // Smooth color transitions
-            zIndex: 40, // Higher than waveform, lower than tooltips
+            zIndex: 35, // 🔧 **REDUCED Z-INDEX**: Giảm từ 40 xuống 35 để ít che mất canvas clicks
             cursor: 'ew-resize', // 🔧 **DIRECT CURSOR**: Set cursor trực tiếp trên handle
             display: 'flex',
             flexDirection: 'column',
@@ -867,23 +865,6 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, mainCursorToolti
               zIndex: 30 // Between waveform and handles
             }}
           />
-          {/* Cursor Triangle */}
-          {cursorPositions.mainCursor.showTriangle && (
-            <div
-              className="absolute z-30"
-              style={{
-                left: `${cursorPositions.mainCursor.x - cursorPositions.mainCursor.triangleSize}px`,
-                top: `${cursorPositions.mainCursor.y}px`,
-                width: 0,
-                height: 0,
-                borderLeft: `${cursorPositions.mainCursor.triangleSize}px solid transparent`,
-                borderRight: `${cursorPositions.mainCursor.triangleSize}px solid transparent`,
-                borderTop: `${cursorPositions.mainCursor.triangleSize * 1.5}px solid ${cursorPositions.mainCursor.color}`,
-                pointerEvents: 'none',
-                zIndex: 30
-              }}
-            />
-          )}
         </>
       )}
 
