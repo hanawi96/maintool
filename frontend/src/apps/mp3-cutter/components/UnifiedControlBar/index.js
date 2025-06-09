@@ -299,9 +299,9 @@ const UnifiedControlBar = React.memo(({
     );
   }, [playbackRate, handleSpeedChange, resetSpeed, disabled]);
 
-  // 🎯 **HISTORY CONTROLS SECTION** - Memoized with badge counters
+  // 🎯 **HISTORY CONTROLS SECTION** - Memoized with badge counters, updated borders
   const HistoryControlsSection = useMemo(() => (
-    <div className="flex items-center gap-1 pl-3 border-l border-slate-300/50">
+    <div className="flex items-center gap-1 px-3 border-r border-slate-300/50">
       {/* Undo */}
       <button
         onClick={onUndo}
@@ -336,14 +336,30 @@ const UnifiedControlBar = React.memo(({
 
   return (
     <div className="unified-control-bar bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-      {/* 🎯 **MAIN CONTROL ROW** - Updated layout: Time Selector floated left */}
+      {/* 🎯 **MAIN CONTROL ROW** - Updated layout theo yêu cầu user mới */}
       <div className="flex items-center gap-1 flex-wrap xl:flex-nowrap">
         
-        {/* 1. Play Controls (Left) - Always visible */}
+        {/* 1. ✅ Jump to Start + Play/Pause + Jump to End */}
         {PlayControlsSection}
         
-        {/* 2. Time Selector (Left Float) - Moved to left side như các controls khác */}
-        <div className="px-4 border-r border-slate-300/50">
+        {/* 2. ✅ Undo/Redo - Moved after playback controls */}
+        {HistoryControlsSection}
+        
+        {/* 3. ✅ Volume Control */}
+        <div className="hidden sm:flex">
+          {VolumeControlSection}
+        </div>
+        
+        {/* 4. ✅ Speed Control */}
+        <div className="hidden md:flex">
+          {SpeedControlSection}
+        </div>
+        
+        {/* 5. Spacer - Push time selector to right */}
+        <div className="flex-1 hidden xl:block"></div>
+        
+        {/* 6. ✅ Start Time + End Time - Moved to end */}
+        <div className="px-4 border-l border-slate-300/50">
           <CompactTimeSelector
             startTime={startTime}
             endTime={endTime}
@@ -352,28 +368,12 @@ const UnifiedControlBar = React.memo(({
             onEndTimeChange={onEndTimeChange}
           />
         </div>
-        
-        {/* 3. Volume Control - Hidden on very small screens */}
-        <div className="hidden sm:flex">
-          {VolumeControlSection}
-        </div>
-        
-        {/* 4. Speed Control - Hidden on small screens */}
-        <div className="hidden md:flex">
-          {SpeedControlSection}
-        </div>
-        
-        {/* 5. Spacer - Push history to right */}
-        <div className="flex-1"></div>
-        
-        {/* 6. History Controls (Right) - Always visible */}
-        {HistoryControlsSection}
       </div>
       
-      {/* 🎯 **MOBILE COLLAPSED CONTROLS** - Show hidden controls on small screens với improved spacing */}
+      {/* 🎯 **MOBILE RESPONSIVE** - Tối ưu responsive cho mobile */}
       <div className="sm:hidden mt-4 pt-4 border-t border-slate-200">
-        <div className="flex items-center justify-center gap-6">
-          {/* Mobile Volume - Enhanced size */}
+        <div className="flex items-center justify-center gap-4">
+          {/* Mobile Volume - Compact size */}
           <div className="flex items-center gap-2">
             <Volume2 className="w-4 h-4 text-slate-600" />
             <input
@@ -384,15 +384,17 @@ const UnifiedControlBar = React.memo(({
               value={volume}
               onChange={handleVolumeChange}
               disabled={disabled}
-              className="w-18 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer disabled:opacity-50"
+              className="w-16 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer disabled:opacity-50"
               style={{
                 background: `linear-gradient(to right, #6366f1 0%, #6366f1 ${volume * 100}%, #e2e8f0 ${volume * 100}%, #e2e8f0 100%)`
               }}
             />
-            <span className="text-sm text-slate-600 w-8">{Math.round(volume * 100)}%</span>
+            <span className="text-sm text-slate-600 w-8 text-center">{Math.round(volume * 100)}%</span>
           </div>
-          
-          {/* Mobile Speed - Enhanced size */}
+        </div>
+        
+        {/* Mobile Speed Row - Hidden trên mobile quá nhỏ */}
+        <div className="md:hidden mt-3 flex items-center justify-center">
           <div className="flex items-center gap-2">
             <Zap className="w-4 h-4 text-slate-600" />
             <input
@@ -403,12 +405,12 @@ const UnifiedControlBar = React.memo(({
               value={playbackRate}
               onChange={handleSpeedChange}
               disabled={disabled}
-              className="w-18 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer disabled:opacity-50"
+              className="w-16 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer disabled:opacity-50"
               style={{
                 background: `linear-gradient(to right, #8b5cf6 0%, #8b5cf6 ${((playbackRate - 0.5) / 1.5) * 100}%, #e2e8f0 ${((playbackRate - 0.5) / 1.5) * 100}%, #e2e8f0 100%)`
               }}
             />
-            <span className="text-sm text-slate-600 w-9">{playbackRate.toFixed(1)}x</span>
+            <span className="text-sm text-slate-600 w-9 text-center">{playbackRate.toFixed(1)}x</span>
           </div>
         </div>
       </div>
