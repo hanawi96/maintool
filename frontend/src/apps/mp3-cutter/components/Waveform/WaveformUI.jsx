@@ -241,13 +241,13 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, mainCursorToolti
           leftPos: `${handlePositions.start.x - handlePositions.start.width}px` // 🔧 **FULL EXTERNAL**: Bây giờ có thể âm
         } : 'NOT_RENDERED',
         endHandle: shouldRenderEndHandle ? {
-          x: handlePositions.end.x,
+          x: handlePositions.end.x - handlePositions.end.width,
           y: handlePositions.end.y,
           width: handlePositions.end.width,
           height: handlePositions.end.height,
           color: handlePositions.end.color,
           isActive: handlePositions.end.isActive,
-          leftPos: `${handlePositions.end.x}px` // End handle vẫn giữ nguyên
+          leftPos: `${handlePositions.end.x - handlePositions.end.width}px` // 🔧 **APPLY START HANDLE PATTERN**: Áp dụng cách xử lý của start handle
         } : 'NOT_RENDERED',
         technique: '✅ START HANDLE FULLY EXTERNAL - có thể đi ra ngoài canvas bounds',
         visibility: '🔥 ZERO WAVEFORM OVERLAP - start handle hoàn toàn bên ngoài!',
@@ -255,7 +255,7 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, mainCursorToolti
           startHandleRange: shouldRenderStartHandle ? 
             `[${handlePositions.start.x - handlePositions.start.width}, ${handlePositions.start.x}]px` : 'N/A',
           endHandleRange: shouldRenderEndHandle ?
-            `[${handlePositions.end.x}, ${handlePositions.end.x + handlePositions.end.width}]px` : 'N/A',
+            `[${handlePositions.end.x - handlePositions.end.width}, ${handlePositions.end.x}]px` : 'N/A',
           note: 'Start handle có thể có position âm để đi ra ngoài canvas'
         },
         zIndex: 40,
@@ -731,7 +731,7 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, mainCursorToolti
         <div
           className="absolute z-40"
           style={{
-            left: `${handlePositions.end.x}px`, // End handle position OK - không cần adjust
+            left: `${handlePositions.end.x - handlePositions.end.width}px`, // 🔧 **APPLY START HANDLE PATTERN**: Áp dụng cách xử lý của start handle
             top: `${handlePositions.end.y}px`,
             width: `${handlePositions.end.width}px`,
             height: `${handlePositions.end.height}px`,

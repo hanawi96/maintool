@@ -60,11 +60,25 @@ export const useInteractionHandlers = ({
       originalEvent: e.originalEvent || e
     };
     
-    console.log('🖱️ [MOUSE-DOWN] Event info extracted:', {
+    // 🆕 **END HANDLE INTENSIVE DEBUG**: Log intensively for end handle events
+    const isEndHandleEvent = eventInfo.handleType === 'end';
+    const debugLevel = isEndHandleEvent ? '🔴 [END-HANDLE-MOUSE-DOWN-CRITICAL]' : '🖱️ [MOUSE-DOWN]';
+    
+    console.log(`${debugLevel} Event info extracted:`, {
       isHandleEvent: eventInfo.isHandleEvent,
       handleType: eventInfo.handleType,
       mouseX: x.toFixed(1),
-      eventSource: eventInfo.isHandleEvent ? 'HANDLE' : 'CANVAS'
+      eventSource: eventInfo.isHandleEvent ? 'HANDLE' : 'CANVAS',
+      isEndHandle: isEndHandleEvent,
+      // 🆕 **END HANDLE TRACKING**
+      endHandleTracking: isEndHandleEvent ? {
+        hasInteractionManager: !!interactionManagerRef.current,
+        canvasWidth: canvasRef.current?.width,
+        duration: duration,
+        startTime: startTime.toFixed(2),
+        endTime: endTime.toFixed(2),
+        eventProcessingTimestamp: performance.now()
+      } : null
     });
     
     // 🎯 Use InteractionManager for smart handling with eventInfo
@@ -72,11 +86,43 @@ export const useInteractionHandlers = ({
       x, canvasRef.current.width, duration, startTime, endTime, eventInfo
     );
     
+    // 🆕 **END HANDLE RESULT DEBUG**: Log intensively for end handle results
+    if (isEndHandleEvent) {
+      console.log('🔴 [END-HANDLE-RESULT-CRITICAL] InteractionManager result for end handle:', {
+        action: result.action,
+        handle: result.handle,
+        cursor: result.cursor,
+        resultDetails: result,
+        processingSuccess: true,
+        nextStep: 'Processing action in switch statement'
+      });
+    }
+    
     // 🎯 Process action based on result
     const processAction = () => {
+      // 🆕 **END HANDLE ACTION DEBUG**: Log action processing for end handle
+      if (isEndHandleEvent) {
+        console.log(`🔴 [END-HANDLE-ACTION-CRITICAL] Processing action for end handle: ${result.action}`, {
+          action: result.action,
+          handle: result.handle,
+          currentIsDragging: isDragging,
+          willSetIsDragging: result.handle || 'no change'
+        });
+      }
+      
       switch (result.action) {
         case 'startDrag':
           setIsDragging(result.handle);
+          
+          // 🆕 **END HANDLE DRAG DEBUG**: Log drag start for end handle
+          if (isEndHandleEvent || result.handle === 'end') {
+            console.log('🔴 [END-HANDLE-DRAG-START-CRITICAL] End handle drag started:', {
+              handle: result.handle,
+              isDraggingSet: true,
+              dragStartSuccess: true,
+              immediateSync: result.immediateSync
+            });
+          }
           
           // 🚫 **REMOVE IMMEDIATE CURSOR SYNC**: Don't sync cursor on mousedown - only on mouseup
           console.log(`🎯 [HandleMouseDown] Handle drag started: ${result.handle} - cursor sync DELAYED until mouseup`);

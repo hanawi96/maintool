@@ -55,56 +55,87 @@ export const detectHandle = (x, canvasWidth, duration, startTime, endTime, event
   // 🔧 **CRITICAL ANALYSIS**: Phân tích chi tiết visual vs detection
   // Visual rendering (from WaveformUI):
   // - Start handle: left = startX - width = startX - 8, so visual range is [startX-8, startX]
-  // - End handle: left = endX, so visual range is [endX, endX+8]
+  // - End handle: left = endX - width = endX - 8, so visual range is [endX-8, endX]
   
-  // Visual centers:
-  const startHandleVisualCenter = startX - (responsiveHandleWidth / 2); // startX - 4
-  const endHandleVisualCenter = endX + (responsiveHandleWidth / 2);     // endX + 4
+  // 🆕 **CORRECTED VISUAL CENTERS**: Sửa lại để match chính xác với visual positioning
+  // Start handle: Visual center nằm ở giữa [startX-8, startX] = startX - 4
+  const startHandleVisualCenter = startX - (responsiveHandleWidth / 2); // startX - 4 ✅ ĐÚNG
   
-  // Detection tolerance - cần bao phủ toàn bộ visual + buffer
+  // End handle: Visual center nằm ở giữa [endX-8, endX] = endX - 4 (UPDATED để match start handle pattern)
+  const endHandleVisualCenter = endX - (responsiveHandleWidth / 2);     // endX - 4 ✅ MATCH START HANDLE
+  
+  // 🆕 **UNIFORM DETECTION TOLERANCE**: Sử dụng tolerance giống nhau cho cả 2 handles
   const halfWidth = responsiveHandleWidth / 2; // 4px
-  const bufferZone = 2; // 2px buffer each side
-  const detectionTolerance = halfWidth + bufferZone; // 6px total
+  const bufferZone = 6; // Buffer zone for easier clicking
+  const detectionTolerance = halfWidth + bufferZone; // 10px total cho cả 2 handles
   
-  // 🚀 **COMPREHENSIVE DEBUG**: Log tất cả thông tin để verify
-  if (Math.random() < 0.1) { // 10% sampling để debug intensively
+  // 🆕 **ENHANCED END HANDLE TOLERANCE**: End handle cần tolerance lớn hơn vì user hay click vào phần giữa/phải
+  const endHandleDetectionTolerance = detectionTolerance + 2; // 12px cho end handle (thêm 2px)
+  
+  // 🚀 **COMPREHENSIVE DEBUG**: Log tất cả thông tin để verify - ALWAYS LOG cho end handle
+  const shouldLogDebug = Math.random() < 0.2 || eventInfo?.handleType === 'end'; // Always log for end handle
+  
+  if (shouldLogDebug) {
     const startVisualLeft = startX - responsiveHandleWidth;
     const startVisualRight = startX;
-    const endVisualLeft = endX;
-    const endVisualRight = endX + responsiveHandleWidth;
+    const endVisualLeft = endX - responsiveHandleWidth; // 🔧 **UPDATED**: End handle bây giờ cũng shifted left
+    const endVisualRight = endX; // 🔧 **UPDATED**: End handle right edge bây giờ là endX
     
     const startDetectionLeft = startHandleVisualCenter - detectionTolerance;
     const startDetectionRight = startHandleVisualCenter + detectionTolerance;
-    const endDetectionLeft = endHandleVisualCenter - detectionTolerance;
-    const endDetectionRight = endHandleVisualCenter + detectionTolerance;
+    const endDetectionLeft = endHandleVisualCenter - endHandleDetectionTolerance;
+    const endDetectionRight = endHandleVisualCenter + endHandleDetectionTolerance;
     
-    console.log(`🔍 [HANDLE-DEBUG] COMPREHENSIVE ANALYSIS:`, {
+    // 🆕 **ENHANCED END HANDLE DEBUG**: Đặc biệt log cho end handle
+    const isEndHandleEvent = eventInfo?.handleType === 'end';
+    const endHandleDebugLevel = isEndHandleEvent ? '🔴 [END-HANDLE-CRITICAL]' : '🔍 [HANDLE-DEBUG]';
+    
+    console.log(`${endHandleDebugLevel} COMPREHENSIVE ANALYSIS:`, {
       mouseX: x.toFixed(1),
       responsiveHandleWidth: responsiveHandleWidth + 'px',
+      detectionTolerance: detectionTolerance + 'px (STANDARD)',
+      endHandleDetectionTolerance: endHandleDetectionTolerance + 'px (ENHANCED FOR END HANDLE)',
+      bufferZone: bufferZone + 'px (INCREASED FOR EASIER CLICKING)',
+      isEndHandleEvent: isEndHandleEvent,
       
       // VISUAL POSITIONS (where handles are actually drawn)
       startHandleVisual: `[${startVisualLeft.toFixed(1)}, ${startVisualRight.toFixed(1)}] (width: ${responsiveHandleWidth}px)`,
       endHandleVisual: `[${endVisualLeft.toFixed(1)}, ${endVisualRight.toFixed(1)}] (width: ${responsiveHandleWidth}px)`,
       
-      // DETECTION POSITIONS (where we detect mouse)
-      startDetection: `[${startDetectionLeft.toFixed(1)}, ${startDetectionRight.toFixed(1)}] (center: ${startHandleVisualCenter.toFixed(1)})`,
-      endDetection: `[${endDetectionLeft.toFixed(1)}, ${endDetectionRight.toFixed(1)}] (center: ${endHandleVisualCenter.toFixed(1)})`,
-      
-      detectionTolerance: detectionTolerance + 'px',
+      // DETECTION POSITIONS (where we detect mouse) - DIFFERENT TOLERANCE FOR END HANDLE
+      startDetection: `[${startDetectionLeft.toFixed(1)}, ${startDetectionRight.toFixed(1)}] (center: ${startHandleVisualCenter.toFixed(1)}, tolerance: ${detectionTolerance})`,
+      endDetection: `[${endDetectionLeft.toFixed(1)}, ${endDetectionRight.toFixed(1)}] (center: ${endHandleVisualCenter.toFixed(1)}, tolerance: ${endHandleDetectionTolerance})`,
       
       // MOUSE POSITION ANALYSIS
       mouseInStartVisual: x >= startVisualLeft && x <= startVisualRight,
       mouseInEndVisual: x >= endVisualLeft && x <= endVisualRight,
       mouseInStartDetection: Math.abs(x - startHandleVisualCenter) <= detectionTolerance,
-      mouseInEndDetection: Math.abs(x - endHandleVisualCenter) <= detectionTolerance,
+      mouseInEndDetection: Math.abs(x - endHandleVisualCenter) <= endHandleDetectionTolerance, // ENHANCED TOLERANCE
       
-      // DISTANCE ANALYSIS
-      distToStartCenter: Math.abs(x - startHandleVisualCenter).toFixed(1),
-      distToEndCenter: Math.abs(x - endHandleVisualCenter).toFixed(1),
+      // DISTANCE ANALYSIS - CRUCIAL FOR END HANDLE DEBUG
+      distToStartCenter: Math.abs(x - startHandleVisualCenter).toFixed(1) + 'px',
+      distToEndCenter: Math.abs(x - endHandleVisualCenter).toFixed(1) + 'px',
+      distanceToleranceCheck: {
+        startWithinTolerance: Math.abs(x - startHandleVisualCenter) <= detectionTolerance,
+        endWithinTolerance: Math.abs(x - endHandleVisualCenter) <= endHandleDetectionTolerance // ENHANCED CHECK
+      },
+      
+      // 🆕 **END HANDLE SPECIFIC DEBUG**
+      endHandleSpecific: {
+        endX: endX.toFixed(1) + 'px',
+        endHandleLeft: (endX - responsiveHandleWidth).toFixed(1) + 'px', // 🔧 **UPDATED**: left = endX - width
+        endHandleRight: endX.toFixed(1) + 'px', // 🔧 **UPDATED**: right = endX
+        endHandleCenter: endHandleVisualCenter.toFixed(1) + 'px', // center = endX - width/2
+        mouseDistanceFromEndCenter: Math.abs(x - endHandleVisualCenter).toFixed(1) + 'px',
+        enhancedTolerance: endHandleDetectionTolerance + 'px',
+        shouldDetectEnd: Math.abs(x - endHandleVisualCenter) <= endHandleDetectionTolerance ? '✅ YES' : '❌ NO',
+        detectionFormula: `|${x.toFixed(1)} - ${endHandleVisualCenter.toFixed(1)}| = ${Math.abs(x - endHandleVisualCenter).toFixed(1)} <= ${endHandleDetectionTolerance} = ${Math.abs(x - endHandleVisualCenter) <= endHandleDetectionTolerance}`,
+        userIssueFix: 'Now uses same positioning pattern as start handle + enhanced tolerance for easier clicking'
+      },
       
       // VERDICT
       shouldDetectStart: Math.abs(x - startHandleVisualCenter) <= detectionTolerance,
-      shouldDetectEnd: Math.abs(x - endHandleVisualCenter) <= detectionTolerance,
+      shouldDetectEnd: Math.abs(x - endHandleVisualCenter) <= endHandleDetectionTolerance, // ENHANCED
       
       // DETAILED POSITION INFO
       timePositions: {
@@ -116,14 +147,41 @@ export const detectHandle = (x, canvasWidth, duration, startTime, endTime, event
     });
   }
   
-  // 🎯 **PRECISE DETECTION**: Check với visual centers
-  if (Math.abs(x - startHandleVisualCenter) <= detectionTolerance) {
+  // 🎯 **PRECISE DETECTION**: Check với visual centers - ENHANCED FOR END HANDLE
+  const startDetected = Math.abs(x - startHandleVisualCenter) <= detectionTolerance;
+  const endDetected = Math.abs(x - endHandleVisualCenter) <= endHandleDetectionTolerance; // ENHANCED TOLERANCE
+  
+  if (startDetected) {
     console.log(`✅ [HANDLE-DETECT] START HANDLE DETECTED at ${x.toFixed(1)}px (center: ${startHandleVisualCenter.toFixed(1)}px, tolerance: ${detectionTolerance}px)`);
     return HANDLE_TYPES.START;
   }
-  if (Math.abs(x - endHandleVisualCenter) <= detectionTolerance) {
-    console.log(`✅ [HANDLE-DETECT] END HANDLE DETECTED at ${x.toFixed(1)}px (center: ${endHandleVisualCenter.toFixed(1)}px, tolerance: ${detectionTolerance}px)`);
+  if (endDetected) {
+    // 🆕 **ENHANCED END HANDLE LOG**: Log chi tiết hơn cho end handle
+    console.log(`✅ [END-HANDLE-DETECT] END HANDLE DETECTED at ${x.toFixed(1)}px (center: ${endHandleVisualCenter.toFixed(1)}px, tolerance: ${endHandleDetectionTolerance}px)`, {
+      endX: endX.toFixed(1),
+      endHandleLeft: endX.toFixed(1),
+      endHandleRight: (endX + responsiveHandleWidth).toFixed(1),
+      mouseDistance: Math.abs(x - endHandleVisualCenter).toFixed(1),
+      enhancedTolerance: endHandleDetectionTolerance,
+      detectionSuccessful: true,
+      eventSource: eventInfo?.isHandleEvent ? 'DIRECT_HANDLE_EVENT' : 'MOUSE_DETECTION',
+      userIssueFix: 'Enhanced tolerance allows clicking anywhere on end handle'
+    });
     return HANDLE_TYPES.END;
+  }
+  
+  // 🆕 **LOG WHEN NO DETECTION**: Debug khi không detect được handle nào
+  if (shouldLogDebug && (x > Math.min(startX - responsiveHandleWidth, endX) && x < Math.max(startX, endX + responsiveHandleWidth))) {
+    console.log(`❌ [NO-HANDLE-DETECT] No handle detected near handles area:`, {
+      mouseX: x.toFixed(1),
+      startDistance: Math.abs(x - startHandleVisualCenter).toFixed(1) + 'px',
+      endDistance: Math.abs(x - endHandleVisualCenter).toFixed(1) + 'px',
+      startTolerance: detectionTolerance + 'px',
+      endTolerance: endHandleDetectionTolerance + 'px (ENHANCED)',
+      nearHandleArea: true,
+      reason: 'Mouse in handle area but outside detection tolerance',
+      suggestion: 'Consider increasing tolerance further if still having issues'
+    });
   }
   
   return HANDLE_TYPES.NONE;
