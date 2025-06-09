@@ -214,7 +214,7 @@ export class InteractionManager {
     this.isDraggingConfirmed = false;          // True chỉ khi thực sự đang drag
     this.mouseDownTimestamp = null;            // Track mouse down time
     this.lastMousePosition = null;             // Track mouse movement
-    this.dragMoveThreshold = 3;                // Minimum pixels to confirm drag
+    this.dragMoveThreshold = 1;                // 🚀 **FAST DRAG FIX**: Giảm từ 3px xuống 1px để responsive hơn với fast drag
     
     // 🛡️ **MOUSE RE-ENTRY PROTECTION**: Track mouse leave timing
     this.lastMouseLeaveTime = null;            // Track when mouse left canvas
@@ -242,11 +242,16 @@ export class InteractionManager {
     this.globalMouseUpHandler = null;
     this.isGlobalListenerActive = false;
     
+    // 🆕 **GLOBAL MOUSE MOVE TRACKING**: Thêm global mouse move tracking cho outside canvas drag
+    this.globalMouseMoveHandler = null;
+    this.isGlobalMoveListenerActive = false;
+    
     // 🆕 **DEBUG ID**: Unique debug identifier
     this.debugId = Math.random().toString(36).substring(2, 8);
     
-    // 🚀 **SETUP GLOBAL MOUSE UP LISTENER**: Catch mouse up outside canvas
+    // 🚀 **SETUP GLOBAL LISTENERS**: Setup both mouse up and mouse move listeners
     this.setupGlobalMouseUpListener();
+    this.setupGlobalMouseMoveListener();
   }
   
   /**
@@ -254,18 +259,19 @@ export class InteractionManager {
    */
   setupGlobalMouseUpListener() {
     this.globalMouseUpHandler = (e) => {
-      // Only handle if we're currently in a drag state
+      // 🎯 **SIMPLE LOGIC**: Chỉ reset khi có mouse up thật sự
       if (this.state === INTERACTION_STATES.DRAGGING && this.isDraggingConfirmed) {
-        console.log(`🌍 [${this.debugId}] GLOBAL mouse up detected outside canvas - preventing ghost drag:`, {
+        
+        console.log(`🖱️ [${this.debugId}] GLOBAL MOUSE UP - Resetting drag state as requested:`, {
           dragState: this.state,
           confirmed: this.isDraggingConfirmed,
           activeHandle: this.activeHandle,
           isDraggingRegion: this.isDraggingRegion,
-          mouseEvent: 'outside_canvas',
-          ghostDragPrevention: true
+          mouseEvent: 'real_mouse_up_outside_canvas',
+          reason: 'User released mouse - reset drag as per requirements'
         });
         
-        // 🚨 **FORCE COMPLETE RESET**: Reset all drag states
+        // 🚨 **COMPLETE RESET ON MOUSE UP**: Reset tất cả khi user thật sự mouse up
         this.state = INTERACTION_STATES.IDLE;
         this.activeHandle = HANDLE_TYPES.NONE;
         this.lastHoveredHandle = HANDLE_TYPES.NONE;
@@ -286,8 +292,9 @@ export class InteractionManager {
         
         // Disable global listener until next drag starts
         this.disableGlobalMouseUpListener();
+        this.disableGlobalMouseMoveListener();
         
-        console.log(`🛡️ [${this.debugId}] Ghost drag PREVENTED by global mouse up - all states reset`);
+        console.log(`✅ [${this.debugId}] Drag reset complete - user must drag again to continue`);
       }
     };
     
@@ -313,6 +320,55 @@ export class InteractionManager {
       document.removeEventListener('mouseup', this.globalMouseUpHandler, { capture: true });
       this.isGlobalListenerActive = false;
       console.log(`🌍 [${this.debugId}] Global mouse up listener DISABLED`);
+    }
+  }
+  
+  /**
+   * 🆕 **SETUP GLOBAL MOUSE MOVE LISTENER**: Track mouse movement outside canvas
+   */
+  setupGlobalMouseMoveListener() {
+    this.globalMouseMoveHandler = (e) => {
+      // Chỉ track khi đang drag và mouse đã leave canvas
+      if (this.state === INTERACTION_STATES.DRAGGING && 
+          this.isDraggingConfirmed && 
+          this.lastMouseLeaveTime !== null) {
+        
+        console.log(`🌍 [${this.debugId}] GLOBAL MOUSE MOVE - Continuing drag outside canvas:`, {
+          clientX: e.clientX,
+          clientY: e.clientY,
+          activeHandle: this.activeHandle,
+          isDraggingRegion: this.isDraggingRegion,
+          timeSinceMouseLeave: performance.now() - this.lastMouseLeaveTime,
+          note: 'Drag continues outside canvas - awaiting mouse up or re-entry'
+        });
+        
+        // 🎯 **CONTINUE DRAG TRACKING**: Đánh dấu drag đang active
+        // Không cần update position vì không biết canvas bounds, chỉ track drag state
+      }
+    };
+    
+    // Don't attach immediately - only when drag starts
+  }
+  
+  /**
+   * 🆕 **ENABLE GLOBAL MOUSE MOVE LISTENER**: Activate when drag starts
+   */
+  enableGlobalMouseMoveListener() {
+    if (!this.isGlobalMoveListenerActive && this.globalMouseMoveHandler) {
+      document.addEventListener('mousemove', this.globalMouseMoveHandler, { passive: true });
+      this.isGlobalMoveListenerActive = true;
+      console.log(`🌍 [${this.debugId}] Global mouse move listener ENABLED - will track outside movement`);
+    }
+  }
+  
+  /**
+   * 🔧 **DISABLE GLOBAL MOUSE MOVE LISTENER**: Deactivate when drag ends
+   */
+  disableGlobalMouseMoveListener() {
+    if (this.isGlobalMoveListenerActive && this.globalMouseMoveHandler) {
+      document.removeEventListener('mousemove', this.globalMouseMoveHandler, { passive: true });
+      this.isGlobalMoveListenerActive = false;
+      console.log(`🌍 [${this.debugId}] Global mouse move listener DISABLED`);
     }
   }
   
@@ -600,7 +656,7 @@ export class InteractionManager {
       const timeSinceMouseDown = performance.now() - (this.mouseDownTimestamp || 0);
       
       // 🆕 **CONFIRM DRAG**: Chỉ confirm drag khi di chuyển đủ xa HOẶC đủ lâu
-      if (pixelsMoved >= this.dragMoveThreshold || timeSinceMouseDown > 100) {
+      if (pixelsMoved >= this.dragMoveThreshold || timeSinceMouseDown > 50) { // 🚀 **FAST DRAG FIX**: Giảm từ 100ms xuống 50ms để catch fast drag nhanh hơn
         this.isDraggingConfirmed = true;
         
         // 🆕 **CANCEL PENDING JUMP**: Cancel pending jump khi confirm drag để tránh jump đột ngột
@@ -637,8 +693,9 @@ export class InteractionManager {
             pendingJumpCanceled: true
           });
           
-          // 🌍 **ENABLE GLOBAL PROTECTION**: Enable global mouse up listener for ghost drag protection
+          // 🌍 **ENABLE GLOBAL PROTECTION**: Enable global listeners for drag protection outside canvas
           this.enableGlobalMouseUpListener();
+          this.enableGlobalMouseMoveListener();
         }
       }
     }
@@ -710,8 +767,10 @@ export class InteractionManager {
         };
         
       } else if (this.activeHandle === HANDLE_TYPES.START) {
-        const newStartTime = Math.min(roundedTime, endTime - 0.1);
-        if (Math.abs(newStartTime - startTime) > 0.01) {
+        // 🔧 **FIXED BOUNDARY LOGIC**: Cho phép drag về 0 thay vì block ở endTime - 0.1
+        const newStartTime = Math.max(0, Math.min(roundedTime, endTime - 0.05)); // 🚀 **ALLOW ZERO**: Cho phép về 0, chỉ cần tránh overlap với end
+        // 🔧 **REDUCED THRESHOLD**: Giảm từ 0.01s xuống 0.005s để responsive hơn với fast drag
+        if (Math.abs(newStartTime - startTime) > 0.005) { // 🚀 **FASTER RESPONSE**: 0.005s threshold thay vì 0.01s
           console.log(`⏮️ [${this.debugId}] CONFIRMED dragging start (MODERN): ${startTime.toFixed(2)}s → ${newStartTime.toFixed(2)}s`);
           
           // 🆕 **REAL-TIME CURSOR SYNC**: Cursor theo real-time khi drag start handle  
@@ -740,8 +799,10 @@ export class InteractionManager {
           };
         }
       } else if (this.activeHandle === HANDLE_TYPES.END) {
-        const newEndTime = Math.max(roundedTime, startTime + 0.1);
-        if (Math.abs(newEndTime - endTime) > 0.01) {
+        // 🔧 **FIXED BOUNDARY LOGIC**: Cho phép drag về duration thay vì block ở startTime + 0.1
+        const newEndTime = Math.min(duration, Math.max(roundedTime, startTime + 0.05)); // 🚀 **ALLOW MAX DURATION**: Cho phép về duration, chỉ cần tránh overlap với start
+        // 🔧 **REDUCED THRESHOLD**: Giảm từ 0.01s xuống 0.005s để responsive hơn với fast drag
+        if (Math.abs(newEndTime - endTime) > 0.005) { // 🚀 **FASTER RESPONSE**: 0.005s threshold thay vì 0.01s
           console.log(`⏭️ [${this.debugId}] CONFIRMED dragging end (MODERN): ${endTime.toFixed(2)}s → ${newEndTime.toFixed(2)}s`);
           
           // 🆕 **REAL-TIME CURSOR SYNC**: Cursor theo real-time khi drag end handle với intelligent offset
@@ -926,6 +987,7 @@ export class InteractionManager {
     
     // 🌍 **DISABLE GLOBAL PROTECTION**: Disable global mouse up listener after normal completion
     this.disableGlobalMouseUpListener();
+    this.disableGlobalMouseMoveListener();
     
     return {
       action: wasDragging ? 'completeDrag' : 'none',
@@ -946,52 +1008,44 @@ export class InteractionManager {
    * 🎯 Handle mouse leave event
    */
   handleMouseLeave() {
-    console.log(`🫥 [${this.debugId}] Mouse left canvas (MODERN)`);
+    console.log(`🫥 [${this.debugId}] Mouse left canvas - KEEPING drag state active`);
     
-    // 🛡️ **TRACK MOUSE LEAVE TIME**: Record timing cho re-entry protection
+    // 🛡️ **TRACK MOUSE LEAVE TIME**: Record timing để biết khi nào mouse leave
     this.lastMouseLeaveTime = performance.now();
     
     const wasDragging = this.state === INTERACTION_STATES.DRAGGING;
     const wasConfirmedDrag = this.isDraggingConfirmed;
     
-    // 🔧 **SMART RESET LOGIC**: Only reset if NOT actively dragging with confirmed drag
+    // 🚀 **SIMPLIFIED LOGIC**: TUYỆT ĐỐI KHÔNG reset drag state khi mouse ra ngoài
+    // Chỉ clear hover state, drag state được giữ nguyên cho đến khi có mouse up thật sự
+    
     if (wasDragging && wasConfirmedDrag) {
-      // 🚀 **MAINTAIN DRAG STATE**: Keep drag state when actively dragging for seamless re-entry
-      console.log(`🔄 [${this.debugId}] MAINTAINING drag state - active drag in progress (can re-enter and continue)`, {
+      console.log(`🔄 [${this.debugId}] ACTIVE DRAG - Keeping all drag state, clearing only hover:`, {
         activeHandle: this.activeHandle,
         isDraggingRegion: this.isDraggingRegion,
-        note: 'Drag state preserved for seamless mouse re-entry'
+        dragContinues: true,
+        mouseLeaveTime: performance.now(),
+        note: 'Drag will continue even outside canvas until real mouse up'
       });
       
-      // 🛡️ **CLEAR ONLY HOVER**: Clear hover state but keep drag state
+      // 🛡️ **CLEAR ONLY HOVER**: Chỉ clear hover, giữ toàn bộ drag state
       this.lastHoveredHandle = HANDLE_TYPES.NONE;
       
       return {
         action: 'clearHover',
         cursor: 'default',
-        forceReset: false, // 🚀 **NO FORCE RESET**: Keep drag state active
+        forceReset: false, // 🚀 **NEVER RESET**: Không bao giờ reset drag state
         wasDragging: wasDragging,
         wasConfirmedDrag: wasConfirmedDrag,
-        maintainDragState: true // 🆕 **FLAG**: Indicate drag state is maintained
+        maintainDragState: true, // 🆕 **ALWAYS MAINTAIN**: Luôn giữ drag state
+        continueDragOutside: true // 🆕 **NEW FLAG**: Drag tiếp tục outside canvas
       };
     } else {
-      // 🚨 **RESET NON-CONFIRMED DRAGS**: Reset if not confirmed drag or not dragging
-      console.log(`🛡️ [${this.debugId}] RESET interaction states - no confirmed drag in progress`);
+      // 🔧 **NON-DRAG SCENARIOS**: Chỉ reset khi không có drag
+      console.log(`🛡️ [${this.debugId}] NO ACTIVE DRAG - Safe to reset hover and pending actions`);
       
-      // 🔧 **STANDARD RESET**: Reset all states for non-drag scenarios
-      this.state = INTERACTION_STATES.IDLE;
+      // 🔧 **RESET NON-DRAG STATES**: Chỉ reset hover và pending actions
       this.lastHoveredHandle = HANDLE_TYPES.NONE;
-      this.activeHandle = HANDLE_TYPES.NONE;
-      this.dragStartPosition = null;
-      this.dragStartTime = null;
-      this.isDraggingConfirmed = false;
-      this.mouseDownTimestamp = null;
-      this.lastMousePosition = null;
-      
-      // 🔧 **RESET REGION DRAG**: Reset region drag states
-      this.isDraggingRegion = false;
-      this.regionDragStartTime = null;
-      this.regionDragOffset = 0;
       
       // 🛡️ **CLEAR PENDING ACTIONS**: Clear pending actions để tránh trigger khi mouse re-enter
       if (this.hasPendingJump) {
@@ -1008,11 +1062,11 @@ export class InteractionManager {
       
       return {
         action: 'clearHover',
-        cursor: 'default',
-        forceReset: true, // 🚨 **FORCE RESET**: Reset for non-drag scenarios
+        cursor: 'default', 
+        forceReset: false, // 🚀 **NO FORCE RESET**: Không reset drag state ngay cả khi không drag
         wasDragging: wasDragging,
         wasConfirmedDrag: wasConfirmedDrag,
-        ghostDragPrevented: true
+        pendingActionsCleared: true
       };
     }
   }
@@ -1085,6 +1139,7 @@ export class InteractionManager {
     
     // 🌍 **CLEANUP GLOBAL LISTENER**: Ensure global mouse up listener is disabled
     this.disableGlobalMouseUpListener();
+    this.disableGlobalMouseMoveListener();
   }
   
   /**
