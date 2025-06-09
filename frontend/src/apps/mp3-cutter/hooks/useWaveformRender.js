@@ -42,61 +42,72 @@ export const useWaveformRender = (canvasRef, waveformData, volume, isDragging, i
     };
   }, [volume, animatedVolume]);
 
-  // 🚀 **SMART ADAPTIVE WAVEFORM DATA**: Based on container width for perfect responsive
-  const adaptiveWaveformData = useMemo(() => {
-    if (!waveformData.length) return [];
+  // 🎯 **INTERPOLATION FUNCTION**: Create more bars for smooth waveform
+  const linearInterpolate = useCallback((originalData, targetLength) => {
+    const result = [];
+    const step = originalData.length / targetLength;
     
-    const currentWidth = containerWidth || 800;
-    const { SAMPLING_RULES } = WAVEFORM_CONFIG.RESPONSIVE;
-    
-    let rule;
-    if (currentWidth <= SAMPLING_RULES.SMALL.maxWidth) {
-      rule = SAMPLING_RULES.SMALL;
-    } else if (currentWidth <= SAMPLING_RULES.MEDIUM.maxWidth) {
-      rule = SAMPLING_RULES.MEDIUM;  
-    } else {
-      rule = SAMPLING_RULES.LARGE;
-    }
-    
-    // 🎯 **ENHANCED CALCULATION**: Better targetSamples calculation for smooth bars
-    const rawBarWidth = currentWidth / waveformData.length;
-    const minBarWidth = WAVEFORM_CONFIG.RESPONSIVE.MIN_BAR_WIDTH;
-    
-    let targetSamples;
-    if (rawBarWidth < minBarWidth) {
-      // Many bars → reduce samples for smooth rendering
-      targetSamples = Math.floor(currentWidth / minBarWidth);
-    } else {
-      // Few bars → increase samples for better resolution 
-      targetSamples = Math.min(waveformData.length, Math.floor(currentWidth * rule.samplesPerPx));
-    }
-    
-    targetSamples = Math.max(100, Math.min(targetSamples, waveformData.length));
-    
-    if (waveformData.length <= targetSamples) {
-      return waveformData;
-    }
-    
-    // 🎯 **SMOOTH RESAMPLING**: Better averaging for smooth waveform
-    const step = waveformData.length / targetSamples;
-    const adaptedData = [];
-    
-    for (let i = 0; i < targetSamples; i++) {
-      const startIdx = Math.floor(i * step);
-      const endIdx = Math.min(Math.floor((i + 1) * step), waveformData.length);
+    for (let i = 0; i < targetLength; i++) {
+      const sourceIndex = i * step;
+      const leftIndex = Math.floor(sourceIndex);
+      const rightIndex = Math.min(Math.ceil(sourceIndex), originalData.length - 1);
+      const progress = sourceIndex - leftIndex;
       
-      // Use RMS for better visual representation
+      const interpolatedValue = originalData[leftIndex] * (1 - progress) + 
+                               originalData[rightIndex] * progress;
+      result.push(interpolatedValue);
+    }
+    
+    return result;
+  }, []);
+
+  // 🎯 **RMS SAMPLING FUNCTION**: Reduce bars while preserving audio characteristics
+  const rmsSample = useCallback((originalData, targetLength) => {
+    const result = [];
+    const step = originalData.length / targetLength;
+    
+    for (let i = 0; i < targetLength; i++) {
+      const startIdx = Math.floor(i * step);
+      const endIdx = Math.min(Math.floor((i + 1) * step), originalData.length);
+      
       let sumSquared = 0;
       let count = 0;
       for (let j = startIdx; j < endIdx; j++) {
-        sumSquared += waveformData[j] * waveformData[j];
+        sumSquared += originalData[j] * originalData[j];
         count++;
       }
-      adaptedData.push(count > 0 ? Math.sqrt(sumSquared / count) : 0);
+      
+      result.push(count > 0 ? Math.sqrt(sumSquared / count) : 0);
     }
     
-    return adaptedData;
-  }, [waveformData, containerWidth]);
+    return result;
+  }, []);
+
+  // 🚀 **HYBRID DYNAMIC SYSTEM**: Smart bar width management (0.3px - 0.8px)
+  const hybridWaveformData = useMemo(() => {
+    if (!waveformData.length || !containerWidth) return [];
+    
+    const { MAX_BAR_WIDTH, MIN_BAR_WIDTH } = WAVEFORM_CONFIG.RESPONSIVE;
+    const idealBarWidth = containerWidth / waveformData.length;
+    
+    // 🎯 **DECISION LOGIC**
+    if (idealBarWidth >= MIN_BAR_WIDTH && idealBarWidth <= MAX_BAR_WIDTH) {
+      // ✅ PERFECT RANGE: Keep original data
+      return { data: waveformData, barWidth: idealBarWidth, mode: 'natural' };
+      
+    } else if (idealBarWidth > MAX_BAR_WIDTH) {
+      // 🎨 TOO BIG: Interpolate to add more bars
+      const targetBars = Math.floor(containerWidth / MAX_BAR_WIDTH);
+      const interpolatedData = linearInterpolate(waveformData, targetBars);
+      return { data: interpolatedData, barWidth: MAX_BAR_WIDTH, mode: 'interpolate' };
+      
+    } else {
+      // 📉 TOO SMALL: Sample to reduce bars  
+      const maxBarsForMinSize = Math.floor(containerWidth / MIN_BAR_WIDTH);
+      const sampledData = rmsSample(waveformData, maxBarsForMinSize);
+      return { data: sampledData, barWidth: MIN_BAR_WIDTH, mode: 'sample' };
+    }
+  }, [waveformData, containerWidth, linearInterpolate, rmsSample]);
 
   // Request redraw function
   const requestRedraw = useCallback((drawFunction) => {
@@ -225,7 +236,7 @@ export const useWaveformRender = (canvasRef, waveformData, volume, isDragging, i
 
   return {
     animatedVolume,
-    adaptiveWaveformData,
+    hybridWaveformData,
     requestRedraw,
     containerWidth
   };

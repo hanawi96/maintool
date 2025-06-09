@@ -47,10 +47,10 @@ const WaveformCanvas = React.memo(({
     resetCursor
   } = useWaveformCursor(canvasRef, duration, startTime, endTime, isDragging);
 
-  // 🚀 **OPTIMIZED HOOK**: Responsive waveform rendering
+  // 🚀 **OPTIMIZED HOOK**: Responsive waveform rendering with hybrid system
   const {
     animatedVolume,
-    adaptiveWaveformData,
+    hybridWaveformData,
     requestRedraw,
     containerWidth
   } = useWaveformRender(canvasRef, waveformData, volume, isDragging, isPlaying, hoverTooltip);
@@ -201,19 +201,21 @@ const WaveformCanvas = React.memo(({
 
   // 🎯 **RENDER DATA MEMOIZATION**: Prevent unnecessary recalculations  
   const renderData = useMemo(() => {
-    if (!adaptiveWaveformData.length || duration <= 0) return null;
+    if (!hybridWaveformData?.data?.length || duration <= 0) return null;
     
     return {
-      waveformData: adaptiveWaveformData, // 🆕 **USE ADAPTIVE DATA**: Smart responsive data
+      waveformData: hybridWaveformData.data, // 🚀 **HYBRID DATA**: Use processed data
+      barWidth: hybridWaveformData.barWidth, // 🚀 **FIXED BAR WIDTH**: From hybrid system
+      mode: hybridWaveformData.mode, // 🚀 **PROCESSING MODE**: natural/interpolate/sample
       duration,
       startTime,
       endTime,
       volume: animatedVolume,
       fadeIn,
       fadeOut,
-      containerWidth // 🆕 **CONTAINER WIDTH**: For responsive calculations
+      containerWidth
     };
-  }, [adaptiveWaveformData, duration, startTime, endTime, animatedVolume, fadeIn, fadeOut, containerWidth]);
+  }, [hybridWaveformData, duration, startTime, endTime, animatedVolume, fadeIn, fadeOut, containerWidth]);
 
   // 🆕 **FADE EFFECT CALCULATOR**: Optimized fade calculation
   const calculateFadeMultiplier = useCallback((barTime, selectionStart, selectionEnd, fadeInDuration, fadeOutDuration) => {
@@ -263,34 +265,20 @@ const WaveformCanvas = React.memo(({
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, width, height);
     
-    // 2. **WAVEFORM BARS**: Ultra-optimized rendering
-    const { waveformData, duration, startTime, endTime, volume: currentVolume, fadeIn: currentFadeIn, fadeOut: currentFadeOut, containerWidth: currentContainerWidth } = renderData;
+    // 2. **WAVEFORM BARS**: Ultra-optimized rendering with hybrid system
+    const { 
+      waveformData, 
+      barWidth: fixedBarWidth, // 🚀 **FIXED WIDTH**: From hybrid system (0.3px - 0.8px)
+      mode,
+      duration, 
+      startTime, 
+      endTime, 
+      volume: currentVolume, 
+      fadeIn: currentFadeIn, 
+      fadeOut: currentFadeOut 
+    } = renderData;
+    
     const centerY = height / 2;
-    
-    // 🚀 **SMART RESPONSIVE CALCULATIONS**: Enhanced bar calculations
-    const currentWidth = currentContainerWidth || width;
-    const rawBarWidth = currentWidth / waveformData.length;
-    const minBarWidth = WAVEFORM_CONFIG.RESPONSIVE.MIN_BAR_WIDTH;
-    
-    // 🎯 **ADAPTIVE BAR WIDTH**: Smart responsive bar sizing
-    let finalBarWidth, barSpacing, renderMode;
-    
-    if (rawBarWidth >= minBarWidth * 2) {
-      // WIDE BARS MODE: Có đủ không gian cho bars to và spacing
-      finalBarWidth = Math.min(rawBarWidth * 0.7, minBarWidth * 3);
-      barSpacing = rawBarWidth;
-      renderMode = 'wide';
-    } else if (rawBarWidth >= minBarWidth) {
-      // STANDARD BARS MODE: Kích thước bars tiêu chuẩn
-      finalBarWidth = Math.max(minBarWidth, rawBarWidth * 0.8);
-      barSpacing = rawBarWidth;
-      renderMode = 'standard';
-    } else {
-      // COMPACT BARS MODE: Bars siêu mỏng cho nhiều data
-      finalBarWidth = minBarWidth * 0.6;
-      barSpacing = currentWidth / waveformData.length;
-      renderMode = 'compact';
-    }
     
     // 🎯 **VOLUME SYSTEM**: Perfect linear scaling
     const FLAT_BAR_HEIGHT_PX = 1;
@@ -301,87 +289,36 @@ const WaveformCanvas = React.memo(({
     const absoluteBarHeightPx = FLAT_BAR_HEIGHT_PX + scalingPixels;
     const waveformVariation = Math.max(0, Math.min(1, currentVolume));
     
-    // 🎯 **RENDER BARS**
+    // 🚀 **HYBRID RENDERING**: Use fixed bar width from hybrid system
     if (absoluteBarHeightPx > 0) {
       ctx.save();
       
       const fadeEffectsActive = currentFadeIn > 0 || currentFadeOut > 0;
       
-      if (renderMode === 'wide') {
-        for (let i = 0; i < waveformData.length; i++) {
-          const value = waveformData[i];
-          const barTime = (i / waveformData.length) * duration;
-          
-          const fadeMultiplier = fadeEffectsActive ? 
-            calculateFadeMultiplier(barTime, startTime, endTime, currentFadeIn, currentFadeOut) : 1.0;
-          
-          let effectiveBarHeight;
-          if (waveformVariation === 0) {
-            effectiveBarHeight = FLAT_BAR_HEIGHT_PX;
-          } else {
-            const flatHeight = FLAT_BAR_HEIGHT_PX;
-            const dynamicHeight = absoluteBarHeightPx * value;
-            effectiveBarHeight = flatHeight + (dynamicHeight - flatHeight) * waveformVariation;
-          }
-          
-          const finalBarHeight = effectiveBarHeight * fadeMultiplier;
-          const x = i * barSpacing;
-          
-          const isInSelection = barTime >= startTime && barTime <= endTime;
-          ctx.fillStyle = isInSelection ? '#7c3aed' : '#cbd5e1';
-          
-          ctx.fillRect(Math.floor(x), centerY - finalBarHeight, finalBarWidth, finalBarHeight * 2);
+      for (let i = 0; i < waveformData.length; i++) {
+        const value = waveformData[i];
+        const barTime = (i / waveformData.length) * duration;
+        
+        const fadeMultiplier = fadeEffectsActive ? 
+          calculateFadeMultiplier(barTime, startTime, endTime, currentFadeIn, currentFadeOut) : 1.0;
+        
+        let effectiveBarHeight;
+        if (waveformVariation === 0) {
+          effectiveBarHeight = FLAT_BAR_HEIGHT_PX;
+        } else {
+          const flatHeight = FLAT_BAR_HEIGHT_PX;
+          const dynamicHeight = absoluteBarHeightPx * value;
+          effectiveBarHeight = flatHeight + (dynamicHeight - flatHeight) * waveformVariation;
         }
-      } else if (renderMode === 'standard') {
-        for (let i = 0; i < waveformData.length; i++) {
-          const value = waveformData[i];
-          const barTime = (i / waveformData.length) * duration;
-          
-          const fadeMultiplier = fadeEffectsActive ? 
-            calculateFadeMultiplier(barTime, startTime, endTime, currentFadeIn, currentFadeOut) : 1.0;
-          
-          let effectiveBarHeight;
-          if (waveformVariation === 0) {
-            effectiveBarHeight = FLAT_BAR_HEIGHT_PX;
-          } else {
-            const flatHeight = FLAT_BAR_HEIGHT_PX;
-            const dynamicHeight = absoluteBarHeightPx * value;
-            effectiveBarHeight = flatHeight + (dynamicHeight - flatHeight) * waveformVariation;
-          }
-          
-          const finalBarHeight = effectiveBarHeight * fadeMultiplier;
-          const x = i * barSpacing;
-          
-          const isInSelection = barTime >= startTime && barTime <= endTime;
-          ctx.fillStyle = isInSelection ? '#7c3aed' : '#cbd5e1';
-          
-          ctx.fillRect(Math.floor(x), centerY - finalBarHeight, finalBarWidth, finalBarHeight * 2);
-        }
-      } else {
-        for (let i = 0; i < waveformData.length; i++) {
-          const value = waveformData[i];
-          const barTime = (i / waveformData.length) * duration;
-          
-          const fadeMultiplier = fadeEffectsActive ? 
-            calculateFadeMultiplier(barTime, startTime, endTime, currentFadeIn, currentFadeOut) : 1.0;
-          
-          let effectiveBarHeight;
-          if (waveformVariation === 0) {
-            effectiveBarHeight = FLAT_BAR_HEIGHT_PX;
-          } else {
-            const flatHeight = FLAT_BAR_HEIGHT_PX;
-            const dynamicHeight = absoluteBarHeightPx * value;
-            effectiveBarHeight = flatHeight + (dynamicHeight - flatHeight) * waveformVariation;
-          }
-          
-          const finalBarHeight = effectiveBarHeight * fadeMultiplier;
-          const x = i * barSpacing;
-          
-          const isInSelection = barTime >= startTime && barTime <= endTime;
-          ctx.fillStyle = isInSelection ? '#7c3aed' : '#cbd5e1';
-          
-          ctx.fillRect(Math.floor(x), centerY - finalBarHeight, finalBarWidth, finalBarHeight * 2);
-        }
+        
+        const finalBarHeight = effectiveBarHeight * fadeMultiplier;
+        const x = i * fixedBarWidth; // 🚀 **FIXED SPACING**: Perfect alignment
+        
+        const isInSelection = barTime >= startTime && barTime <= endTime;
+        ctx.fillStyle = isInSelection ? '#7c3aed' : '#cbd5e1';
+        
+        // 🚀 **FIXED BAR WIDTH**: Always 0.3px - 0.8px from hybrid system
+        ctx.fillRect(Math.floor(x), centerY - finalBarHeight, fixedBarWidth, finalBarHeight * 2);
       }
       
       ctx.restore();

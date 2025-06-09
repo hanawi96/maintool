@@ -40,25 +40,30 @@ export const WAVEFORM_CONFIG = {
   HANDLE_HEIGHT: 20,       // 🎯 **LEGACY HANDLE HEIGHT**: Kept for compatibility
   MODERN_HANDLE_WIDTH: 8,  // Mảnh hơn nữa (giảm từ 4px xuống 3px) + ENHANCED TOLERANCE (15px+) cho hover nhạy bén
   
-  // 🎯 RESPONSIVE: Adaptive configuration for different screen sizes
+  // 🆕 **RESPONSIVE**: Enhanced responsive waveform configuration
   RESPONSIVE: {
-    MIN_WIDTH: 250,           // Minimum canvas width (px)
-    MIN_BAR_WIDTH: 0.6,       // 🔥 **ULTRA THIN**: Bars siêu mỏng cho responsive tốt hơn
-    MOBILE_BREAKPOINT: 600,   // Mobile breakpoint (px)
-    TOUCH_TOLERANCE: 15,      // Touch area tolerance on mobile (px)
+    MIN_WIDTH: 300,           // Minimum container width (px)
+    MOBILE_BREAKPOINT: 640,   // Mobile breakpoint (px)
+    MAX_BAR_WIDTH: 0.8,       // 🚀 **HYBRID SYSTEM**: Maximum bar width (px)
+    MIN_BAR_WIDTH: 0.3,       // 🚀 **HYBRID SYSTEM**: Minimum bar width (px)
     
-    // 🚀 **ENHANCED SAMPLING**: Optimized density cho responsive bars
+    // 🎯 **SAMPLING RULES**: Different strategies for different screen sizes
     SAMPLING_RULES: {
-      SMALL: { maxWidth: 400, samplesPerPx: 1/2 },      // 🔥 Tăng density cho mobile
-      MEDIUM: { maxWidth: 800, samplesPerPx: 1/1.5 },   // 🔥 Smooth density cho tablet  
-      LARGE: { maxWidth: Infinity, samplesPerPx: 1/1 }  // 🔥 Maximum detail cho desktop
-    },
-    
-    // 🆕 **BAR MODES**: Different rendering modes for various screen sizes
-    BAR_MODES: {
-      WIDE: { minBarWidth: 1.2, spacing: 0.7, quality: 'high' },      // Bars to với spacing
-      STANDARD: { minBarWidth: 0.8, spacing: 0.8, quality: 'medium' }, // Bars tiêu chuẩn
-      COMPACT: { minBarWidth: 0.4, spacing: 1.0, quality: 'optimized' } // Bars siêu mỏng
+      SMALL: {
+        maxWidth: 640,        // Mobile screens
+        samplesPerPx: 1.5,    // Fewer samples for performance
+        description: 'Mobile optimized'
+      },
+      MEDIUM: {
+        maxWidth: 1024,       // Tablet screens  
+        samplesPerPx: 2.0,    // Balanced samples
+        description: 'Tablet optimized'
+      },
+      LARGE: {
+        maxWidth: Infinity,   // Desktop screens
+        samplesPerPx: 2.5,    // Maximum detail
+        description: 'Desktop optimized'
+      }
     }
   },
 
