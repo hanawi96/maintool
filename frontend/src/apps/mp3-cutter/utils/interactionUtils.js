@@ -62,7 +62,7 @@ export const detectHandle = (x, canvasWidth, duration, startTime, endTime, event
   const startHandleVisualCenter = startX - (responsiveHandleWidth / 2); // startX - 4 ✅ ĐÚNG
   
   // End handle: Visual center nằm ở giữa [endX-8, endX] = endX - 4 (UPDATED để match start handle pattern)
-  const endHandleVisualCenter = endX - (responsiveHandleWidth / 2);     // endX - 4 ✅ MATCH START HANDLE
+  const endHandleVisualCenter = endX + (responsiveHandleWidth / 2);     // endX - 4 ✅ MATCH START HANDLE
   
   // 🆕 **UNIFORM DETECTION TOLERANCE**: Sử dụng tolerance giống nhau cho cả 2 handles
   const halfWidth = responsiveHandleWidth / 2; // 4px
@@ -78,8 +78,8 @@ export const detectHandle = (x, canvasWidth, duration, startTime, endTime, event
   if (shouldLogDebug) {
     const startVisualLeft = startX - responsiveHandleWidth;
     const startVisualRight = startX;
-    const endVisualLeft = endX - responsiveHandleWidth; // 🔧 **UPDATED**: End handle bây giờ cũng shifted left
-    const endVisualRight = endX; // 🔧 **UPDATED**: End handle right edge bây giờ là endX
+    const endVisualLeft = endX; // Bắt đầu từ end time
+const endVisualRight = endX + responsiveHandleWidth; 
     
     const startDetectionLeft = startHandleVisualCenter - detectionTolerance;
     const startDetectionRight = startHandleVisualCenter + detectionTolerance;
@@ -123,8 +123,8 @@ export const detectHandle = (x, canvasWidth, duration, startTime, endTime, event
       // 🆕 **END HANDLE SPECIFIC DEBUG**
       endHandleSpecific: {
         endX: endX.toFixed(1) + 'px',
-        endHandleLeft: (endX - responsiveHandleWidth).toFixed(1) + 'px', // 🔧 **UPDATED**: left = endX - width
-        endHandleRight: endX.toFixed(1) + 'px', // 🔧 **UPDATED**: right = endX
+        endHandleLeft: endX.toFixed(1) + 'px', // Bắt đầu từ end time
+endHandleRight: (endX + responsiveHandleWidth).toFixed(1) + 'px',
         endHandleCenter: endHandleVisualCenter.toFixed(1) + 'px', // center = endX - width/2
         mouseDistanceFromEndCenter: Math.abs(x - endHandleVisualCenter).toFixed(1) + 'px',
         enhancedTolerance: endHandleDetectionTolerance + 'px',

@@ -435,7 +435,7 @@ const WaveformCanvas = React.memo(({
       },
       end: {
         visible: true,
-        x: endX,
+        x: endX + responsiveHandleWidth,
         y: 0, 
         width: responsiveHandleWidth,
         height: height,
