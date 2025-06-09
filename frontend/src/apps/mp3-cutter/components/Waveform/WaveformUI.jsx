@@ -665,7 +665,12 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, mainCursorToolti
             borderRadius: '4px 0 0 4px', // 🎨 **PROPER RADIUS**: 4px như yêu cầu user
             transition: 'background-color 150ms ease', // Smooth color transitions
             zIndex: 40, // Higher than waveform, lower than tooltips
-            cursor: 'ew-resize' // 🔧 **DIRECT CURSOR**: Set cursor trực tiếp trên handle
+            cursor: 'ew-resize', // 🔧 **DIRECT CURSOR**: Set cursor trực tiếp trên handle
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '3px'
           }}
           onMouseEnter={() => {
             console.log('🎯 [HANDLE-HOVER] START handle hovered - direct event');
@@ -723,7 +728,27 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, mainCursorToolti
               onHandleMouseUp(syntheticEvent);
             }
           }}
-        />
+        >
+          {/* 🔘 **WHITE DOTS**: 3 white circular dots */}
+          <div style={{
+            width: '2.6px',
+            height: '2.6px',
+            backgroundColor: 'white',
+            borderRadius: '50%'
+          }} />
+          <div style={{
+            width: '2.6px',
+            height: '2.6px',
+            backgroundColor: 'white',
+            borderRadius: '50%'
+          }} />
+          <div style={{
+            width: '2.6px',
+            height: '2.6px',
+            backgroundColor: 'white',
+            borderRadius: '50%'
+          }} />
+        </div>
       )}
 
       {/* 🤚 **END HANDLE COMPONENT** - React component rendering like tooltips */}
@@ -740,7 +765,12 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, mainCursorToolti
             borderRadius: '0 4px 4px 0', // 🎨 **PROPER RADIUS**: 4px như yêu cầu user
             transition: 'background-color 150ms ease', // Smooth color transitions
             zIndex: 40, // Higher than waveform, lower than tooltips
-            cursor: 'ew-resize' // 🔧 **DIRECT CURSOR**: Set cursor trực tiếp trên handle
+            cursor: 'ew-resize', // 🔧 **DIRECT CURSOR**: Set cursor trực tiếp trên handle
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '3px'
           }}
           onMouseEnter={() => {
             console.log('🎯 [HANDLE-HOVER] END handle hovered - direct event');
@@ -798,7 +828,27 @@ export const WaveformUI = memo(({ hoverTooltip, handleTooltips, mainCursorToolti
               onHandleMouseUp(syntheticEvent);
             }
           }}
-        />
+        >
+          {/* 🔘 **WHITE DOTS**: 3 white circular dots */}
+          <div style={{
+            width: '2.6px',
+            height: '2.6px',
+            backgroundColor: 'white',
+            borderRadius: '50%'
+          }} />
+          <div style={{
+            width: '2.6px',
+            height: '2.6px',
+            backgroundColor: 'white',
+            borderRadius: '50%'
+          }} />
+          <div style={{
+            width: '2.6px',
+            height: '2.6px',
+            backgroundColor: 'white',
+            borderRadius: '50%'
+          }} />
+        </div>
       )}
 
       {/* 🔵 **MAIN CURSOR COMPONENT** - React component rendering like tooltips */}

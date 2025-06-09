@@ -440,7 +440,7 @@ const WaveformCanvas = React.memo(({
         width: responsiveHandleWidth,
         height: height,
         isActive: hoveredHandle === 'end' || isDragging === 'end',
-        color: hoveredHandle === 'end' || isDragging === 'end' ? '#ea580c' : '#f97316'
+        color: hoveredHandle === 'end' || isDragging === 'end' ? '#0d9488' : '#14b8a6'
       }
     };
   }, [canvasRef, duration, startTime, endTime, hoveredHandle, isDragging]);
