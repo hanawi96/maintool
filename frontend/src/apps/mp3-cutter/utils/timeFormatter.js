@@ -43,7 +43,7 @@ export const formatTimeWithMs = (time) => {
 
 /**
  * 🎯 **UNIFIED TIME FORMATTER** - Single source of truth cho tất cả time displays
- * 🔥 **PERFECT CONSISTENCY**: Đảm bảo CompactTimeSelector và tooltip hiển thị y hệt nhau
+ * 🔥 **PERFECT CONSISTENCY**: Đảm bảo tất cả phần thời gian đều dùng MM.SS.CS format
  * @param {number} time - Time in seconds
  * @returns {string} - Formatted time string MM.SS.CS with perfect 0.1s precision
  */
@@ -80,45 +80,59 @@ export const formatTimeWithCS = formatTimeUnified;
 export const formatTimeContext = (time, context = 'display') => {
   switch (context) {
     case 'compact':
-      // For mobile/compact views - MM:SS
-      return formatTimeSimple(time);
+      // For mobile/compact views - MM.SS.CS
+      return formatTimeUnified(time);
     case 'input':
-      // For time inputs - MM:SS.mmm
-      return formatTimeWithMs(time);
     case 'selector':
     case 'tooltip':
     case 'unified':
       // 🚀 **UNIFIED FORMAT**: For time selectors và tooltips - MM.SS.CS với perfect consistency
       return formatTimeUnified(time);
+    case 'duration':
+      // 🚀 **DURATION FORMAT**: For duration displays - MM.SS.CS
+      return formatTimeUnified(time);
     case 'display':
     default:
-      // Default display - MM:SS.mmm
-      return formatTime(time, true);
+      // Default display - MM.SS.CS
+      return formatTimeUnified(time);
   }
 };
 
 /**
  * 🎯 **PARSE TIME FROM STRING** - Enhanced parsing với error handling
- * @param {string} timeStr - Time string in MM:SS.mmm or MM:SS format
+ * @param {string} timeStr - Time string in MM.SS.CS or MM:SS format
  * @returns {number|null} - Parsed time in seconds or null if invalid
  */
 export const parseTimeFromString = (timeStr) => {
   if (!timeStr || typeof timeStr !== 'string') return null;
   
-  const parts = timeStr.trim().split(':');
-  if (parts.length !== 2) return null;
+  const parts = timeStr.trim().split(/[.:]/).filter(part => part.length > 0);
   
-  const minutes = parseInt(parts[0]);
-  if (isNaN(minutes) || minutes < 0) return null;
+  if (parts.length >= 3) {
+    // MM.SS.CS format
+    const minutes = parseInt(parts[0]);
+    const seconds = parseInt(parts[1]);
+    const centiseconds = parseInt(parts[2]);
+    
+    if (isNaN(minutes) || isNaN(seconds) || isNaN(centiseconds) || 
+        minutes < 0 || seconds < 0 || seconds >= 60 || centiseconds < 0 || centiseconds >= 100) {
+      return null;
+    }
+    
+    return minutes * 60 + seconds + centiseconds / 100;
+  } else if (parts.length === 2) {
+    // MM:SS format - assume 0 centiseconds
+    const minutes = parseInt(parts[0]);
+    const seconds = parseInt(parts[1]);
+    
+    if (isNaN(minutes) || isNaN(seconds) || minutes < 0 || seconds < 0 || seconds >= 60) {
+      return null;
+    }
+    
+    return minutes * 60 + seconds;
+  }
   
-  const secondsParts = parts[1].split('.');
-  const seconds = parseInt(secondsParts[0]);
-  if (isNaN(seconds) || seconds < 0 || seconds >= 60) return null;
-  
-  const milliseconds = secondsParts[1] ? parseInt(secondsParts[1].padEnd(3, '0').slice(0, 3)) : 0;
-  if (isNaN(milliseconds) || milliseconds < 0 || milliseconds >= 1000) return null;
-  
-  return minutes * 60 + seconds + milliseconds / 1000;
+  return null;
 };
 
 /**

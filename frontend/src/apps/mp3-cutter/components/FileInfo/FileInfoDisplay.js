@@ -1,6 +1,6 @@
 import React from 'react';
 import { Music, Clock } from 'lucide-react';
-import { formatTime, formatFileSize, formatTimeContext } from '../../utils/timeFormatter';
+import { formatTimeUnified, formatFileSize } from '../../utils/timeFormatter';
 
 const FileInfoDisplay = ({ audioFile, duration, currentTime, isPlaying }) => {
   if (!audioFile) return null;
@@ -26,7 +26,7 @@ const FileInfoDisplay = ({ audioFile, duration, currentTime, isPlaying }) => {
         <div className="flex items-center gap-6">
           <div className="text-center">
             <div className="text-xs text-slate-500">Duration</div>
-            <div className="text-sm font-mono text-slate-800">{formatTime(duration, false)}</div>
+            <div className="text-sm font-mono text-slate-800">{formatTimeUnified(duration)}</div>
           </div>
           
           <div className="text-center">
@@ -38,7 +38,7 @@ const FileInfoDisplay = ({ audioFile, duration, currentTime, isPlaying }) => {
           
           <div className="text-center">
             <div className="text-xs text-slate-500">Current Time</div>
-            <div className="text-sm font-mono text-purple-600">{formatTime(currentTime, true)}</div>
+            <div className="text-sm font-mono text-purple-600">{formatTimeUnified(currentTime)}</div>
           </div>
         </div>
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Download, Scissors, Loader, AlertCircle, Save } from 'lucide-react';
 import { audioApi } from '../../services/audioApi';
-import { formatTime } from '../../utils/timeFormatter';
+import { formatTimeUnified } from '../../utils/timeFormatter';
 import { useWebSocketProgress } from '../../hooks/useCutProgress';
 import FormatPresets from './FormatSelector';
 import ProgressIndicator from './ProgressIndicator';
@@ -302,7 +302,7 @@ const CutDownload = ({
       {audioFile && (
         <div className="bg-gray-50 p-3 rounded-lg text-sm">
           <div className="grid grid-cols-2 gap-2">
-            <div>Duration: {formatTime(endTime - startTime)}</div>
+            <div>Duration: {formatTimeUnified(endTime - startTime)}</div>
             <div>Speed: {playbackRate !== 1 ? `${playbackRate}x` : 'Normal'}</div>
             <div>Format: {outputFormat?.toUpperCase() || 'MP3'}</div>
             <div>Quality: High</div>
@@ -369,7 +369,7 @@ const CutDownload = ({
             <span className="font-medium">Ready to Download</span>
           </div>
           <div className="text-green-600 text-sm space-y-1">
-            <div>✅ Duration: {formatTime(processedFile.duration)}</div>
+            <div>✅ Duration: {formatTimeUnified(processedFile.duration)}</div>
             <div>✅ Speed: {processedFile.playbackRate !== 1 ? `${processedFile.playbackRate}x` : 'Normal'}</div>
             <div>✅ Format: {processedFile.outputFormat?.toUpperCase()}</div>
             {processedFile.fileSize && (
