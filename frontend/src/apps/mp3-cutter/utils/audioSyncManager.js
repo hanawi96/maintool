@@ -281,6 +281,9 @@ export class AudioSyncManager {
       return false;
     }
     
+    // 🔥 **PRESERVE PLAY STATE**: Store current playing state before any changes
+    const wasPlaying = !audioRef.current.paused;
+    
     // 🔥 **CALCULATE FINAL TIME**: Apply offset if provided
     const finalTime = offset > 0 ? Math.max(0, targetTime - offset) : targetTime;
     
@@ -289,20 +292,35 @@ export class AudioSyncManager {
       targetTime: targetTime.toFixed(2) + 's',
       offset: offset > 0 ? offset + 's' : 'none', 
       finalTime: finalTime.toFixed(2) + 's',
+      wasPlaying,
       skipValidation: true
     });
     
-    // 🔥 **IMMEDIATE AUDIO UPDATE**: Direct update without any checks
-    const audio = audioRef.current;
-    audio.currentTime = finalTime;
-    
-    // 🔥 **IMMEDIATE STATE UPDATE**: Force immediate React state update
-    setCurrentTime(finalTime);
+    // 🔥 **SAFE IMMEDIATE AUDIO UPDATE**: Direct update with play state protection
+    try {
+      const audio = audioRef.current;
+      audio.currentTime = finalTime;
+      
+      // 🎵 **RESTORE PLAY STATE**: If was playing, ensure it continues playing
+      if (wasPlaying && audio.paused) {
+        console.log(`🎵 [ForceSync] Restoring play state after immediate sync`);
+        audio.play().catch(e => {
+          console.warn(`⚠️ [ForceSync] Failed to restore play state:`, e);
+        });
+      }
+      
+      // 🔥 **IMMEDIATE STATE UPDATE**: Force immediate React state update
+      setCurrentTime(finalTime);
+      
+    } catch (error) {
+      console.warn(`⚠️ [ForceSync] Force sync error:`, error);
+      return false;
+    }
     
     // 🔥 **RESET THROTTLE**: Allow next sync immediately
     this.lastSyncTime = 0;
     
-    console.log(`✅ [${this.debugId}] Force sync completed: ${finalTime.toFixed(2)}s`);
+    console.log(`✅ [${this.debugId}] Force sync completed: ${finalTime.toFixed(2)}s, play state: ${wasPlaying ? 'preserved' : 'paused'}`);
     return true;
   }
   
@@ -318,11 +336,26 @@ export class AudioSyncManager {
   realTimeSync(newTime, audioRef, setCurrentTime, handleType, force = false, startTime = 0) {
     if (!audioRef.current) return false;
     
-    // 🔥 **FORCE MODE**: Skip throttling for ultra-smooth dragging
-    if (force) {
-      this.lastSyncTime = 0;
-    } else if (this._isThrottled(handleType)) { // 🆕 **SMART THROTTLING**: Pass handleType for intelligent throttling
-      return false; // Skip if throttled and not forced
+    // 🔥 **PRESERVE PLAY STATE**: Store current playing state before any changes
+    const wasPlaying = !audioRef.current.paused;
+    
+    // 🔥 **SMART THROTTLING FOR PLAY STATE**: More aggressive throttling when playing to prevent pause
+    const currentTime = performance.now();
+    const timeSinceLastSync = currentTime - this.lastSyncTime;
+    
+    // 🎯 **PLAY-STATE-AWARE THROTTLING**: Different thresholds based on play state
+    let throttleThreshold;
+    if (wasPlaying) {
+      // 🎵 **PLAYING STATE**: More conservative to prevent browser pause
+      throttleThreshold = handleType === 'region' ? 8 : 16; // 125fps region, 60fps others
+    } else {
+      // ⏸️ **PAUSED STATE**: More aggressive for responsiveness  
+      throttleThreshold = handleType === 'region' ? 2 : 8; // 500fps region, 125fps others
+    }
+    
+    // 🔥 **FORCE MODE**: Skip throttling for ultra-smooth dragging (but respect play state)
+    if (!force && timeSinceLastSync < throttleThreshold) {
+      return false; // Skip if throttled
     }
     
     // 🔥 **CALCULATE TARGET**: Apply intelligent offset cho different handle types
@@ -354,7 +387,7 @@ export class AudioSyncManager {
       // 🆕 **REGION START SYNC**: Always sync to region start as requested by user
       targetTime = startTime; // 🎯 **SIMPLIFIED**: Use startTime instead of newTime (which was middle)
       if (Math.random() < 0.01) { // 1% sampling for region drag
-        console.log(`🚀 [RealTimeSync] REGION START sync to: ${targetTime.toFixed(2)}s (always start - not middle) (500fps throttling)`);
+        console.log(`🚀 [RealTimeSync] REGION START sync to: ${targetTime.toFixed(2)}s (always start - not middle) (${wasPlaying ? '125fps' : '500fps'} throttling)`);
       }
     }
     
@@ -367,12 +400,27 @@ export class AudioSyncManager {
       return false;
     }
     
-    // 🔥 **IMMEDIATE UPDATE**: Direct audio and state update
-    audioRef.current.currentTime = targetTime;
-    setCurrentTime(targetTime);
+    // 🔥 **SAFE AUDIO UPDATE**: Update currentTime without affecting play state
+    try {
+      audioRef.current.currentTime = targetTime;
+      
+      // 🎵 **RESTORE PLAY STATE**: If was playing, ensure it continues playing
+      if (wasPlaying && audioRef.current.paused) {
+        console.log(`🎵 [RealTimeSync] Restoring play state after currentTime change`);
+        audioRef.current.play().catch(e => {
+          console.warn(`⚠️ [RealTimeSync] Failed to restore play state:`, e);
+        });
+      }
+      
+      setCurrentTime(targetTime);
+      
+    } catch (error) {
+      console.warn(`⚠️ [RealTimeSync] Audio sync error:`, error);
+      return false;
+    }
     
     // 🔥 **UPDATE THROTTLE**: Record sync time
-    this.lastSyncTime = performance.now();
+    this.lastSyncTime = currentTime;
     
     return true;
   }

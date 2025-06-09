@@ -672,7 +672,10 @@ const MP3CutterMain = React.memo(() => {
         setCurrentTime(audioCurrentTime);
         
         // 🎯 **ENHANCED AUTO-RETURN LOGIC**: Xử lý khi đến cuối region
-        if (endTime > startTime && audioCurrentTime >= endTime - 0.05) {
+        // 🔥 **DRAG PROTECTION**: Không trigger auto-return khi đang drag handles để tránh pause không mong muốn
+        const isDraggingAnyHandle = isDragging === 'start' || isDragging === 'end' || isDragging === 'region';
+        
+        if (endTime > startTime && audioCurrentTime >= endTime - 0.05 && !isDraggingAnyHandle) {
           const autoReturnEnabled = getAutoReturnSetting();
           
           if (autoReturnEnabled && audioRef.current) {
@@ -694,6 +697,9 @@ const MP3CutterMain = React.memo(() => {
             
             return; // Exit update loop
           }
+        } else if (isDraggingAnyHandle && Math.random() < 0.001) {
+          // 🔥 **DEBUG**: Log khi skip auto-return do drag (very low sampling để tránh spam)
+          console.log(`🚫 [AutoReturn-DragProtection] Skipping auto-return logic during ${isDragging} drag to prevent unwanted pause`);
         }
         
         // 🔧 **PERFORMANCE TRACKING** - Log mỗi 2 giây để track framerate
