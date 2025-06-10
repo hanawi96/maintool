@@ -166,7 +166,7 @@ const MP3CutterMain = React.memo(() => {
 
   // 🎯 **TIME CHANGE HANDLERS**: Extract time change logic using custom hook
   const {
-    handleStartTimeChange,
+    handleStartTimeChange: originalHandleStartTimeChange,
     handleEndTimeChange,
     cleanup: cleanupTimeHandlers // 🆕 **EXPOSE CLEANUP**: Get cleanup function
   } = useTimeChangeHandlers({
@@ -179,6 +179,26 @@ const MP3CutterMain = React.memo(() => {
     setEndTime,
     saveState
   });
+
+  // 🆕 **ENHANCED START TIME HANDLER**: Auto-jump cursor to new start point
+  const handleStartTimeChange = useCallback((newStartTime) => {
+    console.log(`⏰ [StartTimeChange] Changing start time: ${startTime.toFixed(1)}s → ${newStartTime.toFixed(1)}s`);
+    
+    // 1. Update start time first
+    originalHandleStartTimeChange(newStartTime);
+    
+    // 2. Jump main cursor to new start point regardless of play state
+    jumpToTime(newStartTime);
+    
+    // 3. Log behavior based on play state
+    if (isPlaying) {
+      console.log(`🎵 [StartTimeChange] Music was playing - cursor jumped to new start point and continues playing`);
+    } else {
+      console.log(`⏸️ [StartTimeChange] Music was paused - cursor moved to new start point`);
+    }
+    
+    // No need to change play state - if it was playing, it continues; if paused, stays paused
+  }, [originalHandleStartTimeChange, jumpToTime, isPlaying, startTime]);
 
   // 🔥 **ESSENTIAL SETUP ONLY**
   useEffect(() => {
