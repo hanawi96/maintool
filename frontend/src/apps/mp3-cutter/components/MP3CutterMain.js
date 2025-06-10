@@ -167,7 +167,7 @@ const MP3CutterMain = React.memo(() => {
   // 🎯 **TIME CHANGE HANDLERS**: Extract time change logic using custom hook
   const {
     handleStartTimeChange: originalHandleStartTimeChange,
-    handleEndTimeChange,
+    handleEndTimeChange: originalHandleEndTimeChange,
     cleanup: cleanupTimeHandlers // 🆕 **EXPOSE CLEANUP**: Get cleanup function
   } = useTimeChangeHandlers({
     startTime,
@@ -199,6 +199,31 @@ const MP3CutterMain = React.memo(() => {
     
     // No need to change play state - if it was playing, it continues; if paused, stays paused
   }, [originalHandleStartTimeChange, jumpToTime, isPlaying, startTime]);
+
+  // 🆕 **ENHANCED END TIME HANDLER**: Auto-jump cursor to 3 seconds before new end point
+  const handleEndTimeChange = useCallback((newEndTime) => {
+    console.log(`⏰ [EndTimeChange] Changing end time: ${endTime.toFixed(1)}s → ${newEndTime.toFixed(1)}s`);
+    
+    // 1. Update end time first
+    originalHandleEndTimeChange(newEndTime);
+    
+    // 2. Calculate cursor position: 3 seconds before new end point, but not before start time
+    const targetCursorTime = Math.max(startTime, newEndTime - 3);
+    
+    // 3. Jump main cursor to calculated position
+    jumpToTime(targetCursorTime);
+    
+    // 4. Log behavior based on play state and position
+    const positionDesc = targetCursorTime === startTime ? 'start point (end point too close)' : `${targetCursorTime.toFixed(1)}s (3s before end)`;
+    
+    if (isPlaying) {
+      console.log(`🎵 [EndTimeChange] Music was playing - cursor jumped to ${positionDesc} and continues playing`);
+    } else {
+      console.log(`⏸️ [EndTimeChange] Music was paused - cursor moved to ${positionDesc}`);
+    }
+    
+    // No need to change play state - if it was playing, it continues; if paused, stays paused
+  }, [originalHandleEndTimeChange, jumpToTime, isPlaying, endTime, startTime]);
 
   // 🔥 **ESSENTIAL SETUP ONLY**
   useEffect(() => {

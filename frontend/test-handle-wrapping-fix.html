@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Handle Wrapping + Fade History + Auto-Jump Cursor - COMPLETE SOLUTION</title>
+    <title>Complete Audio Editor - Handle Wrapping + Smart Cursor Controls</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
@@ -44,6 +44,11 @@
             background: #f0f9ff;
             color: #0369a1;
             border: 1px solid #7dd3fc;
+        }
+        .status.latest {
+            background: #fef7ff;
+            color: #a21caf;
+            border: 1px solid #e879f9;
         }
         .visual-demo {
             background: #f1f5f9;
@@ -137,22 +142,68 @@
             color: #0369a1;
             margin-top: 0;
         }
+        .latest-feature {
+            background: #fef7ff;
+            border: 1px solid #a21caf;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .latest-feature h3 {
+            color: #a21caf;
+            margin-top: 0;
+        }
     </style>
 </head>
 <body>
     <div class="test-container">
-        <h1>🔧 Handle Wrapping + Fade History + Auto-Jump Cursor - COMPLETE SOLUTION</h1>
+        <h1>🎵 Complete Audio Editor - Handle Wrapping + Smart Cursor Controls</h1>
         
         <div class="status success">
-            ✅ Successfully implemented handle wrapping + fade controls history + cursor auto-jump
+            ✅ Successfully implemented complete audio editing with smart cursor controls
         </div>
 
-        <div class="status feature">
-            🆕 LATEST: Main cursor now auto-jumps to new start point when changing time via arrows
+        <div class="status latest">
+            🚀 NEWEST: End time changes now position cursor 3 seconds before new end point
+        </div>
+
+        <div class="latest-feature">
+            <h3>🎯 NEWEST FEATURE: Smart End Time Cursor Positioning</h3>
+            <p><strong>What it does:</strong> When you change end time using arrow buttons (⬆️⬇️), the main cursor automatically positions 3 seconds before the new end point.</p>
+            
+            <div class="before-after">
+                <div class="before">
+                    <h4>🎵 Music Playing:</h4>
+                    <p>Change end time → Cursor jumps to (end - 3s) → Music continues playing from new position</p>
+                </div>
+                <div class="after">
+                    <h4>⏸️ Music Paused:</h4>
+                    <p>Change end time → Cursor moves to (end - 3s) → Music stays paused at new position</p>
+                </div>
+            </div>
+            
+            <div class="visual-demo">
+                <h4>📐 Smart Positioning Logic:</h4>
+<pre>
+Example 1: End time = 45s → Cursor jumps to 42s (45 - 3)
+Example 2: End time = 8s, Start = 10s → Cursor jumps to start (10s)
+           ↳ When (end - 3) < start, cursor goes to start point
+</pre>
+            </div>
+            
+            <div class="feature-list">
+                <h3>🎯 Smart Behavior:</h3>
+                <ul>
+                    <li><strong>3-second preview window</strong> - Always positions cursor 3s before end for context</li>
+                    <li><strong>Smart boundary protection</strong> - Never positions before start time</li>
+                    <li><strong>Play state preservation</strong> - Playing continues, paused stays paused</li>
+                    <li><strong>Immediate feedback</strong> - Cursor jumps instantly when using arrows</li>
+                </ul>
+            </div>
         </div>
 
         <div class="new-feature">
-            <h3>🎯 NEW FEATURE: Smart Cursor Auto-Jump</h3>
+            <h3>🎯 PREVIOUS FEATURE: Smart Start Time Cursor Auto-Jump</h3>
             <p><strong>What it does:</strong> When you change start time using arrow buttons (⬆️⬇️), the main cursor automatically jumps to the new start position.</p>
             
             <div class="before-after">
@@ -164,16 +215,6 @@
                     <h4>⏸️ Music Paused:</h4>
                     <p>Change start time → Cursor moves to new start point → Music stays paused at new position</p>
                 </div>
-            </div>
-            
-            <div class="feature-list">
-                <h3>🎯 Smart Behavior:</h3>
-                <ul>
-                    <li><strong>Automatic cursor sync</strong> - Main cursor always follows start time changes</li>
-                    <li><strong>Play state preservation</strong> - Playing continues, paused stays paused</li>
-                    <li><strong>Immediate feedback</strong> - Cursor jumps instantly when using arrows</li>
-                    <li><strong>Seamless experience</strong> - No interruption to workflow</li>
-                </ul>
             </div>
         </div>
 
@@ -213,36 +254,8 @@
             </div>
         </div>
 
-        <div class="visual-demo">
-            <h3>📐 Visual Demonstration:</h3>
-            <div class="before-after">
-                <div class="before">
-                    <h4>❌ Before (Overlapping):</h4>
-                    <pre>
-[===REGION===]
-|--Handle--|--Handle--|
-   Start      End
-   
-Region includes handle areas
-                    </pre>
-                </div>
-                <div class="after">
-                    <h4>✅ After (Wrapping):</h4>
-                    <pre>
-    [===REGION===]
-|--| Region Area |--|
-Start              End
-Handle             Handle
-
-Handles wrap around region
-LEFT edge of end handle = region end
-                    </pre>
-                </div>
-            </div>
-        </div>
-
         <div class="feature-list">
-            <h3>🎯 What was changed:</h3>
+            <h3>🎯 Complete Feature Set:</h3>
             <ul>
                 <li><strong>Start handle</strong> positioned so its right edge aligns with region start</li>
                 <li><strong>End handle</strong> positioned so its left edge aligns with region end</li>
@@ -250,9 +263,10 @@ LEFT edge of end handle = region end
                 <li><strong>Handle detection</strong> updated to work with wrapping positions</li>
                 <li><strong>Mouse interaction logic</strong> compatible with new handle positions</li>
                 <li><strong>End handle UI positioning</strong> FIXED to prevent double subtraction</li>
-                <li><strong>Fade controls history</strong> NEW: Added drag end and preset callbacks</li>
-                <li><strong>Cursor auto-jump</strong> LATEST: Main cursor auto-jumps to new start point</li>
-                <li><strong>Debug logging</strong> updated to show handle wrapping calculations</li>
+                <li><strong>Fade controls history</strong> Added drag end and preset callbacks</li>
+                <li><strong>Start time cursor jump</strong> Main cursor auto-jumps to new start point</li>
+                <li><strong>End time cursor positioning</strong> NEWEST: Cursor positions 3s before new end point</li>
+                <li><strong>Debug logging</strong> updated to show all smart cursor behaviors</li>
             </ul>
         </div>
 
@@ -263,12 +277,11 @@ LEFT edge of end handle = region end
                 <li><strong>WaveformUI.jsx</strong> - FIXED: Use handlePositions.end.x directly without subtraction</li>
                 <li><strong>interactionUtils.js</strong> - Updated detectHandle() and positionToTime() functions</li>
                 <li><strong>smartClickManager.js</strong> - Click logic correctly aligns with handle edges</li>
-                <li><strong>MP3CutterMain.js</strong> - NEW: Added fade drag callbacks + enhanced start time handler</li>
-                <li><strong>FadeControls.js</strong> - NEW: Optimized and simplified with history saving support</li>
+                <li><strong>MP3CutterMain.js</strong> - Enhanced with smart cursor positioning for both start/end time changes</li>
+                <li><strong>FadeControls.js</strong> - Optimized and simplified with history saving support</li>
                 <li><strong>Handle wrapping formula</strong> - startHandleX = regionStartX - handleWidth, endHandleX = regionEndX</li>
                 <li><strong>Region boundaries</strong> - Now defined by handle inner edges instead of outer edges</li>
-                <li><strong>Click logic</strong> - BEFORE_START aligns with right edge, AFTER_END aligns with left edge</li>
-                <li><strong>Cursor auto-jump</strong> - handleStartTimeChange calls jumpToTime() automatically</li>
+                <li><strong>Smart cursor logic</strong> - Start jump to start point, End jump to (end - 3s) or start point</li>
             </ul>
         </div>
 
@@ -279,22 +292,24 @@ LEFT edge of end handle = region end
             • [POSITION-TO-TIME-WRAP] - Shows mouse-to-time conversion compatibility<br>
             • [FadeControls] - Shows fade drag ended and history saved messages<br>
             • [StartTimeChange] - Shows cursor auto-jump behavior and play state<br>
+            • [EndTimeChange] - Shows cursor positioning 3s before end point<br>
             <br>
-            <em>Check browser console when using time arrows to see auto-jump debug messages.</em>
+            <em>Check browser console when using time arrows to see smart cursor debug messages.</em>
         </div>
 
         <div class="feature-list">
-            <h3>🎯 Expected Behavior (COMPLETE):</h3>
+            <h3>🎯 Complete Expected Behavior:</h3>
             <ul>
                 <li>When dragging region, handles visually wrap around the region boundaries</li>
                 <li>Right edge of start handle aligns perfectly with region start</li>
                 <li>Left edge of end handle aligns perfectly with region end</li>
                 <li>Clicking before start: right edge of start handle moves to click position</li>
                 <li><strong>Clicking after end: LEFT EDGE of end handle moves to click position (FIXED)</strong></li>
-                <li><strong>Dragging fade sliders: History saved when finishing drag (NEW)</strong></li>
-                <li><strong>Applying fade presets: History saved automatically (NEW)</strong></li>
-                <li><strong>Using time arrows: Main cursor auto-jumps to new start point (LATEST)</strong></li>
-                <li><strong>Undo/Redo works with all fade changes (NEW)</strong></li>
+                <li><strong>Dragging fade sliders: History saved when finishing drag</strong></li>
+                <li><strong>Applying fade presets: History saved automatically</strong></li>
+                <li><strong>Using start time arrows: Main cursor auto-jumps to new start point</strong></li>
+                <li><strong>Using end time arrows: Main cursor positions 3s before new end point (NEWEST)</strong></li>
+                <li><strong>Undo/Redo works with all fade changes</strong></li>
                 <li>Region content is clearly visible without handle overlap</li>
                 <li>All mouse interactions work seamlessly with new handle positions</li>
             </ul>
@@ -309,22 +324,28 @@ LEFT edge of end handle = region end
         </div>
 
         <div class="status feature">
-            🎯 <strong>LATEST Feature:</strong> Smart cursor auto-jump when changing start time via arrows
+            🎯 <strong>Feature Added:</strong> Smart cursor auto-jump when changing start time via arrows
+        </div>
+
+        <div class="status latest">
+            🚀 <strong>NEWEST Feature:</strong> Smart cursor positioning 3s before end point when changing end time
         </div>
 
         <div class="status success">
-            🚀 <strong>Build Status:</strong> Compiled successfully with 103.25 kB (+optimized code)
+            🚀 <strong>Build Status:</strong> Compiled successfully with 103.36 kB (+optimized smart cursor controls)
         </div>
     </div>
 
     <script>
-        console.log("🔧 Handle Wrapping + Fade History + Auto-Jump Cursor - COMPLETE SOLUTION loaded");
+        console.log("🎵 Complete Audio Editor - Smart Cursor Controls loaded");
         console.log("💡 FIXED: End handle positioning issue resolved - no more double subtraction");
-        console.log("🆕 NEW: Fade controls now save to history when dragging or applying presets");
-        console.log("🎯 LATEST: Main cursor auto-jumps to new start point when changing time via arrows");
+        console.log("🆕 ADDED: Fade controls now save to history when dragging or applying presets");
+        console.log("🎯 ADDED: Main cursor auto-jumps to new start point when changing start time via arrows");
+        console.log("🚀 NEWEST: Main cursor positions 3s before new end point when changing end time via arrows");
         console.log("📋 Expected: When clicking after end handle, LEFT EDGE becomes the endpoint");
         console.log("📋 Expected: When dragging fade sliders, history is saved on mouse up");
         console.log("📋 Expected: When changing start time with arrows, cursor jumps to new position");
+        console.log("📋 Expected: When changing end time with arrows, cursor positions 3s before end point");
     </script>
 </body>
 </html> 
