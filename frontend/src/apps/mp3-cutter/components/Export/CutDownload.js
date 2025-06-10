@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Download, Scissors, Loader, AlertCircle, Save } from 'lucide-react';
+import { Download, Scissors, Loader, AlertCircle, Save, Copy, Check } from 'lucide-react';
 import { audioApi } from '../../services/audioApi';
 import { formatTimeUnified } from '../../utils/timeFormatter';
 import { useWebSocketProgress } from '../../hooks/useCutProgress';
@@ -22,6 +22,9 @@ const CutDownload = ({
   
   // 🆕 **NEW STATE**: Track processed file information for download
   const [processedFile, setProcessedFile] = useState(null);
+  
+  // 🔗 **COPY LINK STATE**: Track copy link functionality
+  const [copyLinkSuccess, setCopyLinkSuccess] = useState(false);
 
   // 🔌 **WEBSOCKET PROGRESS**: Hook để nhận real-time progress
   const {
@@ -221,6 +224,28 @@ const CutDownload = ({
     }
   };
 
+  // 🔗 **COPY LINK FUNCTION**: Copy download link to clipboard
+  const handleCopyLink = async () => {
+    if (!processedFile) return;
+
+    try {
+      const downloadUrl = audioApi.getDownloadUrl(processedFile.filename);
+      // 🔧 **FIX URL**: Use downloadUrl directly since it already contains full URL
+      const fullUrl = downloadUrl; // downloadUrl already contains full URL from audioApi
+      
+      await navigator.clipboard.writeText(fullUrl);
+      setCopyLinkSuccess(true);
+      
+      // Reset copy success state after 2 seconds
+      setTimeout(() => setCopyLinkSuccess(false), 2000);
+      
+      console.log('🔗 [CopyLink] Download link copied to clipboard:', fullUrl);
+    } catch (error) {
+      console.error('❌ [CopyLink] Failed to copy link:', error);
+      setProcessingError('Failed to copy link to clipboard');
+    }
+  };
+
   // 🆕 **CUT BUTTON STATE**: Updated logic for cut-only button
   const getCutButtonState = () => {
     if (disabled || !audioFile) {
@@ -324,7 +349,7 @@ const CutDownload = ({
           disabled={cutButtonState.variant === 'disabled' || isProcessing}
           className={`
             flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium
-            transition-all duration-200 disabled:cursor-not-allowed
+            transition-all duration-0 disabled:cursor-not-allowed
             ${cutButtonState.className}
           `}
         >
@@ -340,7 +365,7 @@ const CutDownload = ({
           disabled={downloadButtonState.variant === 'disabled'}
           className={`
             flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium
-            transition-all duration-200 disabled:cursor-not-allowed
+            transition-all duration-0 disabled:cursor-not-allowed
             ${downloadButtonState.className}
           `}
           title={downloadButtonState.tooltip || `Download processed ${outputFormat?.toUpperCase()} file`}
@@ -361,20 +386,57 @@ const CutDownload = ({
         </div>
       )}
 
-      {/* ✅ **SUCCESS DISPLAY**: Chỉ hiển thị khi format khớp */}
+      {/* ✅ **SUCCESS DISPLAY**: With copy link functionality */}
       {processedFile && !processingError && processedFile.outputFormat === outputFormat && (
         <div className="bg-green-50 border border-green-200 rounded-lg p-3">
           <div className="flex items-center gap-2 text-green-700 mb-2">
             <Save className="w-4 h-4" />
             <span className="font-medium">Ready to Download</span>
           </div>
-          <div className="text-green-600 text-sm space-y-1">
+          
+          <div className="text-green-600 text-sm space-y-1 mb-3">
             <div>✅ Duration: {formatTimeUnified(processedFile.duration)}</div>
             <div>✅ Speed: {processedFile.playbackRate !== 1 ? `${processedFile.playbackRate}x` : 'Normal'}</div>
             <div>✅ Format: {processedFile.outputFormat?.toUpperCase()}</div>
             {processedFile.fileSize && (
-              <div>✅ Ready to download: {(processedFile.fileSize / 1024 / 1024).toFixed(2)} MB</div>
+              <div>✅ Size: {(processedFile.fileSize / 1024 / 1024).toFixed(2)} MB</div>
             )}
+          </div>
+
+          {/* 🔗 **COPY LINK SECTION**: Share download link */}
+          <div className="border-t border-green-200 pt-3">
+            <div className="text-green-700 text-xs font-medium mb-2">Share Download Link:</div>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={audioApi.getDownloadUrl(processedFile.filename)}
+                readOnly
+                className="flex-1 px-3 py-2 text-xs bg-white border border-green-200 rounded-md text-slate-600 font-mono"
+                onClick={(e) => e.target.select()}
+              />
+              <button
+                onClick={handleCopyLink}
+                className={`
+                  px-3 py-2 rounded-md text-xs font-medium transition-all duration-0 flex items-center gap-1
+                  ${copyLinkSuccess 
+                    ? 'bg-green-600 text-white' 
+                    : 'bg-green-100 text-green-700 hover:bg-green-200'
+                  }
+                `}
+              >
+                {copyLinkSuccess ? (
+                  <>
+                    <Check className="w-3 h-3" />
+                    Copied
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3 h-3" />
+                    Copy
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}
