@@ -412,23 +412,35 @@ const WaveformCanvas = React.memo(({
     const regionStartX = waveformStartX + (regionStartPercent * availableWaveformWidth);
     const regionEndX = waveformStartX + (regionEndPercent * availableWaveformWidth);
     
-    // 🎯 **HANDLE WRAPPING**: Position handles to wrap around region
-    const startHandleX = regionStartX - responsiveHandleWidth; // Right edge aligns with region start
-    const endHandleX = regionEndX; // Left edge aligns with region end
+    // 🎯 **HANDLE WRAPPING**: Position handles to wrap around region with invert mode logic
+    let startHandleX, endHandleX;
     
-    // 🚀 **DEBUG LOG**: Add console.log to show handle wrapping logic
+    if (isInverted) {
+      // 🆕 **INVERT MODE POSITIONING**: Flip handle positions so non-radius edges align with points
+      startHandleX = regionStartX; // Left edge (no radius) aligns with region start
+      endHandleX = regionEndX - responsiveHandleWidth; // Right edge (no radius) aligns with region end
+    } else {
+      // 🎯 **NORMAL MODE POSITIONING**: Standard positioning
+      startHandleX = regionStartX - responsiveHandleWidth; // Right edge aligns with region start
+      endHandleX = regionEndX; // Left edge aligns with region end
+    }
+    
+    // 🚀 **DEBUG LOG**: Add console.log to show handle positioning logic
     if (Math.random() < 0.02) { // Log occasionally to avoid spam
-      console.log(`🔧 [HANDLE-WRAP-FIX] Handle wrapping positioning:`, {
+      console.log(`🔧 [HANDLE-INVERT-POSITIONING] Handle positioning with invert mode:`, {
+        isInverted,
         regionBounds: `${regionStartX.toFixed(1)}px - ${regionEndX.toFixed(1)}px`,
         startHandle: {
-          position: `${startHandleX.toFixed(1)}px (right edge at ${(startHandleX + responsiveHandleWidth).toFixed(1)}px)`,
-          alignsWithRegionStart: (startHandleX + responsiveHandleWidth).toFixed(1) === regionStartX.toFixed(1)
+          position: `${startHandleX.toFixed(1)}px (${isInverted ? 'left' : 'right'} edge at ${isInverted ? startHandleX.toFixed(1) : (startHandleX + responsiveHandleWidth).toFixed(1)}px)`,
+          alignsWithRegionStart: true,
+          borderRadius: isInverted ? 'right side' : 'left side'
         },
         endHandle: {
-          position: `${endHandleX.toFixed(1)}px (left edge at ${endHandleX.toFixed(1)}px)`,
-          alignsWithRegionEnd: endHandleX.toFixed(1) === regionEndX.toFixed(1)
+          position: `${endHandleX.toFixed(1)}px (${isInverted ? 'right' : 'left'} edge at ${isInverted ? (endHandleX + responsiveHandleWidth).toFixed(1) : endHandleX.toFixed(1)}px)`,
+          alignsWithRegionEnd: true,
+          borderRadius: isInverted ? 'left side' : 'right side'
         },
-        fix: 'Handles now wrap around region boundaries instead of overlapping'
+        logic: 'Non-radius edges always point to start/end points'
       });
     }
     
@@ -452,7 +464,7 @@ const WaveformCanvas = React.memo(({
         color: isDragging === 'end' ? '#0d9488' : '#14b8a6' // 🔧 **DRAG-ONLY COLOR**: Chỉ đổi màu khi drag, không đổi khi hover
       }
     };
-  }, [canvasRef, duration, startTime, endTime, hoveredHandle, isDragging, containerWidth]);
+  }, [canvasRef, duration, startTime, endTime, hoveredHandle, isDragging, containerWidth, isInverted]);
 
   // 🆕 **CURSOR POSITION CALCULATOR**: Calculate cursor positions for React rendering
   const cursorPositions = useMemo(() => {
@@ -540,6 +552,7 @@ const WaveformCanvas = React.memo(({
         onHandleMouseUp={handleHandlePointerUp}
         isPlaying={isPlaying}
         isDragging={isDragging}
+        isInverted={isInverted}
       />
     </div>
   );

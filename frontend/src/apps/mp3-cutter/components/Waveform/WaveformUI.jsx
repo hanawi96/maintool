@@ -75,7 +75,8 @@ export const WaveformUI = memo(({
   onHandleMouseMove, 
   onHandleMouseUp,
   isPlaying = false, // 🆕 **PLAYING STATE**: For conditional rendering optimization
-  isDragging = null  // 🆕 **DRAGGING STATE**: For smart feature enabling
+  isDragging = null, // 🆕 **DRAGGING STATE**: For smart feature enabling
+  isInverted = false // 🆕 **INVERT SELECTION**: For handle visual feedback
 }) => {
   const renderCountRef = useRef(0);
   const WAVEFORM_HEIGHT = WAVEFORM_CONFIG.HEIGHT;
@@ -196,7 +197,7 @@ export const WaveformUI = memo(({
 
   const startHandleStyle = useMemo(() => ({
     ...HANDLE_STYLES.base,
-    ...HANDLE_STYLES.start,
+    ...(isInverted ? HANDLE_STYLES.end : HANDLE_STYLES.start),
     left: `${handlePositions?.start?.x || 0}px`,
     top: `${handlePositions?.start?.y || 0}px`,
     width: `${handlePositions?.start?.width || 0}px`,
@@ -207,12 +208,13 @@ export const WaveformUI = memo(({
     handlePositions?.start?.y,
     handlePositions?.start?.width,
     handlePositions?.start?.height,
-    handlePositions?.start?.color
+    handlePositions?.start?.color,
+    isInverted
   ]);
 
   const endHandleStyle = useMemo(() => ({
     ...HANDLE_STYLES.base,
-    ...HANDLE_STYLES.end,
+    ...(isInverted ? HANDLE_STYLES.start : HANDLE_STYLES.end),
     left: `${handlePositions?.end?.x || 0}px`,
     top: `${handlePositions?.end?.y || 0}px`,
     width: `${handlePositions?.end?.width || 0}px`,
@@ -223,7 +225,8 @@ export const WaveformUI = memo(({
     handlePositions?.end?.y,
     handlePositions?.end?.width,
     handlePositions?.end?.height,
-    handlePositions?.end?.color
+    handlePositions?.end?.color,
+    isInverted
   ]);
 
   const mainCursorStyle = useMemo(() => ({

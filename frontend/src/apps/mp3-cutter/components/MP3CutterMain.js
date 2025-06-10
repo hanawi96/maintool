@@ -769,29 +769,59 @@ const MP3CutterMain = React.memo(() => {
         // 🔥 **INSTANT CURRENTTIME UPDATE** - Cập nhật ngay lập tức cho tooltip sync
         setCurrentTime(audioCurrentTime);
         
-        // 🎯 **ENHANCED AUTO-RETURN LOGIC**: Xử lý khi đến cuối region
-        // 🚀 **FIXED**: Removed drag protection - auto-return should work regardless of drag state
-        if (endTime > startTime && audioCurrentTime >= endTime - 0.05) {
-          const autoReturnEnabled = getAutoReturnSetting();
+        // 🆕 **INVERT MODE LOGIC**: Handle skipping region when in invert selection mode
+        if (isInverted && endTime > startTime) {
+          // 🚀 **SKIP REGION LOGIC**: When in invert mode, skip the region between handles
+          if (audioCurrentTime >= startTime - 0.05 && audioCurrentTime < endTime) {
+            console.log(`⏭️ [InvertMode] Skipping region ${startTime.toFixed(2)}s → ${endTime.toFixed(2)}s, jumping to ${endTime.toFixed(2)}s`);
+            audioRef.current.currentTime = endTime;
+            setCurrentTime(endTime);
+            // ✅ **CONTINUE ANIMATION**: Let animation loop continue to track cursor after jump
+          }
           
-          if (autoReturnEnabled && audioRef.current) {
-            // ✅ **LOOP MODE**: Auto-return BẬT → loop về startTime và tiếp tục phát
-            console.log(`🔄 [AutoReturn] LOOP mode - returning to start: ${startTime.toFixed(2)}s`);
-            audioRef.current.currentTime = startTime;
-            setCurrentTime(startTime);
-            // Continue playing (không pause)
+          // 🎯 **END OF AUDIO LOGIC**: When reaching end of audio in invert mode
+          if (audioCurrentTime >= audioRef.current.duration - 0.05) {
+            const autoReturnEnabled = getAutoReturnSetting();
             
-          } else if (audioRef.current) {
-            // ✅ **STOP MODE**: Auto-return TẮT → pause và quay cursor về startTime
-            console.log(`⏹️ [AutoReturn] STOP mode - pausing and returning to start: ${startTime.toFixed(2)}s`);
-            audioRef.current.pause();
-            setIsPlaying(false);
+            if (autoReturnEnabled && audioRef.current) {
+              // ✅ **LOOP MODE**: Loop back to beginning (0s) and continue playing
+              console.log(`🔄 [InvertMode-Loop] Looping back to start: 0s`);
+              audioRef.current.currentTime = 0;
+              setCurrentTime(0);
+              // Continue playing
+            } else if (audioRef.current) {
+              // ✅ **STOP MODE**: Pause and return to beginning
+              console.log(`⏹️ [InvertMode-Stop] Pausing and returning to start: 0s`);
+              audioRef.current.pause();
+              setIsPlaying(false);
+              audioRef.current.currentTime = 0;
+              setCurrentTime(0);
+              return;
+            }
+          }
+        } else {
+          // 🎯 **NORMAL MODE LOGIC**: Original auto-return logic for normal selection
+          if (endTime > startTime && audioCurrentTime >= endTime - 0.05) {
+            const autoReturnEnabled = getAutoReturnSetting();
             
-            // 🎯 **CURSOR RESET**: Quay cursor về startTime như yêu cầu
-            audioRef.current.currentTime = startTime;
-            setCurrentTime(startTime);
-            
-            return; // Exit update loop
+            if (autoReturnEnabled && audioRef.current) {
+              // ✅ **LOOP MODE**: Auto-return BẬT → loop về startTime và tiếp tục phát
+              console.log(`🔄 [AutoReturn] LOOP mode - returning to start: ${startTime.toFixed(2)}s`);
+              audioRef.current.currentTime = startTime;
+              setCurrentTime(startTime);
+              // Continue playing (không pause)
+              
+            } else if (audioRef.current) {
+              // ✅ **STOP MODE**: Auto-return TẮT → pause và quay cursor về startTime
+              console.log(`⏹️ [AutoReturn] STOP mode - pausing and returning to start: ${startTime.toFixed(2)}s`);
+              audioRef.current.pause();
+              
+              // 🎯 **CURSOR RESET**: Quay cursor về startTime như yêu cầu
+              audioRef.current.currentTime = startTime;
+              setCurrentTime(startTime);
+              
+              return; // Exit update loop
+            }
           }
         }
         
@@ -860,7 +890,7 @@ const MP3CutterMain = React.memo(() => {
         reason: !fadeConfigSyncedRef.current ? 'INITIAL_MOUNT' : 'SELECTION_CHANGE'
       });
     }
-  }, [startTime, endTime, fadeIn, fadeOut, updateFadeConfig]); // 🚀 **ALL DEPS**: But logic prevents fade-only updates
+  }, [startTime, endTime, fadeIn, fadeOut, updateFadeConfig, isInverted]); // 🚀 **ALL DEPS**: But logic prevents fade-only updates
 
   // 🔥 **AUDIO EVENT HANDLERS**: Extract handlers for SafeAudioElement
   const handleLoadedMetadata = useCallback(() => {

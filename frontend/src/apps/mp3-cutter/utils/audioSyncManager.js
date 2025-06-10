@@ -41,9 +41,9 @@ export class AudioSyncManager {
     
     // 🎯 SMART SYNC RULES
     const rules = {
-      isValidHandle: handleType === 'start' && this.preferences.syncStartHandle ||
-                     handleType === 'end' && this.preferences.syncEndHandle ||
-                     handleType === 'region', // 🆕 **REGION SUPPORT**: Always allow region sync
+      isValidHandle: (handleType === 'start' && this.preferences.syncStartHandle) ||
+                     (handleType === 'end' && this.preferences.syncEndHandle) ||
+                     (handleType === 'region'), // 🆕 **REGION SUPPORT**: Always allow region sync
       isValidTime: newTime >= 0 && !isNaN(newTime),
       isPlayingRule: !this.preferences.syncOnlyWhenPlaying || isPlaying,
       isThrottled: this._isThrottled(handleType) // 🆕 **INTELLIGENT THROTTLING**: Pass handleType
@@ -98,30 +98,36 @@ export class AudioSyncManager {
         targetTime = newTime;
       }
     } else if (handleType === 'end' && this.preferences.endHandleOffset > 0) {
-      // 🔥 **INTELLIGENT REGION SIZE CHECK**: Calculate region duration
-      const regionDuration = newTime - startTime;
-      
-      console.log(`🎯 [${this.debugId}] End handle analysis:`, {
-        endTime: newTime.toFixed(2) + 's',
-        startTime: startTime.toFixed(2) + 's', 
-        regionDuration: regionDuration.toFixed(2) + 's',
-        offsetPreference: this.preferences.endHandleOffset + 's'
-      });
-      
-      if (regionDuration < 1.0) {
-        // 🚫 **SMALL REGION**: Region < 1s → cursor stays at startTime
-        targetTime = startTime;
-        console.log(`🚫 [${this.debugId}] SMALL REGION (${regionDuration.toFixed(2)}s < 1s) → cursor locked to startTime: ${startTime.toFixed(2)}s`);
+      if (isInverted) {
+        // 🆕 **INVERT MODE - END HANDLE**: Cursor luôn ở end point khi drag handle right
+        targetTime = newTime;
+        console.log(`🔄 [${this.debugId}] INVERT mode - end handle sync to end point: ${newTime.toFixed(2)}s`);
       } else {
-        // 🎯 **NORMAL REGION**: Apply offset but ensure cursor doesn't go before startTime
-        const proposedTime = newTime - this.preferences.endHandleOffset;
-        targetTime = Math.max(startTime, proposedTime); // ✅ Never go before startTime
+        // 🔥 **NORMAL MODE - INTELLIGENT REGION SIZE CHECK**: Calculate region duration
+        const regionDuration = newTime - startTime;
         
-        console.log(`🎯 [${this.debugId}] NORMAL REGION (${regionDuration.toFixed(2)}s ≥ 1s):`, {
-          proposedTime: proposedTime.toFixed(2) + 's',
-          finalTargetTime: targetTime.toFixed(2) + 's',
-          boundaryProtected: proposedTime < startTime ? 'YES (clamped to startTime)' : 'NO'
+        console.log(`🎯 [${this.debugId}] End handle analysis:`, {
+          endTime: newTime.toFixed(2) + 's',
+          startTime: startTime.toFixed(2) + 's', 
+          regionDuration: regionDuration.toFixed(2) + 's',
+          offsetPreference: this.preferences.endHandleOffset + 's'
         });
+        
+        if (regionDuration < 1.0) {
+          // 🚫 **SMALL REGION**: Region < 1s → cursor stays at startTime
+          targetTime = startTime;
+          console.log(`🚫 [${this.debugId}] SMALL REGION (${regionDuration.toFixed(2)}s < 1s) → cursor locked to startTime: ${startTime.toFixed(2)}s`);
+        } else {
+          // 🎯 **NORMAL REGION**: Apply offset but ensure cursor doesn't go before startTime
+          const proposedTime = newTime - this.preferences.endHandleOffset;
+          targetTime = Math.max(startTime, proposedTime); // ✅ Never go before startTime
+          
+          console.log(`🎯 [${this.debugId}] NORMAL REGION (${regionDuration.toFixed(2)}s ≥ 1s):`, {
+            proposedTime: proposedTime.toFixed(2) + 's',
+            finalTargetTime: targetTime.toFixed(2) + 's',
+            boundaryProtected: proposedTime < startTime ? 'YES (clamped to startTime)' : 'NO'
+          });
+        }
       }
     } else if (handleType === 'region') {
       // 🆕 **REGION START SYNC**: newTime is already startTime - no offset needed
@@ -142,7 +148,7 @@ export class AudioSyncManager {
       targetTime: targetTime.toFixed(2) + 's', 
       from: currentAudioTime.toFixed(2) + 's',
       difference: timeDifference.toFixed(3) + 's',
-      smartLogic: handleType === 'end' ? 'REGION_SIZE_AWARE' : 'STANDARD',
+      smartLogic: handleType === 'end' ? (isInverted ? 'INVERT_END_TO_ENDPOINT' : 'REGION_SIZE_AWARE') : 'STANDARD',
       isPlaying
     });
     
@@ -195,7 +201,6 @@ export class AudioSyncManager {
       console.log(`🏁 [${this.debugId}] Completing ${handleType} drag sync to ${finalTime.toFixed(2)}s`);
       
       // 🎯 FORCE FINAL SYNC: Ignore throttling for completion
-      const wasThrottled = this._isThrottled(handleType);
       this.lastSyncTime = 0; // Reset throttle
       
       // 🆕 **REGION SYNC**: Region drag completion - sync to start not middle
@@ -386,26 +391,34 @@ export class AudioSyncManager {
         targetTime = newTime;
       }
     } else if (handleType === 'end') {
-      // 🔥 **INTELLIGENT REGION SIZE CHECK**: Calculate region duration
-      const regionDuration = newTime - startTime;
-      
-      if (regionDuration < 1.0) {
-        // 🚫 **SMALL REGION**: Region < 1s → cursor stays at startTime
-        targetTime = startTime;
+      if (isInverted) {
+        // 🆕 **INVERT MODE - END HANDLE**: Cursor luôn ở end point khi drag handle right
+        targetTime = newTime;
         if (Math.random() < 0.02) { // 2% sampling to avoid spam
-          console.log(`🚫 [RealTimeSync] SMALL REGION (${regionDuration.toFixed(2)}s < 1s) → cursor locked to startTime: ${startTime.toFixed(2)}s`);
+          console.log(`🔄 [RealTimeSync] INVERT mode - end handle sync to end point: ${newTime.toFixed(2)}s`);
         }
       } else {
-        // 🎯 **NORMAL REGION**: Apply offset but ensure cursor doesn't go before startTime  
-        const proposedTime = newTime - this.preferences.endHandleOffset;
-        targetTime = Math.max(startTime, proposedTime); // ✅ Never go before startTime
+        // 🔥 **NORMAL MODE - INTELLIGENT REGION SIZE CHECK**: Calculate region duration
+        const regionDuration = newTime - startTime;
         
-        if (Math.random() < 0.02) { // 2% sampling
-          console.log(`🎯 [RealTimeSync] NORMAL REGION (${regionDuration.toFixed(2)}s ≥ 1s):`, {
-            proposedTime: proposedTime.toFixed(2) + 's',
-            finalTargetTime: targetTime.toFixed(2) + 's',
-            boundaryProtected: proposedTime < startTime ? 'YES (clamped to startTime)' : 'NO'
-          });
+        if (regionDuration < 1.0) {
+          // 🚫 **SMALL REGION**: Region < 1s → cursor stays at startTime
+          targetTime = startTime;
+          if (Math.random() < 0.02) { // 2% sampling to avoid spam
+            console.log(`🚫 [RealTimeSync] SMALL REGION (${regionDuration.toFixed(2)}s < 1s) → cursor locked to startTime: ${startTime.toFixed(2)}s`);
+          }
+        } else {
+          // 🎯 **NORMAL REGION**: Apply offset but ensure cursor doesn't go before startTime  
+          const proposedTime = newTime - this.preferences.endHandleOffset;
+          targetTime = Math.max(startTime, proposedTime); // ✅ Never go before startTime
+          
+          if (Math.random() < 0.02) { // 2% sampling
+            console.log(`🎯 [RealTimeSync] NORMAL REGION (${regionDuration.toFixed(2)}s ≥ 1s):`, {
+              proposedTime: proposedTime.toFixed(2) + 's',
+              finalTargetTime: targetTime.toFixed(2) + 's',
+              boundaryProtected: proposedTime < startTime ? 'YES (clamped to startTime)' : 'NO'
+            });
+          }
         }
       }
     } else if (handleType === 'region') {
