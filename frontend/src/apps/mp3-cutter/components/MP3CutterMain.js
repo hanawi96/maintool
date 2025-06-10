@@ -474,22 +474,36 @@ const MP3CutterMain = React.memo(() => {
   const handleUndo = useCallback(() => {
     const prevState = undo();
     if (prevState) {
+      console.log(`⏪ [History] Undo - restoring state and jumping cursor to start point: ${prevState.startTime.toFixed(2)}s`);
+      
       setStartTime(prevState.startTime);
       setEndTime(prevState.endTime);
       setFadeIn(prevState.fadeIn);
       setFadeOut(prevState.fadeOut);
+      
+      // 🆕 **JUMP CURSOR TO START POINT**: Move cursor to start point of restored state
+      jumpToTime(prevState.startTime);
+      
+      console.log(`📍 [History] Undo complete - cursor positioned at start: ${prevState.startTime.toFixed(2)}s`);
     }
-  }, [undo, setStartTime, setEndTime]);
+  }, [undo, setStartTime, setEndTime, jumpToTime]);
 
   const handleRedo = useCallback(() => {
     const nextState = redo();
     if (nextState) {
+      console.log(`⏩ [History] Redo - restoring state and jumping cursor to start point: ${nextState.startTime.toFixed(2)}s`);
+      
       setStartTime(nextState.startTime);
       setEndTime(nextState.endTime);
       setFadeIn(nextState.fadeIn);
       setFadeOut(nextState.fadeOut);
+      
+      // 🆕 **JUMP CURSOR TO START POINT**: Move cursor to start point of restored state
+      jumpToTime(nextState.startTime);
+      
+      console.log(`📍 [History] Redo complete - cursor positioned at start: ${nextState.startTime.toFixed(2)}s`);
     }
-  }, [redo, setStartTime, setEndTime]);
+  }, [redo, setStartTime, setEndTime, jumpToTime]);
 
   // Player jump handlers
   const handleJumpToStart = useCallback(() => {
