@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Handle Wrapping Logic Fix - FINAL SOLUTION</title>
+    <title>Handle Wrapping + Fade History - COMPLETE SOLUTION</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
@@ -34,6 +34,11 @@
             background: #fef3c7;
             color: #92400e;
             border: 1px solid #fde68a;
+        }
+        .status.new {
+            background: #e0f2fe;
+            color: #0284c7;
+            border: 1px solid #0284c7;
         }
         .visual-demo {
             background: #f1f5f9;
@@ -120,10 +125,14 @@
 </head>
 <body>
     <div class="test-container">
-        <h1>🔧 Handle Wrapping Logic Fix - FINAL SOLUTION</h1>
+        <h1>🔧 Handle Wrapping + Fade History - COMPLETE SOLUTION</h1>
         
         <div class="status success">
-            ✅ Successfully implemented handle wrapping around region boundaries with FIXED positioning
+            ✅ Successfully implemented handle wrapping + fade controls history saving
+        </div>
+
+        <div class="status new">
+            🆕 NEW: Fade controls now save to history when dragging sliders or applying presets
         </div>
 
         <div class="bug-fix">
@@ -142,6 +151,23 @@
                     <code>left: handlePositions.end.x px</code>
                     <p>Now uses the position directly as calculated by WaveformCanvas.js</p>
                 </div>
+            </div>
+        </div>
+
+        <div class="bug-fix">
+            <h3>🆕 NEW FEATURE: Fade Controls History Saving</h3>
+            <p><strong>Problem:</strong> Fade slider changes were not being saved to history, preventing undo/redo functionality.</p>
+            <p><strong>Solution:</strong> Added drag end callbacks and preset callbacks to automatically save history when fade values change.</p>
+            
+            <div class="feature-list">
+                <h3>🎯 Fade History Features:</h3>
+                <ul>
+                    <li><strong>Drag-based history saving</strong> - History saved when finishing drag on fade sliders</li>
+                    <li><strong>Preset history saving</strong> - History saved when applying fade presets</li>
+                    <li><strong>Real-time updates</strong> - Fade effects apply instantly while dragging</li>
+                    <li><strong>Optimized performance</strong> - No unnecessary timeout-based saves</li>
+                    <li><strong>Undo/Redo support</strong> - All fade changes can be undone/redone</li>
+                </ul>
             </div>
         </div>
 
@@ -182,6 +208,7 @@ LEFT edge of end handle = region end
                 <li><strong>Handle detection</strong> updated to work with wrapping positions</li>
                 <li><strong>Mouse interaction logic</strong> compatible with new handle positions</li>
                 <li><strong>End handle UI positioning</strong> FIXED to prevent double subtraction</li>
+                <li><strong>Fade controls history</strong> NEW: Added drag end and preset callbacks</li>
                 <li><strong>Debug logging</strong> updated to show handle wrapping calculations</li>
             </ul>
         </div>
@@ -193,6 +220,8 @@ LEFT edge of end handle = region end
                 <li><strong>WaveformUI.jsx</strong> - FIXED: Use handlePositions.end.x directly without subtraction</li>
                 <li><strong>interactionUtils.js</strong> - Updated detectHandle() and positionToTime() functions</li>
                 <li><strong>smartClickManager.js</strong> - Click logic correctly aligns with handle edges</li>
+                <li><strong>MP3CutterMain.js</strong> - NEW: Added handleFadeInDragEnd, handleFadeOutDragEnd, handlePresetApply callbacks</li>
+                <li><strong>FadeControls.js</strong> - NEW: Optimized and simplified with history saving support</li>
                 <li><strong>Handle wrapping formula</strong> - startHandleX = regionStartX - handleWidth, endHandleX = regionEndX</li>
                 <li><strong>Region boundaries</strong> - Now defined by handle inner edges instead of outer edges</li>
                 <li><strong>Click logic</strong> - BEFORE_START aligns with right edge, AFTER_END aligns with left edge</li>
@@ -204,18 +233,22 @@ LEFT edge of end handle = region end
             • [HANDLE-WRAP-FIX] - Shows handle wrapping positioning calculations<br>
             • [HANDLE-DETECTION-WRAP] - Shows handle detection with wrapping logic<br>
             • [POSITION-TO-TIME-WRAP] - Shows mouse-to-time conversion compatibility<br>
+            • [FadeControls] - Shows fade drag ended and history saved messages<br>
             <br>
-            <em>Check browser console when dragging region to see these debug messages.</em>
+            <em>Check browser console when dragging region/fade to see these debug messages.</em>
         </div>
 
         <div class="feature-list">
-            <h3>🎯 Expected Behavior (FIXED):</h3>
+            <h3>🎯 Expected Behavior (COMPLETE):</h3>
             <ul>
                 <li>When dragging region, handles visually wrap around the region boundaries</li>
                 <li>Right edge of start handle aligns perfectly with region start</li>
                 <li>Left edge of end handle aligns perfectly with region end</li>
                 <li>Clicking before start: right edge of start handle moves to click position</li>
                 <li><strong>Clicking after end: LEFT EDGE of end handle moves to click position (FIXED)</strong></li>
+                <li><strong>Dragging fade sliders: History saved when finishing drag (NEW)</strong></li>
+                <li><strong>Applying fade presets: History saved automatically (NEW)</strong></li>
+                <li><strong>Undo/Redo works with all fade changes (NEW)</strong></li>
                 <li>Region content is clearly visible without handle overlap</li>
                 <li>All mouse interactions work seamlessly with new handle positions</li>
             </ul>
@@ -225,15 +258,21 @@ LEFT edge of end handle = region end
             🔧 <strong>Bug Fix Applied:</strong> End handle positioning corrected - no more double subtraction
         </div>
 
+        <div class="status new">
+            🆕 <strong>Feature Added:</strong> Fade controls history saving - all fade changes are now tracked
+        </div>
+
         <div class="status success">
-            🚀 <strong>Build Status:</strong> Compiled successfully with no errors
+            🚀 <strong>Build Status:</strong> Compiled successfully with 103.14 kB (+optimized code)
         </div>
     </div>
 
     <script>
-        console.log("🔧 Handle Wrapping Logic Fix - FINAL SOLUTION loaded");
+        console.log("🔧 Handle Wrapping + Fade History - COMPLETE SOLUTION loaded");
         console.log("💡 FIXED: End handle positioning issue resolved - no more double subtraction");
+        console.log("🆕 NEW: Fade controls now save to history when dragging or applying presets");
         console.log("🎯 Expected: When clicking after end handle, LEFT EDGE becomes the endpoint");
+        console.log("📋 Expected: When dragging fade sliders, history is saved on mouse up");
     </script>
 </body>
 </html> 

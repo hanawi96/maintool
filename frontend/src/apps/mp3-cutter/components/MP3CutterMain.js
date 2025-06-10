@@ -456,8 +456,6 @@ const MP3CutterMain = React.memo(() => {
   }, [jumpToTime, endTime]);
 
   // 🆕 **OPTIMIZED FADE HANDLERS**: Apply fade effects với real-time updates
-  const fadeUpdateTimeoutRef = useRef(null); // 🆕 **SHARED TIMEOUT REF**: Để prevent multiple timeouts
-  
   const handleFadeInChange = useCallback((newFadeIn) => {
     setFadeIn(newFadeIn);
     
@@ -474,17 +472,6 @@ const MP3CutterMain = React.memo(() => {
     
     // 🎯 **DEBUG REAL-TIME**: Log fade change với immediate feedback
     console.log(`🎨 [FadeControls] Fade In REAL-TIME: ${newFadeIn.toFixed(1)}s - effects applied instantly`);
-    
-    // 🔄 **CLEAR PREVIOUS TIMEOUT**: Prevent multiple debounced calls
-    if (fadeUpdateTimeoutRef.current) {
-      clearTimeout(fadeUpdateTimeoutRef.current);
-    }
-    
-    // 🚀 **OPTIONAL DEBOUNCED SAVE**: Save to history after user stops dragging
-    fadeUpdateTimeoutRef.current = setTimeout(() => {
-      console.log(`💾 [FadeControls] Fade In history saved: ${newFadeIn.toFixed(1)}s`);
-      // History will be saved when drag ends via FadeControls component
-    }, 200);
   }, [fadeOut, startTime, endTime, updateFadeConfig]);
 
   const handleFadeOutChange = useCallback((newFadeOut) => {
@@ -503,27 +490,37 @@ const MP3CutterMain = React.memo(() => {
     
     // 🎯 **DEBUG REAL-TIME**: Log fade change với immediate feedback
     console.log(`🎨 [FadeControls] Fade Out REAL-TIME: ${newFadeOut.toFixed(1)}s - effects applied instantly`);
-    
-    // 🔄 **CLEAR PREVIOUS TIMEOUT**: Prevent multiple debounced calls
-    if (fadeUpdateTimeoutRef.current) {
-      clearTimeout(fadeUpdateTimeoutRef.current);
-    }
-    
-    // 🚀 **OPTIONAL DEBOUNCED SAVE**: Save to history after user stops dragging
-    fadeUpdateTimeoutRef.current = setTimeout(() => {
-      console.log(`💾 [FadeControls] Fade Out history saved: ${newFadeOut.toFixed(1)}s`);
-      // History will be saved when drag ends via FadeControls component
-    }, 200);
   }, [fadeIn, startTime, endTime, updateFadeConfig]);
-  
-  // 🆕 **CLEANUP TIMEOUT**: Clear timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (fadeUpdateTimeoutRef.current) {
-        clearTimeout(fadeUpdateTimeoutRef.current);
-      }
+
+  // 🆕 **FADE DRAG HISTORY CALLBACKS**: Lưu lịch sử khi kết thúc drag fade sliders
+  const handleFadeInDragEnd = useCallback((finalFadeIn) => {
+    console.log(`💾 [FadeControls] Fade In drag ended: ${finalFadeIn.toFixed(1)}s - saving to history`);
+    saveState({ startTime, endTime, fadeIn: finalFadeIn, fadeOut });
+  }, [startTime, endTime, fadeOut, saveState]);
+
+  const handleFadeOutDragEnd = useCallback((finalFadeOut) => {
+    console.log(`💾 [FadeControls] Fade Out drag ended: ${finalFadeOut.toFixed(1)}s - saving to history`);
+    saveState({ startTime, endTime, fadeIn, fadeOut: finalFadeOut });
+  }, [startTime, endTime, fadeIn, saveState]);
+
+  // 🆕 **PRESET APPLY CALLBACK**: Lưu lịch sử khi apply preset
+  const handlePresetApply = useCallback((newFadeIn, newFadeOut) => {
+    console.log(`🎨 [FadeControls] Preset applied: ${newFadeIn.toFixed(1)}s / ${newFadeOut.toFixed(1)}s - saving to history`);
+    setFadeIn(newFadeIn);
+    setFadeOut(newFadeOut);
+    
+    // Update real-time config
+    const newConfig = {
+      fadeIn: newFadeIn,
+      fadeOut: newFadeOut,
+      startTime,
+      endTime
     };
-  }, []);
+    updateFadeConfig(newConfig);
+    
+    // Save to history
+    saveState({ startTime, endTime, fadeIn: newFadeIn, fadeOut: newFadeOut });
+  }, [startTime, endTime, updateFadeConfig, saveState]);
 
   // Drag and drop handler
   const handleDrop = useCallback((e) => {
@@ -909,6 +906,9 @@ const MP3CutterMain = React.memo(() => {
                   maxDuration={duration}
                   onFadeInChange={handleFadeInChange}
                   onFadeOutChange={handleFadeOutChange}
+                  onFadeInDragEnd={handleFadeInDragEnd}
+                  onFadeOutDragEnd={handleFadeOutDragEnd}
+                  onPresetApply={handlePresetApply}
                   disabled={!audioFile}
                 />
               </div>
