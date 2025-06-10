@@ -34,7 +34,7 @@ export const detectHandle = (x, canvasWidth, duration, startTime, endTime, event
   
   // 🔧 **DEBUG FIX**: Quick log cho startTime = 0 để confirm fix
   if (startTime === 0 && Math.random() < 0.1) {
-    console.log(`🔧 [START-HANDLE-FIX] startTime=0 detected, start handle positioned at startX (${((startTime / duration) * canvasWidth).toFixed(1)}px) instead of negative position`);
+    console.log(`🔧 [START-HANDLE-FIX] startTime=0 detected, handle wrapping logic applied`);
   }
   
   // 🆕 **DIRECT HANDLE EVENT**: Nếu event đến từ handle trực tiếp, return ngay
@@ -54,58 +54,63 @@ export const detectHandle = (x, canvasWidth, duration, startTime, endTime, event
   const responsiveHandleWidth = canvasWidth < mobileBreakpoint ? 
     Math.max(6, baseHandleWidth * 0.8) : baseHandleWidth; // Smaller mobile handles
   
-  const startX = (startTime / duration) * canvasWidth;
-  const endX = (endTime / duration) * canvasWidth;
+  // 🔧 **WAVEFORM AREA CALCULATION**: Calculate available waveform area
+  const leftHandleWidth = responsiveHandleWidth;
+  const rightHandleWidth = responsiveHandleWidth;
+  const waveformStartX = leftHandleWidth;
+  const waveformEndX = canvasWidth - rightHandleWidth;
+  const availableWaveformWidth = waveformEndX - waveformStartX;
   
-  // 🔧 **UPDATED VISUAL AREAS**: Corrected visual areas to match new UI positioning
-  // Start handle: NOW render tại [startX, startX+8] (FIXED - không còn ra ngoài)
-  // End handle: vẫn render tại [endX-8, endX] (unchanged)
-  const startHandleVisualCenter = startX + (responsiveHandleWidth / 2); // startX + 4 ✅ FIXED!
-  const endHandleVisualCenter = endX - (responsiveHandleWidth / 2);     // endX - 4 ✅ unchanged
+  // 🔧 **REGION BOUNDARIES**: Map region boundaries to waveform area
+  const regionStartPercent = startTime / duration;
+  const regionEndPercent = endTime / duration;
+  const regionStartX = waveformStartX + (regionStartPercent * availableWaveformWidth);
+  const regionEndX = waveformStartX + (regionEndPercent * availableWaveformWidth);
   
-  // 🚀 **REDUCED TOLERANCE**: Giảm tolerance để precision cao hơn
-  const baseDetectionTolerance = responsiveHandleWidth; // 8px base
-  const detectionTolerance = 0; // 🔧 **ZERO DETECTION AREA**: Set to 0 so 8px area before handles is clickable
+  // 🎯 **HANDLE WRAPPING POSITIONS**: Calculate handle positions that wrap around region
+  const startHandleX = regionStartX - responsiveHandleWidth; // Right edge aligns with region start
+  const endHandleX = regionEndX; // Left edge aligns with region end
   
-  // 🎯 **UPDATED VISUAL AREA DETECTION**: Match chính xác với new visual positioning
-  const startHandleLeftEdge = startX;                         // NEW: Visual left edge  
-  const startHandleRightEdge = startX + responsiveHandleWidth; // NEW: Visual right edge
-  const endHandleLeftEdge = endX - responsiveHandleWidth;     // UNCHANGED: Visual left edge
-  const endHandleRightEdge = endX;                            // UNCHANGED: Visual right edge
+  // 🔧 **VISUAL HANDLE AREAS**: Define where handles are visually rendered
+  // Start handle: render from startHandleX to startHandleX + responsiveHandleWidth
+  // End handle: render from endHandleX to endHandleX + responsiveHandleWidth  
+  const startHandleLeftEdge = startHandleX;
+  const startHandleRightEdge = startHandleX + responsiveHandleWidth;
+  const endHandleLeftEdge = endHandleX;
+  const endHandleRightEdge = endHandleX + responsiveHandleWidth;
   
-  // 🎯 **ZERO TOLERANCE DETECTION**: Chỉ detect handle khi mouse nằm chính xác trong visual area
+  // 🎯 **HANDLE DETECTION**: Check if mouse is within handle visual areas
   const startDetected = x >= startHandleLeftEdge && x <= startHandleRightEdge;
   const endDetected = x >= endHandleLeftEdge && x <= endHandleRightEdge;
   
-  // 🔍 **ENHANCED DEBUG**: More detailed logging for end handle issues
-  const shouldLogDebug = Math.random() < 0.15 || eventInfo?.forceDebug; // Increased sampling
+  // 🔍 **ENHANCED DEBUG**: More detailed logging for handle detection
+  const shouldLogDebug = Math.random() < 0.05 || eventInfo?.forceDebug;
   
   if (shouldLogDebug || eventInfo?.isHandleEvent) {
-    console.log(`🎯 [HANDLE-DETECTION-UPDATED] Updated Visual Area Analysis:`, {
+    console.log(`🎯 [HANDLE-DETECTION-WRAP] Handle detection with wrapping logic:`, {
       mouseX: x.toFixed(1) + 'px',
+      regionBounds: `[${regionStartX.toFixed(1)}, ${regionEndX.toFixed(1)}] (region area)`,
       startHandle: {
-        visualRange: `[${startX.toFixed(1)}, ${(startX + responsiveHandleWidth).toFixed(1)}]`,
-        detected: startDetected,
-        positioning: 'NEW: startX to startX+8 (no longer pushed outside)'
+        position: `${startHandleX.toFixed(1)}px (wraps to ${startHandleRightEdge.toFixed(1)}px)`,
+        alignsWithRegionStart: `right edge @ ${startHandleRightEdge.toFixed(1)}px = region start @ ${regionStartX.toFixed(1)}px`,
+        detected: startDetected
       },
       endHandle: {
-        visualRange: `[${(endX - responsiveHandleWidth).toFixed(1)}, ${endX.toFixed(1)}]`,
-        detected: endDetected,
-        positioning: 'UNCHANGED: endX-8 to endX'
+        position: `${endHandleX.toFixed(1)}px (wraps to ${endHandleRightEdge.toFixed(1)}px)`,
+        alignsWithRegionEnd: `left edge @ ${endHandleX.toFixed(1)}px = region end @ ${regionEndX.toFixed(1)}px`,
+        detected: endDetected
       },
-      detectionArea: '0px (ZERO TOLERANCE)',
-      fix: 'Start handle repositioned to avoid negative positioning at startTime=0',
-      improvement: 'Start handle no longer pushed outside waveform boundaries'
+      fix: 'Handles now wrap around region boundaries for precise boundary control'
     });
   }
   
   if (startDetected) {
-    console.log(`✅ [START-DETECTED-FIXED] at ${x.toFixed(1)}px (NEW visual area: [${startX.toFixed(1)}, ${(startX + responsiveHandleWidth).toFixed(1)}], no longer negative positioning)`);
+    console.log(`✅ [START-DETECTED-WRAP] at ${x.toFixed(1)}px (handle wraps around region start at ${regionStartX.toFixed(1)}px)`);
     return HANDLE_TYPES.START;
   }
   
   if (endDetected) {
-    console.log(`✅ [END-DETECTED-UNCHANGED] at ${x.toFixed(1)}px (visual area: [${(endX - responsiveHandleWidth).toFixed(1)}, ${endX.toFixed(1)}], positioning unchanged)`);
+    console.log(`✅ [END-DETECTED-WRAP] at ${x.toFixed(1)}px (handle wraps around region end at ${regionEndX.toFixed(1)}px)`);
     return HANDLE_TYPES.END;
   }
   
@@ -113,7 +118,7 @@ export const detectHandle = (x, canvasWidth, duration, startTime, endTime, event
 };
 
 /**
- * 🎯 Convert mouse position to time
+ * 🎯 Convert mouse position to time - UPDATED FOR HANDLE WRAPPING LOGIC
  * @param {number} x - Mouse X position relative to canvas
  * @param {number} canvasWidth - Canvas width in pixels  
  * @param {number} duration - Audio duration in seconds
@@ -121,7 +126,38 @@ export const detectHandle = (x, canvasWidth, duration, startTime, endTime, event
  */
 export const positionToTime = (x, canvasWidth, duration) => {
   if (canvasWidth === 0 || duration === 0) return 0;
-  return Math.max(0, Math.min(duration, (x / canvasWidth) * duration));
+  
+  // 🔧 **HANDLE SPACE ADJUSTMENT**: Calculate available waveform area
+  const { MODERN_HANDLE_WIDTH } = WAVEFORM_CONFIG;
+  const responsiveHandleWidth = canvasWidth < WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT ? 
+    Math.max(3, MODERN_HANDLE_WIDTH * 0.75) : MODERN_HANDLE_WIDTH;
+  
+  const leftHandleWidth = responsiveHandleWidth;
+  const rightHandleWidth = responsiveHandleWidth;
+  const waveformStartX = leftHandleWidth;
+  const waveformEndX = canvasWidth - rightHandleWidth;
+  const availableWaveformWidth = waveformEndX - waveformStartX;
+  
+  // 🔧 **BOUNDARY CHECK**: Clamp mouse position to waveform area
+  const clampedX = Math.max(waveformStartX, Math.min(waveformEndX, x));
+  
+  // 🔧 **MAP FROM WAVEFORM AREA**: Convert position relative to waveform area to time
+  const waveformRelativeX = clampedX - waveformStartX;
+  const timePercent = waveformRelativeX / availableWaveformWidth;
+  const time = timePercent * duration;
+  
+  // 🚀 **DEBUG LOG**: Add occasional debug logging for handle wrapping context
+  if (Math.random() < 0.02) {
+    console.log(`🔧 [POSITION-TO-TIME-WRAP] Mouse to time conversion (handle wrapping compatible):`, {
+      originalX: x.toFixed(1) + 'px',
+      clampedX: clampedX.toFixed(1) + 'px',
+      waveformArea: `[${waveformStartX}, ${waveformEndX}] (${availableWaveformWidth}px)`,
+      time: time.toFixed(2) + 's',
+      note: 'Mouse position correctly mapped to waveform area, compatible with handle wrapping'
+    });
+  }
+  
+  return Math.max(0, Math.min(duration, time));
 };
 
 /**
@@ -708,7 +744,7 @@ export class InteractionManager {
         // 🆕 **REGION DRAG**: Di chuyển toàn bộ region với ultra-smooth sync
         const regionDuration = endTime - startTime;
         const newStartTime = roundedTime - this.regionDragOffset;
-        const newEndTime = newStartTime + regionDuration;
+        // const newEndTime = newStartTime + regionDuration; // 🚫 **UNUSED**: Not needed, using adjustedEndTime instead
         
         // 🔒 **BOUNDARY CHECK**: Đảm bảo region không ra ngoài duration
         const adjustedStartTime = Math.max(0, Math.min(newStartTime, duration - regionDuration));
@@ -725,7 +761,7 @@ export class InteractionManager {
         // 🎯 **SIMPLIFIED REGION SYNC**: Always sync to region start as requested
         let audioSynced = false;
         if (audioContext) {
-          const { audioRef, setCurrentTime, isPlaying } = audioContext;
+          const { audioRef, setCurrentTime } = audioContext;
           
           // 🆕 **REGION START SYNC**: Always sync to start of region for consistent behavior
           const targetSyncTime = adjustedStartTime; // 🎯 **SIMPLIFIED**: Always use region start
@@ -774,7 +810,7 @@ export class InteractionManager {
           let audioSynced = false;
           
           if (audioContext) {
-            const { audioRef, setCurrentTime, isPlaying } = audioContext;
+            const { audioRef, setCurrentTime } = audioContext;
             
             // 🔥 **ULTRA-SMOOTH REAL-TIME SYNC**: Sử dụng realTimeSync với force mode
             audioSynced = this.audioSyncManager.realTimeSync(
@@ -806,7 +842,7 @@ export class InteractionManager {
           let audioSynced = false;
           
           if (audioContext && this.audioSyncManager.preferences.syncEndHandle) {
-            const { audioRef, setCurrentTime, isPlaying } = audioContext;
+            const { audioRef, setCurrentTime } = audioContext;
             
             // 🔥 **ULTRA-SMOOTH REAL-TIME SYNC**: Sử dụng realTimeSync với force mode cho end handle
             audioSynced = this.audioSyncManager.realTimeSync(

@@ -179,10 +179,12 @@ export class SmartClickManager {
         
         if (this.preferences.enableSmartUpdate) {
           actionDetails.action = CLICK_ACTIONS.UPDATE_START;
+          // 🔧 **HANDLE WRAPPING FIX**: With handle wrapping logic, the clicked position should be the RIGHT EDGE of start handle
+          // This means the region start time equals the clicked time (right edge of handle aligns with clicked position)
           actionDetails.newStartTime = clickTime;
           actionDetails.cursor = 'pointer';
-          actionDetails.reason = `Moving start from ${startTime.toFixed(2)}s to ${clickTime.toFixed(2)}s`;
-          console.log(`✅ [${this.debugId}] BEFORE_START update ALLOWED: ${startTime.toFixed(2)}s → ${clickTime.toFixed(2)}s`);
+          actionDetails.reason = `Moving start to ${clickTime.toFixed(2)}s (right edge of start handle aligns with click)`;
+          console.log(`✅ [${this.debugId}] BEFORE_START update ALLOWED with handle wrapping: ${startTime.toFixed(2)}s → ${clickTime.toFixed(2)}s (right edge alignment)`);
         } else {
           actionDetails.action = CLICK_ACTIONS.CREATE_SELECTION;
           actionDetails.newStartTime = clickTime;
@@ -204,10 +206,12 @@ export class SmartClickManager {
         
         if (this.preferences.enableSmartUpdate) {
           actionDetails.action = CLICK_ACTIONS.UPDATE_END;
+          // 🔧 **HANDLE WRAPPING FIX**: With handle wrapping logic, the clicked position should be the LEFT EDGE of end handle
+          // This means the region end time equals the clicked time (left edge of handle aligns with clicked position)
           actionDetails.newEndTime = clickTime;
           actionDetails.cursor = 'pointer';
-          actionDetails.reason = `Moving end from ${endTime.toFixed(2)}s to ${clickTime.toFixed(2)}s`;
-          console.log(`✅ [${this.debugId}] AFTER_END update ALLOWED: ${endTime.toFixed(2)}s → ${clickTime.toFixed(2)}s`);
+          actionDetails.reason = `Moving end to ${clickTime.toFixed(2)}s (left edge of end handle aligns with click)`;
+          console.log(`✅ [${this.debugId}] AFTER_END update ALLOWED with handle wrapping: ${endTime.toFixed(2)}s → ${clickTime.toFixed(2)}s (left edge alignment)`);
         } else {
           actionDetails.action = CLICK_ACTIONS.CREATE_SELECTION;
           actionDetails.newStartTime = clickTime;

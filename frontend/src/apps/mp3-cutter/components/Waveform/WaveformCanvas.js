@@ -1,5 +1,5 @@
 // 📄 src/apps/mp3-cutter/components/Waveform/WaveformCanvas.js
-import React, { useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useEffect, useCallback, useMemo } from 'react';
 import { WAVEFORM_CONFIG } from '../../utils/constants';
 import { WaveformUI } from './WaveformUI';
 import { useOptimizedTooltip } from '../../hooks/useOptimizedTooltip';
@@ -30,8 +30,6 @@ const WaveformCanvas = React.memo(({
   onMouseUp,
   onMouseLeave
 }) => {
-
-  const lastRenderDataRef = useRef(null);
 
   // 🚀 **OPTIMIZED TOOLTIP HOOK** - Bao gồm main cursor tooltip
   const {
@@ -204,8 +202,8 @@ const WaveformCanvas = React.memo(({
     // 2. **WAVEFORM BARS**: Ultra-optimized rendering with hybrid system
     const { 
       waveformData, 
-      barWidth: fixedBarWidth, // 🚀 **FIXED WIDTH**: From hybrid system (0.3px - 0.8px)
-      mode,
+      // barWidth: fixedBarWidth, // 🚀 **REMOVED**: Not used in adjusted rendering
+      // mode, // 🚀 **REMOVED**: Not used in adjusted rendering
       duration, 
       startTime, 
       endTime, 
@@ -216,6 +214,30 @@ const WaveformCanvas = React.memo(({
     
     const centerY = height / 2;
     
+    // 🔧 **HANDLE SPACE ADJUSTMENT**: Reserve space for handles (8px each side)
+    const { MODERN_HANDLE_WIDTH } = WAVEFORM_CONFIG;
+    const responsiveHandleWidth = containerWidth < WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT ? 
+      Math.max(3, MODERN_HANDLE_WIDTH * 0.75) : MODERN_HANDLE_WIDTH;
+    
+    const leftHandleWidth = responsiveHandleWidth;
+    const rightHandleWidth = responsiveHandleWidth;
+    const waveformStartX = leftHandleWidth; // Start after left handle
+    const waveformEndX = width - rightHandleWidth; // End before right handle
+    const availableWaveformWidth = waveformEndX - waveformStartX;
+    
+    // 🚀 **DEBUG LOG**: Add console.log for debugging if needed
+    if (Math.random() < 0.02) { // Log occasionally to avoid spam
+      console.log(`🔧 [WAVEFORM-RENDER-FIX] Waveform rendering area:`, {
+        canvasWidth: width + 'px',
+        leftHandleWidth: leftHandleWidth + 'px', 
+        rightHandleWidth: rightHandleWidth + 'px',
+        waveformStartX: waveformStartX + 'px',
+        waveformEndX: waveformEndX + 'px',
+        availableWaveformWidth: availableWaveformWidth + 'px',
+        fix: 'Waveform now renders only between handles'
+      });
+    }
+    
     // 🎯 **VOLUME SYSTEM**: Perfect linear scaling
     const FLAT_BAR_HEIGHT_PX = 1;
     const MAX_SCALING_PX = 65;
@@ -225,11 +247,14 @@ const WaveformCanvas = React.memo(({
     const absoluteBarHeightPx = FLAT_BAR_HEIGHT_PX + scalingPixels;
     const waveformVariation = Math.max(0, Math.min(1, currentVolume));
     
-    // 🚀 **HYBRID RENDERING**: Use fixed bar width from hybrid system
-    if (absoluteBarHeightPx > 0) {
+    // 🚀 **HYBRID RENDERING**: Use fixed bar width from hybrid system, but adjust for available space
+    if (absoluteBarHeightPx > 0 && availableWaveformWidth > 0) {
       ctx.save();
       
       const fadeEffectsActive = currentFadeIn > 0 || currentFadeOut > 0;
+      
+      // 🔧 **ADJUSTED RENDERING**: Render bars within available waveform width
+      const adjustedBarWidth = availableWaveformWidth / waveformData.length;
       
       for (let i = 0; i < waveformData.length; i++) {
         const value = waveformData[i];
@@ -248,22 +273,26 @@ const WaveformCanvas = React.memo(({
         }
         
         const finalBarHeight = effectiveBarHeight * fadeMultiplier;
-        const x = i * fixedBarWidth; // 🚀 **FIXED SPACING**: Perfect alignment
+        // 🔧 **FIXED POSITIONING**: Start from waveformStartX instead of 0
+        const x = waveformStartX + (i * adjustedBarWidth);
         
         const isInSelection = barTime >= startTime && barTime <= endTime;
         ctx.fillStyle = isInSelection ? '#7c3aed' : '#cbd5e1';
         
-        // 🚀 **FIXED BAR WIDTH**: Always 0.3px - 0.8px from hybrid system
-        ctx.fillRect(Math.floor(x), centerY - finalBarHeight, fixedBarWidth, finalBarHeight * 2);
+        // 🔧 **ADJUSTED BAR WIDTH**: Use adjustedBarWidth for proper spacing
+        ctx.fillRect(Math.floor(x), centerY - finalBarHeight, adjustedBarWidth, finalBarHeight * 2);
       }
       
       ctx.restore();
     }
     
-    // 3. **SELECTION OVERLAY**
-    if (startTime < endTime) {
-      const startX = (startTime / duration) * width;
-      const endX = (endTime / duration) * width;
+    // 3. **SELECTION OVERLAY**: Adjust selection overlay to match waveform area
+    if (startTime < endTime && availableWaveformWidth > 0) {
+      // 🔧 **ADJUSTED SELECTION**: Map selection to available waveform area
+      const startPercent = startTime / duration;
+      const endPercent = endTime / duration;
+      const startX = waveformStartX + (startPercent * availableWaveformWidth);
+      const endX = waveformStartX + (endPercent * availableWaveformWidth);
       
       ctx.fillStyle = 'rgba(139, 92, 246, 0.15)';
       ctx.fillRect(startX, 0, endX - startX, height);
@@ -271,7 +300,7 @@ const WaveformCanvas = React.memo(({
 
     // 🎯 **CURSORS & LINES NOW RENDERED AS REACT COMPONENTS** - No longer drawn on canvas
     // Main cursor, hover line, and handles are now rendered in WaveformUI using React components for perfect control
-  }, [canvasRef, renderData, currentTime, isPlaying, hoverTooltip, calculateFadeMultiplier]);
+  }, [canvasRef, renderData, calculateFadeMultiplier, containerWidth]);
 
   // 🚀 **EFFECT OPTIMIZATIONS**: Controlled re-renders
   useEffect(() => {
@@ -296,29 +325,50 @@ const WaveformCanvas = React.memo(({
     const currentWidth = containerWidth || canvas.width || 800; // 🚀 **USE CONTAINER WIDTH**: Better responsive
     const height = canvas.height || WAVEFORM_CONFIG.HEIGHT;
     
-    const startX = (startTime / duration) * currentWidth;
-    const endX = (endTime / duration) * currentWidth;
-    
+    // 🔧 **HANDLE SPACE ADJUSTMENT**: Calculate available waveform area
     const { MODERN_HANDLE_WIDTH } = WAVEFORM_CONFIG;
     const responsiveHandleWidth = currentWidth < WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT ? 
       Math.max(3, MODERN_HANDLE_WIDTH * 0.75) : MODERN_HANDLE_WIDTH;
     
-    // 🔧 **DEBUG POSITIONING**: Quick log để confirm fix
-    if (startTime === 0 && Math.random() < 0.05) {
-      console.log(`🔧 [HANDLE-POSITION-FIX] Start handle positioning:`, {
-        startTime: startTime.toFixed(2) + 's',
-        startX: startX.toFixed(1) + 'px',
-        handleWidth: responsiveHandleWidth + 'px',
-        oldPositioning: `would be ${(startX - responsiveHandleWidth).toFixed(1)}px (NEGATIVE!)`,
-        newPositioning: `now at ${startX.toFixed(1)}px (FIXED!)`,
-        fix: 'Start handle no longer pushed outside waveform'
+    const leftHandleWidth = responsiveHandleWidth;
+    const rightHandleWidth = responsiveHandleWidth;
+    const waveformStartX = leftHandleWidth;
+    const waveformEndX = currentWidth - rightHandleWidth;
+    const availableWaveformWidth = waveformEndX - waveformStartX;
+    
+    // 🔧 **NEW HANDLE POSITIONING LOGIC**: Handles wrap around region boundaries
+    // Start handle: right edge aligns with region start
+    // End handle: left edge aligns with region end
+    
+    const regionStartPercent = startTime / duration;
+    const regionEndPercent = endTime / duration;
+    const regionStartX = waveformStartX + (regionStartPercent * availableWaveformWidth);
+    const regionEndX = waveformStartX + (regionEndPercent * availableWaveformWidth);
+    
+    // 🎯 **HANDLE WRAPPING**: Position handles to wrap around region
+    const startHandleX = regionStartX - responsiveHandleWidth; // Right edge aligns with region start
+    const endHandleX = regionEndX; // Left edge aligns with region end
+    
+    // 🚀 **DEBUG LOG**: Add console.log to show handle wrapping logic
+    if (Math.random() < 0.02) { // Log occasionally to avoid spam
+      console.log(`🔧 [HANDLE-WRAP-FIX] Handle wrapping positioning:`, {
+        regionBounds: `${regionStartX.toFixed(1)}px - ${regionEndX.toFixed(1)}px`,
+        startHandle: {
+          position: `${startHandleX.toFixed(1)}px (right edge at ${(startHandleX + responsiveHandleWidth).toFixed(1)}px)`,
+          alignsWithRegionStart: (startHandleX + responsiveHandleWidth).toFixed(1) === regionStartX.toFixed(1)
+        },
+        endHandle: {
+          position: `${endHandleX.toFixed(1)}px (left edge at ${endHandleX.toFixed(1)}px)`,
+          alignsWithRegionEnd: endHandleX.toFixed(1) === regionEndX.toFixed(1)
+        },
+        fix: 'Handles now wrap around region boundaries instead of overlapping'
       });
     }
     
     return {
       start: {
         visible: true,
-        x: startX,
+        x: startHandleX,
         y: 0,
         width: responsiveHandleWidth,
         height: height,
@@ -327,7 +377,7 @@ const WaveformCanvas = React.memo(({
       },
       end: {
         visible: true,
-        x: endX,
+        x: endHandleX,
         y: 0,
         width: responsiveHandleWidth,
         height: height,
@@ -347,17 +397,39 @@ const WaveformCanvas = React.memo(({
     const currentWidth = containerWidth || canvas.width || 800; // 🚀 **USE CONTAINER WIDTH**: Better responsive
     const height = canvas.height || WAVEFORM_CONFIG.HEIGHT;
     
-    // 🔵 **MAIN CURSOR CALCULATION**
-    const mainCursorX = currentTime >= 0 ? (currentTime / duration) * currentWidth : -1;
+    // 🔧 **HANDLE SPACE ADJUSTMENT**: Calculate available waveform area
+    const { MODERN_HANDLE_WIDTH } = WAVEFORM_CONFIG;
+    const responsiveHandleWidth = currentWidth < WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT ? 
+      Math.max(3, MODERN_HANDLE_WIDTH * 0.75) : MODERN_HANDLE_WIDTH;
     
-    // 🖱️ **HOVER LINE CALCULATION** 
+    const leftHandleWidth = responsiveHandleWidth;
+    const rightHandleWidth = responsiveHandleWidth;
+    const waveformStartX = leftHandleWidth;
+    const waveformEndX = currentWidth - rightHandleWidth;
+    const availableWaveformWidth = waveformEndX - waveformStartX;
+    
+    // 🔵 **MAIN CURSOR CALCULATION**: Map to waveform area
+    const mainCursorPercent = currentTime >= 0 ? currentTime / duration : -1;
+    const mainCursorX = mainCursorPercent >= 0 ? 
+      waveformStartX + (mainCursorPercent * availableWaveformWidth) : -1;
+    
+    // 🖱️ **HOVER LINE CALCULATION**: Map to waveform area 
     const shouldShowHoverLine = hoverTooltip && hoverTooltip.visible && 
       isDragging !== 'start' && isDragging !== 'end';
-    const hoverLineX = shouldShowHoverLine ? hoverTooltip.x : -1;
+    
+    // 🔧 **ADJUSTED HOVER LINE**: Map hover position to waveform area
+    let adjustedHoverLineX = -1;
+    if (shouldShowHoverLine && hoverTooltip.x >= 0) {
+      // Convert absolute hover position to waveform-relative position
+      const hoverPercent = (hoverTooltip.x - waveformStartX) / availableWaveformWidth;
+      if (hoverPercent >= 0 && hoverPercent <= 1) {
+        adjustedHoverLineX = waveformStartX + (hoverPercent * availableWaveformWidth);
+      }
+    }
     
     return {
       mainCursor: {
-        visible: currentTime >= 0 && duration > 0,
+        visible: currentTime >= 0 && duration > 0 && mainCursorX >= waveformStartX && mainCursorX <= waveformEndX,
         x: mainCursorX,
         y: 0,
         width: 1, // Ultra thin cursor
@@ -365,8 +437,8 @@ const WaveformCanvas = React.memo(({
         color: isPlaying ? '#3b82f6' : '#2563eb'
       },
       hoverLine: {
-        visible: shouldShowHoverLine && hoverLineX >= 0,
-        x: hoverLineX,
+        visible: shouldShowHoverLine && adjustedHoverLineX >= 0,
+        x: adjustedHoverLineX,
         y: 0,
         width: 0.6, // Ultra thin hover line  
         height: height,

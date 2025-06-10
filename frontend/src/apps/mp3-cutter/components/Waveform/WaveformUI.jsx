@@ -193,7 +193,7 @@ export const WaveformUI = memo(({
   const endHandleStyle = useMemo(() => ({
     ...HANDLE_STYLES.base,
     ...HANDLE_STYLES.end,
-    left: `${(handlePositions?.end?.x || 0) - (handlePositions?.end?.width || 0)}px`,
+    left: `${handlePositions?.end?.x || 0}px`,
     top: `${handlePositions?.end?.y || 0}px`,
     width: `${handlePositions?.end?.width || 0}px`,
     height: `${handlePositions?.end?.height || 0}px`,
