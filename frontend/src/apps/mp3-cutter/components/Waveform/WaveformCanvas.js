@@ -303,6 +303,18 @@ const WaveformCanvas = React.memo(({
     const responsiveHandleWidth = currentWidth < WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT ? 
       Math.max(3, MODERN_HANDLE_WIDTH * 0.75) : MODERN_HANDLE_WIDTH;
     
+    // 🔧 **DEBUG POSITIONING**: Quick log để confirm fix
+    if (startTime === 0 && Math.random() < 0.05) {
+      console.log(`🔧 [HANDLE-POSITION-FIX] Start handle positioning:`, {
+        startTime: startTime.toFixed(2) + 's',
+        startX: startX.toFixed(1) + 'px',
+        handleWidth: responsiveHandleWidth + 'px',
+        oldPositioning: `would be ${(startX - responsiveHandleWidth).toFixed(1)}px (NEGATIVE!)`,
+        newPositioning: `now at ${startX.toFixed(1)}px (FIXED!)`,
+        fix: 'Start handle no longer pushed outside waveform'
+      });
+    }
+    
     return {
       start: {
         visible: true,

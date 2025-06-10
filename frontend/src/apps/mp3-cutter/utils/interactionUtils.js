@@ -32,6 +32,11 @@ export const HANDLE_TYPES = {
 export const detectHandle = (x, canvasWidth, duration, startTime, endTime, eventInfo = null) => {
   if (duration === 0 || canvasWidth === 0) return null;
   
+  // 🔧 **DEBUG FIX**: Quick log cho startTime = 0 để confirm fix
+  if (startTime === 0 && Math.random() < 0.1) {
+    console.log(`🔧 [START-HANDLE-FIX] startTime=0 detected, start handle positioned at startX (${((startTime / duration) * canvasWidth).toFixed(1)}px) instead of negative position`);
+  }
+  
   // 🆕 **DIRECT HANDLE EVENT**: Nếu event đến từ handle trực tiếp, return ngay
   if (eventInfo?.isHandleEvent && eventInfo?.handleType) {
     console.log(`🎯 [DIRECT-HANDLE-DETECT] Direct handle event detected:`, {
@@ -52,21 +57,21 @@ export const detectHandle = (x, canvasWidth, duration, startTime, endTime, event
   const startX = (startTime / duration) * canvasWidth;
   const endX = (endTime / duration) * canvasWidth;
   
-  // 🔧 **CRITICAL FIX**: Corrected visual centers to match actual UI rendering
-  // Start handle: render tại [startX-8, startX] → center = startX - 4
-  // End handle: render tại [endX-8, endX] → center = endX - 4 (NOT endX + 4!)
-  const startHandleVisualCenter = startX - (responsiveHandleWidth / 2); // startX - 4 ✅
-  const endHandleVisualCenter = endX - (responsiveHandleWidth / 2);     // endX - 4 ✅ FIXED!
+  // 🔧 **UPDATED VISUAL AREAS**: Corrected visual areas to match new UI positioning
+  // Start handle: NOW render tại [startX, startX+8] (FIXED - không còn ra ngoài)
+  // End handle: vẫn render tại [endX-8, endX] (unchanged)
+  const startHandleVisualCenter = startX + (responsiveHandleWidth / 2); // startX + 4 ✅ FIXED!
+  const endHandleVisualCenter = endX - (responsiveHandleWidth / 2);     // endX - 4 ✅ unchanged
   
   // 🚀 **REDUCED TOLERANCE**: Giảm tolerance để precision cao hơn
   const baseDetectionTolerance = responsiveHandleWidth; // 8px base
   const detectionTolerance = 0; // 🔧 **ZERO DETECTION AREA**: Set to 0 so 8px area before handles is clickable
   
-  // 🎯 **EXACT VISUAL AREA DETECTION**: Match chính xác với visual area của handle
-  const startHandleLeftEdge = startX - responsiveHandleWidth; // Visual left edge  
-  const startHandleRightEdge = startX;                        // Visual right edge
-  const endHandleLeftEdge = endX - responsiveHandleWidth;     // Visual left edge
-  const endHandleRightEdge = endX;                            // Visual right edge
+  // 🎯 **UPDATED VISUAL AREA DETECTION**: Match chính xác với new visual positioning
+  const startHandleLeftEdge = startX;                         // NEW: Visual left edge  
+  const startHandleRightEdge = startX + responsiveHandleWidth; // NEW: Visual right edge
+  const endHandleLeftEdge = endX - responsiveHandleWidth;     // UNCHANGED: Visual left edge
+  const endHandleRightEdge = endX;                            // UNCHANGED: Visual right edge
   
   // 🎯 **ZERO TOLERANCE DETECTION**: Chỉ detect handle khi mouse nằm chính xác trong visual area
   const startDetected = x >= startHandleLeftEdge && x <= startHandleRightEdge;
@@ -76,34 +81,31 @@ export const detectHandle = (x, canvasWidth, duration, startTime, endTime, event
   const shouldLogDebug = Math.random() < 0.15 || eventInfo?.forceDebug; // Increased sampling
   
   if (shouldLogDebug || eventInfo?.isHandleEvent) {
-    console.log(`🔍 [HANDLE-DETECTION-ZERO-AREA] Zero Detection Area Analysis:`, {
+    console.log(`🎯 [HANDLE-DETECTION-UPDATED] Updated Visual Area Analysis:`, {
       mouseX: x.toFixed(1) + 'px',
       startHandle: {
-        visualRange: `[${(startX - responsiveHandleWidth).toFixed(1)}, ${startX.toFixed(1)}]`,
+        visualRange: `[${startX.toFixed(1)}, ${(startX + responsiveHandleWidth).toFixed(1)}]`,
         detected: startDetected,
-        exactArea: 'Only visual handle area, no extra tolerance'
+        positioning: 'NEW: startX to startX+8 (no longer pushed outside)'
       },
       endHandle: {
         visualRange: `[${(endX - responsiveHandleWidth).toFixed(1)}, ${endX.toFixed(1)}]`,
         detected: endDetected,
-        exactArea: 'Only visual handle area, no extra tolerance'
+        positioning: 'UNCHANGED: endX-8 to endX'
       },
       detectionArea: '0px (ZERO TOLERANCE)',
-      userFix: '8px area before handle right is now clickable for cursor movement',
-      improvement: 'No more cursor conflicts - precise handle detection only'
+      fix: 'Start handle repositioned to avoid negative positioning at startTime=0',
+      improvement: 'Start handle no longer pushed outside waveform boundaries'
     });
   }
   
   if (startDetected) {
-    console.log(`✅ [START-DETECTED-ZERO-AREA] at ${x.toFixed(1)}px (exact visual area: [${(startX - responsiveHandleWidth).toFixed(1)}, ${startX.toFixed(1)}], zero tolerance)`);
+    console.log(`✅ [START-DETECTED-FIXED] at ${x.toFixed(1)}px (NEW visual area: [${startX.toFixed(1)}, ${(startX + responsiveHandleWidth).toFixed(1)}], no longer negative positioning)`);
     return HANDLE_TYPES.START;
   }
   
   if (endDetected) {
-    console.log(`✅ [END-DETECTED-ZERO-AREA] at ${x.toFixed(1)}px (exact visual area: [${(endX - responsiveHandleWidth).toFixed(1)}, ${endX.toFixed(1)}], zero tolerance)`, {
-      userFix: '8px area before handle right is now clickable for cursor movement',
-      note: 'Zero tolerance - precise handle detection only'
-    });
+    console.log(`✅ [END-DETECTED-UNCHANGED] at ${x.toFixed(1)}px (visual area: [${(endX - responsiveHandleWidth).toFixed(1)}, ${endX.toFixed(1)}], positioning unchanged)`);
     return HANDLE_TYPES.END;
   }
   
