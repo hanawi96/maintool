@@ -182,13 +182,14 @@ export const useOptimizedTooltip = (canvasRef, duration, currentTime, isPlaying,
     
     if (time < 0 || time > duration) return null;
     
-    // 🎯 **CLAMP TOOLTIP POSITION**: Keep within waveform bounds with 3px padding
+    // 🎯 **CLAMP TOOLTIP POSITION**: Keep within waveform bounds, but keep original cursor position
     const clampedX = clampTooltipPosition(mouseX, waveformStartX, waveformEndX);
     
     return {
       visible: true,
-      x: clampedX,
-      originalX: mouseX, // Keep original position for reference
+      x: clampedX,           // Clamped position for tooltip
+      cursorX: mouseX,       // Original position for cursor line
+      originalX: mouseX,     // Keep original position for reference
       time,
       formattedTime: formatTime(time)
     };

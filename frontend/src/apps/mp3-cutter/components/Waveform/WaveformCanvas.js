@@ -417,14 +417,11 @@ const WaveformCanvas = React.memo(({
     const shouldShowHoverLine = hoverTooltip && hoverTooltip.visible && 
       isDragging !== 'start' && isDragging !== 'end';
     
-    // 🔧 **ADJUSTED HOVER LINE**: Map hover position to waveform area
-    let adjustedHoverLineX = -1;
-    if (shouldShowHoverLine && hoverTooltip.x >= 0) {
-      // Convert absolute hover position to waveform-relative position
-      const hoverPercent = (hoverTooltip.x - waveformStartX) / availableWaveformWidth;
-      if (hoverPercent >= 0 && hoverPercent <= 1) {
-        adjustedHoverLineX = waveformStartX + (hoverPercent * availableWaveformWidth);
-      }
+    // 🔧 **UNCLAMPED HOVER LINE**: Use cursorX (original mouse position) for cursor line
+    let hoverLineX = -1;
+    if (shouldShowHoverLine && hoverTooltip.cursorX !== undefined) {
+      // 🎯 **DIRECT CURSOR POSITION**: Use unclamped cursor position for hover line
+      hoverLineX = hoverTooltip.cursorX;
     }
     
     return {
@@ -437,8 +434,8 @@ const WaveformCanvas = React.memo(({
         color: isPlaying ? '#3b82f6' : '#2563eb'
       },
       hoverLine: {
-        visible: shouldShowHoverLine && adjustedHoverLineX >= 0,
-        x: adjustedHoverLineX,
+        visible: shouldShowHoverLine && hoverLineX >= 0,
+        x: hoverLineX,
         y: 0,
         width: 0.6, // Ultra thin hover line  
         height: height,
