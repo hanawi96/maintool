@@ -29,6 +29,9 @@ export const useInteractionHandlers = ({
 }) => {
   // 🔥 **PERFORMANCE REF**: Throttling reference
   const lastMouseTimeRef = useRef(0);
+  
+  // 🆕 **HISTORY TRACKING**: Prevent duplicate history saves
+  const historySavedRef = useRef(false);
 
   // 🚀 **MEMOIZED AUDIO CONTEXT**
   const audioContext = useMemo(() => ({
@@ -41,6 +44,9 @@ export const useInteractionHandlers = ({
   const handleCanvasMouseDown = useCallback((e) => {
     if (!canvasRef.current || duration <= 0) return;
     
+    // 🆕 **RESET HISTORY TRACKING**: Reset for new interaction
+    historySavedRef.current = false;
+    
     const rect = canvasRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const eventInfo = {
@@ -51,7 +57,9 @@ export const useInteractionHandlers = ({
     const manager = interactionManagerRef.current;
     if (manager && canvasRef.current) {
       const globalDragCallback = (result) => {
-        if (result.action === 'saveHistoryOnGlobalMouseUp' && result.saveHistory) {
+        if (result.action === 'saveHistoryOnGlobalMouseUp' && result.saveHistory && !historySavedRef.current) {
+          console.log(`💾 [History] Global mouse up - saving history (first save)`);
+          historySavedRef.current = true;
           setTimeout(() => saveState({ startTime, endTime, fadeIn, fadeOut }), 100);
           return;
         }
@@ -79,39 +87,33 @@ export const useInteractionHandlers = ({
     }
   }, [canvasRef, duration, startTime, endTime, setStartTime, setEndTime, setIsDragging, interactionManagerRef, audioContext, saveState, fadeIn, fadeOut]);
 
-  // 🎯 **60FPS MOUSE MOVE** - Ultra optimized
+  // 🎯 **OPTIMIZED MOUSE MOVE**
   const handleCanvasMouseMove = useCallback((e) => {
     const now = performance.now();
-    if (now - lastMouseTimeRef.current < 16) return; // 60fps cap
+    if (now - lastMouseTimeRef.current < 16) return; // 60fps limit
     lastMouseTimeRef.current = now;
     
-    const canvas = canvasRef.current;
-    if (!canvas || duration <= 0) return;
+    if (!canvasRef.current || duration <= 0) return;
     
-    const rect = canvas.getBoundingClientRect();
+    const rect = canvasRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
-    const manager = interactionManagerRef.current;
-    const result = manager.handleMouseMove(x, canvas.width, duration, startTime, endTime, audioContext);
     
-    // 🚀 **DIRECT UPDATES** - No processing delays
+    const manager = interactionManagerRef.current;
+    const result = manager.handleMouseMove(x, canvasRef.current.width, duration, startTime, endTime, audioContext);
+    
     switch (result.action) {
       case 'updateRegion':
-        if (result.isDraggingConfirmed) {
-          if (result.isRegionDrag && isDragging !== 'region') setIsDragging('region');
-          if (result.startTime !== undefined) setStartTime(result.startTime);
-          if (result.endTime !== undefined) setEndTime(result.endTime);
-          if (manager && (result.startTime !== undefined || result.endTime !== undefined)) {
-            const newStartTime = result.startTime !== undefined ? result.startTime : startTime;
-            const newEndTime = result.endTime !== undefined ? result.endTime : endTime;
-            manager.updateGlobalDragContext(newStartTime, newEndTime);
-          }
-        }
+        if (result.startTime !== undefined) setStartTime(result.startTime);
+        if (result.endTime !== undefined) setEndTime(result.endTime);
         break;
-      case 'updateHover':
+      case 'hover':
         setHoveredHandle(result.handle);
         break;
     }
-  }, [canvasRef, duration, startTime, endTime, setStartTime, setEndTime, setHoveredHandle, setIsDragging, interactionManagerRef, audioContext, isDragging]);
+    
+    // 🎯 **CURSOR UPDATE**: Set hovered handle based on cursor
+    setHoveredHandle(result.cursor === 'ew-resize' && result.handle ? result.handle : null);
+  }, [canvasRef, duration, startTime, endTime, setStartTime, setEndTime, setHoveredHandle, interactionManagerRef, audioContext]);
 
   // 🎯 **OPTIMIZED MOUSE UP**
   const handleCanvasMouseUp = useCallback(() => {
@@ -121,8 +123,12 @@ export const useInteractionHandlers = ({
     switch (result.action) {
       case 'completeDrag':
         setIsDragging(null);
-        if (result.saveHistory) {
+        if (result.saveHistory && !historySavedRef.current) {
+          console.log(`💾 [History] Mouse up - saving history (first save)`);
+          historySavedRef.current = true;
           setTimeout(() => saveState({ startTime, endTime, fadeIn, fadeOut }), 100);
+        } else if (result.saveHistory && historySavedRef.current) {
+          console.log(`🚫 [History] Mouse up - history already saved, skipping duplicate`);
         }
         break;
       default:
@@ -157,7 +163,9 @@ export const useInteractionHandlers = ({
       }
     }
     
-    if (result.saveHistory) {
+    if (result.saveHistory && !historySavedRef.current) {
+      console.log(`💾 [History] Pending handle update - saving history (first save)`);
+      historySavedRef.current = true;
       setTimeout(() => {
         const finalStartTime = result.executePendingHandleUpdate && result.pendingHandleUpdate?.type === 'start' 
           ? result.pendingHandleUpdate.newTime : startTime;
@@ -165,6 +173,8 @@ export const useInteractionHandlers = ({
           ? result.pendingHandleUpdate.newTime : endTime;
         saveState({ startTime: finalStartTime, endTime: finalEndTime, fadeIn, fadeOut });
       }, 100);
+    } else if (result.saveHistory && historySavedRef.current) {
+      console.log(`🚫 [History] Pending handle update - history already saved, skipping duplicate`);
     }
   }, [startTime, endTime, fadeIn, fadeOut, saveState, setIsDragging, audioRef, setCurrentTime, jumpToTime, setStartTime, setEndTime, interactionManagerRef, audioContext]);
 
