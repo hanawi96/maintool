@@ -22,6 +22,9 @@ const WaveformCanvas = React.memo(({
   fadeIn = 0,   // Fade in duration (seconds) - sóng âm thấp → cao dần
   fadeOut = 0,  // Fade out duration (seconds) - sóng âm cao → thấp dần
   
+  // 🆕 **INVERT SELECTION**: Visual invert selection mode
+  isInverted = false, // Invert selection mode - đảo ngược vùng active/inactive
+  
   // 🚀 **REALTIME AUDIO ACCESS**: Direct audio element access cho ultra-smooth tooltips
   audioRef,
   
@@ -180,9 +183,10 @@ const WaveformCanvas = React.memo(({
       volume: animatedVolume,
       fadeIn,
       fadeOut,
+      isInverted, // 🆕 **INVERT MODE**: Track invert selection state
       containerWidth
     };
-  }, [hybridWaveformData, duration, startTime, endTime, animatedVolume, fadeIn, fadeOut, containerWidth]);
+  }, [hybridWaveformData, duration, startTime, endTime, animatedVolume, fadeIn, fadeOut, isInverted, containerWidth]);
 
   // 🔧 **HEIGHT CONSISTENCY CHECK**: Ensure consistent height during transitions
   useEffect(() => {
@@ -255,7 +259,8 @@ const WaveformCanvas = React.memo(({
       endTime, 
       volume: currentVolume, 
       fadeIn: currentFadeIn, 
-      fadeOut: currentFadeOut 
+      fadeOut: currentFadeOut,
+      isInverted // 🆕 **INVERT MODE**: Get invert state from renderData
     } = renderData;
     
     const centerY = height / 2;
@@ -336,8 +341,10 @@ const WaveformCanvas = React.memo(({
         // 🔧 **FIXED POSITIONING**: Start from waveformStartX instead of 0
         const x = waveformStartX + (i * adjustedBarWidth);
         
+        // 🆕 **INVERT SELECTION LOGIC**: Đảo ngược logic màu sắc khi isInverted = true
         const isInSelection = barTime >= startTime && barTime <= endTime;
-        ctx.fillStyle = isInSelection ? '#7c3aed' : '#cbd5e1';
+        const shouldBeActive = isInverted ? !isInSelection : isInSelection;
+        ctx.fillStyle = shouldBeActive ? '#7c3aed' : '#cbd5e1';
         
         // 🔧 **ADJUSTED BAR WIDTH**: Use adjustedBarWidth for proper spacing
         ctx.fillRect(Math.floor(x), centerY - finalBarHeight, adjustedBarWidth, finalBarHeight * 2);

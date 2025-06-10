@@ -11,6 +11,7 @@ const Export = ({
   fadeIn, 
   fadeOut,
   playbackRate = 1,
+  isInverted = false,
   disabled = false 
 }) => {
   return (
@@ -29,6 +30,7 @@ const Export = ({
           fadeIn={fadeIn}
           fadeOut={fadeOut}
           playbackRate={playbackRate}
+          isInverted={isInverted}
           onFormatChange={onFormatChange}
           disabled={disabled}
         />

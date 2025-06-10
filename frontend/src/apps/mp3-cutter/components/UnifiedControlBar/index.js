@@ -1,11 +1,11 @@
 import React, { useCallback, useMemo, useEffect, useRef } from 'react';
-import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Zap, RotateCcw, RotateCw, Repeat } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Zap, RotateCcw, RotateCw, Repeat, RefreshCw } from 'lucide-react';
 import CompactTimeSelector from './CompactTimeSelector';
 import { getAutoReturnSetting, setAutoReturnSetting } from '../../utils/safeStorage';
 import '../../styles/UnifiedControlBar.css';
 
 // 🎯 **UNIFIED CONTROL BAR** - Single responsive row for all controls
-// Layout: [PlayControls] | [Volume] | [Speed] | [TimeSelector] | [History]
+// Layout: [PlayControls] | [Volume] | [Speed] | [InvertSelection] | [TimeSelector] | [History]
 
 const UnifiedControlBar = React.memo(({
   // Audio Player props
@@ -24,6 +24,9 @@ const UnifiedControlBar = React.memo(({
   duration,
   onStartTimeChange,
   onEndTimeChange,
+  
+  // 🆕 **INVERT SELECTION**: New prop for invert selection handler
+  onInvertSelection,
   
   // History props
   canUndo,
@@ -49,6 +52,19 @@ const UnifiedControlBar = React.memo(({
     setAutoReturnSetting(newValue);
     console.log(`🔄 [AutoReturn] Toggle: ${autoReturnEnabled ? 'ON' : 'OFF'} → ${newValue ? 'ON' : 'OFF'}`);
   }, [autoReturnEnabled]);
+  
+  // 🆕 **INVERT SELECTION HANDLER**: Smart handler for inverting selection
+  const handleInvertSelection = useCallback(() => {
+    if (!onInvertSelection || duration <= 0 || startTime >= endTime) return;
+    
+    console.log(`🔄 [InvertSelection] Button clicked - toggling invert mode`);
+    console.log(`📍 [InvertSelection] Current selection: ${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s`);
+    
+    // 🚀 **SIMPLE TOGGLE**: Just call the handler, no calculations needed
+    onInvertSelection();
+    
+    console.log(`✅ [InvertSelection] Invert toggle command sent`);
+  }, [onInvertSelection, duration, startTime, endTime]);
   
   // 🔥 **SINGLE SETUP LOG**: Only log initial setup once, asynchronously
   useEffect(() => {
@@ -256,7 +272,7 @@ const UnifiedControlBar = React.memo(({
     );
   }, [volume, handleVolumeChange, toggleMute, disabled]);
 
-  // 🎯 **SPEED CONTROL SECTION** - Optimized with preset buttons
+  // 🎯 **SPEED CONTROL SECTION** - Enhanced with invert selection button
   const SpeedControlSection = useMemo(() => {
     const progressPercent = ((playbackRate - 0.5) / (2 - 0.5)) * 100;
 
@@ -299,9 +315,19 @@ const UnifiedControlBar = React.memo(({
             1x
           </button>
         )}
+
+        {/* 🆕 **INVERT SELECTION BUTTON** - New button for inverting selection */}
+        <button
+          onClick={handleInvertSelection}
+          disabled={disabled || duration <= 0 || startTime >= endTime}
+          className="p-2 bg-slate-100 hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors group"
+          title="Invert Selection - Toggle active/inactive regions"
+        >
+          <RefreshCw className="w-4 h-4 text-slate-700 group-hover:text-slate-900 group-disabled:text-slate-400" />
+        </button>
       </div>
     );
-  }, [playbackRate, handleSpeedChange, resetSpeed, disabled]);
+  }, [playbackRate, handleSpeedChange, resetSpeed, disabled, handleInvertSelection, duration, startTime, endTime]);
 
   // 🎯 **HISTORY CONTROLS SECTION** - Memoized with badge counters, updated borders
   const HistoryControlsSection = useMemo(() => (

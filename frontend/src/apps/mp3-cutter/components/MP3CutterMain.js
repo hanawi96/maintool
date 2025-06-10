@@ -128,10 +128,26 @@ const MP3CutterMain = React.memo(() => {
   const [audioError, setAudioError] = useState(null);
   const [fileValidation, setFileValidation] = useState(null);
   const [compatibilityReport, setCompatibilityReport] = useState(null);
+  // 🆕 **INVERT SELECTION STATE**: Track invert selection mode
+  const [isInverted, setIsInverted] = useState(false);
 
   // 🔥 **PERFORMANCE REFS**
   const animationStateRef = useRef({ isPlaying: false, startTime: 0, endTime: 0 });
   const interactionManagerRef = useRef(null);
+
+  // 🎯 **AUDIO CONTEXT**: Audio context for interactions with fade config
+  const audioContext = useMemo(() => ({
+    audioRef,
+    setCurrentTime,
+    jumpToTime,
+    isPlaying,
+    fadeIn,
+    fadeOut,
+    startTime,
+    endTime,
+    isInverted, // 🆕 **INVERT MODE**: Pass invert state to interaction handlers
+    updateFadeConfig
+  }), [audioRef, setCurrentTime, jumpToTime, isPlaying, fadeIn, fadeOut, startTime, endTime, isInverted, updateFadeConfig]);
 
   // 🎯 **INTERACTION HANDLERS**: Extract interaction logic using custom hook
   const {
@@ -162,7 +178,10 @@ const MP3CutterMain = React.memo(() => {
     // Utilities
     jumpToTime,
     saveState,
-    interactionManagerRef
+    interactionManagerRef,
+    
+    // 🆕 **AUDIO CONTEXT**: Pass full audio context with isInverted
+    audioContext
   });
 
   // 🎯 **TIME CHANGE HANDLERS**: Extract time change logic using custom hook
@@ -188,18 +207,28 @@ const MP3CutterMain = React.memo(() => {
     // 1. Update start time first
     originalHandleStartTimeChange(newStartTime);
     
-    // 2. Jump main cursor to new start point regardless of play state
-    jumpToTime(newStartTime);
+    // 2. Jump main cursor based on invert mode
+    let targetCursorTime;
+    if (isInverted) {
+      // 🆕 **INVERT MODE**: Jump cursor 3s before left handle
+      targetCursorTime = Math.max(0, newStartTime - 3);
+      console.log(`🔄 [StartTimeChange] INVERT mode - cursor jumping 3s before left handle: ${targetCursorTime.toFixed(2)}s`);
+    } else {
+      // 🎯 **NORMAL MODE**: Jump cursor to start point
+      targetCursorTime = newStartTime;
+    }
+    
+    jumpToTime(targetCursorTime);
     
     // 3. Log behavior based on play state
     if (isPlaying) {
-      console.log(`🎵 [StartTimeChange] Music was playing - cursor jumped to new start point and continues playing`);
+      console.log(`🎵 [StartTimeChange] Music was playing - cursor jumped to ${targetCursorTime.toFixed(2)}s and continues playing`);
     } else {
-      console.log(`⏸️ [StartTimeChange] Music was paused - cursor moved to new start point`);
+      console.log(`⏸️ [StartTimeChange] Music was paused - cursor moved to ${targetCursorTime.toFixed(2)}s`);
     }
     
     // No need to change play state - if it was playing, it continues; if paused, stays paused
-  }, [originalHandleStartTimeChange, jumpToTime, isPlaying, startTime]);
+  }, [originalHandleStartTimeChange, jumpToTime, isPlaying, startTime, isInverted]);
 
   // 🆕 **ENHANCED END TIME HANDLER**: Auto-jump cursor to 3 seconds before new end point
   const handleEndTimeChange = useCallback((newEndTime) => {
@@ -273,6 +302,9 @@ const MP3CutterMain = React.memo(() => {
     // 🆕 RESET PREVIOUS ERRORS
     setAudioError(null);
     setFileValidation(null);
+    
+    // 🆕 **RESET STATES**: Reset tất cả states cho file mới
+    setIsInverted(false);
     
     try {
       // 🆕 1. VALIDATE AUDIO FILE FIRST
@@ -380,7 +412,8 @@ const MP3CutterMain = React.memo(() => {
           startTime: 0, 
           endTime: audioDuration, 
           fadeIn: 0, 
-          fadeOut: 0 
+          fadeOut: 0,
+          isInverted: false // 🆕 **RESET INVERT**: Reset invert mode for new file
         };
         saveState(initialState);
         console.log('✅ [FileUpload] File upload and setup complete');
@@ -481,6 +514,10 @@ const MP3CutterMain = React.memo(() => {
       setEndTime(prevState.endTime);
       setFadeIn(prevState.fadeIn);
       setFadeOut(prevState.fadeOut);
+      // 🆕 **RESTORE INVERT STATE**: Restore invert selection state
+      if (prevState.isInverted !== undefined) {
+        setIsInverted(prevState.isInverted);
+      }
       
       // 🆕 **JUMP CURSOR TO START POINT**: Move cursor to start point of restored state
       jumpToTime(prevState.startTime);
@@ -498,6 +535,10 @@ const MP3CutterMain = React.memo(() => {
       setEndTime(nextState.endTime);
       setFadeIn(nextState.fadeIn);
       setFadeOut(nextState.fadeOut);
+      // 🆕 **RESTORE INVERT STATE**: Restore invert selection state
+      if (nextState.isInverted !== undefined) {
+        setIsInverted(nextState.isInverted);
+      }
       
       // 🆕 **JUMP CURSOR TO START POINT**: Move cursor to start point of restored state
       jumpToTime(nextState.startTime);
@@ -555,13 +596,13 @@ const MP3CutterMain = React.memo(() => {
   // 🆕 **FADE DRAG HISTORY CALLBACKS**: Lưu lịch sử khi kết thúc drag fade sliders
   const handleFadeInDragEnd = useCallback((finalFadeIn) => {
     console.log(`💾 [FadeControls] Fade In drag ended: ${finalFadeIn.toFixed(1)}s - saving to history`);
-    saveState({ startTime, endTime, fadeIn: finalFadeIn, fadeOut });
-  }, [startTime, endTime, fadeOut, saveState]);
+    saveState({ startTime, endTime, fadeIn: finalFadeIn, fadeOut, isInverted });
+  }, [startTime, endTime, fadeOut, saveState, isInverted]);
 
   const handleFadeOutDragEnd = useCallback((finalFadeOut) => {
     console.log(`💾 [FadeControls] Fade Out drag ended: ${finalFadeOut.toFixed(1)}s - saving to history`);
-    saveState({ startTime, endTime, fadeIn, fadeOut: finalFadeOut });
-  }, [startTime, endTime, fadeIn, saveState]);
+    saveState({ startTime, endTime, fadeIn, fadeOut: finalFadeOut, isInverted });
+  }, [startTime, endTime, fadeIn, saveState, isInverted]);
 
   // 🆕 **PRESET APPLY CALLBACK**: Lưu lịch sử khi apply preset
   const handlePresetApply = useCallback((newFadeIn, newFadeOut) => {
@@ -579,8 +620,8 @@ const MP3CutterMain = React.memo(() => {
     updateFadeConfig(newConfig);
     
     // Save to history
-    saveState({ startTime, endTime, fadeIn: newFadeIn, fadeOut: newFadeOut });
-  }, [startTime, endTime, updateFadeConfig, saveState]);
+    saveState({ startTime, endTime, fadeIn: newFadeIn, fadeOut: newFadeOut, isInverted });
+  }, [startTime, endTime, updateFadeConfig, saveState, isInverted]);
 
   // Drag and drop handler
   const handleDrop = useCallback((e) => {
@@ -892,6 +933,39 @@ const MP3CutterMain = React.memo(() => {
     }
   }, [audioFile?.name, fileValidation, setAudioError, setIsPlaying]);
 
+  // 🆕 **INVERT SELECTION HANDLER**: Smart handler for inverting selection
+  const handleInvertSelection = useCallback(() => {
+    if (duration <= 0 || startTime >= endTime) return;
+    
+    console.log(`🔄 [InvertSelection] Toggling invert mode: ${isInverted ? 'ON' : 'OFF'} → ${!isInverted ? 'ON' : 'OFF'}`);
+    console.log(`📍 [InvertSelection] Selection region remains: ${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s`);
+    console.log(`🎨 [InvertSelection] Visual change: ${isInverted ? 'Purple=inside, Gray=outside' : 'Gray=inside, Purple=outside'} → ${!isInverted ? 'Purple=inside, Gray=outside' : 'Gray=inside, Purple=outside'}`);
+    
+    // 🎯 **HISTORY SAVE**: Save current state before inversion
+    saveState({ startTime, endTime, fadeIn, fadeOut, isInverted });
+    
+    // 🚀 **TOGGLE INVERT MODE**: Simply toggle the invert state
+    const newInvertState = !isInverted;
+    setIsInverted(newInvertState);
+    
+    // 🆕 **SMART CURSOR MOVEMENT**: Move cursor based on invert mode change
+    let targetCursorTime;
+    if (newInvertState) {
+      // 🎯 **ENABLING INVERT MODE**: Move cursor 3s before left handle
+      targetCursorTime = Math.max(0, startTime - 3);
+      console.log(`🎯 [InvertSelection] ENABLING invert mode - cursor jumping 3s before left handle: ${targetCursorTime.toFixed(2)}s`);
+    } else {
+      // 🔙 **DISABLING INVERT MODE**: Move cursor to start point
+      targetCursorTime = startTime;
+      console.log(`🔙 [InvertSelection] DISABLING invert mode - cursor jumping to start point: ${targetCursorTime.toFixed(2)}s`);
+    }
+    
+    jumpToTime(targetCursorTime);
+    
+    console.log(`✅ [InvertSelection] Invert mode ${newInvertState ? 'ENABLED' : 'DISABLED'} - waveform colors will update automatically`);
+    console.log(`🎯 [InvertSelection] Export will now process: ${newInvertState ? 'regions OUTSIDE handles' : 'region BETWEEN handles'}`);
+  }, [duration, startTime, endTime, isInverted, saveState, fadeIn, fadeOut, jumpToTime]);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-pink-50">
       <div className="container mx-auto px-6 py-6">
@@ -949,6 +1023,9 @@ const MP3CutterMain = React.memo(() => {
               fadeIn={fadeIn}   // Fade in duration - bars sẽ hiển thị thấp → cao dần trong khoảng này
               fadeOut={fadeOut} // Fade out duration - bars sẽ hiển thị cao → thấp dần trong khoảng này
               
+              // 🆕 **INVERT SELECTION**: Visual invert selection mode
+              isInverted={isInverted} // Invert selection mode - đảo ngược vùng active/inactive
+              
               // 🚀 **REALTIME AUDIO ACCESS**: Direct audio element access cho ultra-smooth tooltips
               audioRef={audioRef}
               
@@ -976,6 +1053,9 @@ const MP3CutterMain = React.memo(() => {
               duration={duration}
               onStartTimeChange={handleStartTimeChange}
               onEndTimeChange={handleEndTimeChange}
+              
+              // 🆕 **INVERT SELECTION**: New prop for invert selection handler
+              onInvertSelection={handleInvertSelection}
               
               // History props
               canUndo={canUndo}
@@ -1015,6 +1095,7 @@ const MP3CutterMain = React.memo(() => {
                   fadeIn={fadeIn}
                   fadeOut={fadeOut}
                   playbackRate={playbackRate}
+                  isInverted={isInverted}
                   disabled={!audioFile}
                 />
               </div>

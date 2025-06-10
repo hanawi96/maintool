@@ -1,4 +1,4 @@
-import { useCallback, useRef, useMemo } from 'react';
+import { useCallback, useRef } from 'react';
 
 // 🎯 **60FPS OPTIMIZED INTERACTION HANDLERS**
 export const useInteractionHandlers = ({
@@ -25,7 +25,10 @@ export const useInteractionHandlers = ({
   // Utilities
   jumpToTime,
   saveState,
-  interactionManagerRef
+  interactionManagerRef,
+  
+  // 🆕 **AUDIO CONTEXT**: Receive from parent instead of creating locally
+  audioContext // Full audio context with isInverted
 }) => {
   // 🔥 **PERFORMANCE REF**: Throttling reference
   const lastMouseTimeRef = useRef(0);
@@ -33,12 +36,8 @@ export const useInteractionHandlers = ({
   // 🆕 **HISTORY TRACKING**: Prevent duplicate history saves
   const historySavedRef = useRef(false);
 
-  // 🚀 **MEMOIZED AUDIO CONTEXT**
-  const audioContext = useMemo(() => ({
-    audioRef,
-    setCurrentTime,
-    isPlaying
-  }), [audioRef, setCurrentTime, isPlaying]);
+  // 🆕 **USE AUDIO CONTEXT FROM PARENT**: Use the audioContext parameter that includes isInverted
+  // Removed duplicate audioContext creation - using parameter instead
 
   // 🎯 **OPTIMIZED MOUSE DOWN** - Minimal logic for 60fps
   const handleCanvasMouseDown = useCallback((e) => {
@@ -84,6 +83,9 @@ export const useInteractionHandlers = ({
         setStartTime(result.startTime);
         setEndTime(result.endTime);
         break;
+      default:
+        // No action needed for other cases
+        break;
     }
   }, [canvasRef, duration, startTime, endTime, setStartTime, setEndTime, setIsDragging, interactionManagerRef, audioContext, saveState, fadeIn, fadeOut]);
 
@@ -108,6 +110,9 @@ export const useInteractionHandlers = ({
         break;
       case 'hover':
         setHoveredHandle(result.handle);
+        break;
+      default:
+        // No action needed for other cases
         break;
     }
     

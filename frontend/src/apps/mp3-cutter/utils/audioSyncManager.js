@@ -74,8 +74,9 @@ export class AudioSyncManager {
    * @param {boolean} isPlaying - Current playing state
    * @param {string} handleType - Handle being dragged
    * @param {number} startTime - Current start time of region (for boundary checking)
+   * @param {boolean} isInverted - Whether invert selection mode is active
    */
-  syncAudioCursor(newTime, audioRef, setCurrentTime, isPlaying, handleType, startTime = 0) {
+  syncAudioCursor(newTime, audioRef, setCurrentTime, isPlaying, handleType, startTime = 0, isInverted = false) {
     if (!audioRef.current) {
       console.warn(`⚠️ [${this.debugId}] No audio element for sync`);
       return;
@@ -84,9 +85,19 @@ export class AudioSyncManager {
     const audio = audioRef.current;
     const currentAudioTime = audio.currentTime;
     
-    // 🆕 SMART TARGET CALCULATION: Apply intelligent offset for end handle
+    // 🆕 SMART TARGET CALCULATION: Apply intelligent offset for different handle types
     let targetTime = newTime;
-    if (handleType === 'end' && this.preferences.endHandleOffset > 0) {
+    
+    if (handleType === 'start') {
+      if (isInverted) {
+        // 🆕 **INVERT MODE**: Cursor 3s before start handle
+        targetTime = Math.max(0, newTime - 3);
+        console.log(`🔄 [${this.debugId}] INVERT mode - start handle sync 3s before: ${newTime.toFixed(2)}s → ${targetTime.toFixed(2)}s`);
+      } else {
+        // 🎯 **NORMAL MODE**: Cursor at start handle position
+        targetTime = newTime;
+      }
+    } else if (handleType === 'end' && this.preferences.endHandleOffset > 0) {
       // 🔥 **INTELLIGENT REGION SIZE CHECK**: Calculate region duration
       const regionDuration = newTime - startTime;
       
@@ -173,8 +184,9 @@ export class AudioSyncManager {
    * @param {function} setCurrentTime - React state setter
    * @param {boolean} isPlaying - Current playing state
    * @param {number} startTime - Current start time of region (for boundary checking)
+   * @param {boolean} isInverted - Whether invert selection mode is active
    */
-  completeDragSync(handleType, finalTime, audioRef, setCurrentTime, isPlaying, startTime = 0) {
+  completeDragSync(handleType, finalTime, audioRef, setCurrentTime, isPlaying, startTime = 0, isInverted = false) {
     const shouldSyncStart = handleType === 'start' && this.preferences.syncStartHandle;
     const shouldSyncEnd = handleType === 'end' && this.preferences.syncEndHandle;
     const shouldSyncRegion = handleType === 'region'; // 🆕 **REGION SYNC**
@@ -189,10 +201,10 @@ export class AudioSyncManager {
       // 🆕 **REGION SYNC**: Region drag completion - sync to start not middle
       if (handleType === 'region') {
         console.log(`🔄 [${this.debugId}] Region drag completion - sync to START: ${startTime.toFixed(2)}s (not middle as before)`);
-        this.syncAudioCursor(startTime, audioRef, setCurrentTime, isPlaying, 'region', startTime); // 🎯 **SYNC TO START**: Use startTime instead of finalTime
+        this.syncAudioCursor(startTime, audioRef, setCurrentTime, isPlaying, 'region', startTime, isInverted); // 🎯 **SYNC TO START**: Use startTime instead of finalTime
       } else {
         // 🔥 **INTELLIGENT SYNC**: Pass startTime for boundary checking in end handle sync
-        this.syncAudioCursor(finalTime, audioRef, setCurrentTime, isPlaying, handleType, startTime);
+        this.syncAudioCursor(finalTime, audioRef, setCurrentTime, isPlaying, handleType, startTime, isInverted);
       }
       
       console.log(`✅ [${this.debugId}] Drag sync completed for ${handleType}`);
@@ -332,8 +344,9 @@ export class AudioSyncManager {
    * @param {string} handleType - Handle being dragged
    * @param {boolean} force - Force sync even if throttled
    * @param {number} startTime - Current start time of region (for boundary checking)
+   * @param {boolean} isInverted - Whether invert selection mode is active
    */
-  realTimeSync(newTime, audioRef, setCurrentTime, handleType, force = false, startTime = 0) {
+  realTimeSync(newTime, audioRef, setCurrentTime, handleType, force = false, startTime = 0, isInverted = false) {
     if (!audioRef.current) return false;
     
     // 🔥 **PRESERVE PLAY STATE**: Store current playing state before any changes
@@ -360,7 +373,19 @@ export class AudioSyncManager {
     
     // 🔥 **CALCULATE TARGET**: Apply intelligent offset cho different handle types
     let targetTime = newTime;
-    if (handleType === 'end') {
+    
+    if (handleType === 'start') {
+      if (isInverted) {
+        // 🆕 **INVERT MODE**: Cursor 3s before start handle (real-time during drag)
+        targetTime = Math.max(0, newTime - 3);
+        if (Math.random() < 0.02) { // 2% sampling to avoid spam
+          console.log(`🔄 [RealTimeSync] INVERT mode - start handle sync 3s before: ${newTime.toFixed(2)}s → ${targetTime.toFixed(2)}s`);
+        }
+      } else {
+        // 🎯 **NORMAL MODE**: Cursor at start handle position
+        targetTime = newTime;
+      }
+    } else if (handleType === 'end') {
       // 🔥 **INTELLIGENT REGION SIZE CHECK**: Calculate region duration
       const regionDuration = newTime - startTime;
       

@@ -86,6 +86,9 @@ const Waveform = ({
   fadeIn = 0,   // Fade in duration (seconds)
   fadeOut = 0,  // Fade out duration (seconds)
   
+  // 🆕 **INVERT SELECTION**: Visual invert selection mode
+  isInverted = false, // Invert selection mode - đảo ngược vùng active/inactive
+  
   // 🚀 **REALTIME AUDIO ACCESS**: Direct audio element access cho ultra-smooth tooltips
   audioRef,
   
@@ -186,6 +189,7 @@ const Waveform = ({
             volume={volume}
             fadeIn={fadeIn}
             fadeOut={fadeOut}
+            isInverted={isInverted}
             audioRef={audioRef}
             onMouseDown={onMouseDown}
             onMouseMove={onMouseMove}

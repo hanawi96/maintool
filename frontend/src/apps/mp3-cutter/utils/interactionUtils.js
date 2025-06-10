@@ -782,7 +782,7 @@ export class InteractionManager {
           
           // 🚀 **ULTRA-SMOOTH REAL-TIME SYNC**: Force immediate sync with no throttling - always to start
           audioSynced = this.audioSyncManager.realTimeSync(
-            targetSyncTime, audioRef, setCurrentTime, 'region', true, adjustedStartTime // force = true
+            targetSyncTime, audioRef, setCurrentTime, 'region', true, adjustedStartTime, audioContext.isInverted // force = true, pass isInverted
           );
           
           if (audioSynced) {
@@ -819,7 +819,7 @@ export class InteractionManager {
             
             // 🔥 **ULTRA-SMOOTH REAL-TIME SYNC**: Sử dụng realTimeSync với force mode
             audioSynced = this.audioSyncManager.realTimeSync(
-              newStartTime, audioRef, setCurrentTime, 'start', true, newStartTime // force = true, pass startTime
+              newStartTime, audioRef, setCurrentTime, 'start', true, newStartTime, audioContext.isInverted // force = true, pass startTime and isInverted
             );
             
             if (audioSynced) {
@@ -851,7 +851,7 @@ export class InteractionManager {
             
             // 🔥 **ULTRA-SMOOTH REAL-TIME SYNC**: Sử dụng realTimeSync với force mode cho end handle
             audioSynced = this.audioSyncManager.realTimeSync(
-              newEndTime, audioRef, setCurrentTime, 'end', true, startTime // force = true, pass startTime for boundary checking
+              newEndTime, audioRef, setCurrentTime, 'end', true, startTime, audioContext.isInverted // force = true, pass startTime for boundary checking and isInverted
             );
             
             if (audioSynced) {
@@ -974,7 +974,7 @@ export class InteractionManager {
           const targetSyncTime = startTime; // 🎯 **SYNC TO START**: Always use startTime for region completion
           
           this.audioSyncManager.completeDragSync(
-            'region', targetSyncTime, audioRef, setCurrentTime, isPlaying, startTime
+            'region', targetSyncTime, audioRef, setCurrentTime, isPlaying, startTime, audioContext.isInverted
           );
           
           console.log(`🔄 [${this.debugId}] Region drag completed - synced to START: ${targetSyncTime.toFixed(2)}s (not middle as before)`);
@@ -983,7 +983,7 @@ export class InteractionManager {
           const finalTime = draggedHandle === HANDLE_TYPES.START ? startTime : endTime;
           
           this.audioSyncManager.completeDragSync(
-            draggedHandle, finalTime, audioRef, setCurrentTime, isPlaying, startTime
+            draggedHandle, finalTime, audioRef, setCurrentTime, isPlaying, startTime, audioContext.isInverted
           );
           
           console.log(`🎯 [${this.debugId}] Handle drag completed - ${draggedHandle} handle synced with region-aware logic`);
