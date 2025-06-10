@@ -88,11 +88,11 @@ export const WaveformUI = memo(({
     }
   });
 
-  // 🚀 **PHASE 2: PLAYING STATE OPTIMIZATION** - Conditional feature disabling
-  const enableHoverEffects = !isPlaying;
-  const enableNonEssentialTooltips = !isPlaying || isDragging;
+  // 🚀 **PHASE 2: ALWAYS SHOW TOOLTIPS** - Remove playing state restrictions for tooltips
+  const enableHoverEffects = true; // 🆕 **ALWAYS ENABLE**: Always show hover effects regardless of play state
+  const enableNonEssentialTooltips = true; // 🆕 **ALWAYS ENABLE**: Always show all tooltips regardless of play state
 
-  // 🚀 **OPTIMIZED CONDITIONAL RENDERING** - Performance optimized checks with playing state
+  // 🚀 **OPTIMIZED CONDITIONAL RENDERING** - Always show tooltips for better UX
   const shouldRenderHoverTooltip = enableHoverEffects && hoverTooltip?.visible && hoverTooltip.x >= 0;
   const shouldRenderStartTooltip = enableNonEssentialTooltips && handleTooltips?.start?.visible && handleTooltips.start.x >= 0;
   const shouldRenderEndTooltip = enableNonEssentialTooltips && handleTooltips?.end?.visible && handleTooltips.end.x >= 0;
