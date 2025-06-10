@@ -10,7 +10,7 @@ export const useAudioPlayer = () => {
   const audioRef = useRef(null);
   const lastLogTimeRef = useRef(0);
 
-  // 🎯 Reduced logging frequency
+  // 🎯 Reduced logging frequencyygit s
   const logState = (action) => {
     const now = Date.now();
     if (now - lastLogTimeRef.current > 1000) { // Max 1 log per second
