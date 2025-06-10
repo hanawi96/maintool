@@ -72,20 +72,7 @@ const FileUploadSection = React.memo(({
       {/* 🎨 **HEADER SECTION**: Beautiful header with icon, title and description */}
       <div className="text-center mb-8 sm:mb-12">
         {/* Main Icon */}
-        <div className="relative mx-auto mb-6 w-20 h-20 sm:w-24 sm:h-24">
-          {/* Background Circle */}
-          <div className="absolute inset-0 rounded-full bg-gradient-to-br from-green-100 to-emerald-100 shadow-lg"></div>
-          {/* Decorative Ring */}
-          <div className="absolute inset-2 rounded-full border-2 border-green-200 opacity-30"></div>
-          {/* Icon Container */}
-          <div className="relative w-full h-full rounded-full bg-gradient-to-br from-green-400 to-emerald-500 flex items-center justify-center shadow-xl">
-            <Scissors className="w-8 h-8 sm:w-10 sm:h-10 text-white transform -rotate-12" />
-            <Volume2 className="w-6 h-6 sm:w-7 sm:h-7 text-white/80 absolute -top-1 -right-1" />
-          </div>
-          {/* Floating Effect */}
-          <div className="absolute inset-0 rounded-full bg-gradient-to-br from-green-400 to-emerald-500 opacity-20 animate-pulse"></div>
-        </div>
-
+        
         {/* Title */}
         <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mb-3 sm:mb-4">
           Cắt nhạc & chỉnh sửa
