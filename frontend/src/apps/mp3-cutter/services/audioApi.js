@@ -27,22 +27,40 @@ const safeJsonParse = async (response) => {
     // Try to get text content for debugging
     try {
       const textContent = await response.text();
-      console.log('📝 [safeJsonParse] Response text:', textContent.substring(0, 200));
+      console.log('📝 [safeJsonParse] Response text:', textContent?.substring(0, 200));
+      
+      // 🎯 ULTRA SAFE: Check for undefined/null/empty content
+      if (!textContent || textContent === 'undefined' || textContent === 'null' || textContent.trim() === '') {
+        throw new Error('Empty or invalid response content');
+      }
       
       // If it's HTML error page
       if (textContent.includes('<html>') || textContent.includes('<!DOCTYPE')) {
         throw new Error(`Server returned HTML error page. Status: ${response.status}`);
       }
       
-      // Try to parse as JSON anyway (some servers send JSON without proper content-type)
-      if (textContent.trim()) {
-        return JSON.parse(textContent);
-      } else {
-        throw new Error('Empty response body');
+      // 🎯 ULTRA SAFE: Get text first, then validate before parsing
+      const trimmedText = textContent.trim();
+      
+      // 🎯 VALIDATE JSON FORMAT
+      if (!trimmedText.startsWith('{') && !trimmedText.startsWith('[')) {
+        throw new Error(`Invalid JSON format: content doesn't start with { or [ - got: ${trimmedText.substring(0, 50)}`);
       }
-    } catch (parseError) {
-      console.error('❌ [safeJsonParse] Failed to parse response:', parseError);
-      throw new Error(`Invalid response format: ${parseError.message}`);
+      
+      // 🎯 SAFE JSON PARSE
+      const jsonData = JSON.parse(trimmedText);
+      
+      // 🎯 VALIDATE PARSED DATA
+      if (jsonData === undefined || jsonData === null) {
+        throw new Error('Parsed JSON is undefined or null');
+      }
+      
+      console.log('✅ [safeJsonParse] Successfully parsed JSON:', jsonData);
+      return jsonData;
+      
+    } catch (textError) {
+      console.error('❌ [safeJsonParse] Failed to get response text:', textError);
+      throw new Error(`Response text extraction failed: ${textError.message}`);
     }
   }
 
@@ -53,9 +71,29 @@ const safeJsonParse = async (response) => {
   }
 
   try {
-    // 🎯 Clone response for debugging
-    const responseClone = response.clone();
-    const jsonData = await response.json();
+    // 🎯 ULTRA SAFE: Always get text first, never use response.json() directly
+    const responseText = await response.text();
+    console.log('📝 [safeJsonParse] Raw response text:', responseText?.substring(0, 100));
+    
+    // 🎯 COMPREHENSIVE VALIDATION
+    if (!responseText || responseText === 'undefined' || responseText === 'null' || responseText.trim() === '') {
+      throw new Error('Response body is empty, undefined, or null');
+    }
+    
+    const trimmedText = responseText.trim();
+    
+    // 🎯 VALIDATE JSON FORMAT
+    if (!trimmedText.startsWith('{') && !trimmedText.startsWith('[')) {
+      throw new Error(`Invalid JSON format: content doesn't start with { or [ - got: ${trimmedText.substring(0, 50)}`);
+    }
+    
+    // 🎯 SAFE JSON PARSE
+    const jsonData = JSON.parse(trimmedText);
+    
+    // 🎯 VALIDATE PARSED DATA
+    if (jsonData === undefined || jsonData === null) {
+      throw new Error('Parsed JSON is undefined or null');
+    }
     
     console.log('✅ [safeJsonParse] Successfully parsed JSON:', jsonData);
     return jsonData;
@@ -63,14 +101,14 @@ const safeJsonParse = async (response) => {
   } catch (jsonError) {
     console.error('❌ [safeJsonParse] JSON parsing failed:', jsonError);
     
-    // 🎯 Try to get raw text for debugging
+    // 🎯 Fallback: Try to get raw text for debugging
     try {
       const responseClone = response.clone();
       const rawText = await responseClone.text();
       console.log('📝 [safeJsonParse] Raw response text:', rawText);
       
-      if (!rawText || rawText.trim() === '') {
-        throw new Error('Response body is empty or undefined');
+      if (!rawText || rawText.trim() === '' || rawText === 'undefined' || rawText === 'null') {
+        throw new Error('Response body is empty, undefined, or null');
       } else {
         throw new Error(`Invalid JSON: ${rawText.substring(0, 100)}...`);
       }

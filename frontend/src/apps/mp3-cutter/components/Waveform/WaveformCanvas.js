@@ -35,14 +35,14 @@ const WaveformCanvas = React.memo(({
   const {
     hoverTooltip,
     handleTooltips,
-    mainCursorTooltip, // 🆕 **MAIN CURSOR TOOLTIP**: Instant calculated tooltip cho main cursor
+    mainCursorTooltip,
     updateHoverTooltip,
     clearHoverTooltip
   } = useOptimizedTooltip(canvasRef, duration, currentTime, isPlaying, audioRef, startTime, endTime, hoveredHandle, isDragging);
 
   const {
-    updateCursor,
-    resetCursor
+    updateCursor
+    // Removed resetCursor since we don't use it with pointer capture
   } = useWaveformCursor(canvasRef, duration, startTime, endTime, isDragging);
 
   // 🚀 **OPTIMIZED HOOK**: Responsive waveform rendering with hybrid system
@@ -53,8 +53,24 @@ const WaveformCanvas = React.memo(({
     containerWidth
   } = useWaveformRender(canvasRef, waveformData, volume, isDragging, isPlaying, hoverTooltip);
 
-  // 🚀 **ENHANCED MOUSE HANDLERS**
-  const handleEnhancedMouseMove = useCallback((e) => {
+  // 🚀 **ENHANCED MOUSE HANDLERS** - Updated to use Pointer Events for better drag tracking
+  const handleEnhancedPointerDown = useCallback((e) => {
+    if (onMouseDown) onMouseDown(e);
+  
+    const canvas = canvasRef.current;
+    if (canvas) {
+      // 🎯 **POINTER CAPTURE**: Capture pointer để track movement ngay cả khi ra ngoài canvas
+      canvas.setPointerCapture(e.pointerId);
+      
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      
+      updateCursor(mouseX);
+      clearHoverTooltip();
+    }
+  }, [onMouseDown, canvasRef, updateCursor, clearHoverTooltip]);
+
+  const handleEnhancedPointerMove = useCallback((e) => {
     if (onMouseMove) onMouseMove(e);
   
     const canvas = canvasRef.current;
@@ -67,24 +83,35 @@ const WaveformCanvas = React.memo(({
     }
   }, [onMouseMove, canvasRef, updateCursor, updateHoverTooltip]);
 
-  const handleEnhancedMouseLeave = useCallback((e) => {
+  const handleEnhancedPointerUp = useCallback((e) => {
+    if (onMouseUp) onMouseUp(e);
+    
+    const canvas = canvasRef.current;
+    if (canvas) {
+      // 🎯 **RELEASE POINTER CAPTURE**: Release pointer capture
+      canvas.releasePointerCapture(e.pointerId);
+    }
+  }, [onMouseUp, canvasRef]);
+
+  const handleEnhancedPointerLeave = useCallback((e) => {
     if (onMouseLeave) onMouseLeave(e);
-    resetCursor();
-    clearHoverTooltip();
-  }, [onMouseLeave, resetCursor, clearHoverTooltip]);
+    // 🚀 **NO CURSOR/TOOLTIP RESET**: Không reset cursor hay tooltip khi pointer leave vì có pointer capture
+    // resetCursor();
+    // clearHoverTooltip();
+  }, [onMouseLeave]);
 
-  const handleEnhancedMouseDown = useCallback((e) => {
-    if (onMouseDown) onMouseDown(e);
-    clearHoverTooltip();
-  }, [onMouseDown, clearHoverTooltip]);
-
-  // 🆕 **HANDLE EVENT HANDLERS**: Direct handlers cho handles
-  const handleHandleMouseDown = useCallback((e) => {
+  // 🆕 **HANDLE EVENT HANDLERS**: Direct handlers cho handles - Updated for Pointer Events
+  const handleHandlePointerDown = useCallback((e) => {
     // 🔧 **CLEAR HOVER TOOLTIP**: Ẩn hover tooltip khi bắt đầu drag handle
     clearHoverTooltip();
     
-    // 🔧 **DIRECT CANVAS EVENT**: Optimized direct forwarding
+    // 🎯 **POINTER CAPTURE ON CANVAS**: Capture pointer trên canvas thay vì handle element
     const canvas = canvasRef.current;
+    if (canvas) {
+      canvas.setPointerCapture(e.pointerId);
+    }
+    
+    // 🔧 **DIRECT CANVAS EVENT**: Optimized direct forwarding
     if (canvas && onMouseDown) {
       const rect = canvas.getBoundingClientRect();
       const canvasEvent = {
@@ -94,14 +121,15 @@ const WaveformCanvas = React.memo(({
         handleType: e.handleType,
         isHandleEvent: true,
         canvasX: e.clientX - rect.left,
-        canvasY: e.clientY - rect.top
+        canvasY: e.clientY - rect.top,
+        pointerId: e.pointerId // 🆕 **POINTER ID**: Add pointer ID for tracking
       };
       
       onMouseDown(canvasEvent);
     }
   }, [canvasRef, onMouseDown, clearHoverTooltip]);
 
-  const handleHandleMouseMove = useCallback((e) => {
+  const handleHandlePointerMove = useCallback((e) => {
     const canvas = canvasRef.current;
     if (canvas && onMouseMove) {
       const rect = canvas.getBoundingClientRect();
@@ -112,7 +140,8 @@ const WaveformCanvas = React.memo(({
         handleType: e.handleType,
         isHandleEvent: true,
         canvasX: e.clientX - rect.left,
-        canvasY: e.clientY - rect.top
+        canvasY: e.clientY - rect.top,
+        pointerId: e.pointerId // 🆕 **POINTER ID**: Add pointer ID for tracking
       };
       
       onMouseMove(canvasEvent);
@@ -120,13 +149,17 @@ const WaveformCanvas = React.memo(({
     }
   }, [canvasRef, onMouseMove, updateCursor]);
 
-  const handleHandleMouseUp = useCallback((e) => {
+  const handleHandlePointerUp = useCallback((e) => {
     const canvas = canvasRef.current;
     if (canvas && onMouseUp) {
+      // 🎯 **RELEASE POINTER CAPTURE**: Release pointer capture
+      canvas.releasePointerCapture(e.pointerId);
+      
       const canvasEvent = {
         target: canvas,
         handleType: e.handleType,
-        isHandleEvent: true
+        isHandleEvent: true,
+        pointerId: e.pointerId // 🆕 **POINTER ID**: Add pointer ID for tracking
       };
       
       onMouseUp(canvasEvent);
@@ -451,14 +484,14 @@ const WaveformCanvas = React.memo(({
     }}>
       <canvas
         ref={canvasRef}
-        onMouseDown={handleEnhancedMouseDown}
-        onMouseMove={handleEnhancedMouseMove}
-        onMouseUp={onMouseUp}
-        onMouseLeave={handleEnhancedMouseLeave}
+        onPointerDown={handleEnhancedPointerDown}
+        onPointerMove={handleEnhancedPointerMove}
+        onPointerUp={handleEnhancedPointerUp}
+        onPointerLeave={handleEnhancedPointerLeave}
         className="w-full border border-slate-200"
         style={{ 
           height: WAVEFORM_CONFIG.HEIGHT,
-          touchAction: 'none',
+          touchAction: 'none', // 🚀 **IMPORTANT**: Prevent default touch actions for better pointer control
         }}
       />
 
@@ -468,9 +501,9 @@ const WaveformCanvas = React.memo(({
         mainCursorTooltip={mainCursorTooltip}
         handlePositions={handlePositions}
         cursorPositions={cursorPositions}
-        onHandleMouseDown={handleHandleMouseDown}
-        onHandleMouseMove={handleHandleMouseMove}
-        onHandleMouseUp={handleHandleMouseUp}
+        onHandleMouseDown={handleHandlePointerDown}
+        onHandleMouseMove={handleHandlePointerMove}
+        onHandleMouseUp={handleHandlePointerUp}
         isPlaying={isPlaying}
         isDragging={isDragging}
       />

@@ -1,4 +1,4 @@
-import React, { useRef, useCallback, useEffect } from 'react';
+import React, { useRef, useEffect } from 'react';
 import WaveformCanvas from './WaveformCanvas';
 import { WAVEFORM_CONFIG } from '../../utils/constants';
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Music, Clock } from 'lucide-react';
+import { FileAudio } from 'lucide-react';
 import { formatTimeUnified, formatFileSize } from '../../utils/timeFormatter';
 
 const FileInfoDisplay = ({ audioFile, duration, currentTime, isPlaying }) => {
@@ -11,7 +11,7 @@ const FileInfoDisplay = ({ audioFile, duration, currentTime, isPlaying }) => {
         
         {/* File Name & Basic Info */}
         <div className="flex items-center gap-3">
-          <Music className="w-5 h-5 text-indigo-600" />
+          <FileAudio className="w-5 h-5 text-indigo-600" />
           <div>
             <div className="text-sm font-semibold text-slate-800 truncate max-w-xs">
               {audioFile.name || 'Audio File'}

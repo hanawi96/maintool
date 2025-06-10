@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Layout from './components/Layout/Layout';
 import HomePage from './pages/HomePage';
@@ -8,9 +8,19 @@ import ExtractVocalsPage from './pages/ExtractVocalsPage';
 import MergeAudioPage from './pages/MergeAudioPage';
 import AudioEditorPage from './pages/AudioEditorPage';
 import SettingsPage from './pages/SettingsPage';
+import { cleanupUndefinedValues } from './apps/mp3-cutter/utils/safeStorage';
 import './index.css';
 
 function App() {
+  // 🧹 **STARTUP CLEANUP**: Clean localStorage on app startup
+  useEffect(() => {
+    console.log('🚀 [App] Starting localStorage cleanup...');
+    const cleanedCount = cleanupUndefinedValues();
+    if (cleanedCount > 0) {
+      console.log(`✅ [App] Cleaned ${cleanedCount} problematic localStorage entries`);
+    }
+  }, []);
+
   return (
     <Router>
       <Layout>

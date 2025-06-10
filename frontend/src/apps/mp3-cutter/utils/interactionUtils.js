@@ -321,10 +321,9 @@ export class InteractionManager {
    */
   setupGlobalMouseMoveListener() {
     this.globalMouseMoveHandler = (e) => {
-      // Chỉ process khi đang drag và có canvas bounds
+      // 🚀 **SIMPLIFIED CONDITION**: Chỉ process khi đang drag và có canvas bounds - REMOVED lastMouseLeaveTime requirement
       if (this.state === INTERACTION_STATES.DRAGGING && 
           this.isDraggingConfirmed && 
-          this.lastMouseLeaveTime !== null &&
           this.canvasBounds && 
           this.canvasWidth > 0 && 
           this.audioDuration > 0) {
@@ -340,8 +339,7 @@ export class InteractionManager {
           canvasWidth: this.canvasWidth,
           activeHandle: this.activeHandle,
           isDraggingRegion: this.isDraggingRegion,
-          timeSinceMouseLeave: performance.now() - this.lastMouseLeaveTime,
-          note: 'Converting global coords and continuing drag'
+          note: 'Converting global coords and continuing drag - NO MOUSE LEAVE TIME RESTRICTION'
         });
         
         // 🚀 **CONTINUE DRAG OUTSIDE CANVAS**: Call normal mouse move handler với converted coordinates
@@ -363,7 +361,8 @@ export class InteractionManager {
               newStartTime: result.startTime?.toFixed(2),
               newEndTime: result.endTime?.toFixed(2),
               handleType: this.activeHandle,
-              continuedOutsideCanvas: true
+              continuedOutsideCanvas: true,
+              highSpeedDragSupported: true
             });
             
             // 🎯 **CALLBACK TO UI**: Trigger UI update via callback
@@ -399,7 +398,7 @@ export class InteractionManager {
   }
   
   /**
-   * 🎯 Handle mouse down events with smart logic
+   * 🎯 Handle mouse down events with smart logic - SIMPLIFIED for Pointer Events
    * @param {number} x - Mouse X position relative to canvas
    * @param {number} canvasWidth - Canvas width in pixels
    * @param {number} duration - Audio duration in seconds
@@ -434,10 +433,11 @@ export class InteractionManager {
       canvasWidth: canvasWidth,
       duration: duration.toFixed(2) + 's',
       selection: `${startTime.toFixed(2)}-${endTime.toFixed(2)}s`,
-      debugId: this.debugId
+      debugId: this.debugId,
+      pointerCapture: true // 🆕 **POINTER CAPTURE FLAG**: Indicates we're using pointer capture
     };
     
-    console.log(`🖱️ [${this.debugId}] Mouse down START (MODERN):`, debugInfo);
+    console.log(`🖱️ [${this.debugId}] Mouse down START (POINTER CAPTURE):`, debugInfo);
     
     // 🎯 **SMART HANDLE DETECTION**: Updated to use eventInfo
     const detectedHandle = detectHandle(x, canvasWidth, duration, startTime, endTime, eventInfo);
@@ -482,13 +482,14 @@ export class InteractionManager {
     // 🆕 **TRACK MOUSE DOWN**: Record mouse down event for drag detection
     this.isDraggingConfirmed = false;
     
-    console.log(`🎯 [${this.debugId}] Mouse down (MODERN) WITH PROTECTION:`, {
+    console.log(`🎯 [${this.debugId}] Mouse down (POINTER CAPTURE) WITH PROTECTION:`, {
       x: x.toFixed(1),
       time: currentTimePosition.toFixed(2) + 's',
       handle: detectedHandle || 'none',
       currentRegion: `${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s`,
       timestamp: this.mouseDownTimestamp,
       modernHandles: true,
+      pointerCapture: true, // 🆕 **SIMPLIFIED**: No need for global listeners with pointer capture
       protectionStatus: {
         isStartAtEdge,
         isEndAtEdge,
@@ -512,12 +513,14 @@ export class InteractionManager {
         this.dragStartTime = smartAction.handle === HANDLE_TYPES.START ? startTime : endTime;
         // 🆕 **NOTE**: isDraggingConfirmed still false until movement detected
         
-        console.log(`🫳 [${this.debugId}] Potential drag start for ${smartAction.handle} handle (MODERN - awaiting movement confirmation)`);
+        // 🚀 **SIMPLIFIED**: No need for global listeners - pointer capture handles everything
+        console.log(`🫳 [${this.debugId}] Potential drag start for ${smartAction.handle} handle (POINTER CAPTURE - automatic outside tracking)`);
         
         return {
           action: 'startDrag',
           handle: smartAction.handle,
           cursor: smartAction.cursor,
+          pointerCapture: true, // 🆕 **POINTER CAPTURE FLAG**: Indicates automatic outside tracking
           // 🆕 **IMMEDIATE SYNC DATA**: Thông tin để sync cursor ngay lập tức
           immediateSync: {
             required: true,
@@ -544,13 +547,14 @@ export class InteractionManager {
           this.dragStartPosition = x;
           this.dragStartTime = currentTimePosition;
           
+          // 🚀 **SIMPLIFIED**: No need for global listeners - pointer capture handles everything
           console.log(`🔄 [${this.debugId}] JUMP_TO_TIME with region drag potential setup:`, {
             clickTime: currentTimePosition.toFixed(2) + 's',
             regionStart: startTime.toFixed(2) + 's',
             regionEnd: endTime.toFixed(2) + 's',
             offset: this.regionDragOffset.toFixed(2) + 's',
             pendingJump: this.pendingJumpTime.toFixed(2) + 's',
-            note: 'Will become region drag if movement detected, or jump on mouse up'
+            note: 'Will become region drag if movement detected, or jump on mouse up - automatic pointer tracking'
           });
         } else {
           console.log(`⏳ [${this.debugId}] PENDING jump to: ${this.pendingJumpTime.toFixed(2)}s (will execute on mouse up if no drag)`);
@@ -709,26 +713,27 @@ export class InteractionManager {
         // 🆕 **REGION DRAG ACTIVATION**: If no active handle but have region drag potential, activate region drag
         if (!this.activeHandle && this.regionDragStartTime !== null && !this.isDraggingRegion) {
           this.isDraggingRegion = true; // 🔧 **ACTIVATE REGION DRAG**: Convert potential to actual region drag
-          console.log(`🔄 [${this.debugId}] REGION DRAG ACTIVATED from movement (MODERN):`, {
+          console.log(`🔄 [${this.debugId}] REGION DRAG ACTIVATED from movement (POINTER CAPTURE):`, {
             pixelsMoved: pixelsMoved.toFixed(1),
             timeSinceMouseDown: timeSinceMouseDown.toFixed(0) + 'ms',
             threshold: this.dragMoveThreshold + 'px',
             regionDragOffset: this.regionDragOffset.toFixed(2) + 's',
-            note: 'Region drag activated from mouse movement detection - pending jump canceled'
+            note: 'Region drag activated from mouse movement detection - automatic pointer tracking'
           });
+          
+          // 🚀 **SIMPLIFIED**: No need for global listeners - pointer capture handles everything
         } else {
-          console.log(`✅ [${this.debugId}] Drag CONFIRMED (MODERN):`, {
+          console.log(`✅ [${this.debugId}] Drag CONFIRMED (POINTER CAPTURE):`, {
             pixelsMoved: pixelsMoved.toFixed(1),
             timeSinceMouseDown: timeSinceMouseDown.toFixed(0) + 'ms',
             threshold: this.dragMoveThreshold + 'px',
             handleType: this.activeHandle || 'region',
             isDraggingRegion: this.isDraggingRegion,
-            pendingJumpCanceled: true
+            pendingJumpCanceled: true,
+            pointerCapture: true // 🆕 **POINTER CAPTURE FLAG**: Automatic outside tracking
           });
           
-          // 🌍 **ENABLE GLOBAL PROTECTION**: Enable global listeners for drag protection outside canvas
-          this.enableGlobalMouseUpListener();
-          this.enableGlobalMouseMoveListener();
+          // 🚀 **SIMPLIFIED**: No need for global listeners - pointer capture handles everything
         }
       }
     }
@@ -1025,10 +1030,12 @@ export class InteractionManager {
     this.pendingHandleUpdate = null;
     this.hasPendingHandleUpdate = false;
     
-    // 🌍 **DISABLE GLOBAL PROTECTION**: Disable global mouse up listener after normal completion
-    this.disableGlobalMouseUpListener();
-    this.disableGlobalMouseMoveListener();
+    // 🆕 RESET AUDIO SYNC: Reset sync manager state
+    if (this.audioSyncManager) {
+      this.audioSyncManager.reset();
+    }
     
+    // 🚀 **SIMPLIFIED**: No global listeners to cleanup with pointer capture
     return {
       action: wasDragging ? 'completeDrag' : 'none',
       saveHistory: shouldSaveHistory, // 🆕 **LƯU HISTORY CHO HANDLE UPDATES**: Lưu history cho cả confirmed drag và pending handle updates
@@ -1177,9 +1184,7 @@ export class InteractionManager {
       this.audioSyncManager.reset();
     }
     
-    // 🌍 **CLEANUP GLOBAL LISTENER**: Ensure global mouse up listener is disabled
-    this.disableGlobalMouseUpListener();
-    this.disableGlobalMouseMoveListener();
+    // 🚀 **SIMPLIFIED**: No global listeners to cleanup with pointer capture
   }
   
   /**
@@ -1291,5 +1296,5 @@ export class InteractionManager {
   }
 }
 
-// 🎯 Global interaction manager instance
+// 🎯 Global interaction manager instancee
 export const createInteractionManager = () => new InteractionManager();

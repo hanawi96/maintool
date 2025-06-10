@@ -279,6 +279,55 @@ export const getUserPreferences = () => {
   };
 };
 
+/**
+ * 🧹 **CLEANUP UNDEFINED VALUES** - Remove any localStorage entries with "undefined" values
+ * @returns {number} - Number of cleaned entries
+ */
+export const cleanupUndefinedValues = () => {
+  try {
+    if (typeof Storage === 'undefined' || !window.localStorage) {
+      console.warn('⚠️ [cleanupUndefinedValues] localStorage not available');
+      return 0;
+    }
+    
+    let cleanedCount = 0;
+    const keysToRemove = [];
+    
+    // 🔍 Scan all localStorage keys
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key) {
+        const value = localStorage.getItem(key);
+        
+        // 🎯 Check for problematic values
+        if (value === 'undefined' || value === 'null' || value === '' || !value) {
+          keysToRemove.push(key);
+          console.log(`🧹 [cleanupUndefinedValues] Marked for removal: "${key}" = "${value}"`);
+        }
+      }
+    }
+    
+    // 🗑️ Remove problematic entries
+    keysToRemove.forEach(key => {
+      localStorage.removeItem(key);
+      cleanedCount++;
+      console.log(`✅ [cleanupUndefinedValues] Removed: "${key}"`);
+    });
+    
+    if (cleanedCount > 0) {
+      console.log(`🎉 [cleanupUndefinedValues] Cleaned ${cleanedCount} problematic localStorage entries`);
+    } else {
+      console.log('✨ [cleanupUndefinedValues] No problematic entries found - localStorage is clean');
+    }
+    
+    return cleanedCount;
+    
+  } catch (error) {
+    console.error('❌ [cleanupUndefinedValues] Error during cleanup:', error.message);
+    return 0;
+  }
+};
+
 // 🎯 **GLOBAL DEBUG FUNCTIONS** - Để debug localStorage issues
 if (typeof window !== 'undefined') {
   window.mp3CutterStorageDebug = {

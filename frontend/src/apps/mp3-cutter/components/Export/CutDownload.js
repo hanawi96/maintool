@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Download, Scissors, Loader, AlertCircle, Save, Copy, Check } from 'lucide-react';
+import { Scissors, Loader, AlertCircle, Save, Copy, Check } from 'lucide-react';
 import { audioApi } from '../../services/audioApi';
 import { formatTimeUnified } from '../../utils/timeFormatter';
 import { useWebSocketProgress } from '../../hooks/useCutProgress';

@@ -118,6 +118,10 @@ const UnifiedControlBar = React.memo(({
             }
           }
           break;
+          
+        default:
+          // No action for other keys
+          break;
       }
     };
 

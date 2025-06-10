@@ -103,40 +103,43 @@ export const WaveformUI = memo(({
   const shouldRenderMainCursor = cursorPositions?.mainCursor?.visible && cursorPositions.mainCursor.x >= 0;
   const shouldRenderHoverLine = enableHoverEffects && cursorPositions?.hoverLine?.visible && cursorPositions.hoverLine.x >= 0;
 
-  // 🚀 **PHASE 3: EVENT HANDLER OPTIMIZATION** - Memoized handlers
-  const createHandleMouseDown = useCallback((handleType) => (e) => {
+  // 🚀 **PHASE 3: EVENT HANDLER OPTIMIZATION** - Memoized handlers updated for Pointer Events
+  const createHandlePointerDown = useCallback((handleType) => (e) => {
     onHandleMouseDown?.({
       clientX: e.clientX,
       clientY: e.clientY,
       handleType,
-      isHandleEvent: true
+      isHandleEvent: true,
+      pointerId: e.pointerId // 🆕 **POINTER ID**: Add pointer ID for tracking
     });
     e.preventDefault();
     e.stopPropagation();
   }, [onHandleMouseDown]);
 
-  const createHandleMouseMove = useCallback((handleType) => (e) => {
+  const createHandlePointerMove = useCallback((handleType) => (e) => {
     onHandleMouseMove?.({
       clientX: e.clientX,
       clientY: e.clientY,
       handleType,
-      isHandleEvent: true
+      isHandleEvent: true,
+      pointerId: e.pointerId // 🆕 **POINTER ID**: Add pointer ID for tracking
     });
   }, [onHandleMouseMove]);
 
-  const createHandleMouseUp = useCallback((handleType) => (e) => {
+  const createHandlePointerUp = useCallback((handleType) => (e) => {
     onHandleMouseUp?.({
       handleType,
-      isHandleEvent: true
+      isHandleEvent: true,
+      pointerId: e.pointerId // 🆕 **POINTER ID**: Add pointer ID for tracking
     });
   }, [onHandleMouseUp]);
 
-  const startHandleMouseDown = useMemo(() => createHandleMouseDown('start'), [createHandleMouseDown]);
-  const endHandleMouseDown = useMemo(() => createHandleMouseDown('end'), [createHandleMouseDown]);
-  const startHandleMouseMove = useMemo(() => createHandleMouseMove('start'), [createHandleMouseMove]);
-  const endHandleMouseMove = useMemo(() => createHandleMouseMove('end'), [createHandleMouseMove]);
-  const startHandleMouseUp = useMemo(() => createHandleMouseUp('start'), [createHandleMouseUp]);
-  const endHandleMouseUp = useMemo(() => createHandleMouseUp('end'), [createHandleMouseUp]);
+  const startHandlePointerDown = useMemo(() => createHandlePointerDown('start'), [createHandlePointerDown]);
+  const endHandlePointerDown = useMemo(() => createHandlePointerDown('end'), [createHandlePointerDown]);
+  const startHandlePointerMove = useMemo(() => createHandlePointerMove('start'), [createHandlePointerMove]);
+  const endHandlePointerMove = useMemo(() => createHandlePointerMove('end'), [createHandlePointerMove]);
+  const startHandlePointerUp = useMemo(() => createHandlePointerUp('start'), [createHandlePointerUp]);
+  const endHandlePointerUp = useMemo(() => createHandlePointerUp('end'), [createHandlePointerUp]);
 
   // 🚀 **PHASE 4: STYLE OPTIMIZATION** - Pre-calculated style objects
   const hoverTooltipStyle = useMemo(() => ({
@@ -297,9 +300,9 @@ export const WaveformUI = memo(({
         <div
           className="absolute z-40"
           style={startHandleStyle}
-          onMouseDown={startHandleMouseDown}
-          onMouseMove={startHandleMouseMove}
-          onMouseUp={startHandleMouseUp}
+          onPointerDown={startHandlePointerDown}
+          onPointerMove={startHandlePointerMove}
+          onPointerUp={startHandlePointerUp}
         >
           <div style={HANDLE_DOT_STYLE} />
           <div style={HANDLE_DOT_STYLE} />
@@ -312,9 +315,9 @@ export const WaveformUI = memo(({
         <div
           className="absolute z-40"
           style={endHandleStyle}
-          onMouseDown={endHandleMouseDown}
-          onMouseMove={endHandleMouseMove}
-          onMouseUp={endHandleMouseUp}
+          onPointerDown={endHandlePointerDown}
+          onPointerMove={endHandlePointerMove}
+          onPointerUp={endHandlePointerUp}
         >
           <div style={HANDLE_DOT_STYLE} />
           <div style={HANDLE_DOT_STYLE} />
