@@ -7,6 +7,7 @@ export const useWaveform = () => {
   const [endTime, setEndTime] = useState(0);
   const [isDragging, setIsDragging] = useState(null);
   const [hoveredHandle, setHoveredHandle] = useState(null);
+  const [isGenerating, setIsGenerating] = useState(false);
   
   const canvasRef = useRef(null);
 
@@ -17,6 +18,8 @@ export const useWaveform = () => {
       fileSize: file.size,
       fileType: file.type
     });
+
+    setIsGenerating(true);
 
     try {
       // 🎯 Validate file before processing
@@ -69,6 +72,8 @@ export const useWaveform = () => {
       setEndTime(0);
       
       throw error;
+    } finally {
+      setIsGenerating(false);
     }
   }, []);
 
@@ -81,6 +86,7 @@ export const useWaveform = () => {
     setEndTime(0);
     setIsDragging(null);
     setHoveredHandle(null);
+    setIsGenerating(false);
     
     console.log('✅ [useWaveform] Waveform state reset complete');
   }, []);
@@ -105,6 +111,7 @@ export const useWaveform = () => {
     endTime,
     isDragging,
     hoveredHandle,
+    isGenerating,
     
     // Actions
     generateWaveform,

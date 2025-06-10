@@ -105,7 +105,8 @@ const MP3CutterMain = React.memo(() => {
     setEndTime,
     setIsDragging,
     setHoveredHandle,
-    canvasRef
+    canvasRef,
+    isGenerating
   } = useWaveform();
 
   const { saveState, undo, redo, canUndo, canRedo, historyIndex, historyLength } = useHistory();
@@ -906,6 +907,7 @@ const MP3CutterMain = React.memo(() => {
               isDragging={isDragging}
               isPlaying={isPlaying}
               volume={volume}
+              isGenerating={isGenerating}
               
               // 🆕 **FADE EFFECTS**: Visual fade in/out effects trên waveform
               fadeIn={fadeIn}   // Fade in duration - bars sẽ hiển thị thấp → cao dần trong khoảng này

@@ -40,8 +40,8 @@ const FormatPresets = memo(({ selectedFormat, onFormatChange }) => {
                 isSelected ? 'text-indigo-100' : 'text-slate-400'
               }`}
                 style={{
-                  // 🚀 **INSTANT TEXT TRANSITION**: Match button transition speed
-                  transition: 'color 15ms ease-out',
+                  // 🚀 **INSTANT TEXT TRANSITION**: Zero delay for immediate response
+                  transition: 'color 0ms',
                   transitionDelay: '0ms'
                 }}
               >
