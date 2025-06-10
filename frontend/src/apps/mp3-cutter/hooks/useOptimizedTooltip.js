@@ -13,6 +13,7 @@ import { WAVEFORM_CONFIG } from '../utils/constants';
  * - 🎯 **SMART DURATION HIDING**: Ẩn duration tooltip khi region quá nhỏ
  * - 🔥 **PERFECT CONSISTENCY**: Unified time formatter cho consistency với CompactTimeSelector
  * - 🔧 **HANDLE SPACE AWARE**: Tooltips work with waveform area that excludes handle spaces
+ * - 🎯 **TOOLTIP CLAMPING**: Clamp all tooltips within waveform boundaries with 3px padding
  */
 
 // 🎯 **DURATION TOOLTIP CONSTANTS**
@@ -31,6 +32,23 @@ const DURATION_TOOLTIP_CONFIG = {
   }
 };
 
+// 🎯 **TOOLTIP CLAMPING CONSTANTS**
+const TOOLTIP_CLAMP_CONFIG = {
+  ESTIMATED_TOOLTIP_HALF_WIDTH: 15 // Minimal offset for tooltip centering
+};
+
+// 🔧 **TOOLTIP POSITION CLAMP UTILITY** - Clamp tooltip X position within waveform bounds
+const clampTooltipPosition = (x, waveformStartX, waveformEndX) => {
+  const { ESTIMATED_TOOLTIP_HALF_WIDTH } = TOOLTIP_CLAMP_CONFIG;
+  
+  // 🎯 **PERFECTLY SYMMETRIC BOUNDARIES**: Exact same offset from both edges
+  const leftBoundary = waveformStartX + ESTIMATED_TOOLTIP_HALF_WIDTH;
+  const rightBoundary = waveformEndX - ESTIMATED_TOOLTIP_HALF_WIDTH;
+  
+  // 🔧 **SIMPLE CLAMP**: Keep tooltip centered within waveform area
+  return Math.max(leftBoundary, Math.min(rightBoundary, x));
+};
+
 // 🚀 **60FPS OPTIMIZED TOOLTIP HOOK** - Minimal overhead cho drag performance
 
 export const useOptimizedTooltip = (canvasRef, duration, currentTime, isPlaying, audioRef, startTime, endTime, hoveredHandle, isDragging) => {
@@ -39,9 +57,6 @@ export const useOptimizedTooltip = (canvasRef, duration, currentTime, isPlaying,
   const [isHoverActive, setIsHoverActive] = useState(false);
   
   const hoverTimeoutRef = useRef(null);
-  
-  // 🚀 **RESIZE TRIGGER STATE** - Force tooltip update on window resize
-  const [resizeTrigger, setResizeTrigger] = useState(0);
   
   // 🎯 **UNIFIED TIME FORMATTER** - Perfect consistency với CompactTimeSelector
   const formatTime = useCallback(formatTimeUnified, []);
@@ -74,22 +89,12 @@ export const useOptimizedTooltip = (canvasRef, duration, currentTime, isPlaying,
     };
   }, []);
   
-  // 🚀 **WINDOW RESIZE LISTENER** - Update tooltips on window resize
-  useEffect(() => {
-    const handleResize = () => {
-      setResizeTrigger(prev => prev + 1);
-    };
-    
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-  
-  // ⚡ **MAIN CURSOR CALCULATOR** - Optimized for 60fps with handle space awareness
+  // ⚡ **MAIN CURSOR CALCULATOR** - Optimized for 60fps with handle space awareness + clamping
   const calculateMainCursorTooltip = useCallback(() => {
     if (!canvasRef?.current || !duration || duration === 0 || typeof currentTime !== 'number') return null;
     
     const canvas = canvasRef.current;
-    const { waveformStartX, availableWaveformWidth } = getWaveformArea(canvas);
+    const { waveformStartX, waveformEndX, availableWaveformWidth } = getWaveformArea(canvas);
     
     // 🔧 **MAP TO WAVEFORM AREA**: Map currentTime to waveform area
     const timePercent = currentTime / duration;
@@ -97,22 +102,26 @@ export const useOptimizedTooltip = (canvasRef, duration, currentTime, isPlaying,
     
     if (currentTime < 0 || currentTime > duration) return null;
     
+    // 🎯 **CLAMP TOOLTIP POSITION**: Keep within waveform bounds with 3px padding
+    const clampedX = clampTooltipPosition(cursorX, waveformStartX, waveformEndX);
+    
     return {
       visible: true,
-      x: cursorX,
+      x: clampedX,
+      originalX: cursorX, // Keep original position for reference
       time: currentTime,
       formattedTime: formatTime(currentTime)
     };
-  }, [canvasRef, duration, currentTime, formatTime, resizeTrigger, getWaveformArea]);
+  }, [canvasRef, duration, currentTime, formatTime, getWaveformArea]);
   
-  // ⚡ **HANDLE TOOLTIPS CALCULATOR** - 60fps optimized with handle space awareness
+  // ⚡ **HANDLE TOOLTIPS CALCULATOR** - 60fps optimized with handle space awareness + clamping
   const calculateHandleTooltips = useCallback(() => {
     const canvas = canvasRef?.current;
     if (!canvas || !duration || duration === 0 || startTime >= endTime) {
       return { start: null, end: null, selectionDuration: null };
     }
     
-    const { waveformStartX, availableWaveformWidth } = getWaveformArea(canvas);
+    const { waveformStartX, waveformEndX, availableWaveformWidth } = getWaveformArea(canvas);
     
     // 🔧 **MAP TO WAVEFORM AREA**: Map start/end times to waveform area
     const startPercent = startTime / duration;
@@ -124,29 +133,37 @@ export const useOptimizedTooltip = (canvasRef, duration, currentTime, isPlaying,
     const regionWidthPx = Math.abs(endX - startX);
     const shouldShowDurationTooltip = selectionDuration >= 0.1 && regionWidthPx >= DURATION_TOOLTIP_CONFIG.MINIMUM_REGION_WIDTH;
     
+    // 🎯 **CLAMP ALL TOOLTIP POSITIONS**: Keep within waveform bounds with 3px padding
+    const clampedStartX = clampTooltipPosition(startX, waveformStartX, waveformEndX);
+    const clampedEndX = clampTooltipPosition(endX, waveformStartX, waveformEndX);
+    const clampedDurationX = clampTooltipPosition(durationX, waveformStartX, waveformEndX);
+    
     return {
       start: {
         visible: true,
-        x: startX,
+        x: clampedStartX,
+        originalX: startX, // Keep original position for reference
         time: startTime,
         formattedTime: formatTime(startTime)
       },
       end: {
         visible: true,
-        x: endX,
+        x: clampedEndX,
+        originalX: endX, // Keep original position for reference
         time: endTime,
         formattedTime: formatTime(endTime)
       },
       selectionDuration: shouldShowDurationTooltip ? {
         visible: true,
-        x: durationX,
+        x: clampedDurationX,
+        originalX: durationX, // Keep original position for reference
         duration: selectionDuration,
         formattedTime: formatTime(selectionDuration)
       } : null
     };
-  }, [canvasRef, duration, startTime, endTime, formatTime, resizeTrigger, getWaveformArea]);
+  }, [canvasRef, duration, startTime, endTime, formatTime, getWaveformArea]);
   
-  // ⚡ **HOVER CALCULATOR** - 60fps optimized with handle space awareness
+  // ⚡ **HOVER CALCULATOR** - 60fps optimized with handle space awareness + clamping
   const calculateHoverTooltip = useCallback(() => {
     if (!isHoverActive || !hoverMousePosition || !canvasRef?.current || !duration ||
         isDragging === 'start' || isDragging === 'end') return null;
@@ -165,13 +182,17 @@ export const useOptimizedTooltip = (canvasRef, duration, currentTime, isPlaying,
     
     if (time < 0 || time > duration) return null;
     
+    // 🎯 **CLAMP TOOLTIP POSITION**: Keep within waveform bounds with 3px padding
+    const clampedX = clampTooltipPosition(mouseX, waveformStartX, waveformEndX);
+    
     return {
       visible: true,
-      x: mouseX,
+      x: clampedX,
+      originalX: mouseX, // Keep original position for reference
       time,
       formattedTime: formatTime(time)
     };
-  }, [isHoverActive, hoverMousePosition, canvasRef, duration, formatTime, isDragging, resizeTrigger, getWaveformArea]);
+  }, [isHoverActive, hoverMousePosition, canvasRef, duration, formatTime, isDragging, getWaveformArea]);
   
   // 🚀 **ULTRA FAST HOVER UPDATE**
   const updateHoverTooltip = useCallback((mouseEvent) => {
