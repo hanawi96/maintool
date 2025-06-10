@@ -184,6 +184,19 @@ const WaveformCanvas = React.memo(({
     };
   }, [hybridWaveformData, duration, startTime, endTime, animatedVolume, fadeIn, fadeOut, containerWidth]);
 
+  // 🔧 **HEIGHT CONSISTENCY CHECK**: Ensure consistent height during transitions
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (canvas && canvas.height !== WAVEFORM_CONFIG.HEIGHT) {
+      console.log(`🔧 [WaveformHeight-FIX] Correcting canvas height:`, {
+        currentHeight: canvas.height,
+        expectedHeight: WAVEFORM_CONFIG.HEIGHT,
+        note: 'Ensuring consistent height across all states'
+      });
+      canvas.height = WAVEFORM_CONFIG.HEIGHT;
+    }
+  }, [canvasRef, renderData]);  // Trigger when render data changes
+
   // 🆕 **FADE EFFECT CALCULATOR**: Optimized fade calculation
   const calculateFadeMultiplier = useCallback((barTime, selectionStart, selectionEnd, fadeInDuration, fadeOutDuration) => {
     if (fadeInDuration <= 0 && fadeOutDuration <= 0) return 1.0;
@@ -279,6 +292,20 @@ const WaveformCanvas = React.memo(({
     const scalingPixels = volumeStep * (MAX_SCALING_PX / 50);
     const absoluteBarHeightPx = FLAT_BAR_HEIGHT_PX + scalingPixels;
     const waveformVariation = Math.max(0, Math.min(1, currentVolume));
+    
+    // 🔧 **DEBUG WAVEFORM HEIGHT**: Log để debug height inconsistency
+    if (Math.random() < 0.05) { // Log occasionally
+      console.log(`🔧 [WaveformHeight-DEBUG] Height calculation details:`, {
+        currentVolume: currentVolume.toFixed(3),
+        volumePercent: volumePercent.toFixed(1) + '%',
+        volumeStep: volumeStep.toFixed(1),
+        scalingPixels: scalingPixels.toFixed(1) + 'px',
+        absoluteBarHeightPx: absoluteBarHeightPx.toFixed(1) + 'px',
+        waveformVariation: waveformVariation.toFixed(3),
+        waveformDataLength: waveformData.length,
+        note: 'Tracking height consistency between initial load and completion'
+      });
+    }
     
     // 🚀 **HYBRID RENDERING**: Use fixed bar width from hybrid system, but adjust for available space
     if (absoluteBarHeightPx > 0 && availableWaveformWidth > 0) {

@@ -2,10 +2,11 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { WAVEFORM_CONFIG } from '../utils/constants';
 
 export const useWaveformRender = (canvasRef, waveformData, volume, isDragging, isPlaying, hoverTooltip) => {
-  // Volume animation
+  // 🔧 **FIXED VOLUME INITIALIZATION**: Ensure animatedVolume starts with correct value to prevent initial height mismatch
   const [animatedVolume, setAnimatedVolume] = useState(volume);
   const volumeAnimationRef = useRef(volume);
   const targetVolumeRef = useRef(volume);
+  const initializedRef = useRef(false);
 
   // Render loop
   const animationFrameRef = useRef(null);
@@ -16,8 +17,26 @@ export const useWaveformRender = (canvasRef, waveformData, volume, isDragging, i
   const lastCanvasWidthRef = useRef(0);
   const resizeObserverRef = useRef(null);
 
+  // 🔧 **FIXED VOLUME INITIALIZATION**: Initialize all volume refs correctly on mount
+  useEffect(() => {
+    if (!initializedRef.current) {
+      console.log(`🔧 [WaveformHeight-FIX] Initializing volume refs to prevent height mismatch:`, {
+        volume: volume,
+        note: 'Ensuring all volume refs start with same value to prevent initial animation'
+      });
+      
+      volumeAnimationRef.current = volume;
+      targetVolumeRef.current = volume;
+      setAnimatedVolume(volume);
+      initializedRef.current = true;
+    }
+  }, [volume]);
+
   // Volume animation effect
   useEffect(() => {
+    // 🚫 **SKIP ANIMATION IF NOT INITIALIZED**: Prevent animation on initial mount
+    if (!initializedRef.current) return;
+    
     targetVolumeRef.current = volume;
     let animationId = null;
     
@@ -36,7 +55,20 @@ export const useWaveformRender = (canvasRef, waveformData, volume, isDragging, i
       }
     };
     
-    animationId = requestAnimationFrame(animateVolume);
+    // 🔧 **IMMEDIATE UPDATE IF CLOSE**: If values are very close, update immediately
+    const currentDiff = Math.abs(volumeAnimationRef.current - volume);
+    if (currentDiff < 0.01) {
+      volumeAnimationRef.current = volume;
+      setAnimatedVolume(volume);
+      console.log(`🔧 [WaveformHeight-FIX] Immediate volume sync to prevent height difference:`, {
+        volume: volume,
+        animatedVolume: volume,
+        note: 'Immediate sync to maintain consistent waveform height'
+      });
+    } else {
+      animationId = requestAnimationFrame(animateVolume);
+    }
+    
     return () => {
       if (animationId) cancelAnimationFrame(animationId);
     };

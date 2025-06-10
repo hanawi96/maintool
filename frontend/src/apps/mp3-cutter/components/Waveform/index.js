@@ -2,10 +2,17 @@ import React, { useRef, useEffect } from 'react';
 import WaveformCanvas from './WaveformCanvas';
 import { WAVEFORM_CONFIG } from '../../utils/constants';
 
-// 🚀 **WAVEFORM LOADING INDICATOR** - Beautiful animated loading display
+// 🚀 **WAVEFORM LOADING INDICATOR** - Beautiful animated loading display with consistent height
 const WaveformLoadingIndicator = React.memo(() => {
   return (
-    <div className="flex items-center justify-center w-full h-24 bg-gradient-to-r from-slate-50 to-slate-100 rounded-lg border border-slate-200 relative overflow-hidden">
+    <div 
+      className="flex items-center justify-center w-full bg-gradient-to-r from-slate-50 to-slate-100 rounded-lg border border-slate-200 relative overflow-hidden"
+      style={{
+        height: `${WAVEFORM_CONFIG.HEIGHT}px`, // 🔧 **CONSISTENT HEIGHT**: Exact same height as canvas
+        minHeight: `${WAVEFORM_CONFIG.HEIGHT}px`,
+        maxHeight: `${WAVEFORM_CONFIG.HEIGHT}px`
+      }}
+    >
       {/* 🌊 **MOVING BACKGROUND SHIMMER** */}
       <div 
         className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent transform -skew-x-12" 
@@ -107,11 +114,38 @@ const Waveform = ({
     }
   }, [waveformData.length, duration, volume]);
   
+  // 🔧 **HEIGHT CONSISTENCY DEBUG**: Log state transitions để debug height issues
+  useEffect(() => {
+    console.log(`🔧 [WaveformHeight-DEBUG] Waveform state transition:`, {
+      isGenerating,
+      hasWaveformData: waveformData.length > 0,
+      volume: volume.toFixed(3),
+      duration: duration.toFixed(2) + 's',
+      transition: isGenerating ? 'SHOWING_LOADING' : 'SHOWING_WAVEFORM',
+      note: 'Tracking transitions that might cause height inconsistency'
+    });
+  }, [isGenerating, waveformData.length, volume, duration]);
+  
   const minWidth = WAVEFORM_CONFIG.RESPONSIVE.MIN_WIDTH;
   
-  // 🆕 **LOADING STATE DISPLAY**
+  // 🆕 **LOADING STATE DISPLAY** - With consistent height
   if (isGenerating) {
-    return <WaveformLoadingIndicator />;
+    console.log(`🔧 [WaveformHeight-DEBUG] Rendering loading indicator with height: ${WAVEFORM_CONFIG.HEIGHT}px`);
+    return (
+      <div className="bg-white/70 backdrop-blur-sm rounded-xl p-4 border border-slate-200/50 shadow-sm">
+        <div 
+          className="w-full relative"
+          style={{
+            height: WAVEFORM_CONFIG.HEIGHT, // 🔧 **CONSISTENT HEIGHT**: Match canvas height
+            overflow: 'visible',
+            position: 'relative',
+            zIndex: 1
+          }}
+        >
+          <WaveformLoadingIndicator />
+        </div>
+      </div>
+    );
   }
   
   return (
