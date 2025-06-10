@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Upload, Music, CheckCircle, AlertCircle, Wifi, WifiOff, RotateCw } from 'lucide-react';
+import { Upload, Music, CheckCircle, AlertCircle, Wifi, WifiOff, RotateCw, Scissors, Volume2 } from 'lucide-react';
 
 // 🎯 **FILE UPLOAD SECTION**: Extract upload UI logic for better code organization
 const FileUploadSection = React.memo(({ 
@@ -69,6 +69,50 @@ const FileUploadSection = React.memo(({
 
   return (
     <div className="max-w-2xl mx-auto">
+      {/* 🎨 **HEADER SECTION**: Beautiful header with icon, title and description */}
+      <div className="text-center mb-8 sm:mb-12">
+        {/* Main Icon */}
+        <div className="relative mx-auto mb-6 w-20 h-20 sm:w-24 sm:h-24">
+          {/* Background Circle */}
+          <div className="absolute inset-0 rounded-full bg-gradient-to-br from-green-100 to-emerald-100 shadow-lg"></div>
+          {/* Decorative Ring */}
+          <div className="absolute inset-2 rounded-full border-2 border-green-200 opacity-30"></div>
+          {/* Icon Container */}
+          <div className="relative w-full h-full rounded-full bg-gradient-to-br from-green-400 to-emerald-500 flex items-center justify-center shadow-xl">
+            <Scissors className="w-8 h-8 sm:w-10 sm:h-10 text-white transform -rotate-12" />
+            <Volume2 className="w-6 h-6 sm:w-7 sm:h-7 text-white/80 absolute -top-1 -right-1" />
+          </div>
+          {/* Floating Effect */}
+          <div className="absolute inset-0 rounded-full bg-gradient-to-br from-green-400 to-emerald-500 opacity-20 animate-pulse"></div>
+        </div>
+
+        {/* Title */}
+        <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mb-3 sm:mb-4">
+          Cắt nhạc & chỉnh sửa
+        </h1>
+
+        {/* Description */}
+        <p className="text-base sm:text-lg text-gray-600 max-w-lg mx-auto leading-relaxed px-4">
+          Cắt, chỉnh sửa và tạo hiệu ứng fade cho file nhạc một cách chuyên nghiệp
+        </p>
+
+        {/* Feature Tags */}
+        <div className="flex flex-wrap justify-center gap-2 sm:gap-3 mt-4 sm:mt-6 px-4">
+          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs sm:text-sm font-medium bg-green-100 text-green-800 border border-green-200">
+            <Scissors className="w-3 h-3 mr-1" />
+            Cắt chính xác
+          </span>
+          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs sm:text-sm font-medium bg-blue-100 text-blue-800 border border-blue-200">
+            <Volume2 className="w-3 h-3 mr-1" />
+            Fade in/out
+          </span>
+          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs sm:text-sm font-medium bg-purple-100 text-purple-800 border border-purple-200">
+            <Music className="w-3 h-3 mr-1" />
+            Chất lượng cao
+          </span>
+        </div>
+      </div>
+
       {/* Upload Card */}
       <div 
         className={`relative overflow-hidden backdrop-blur-xl rounded-3xl border-2 border-dashed transition-all duration-500 ease-out transform ${

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Music, Wifi, WifiOff } from 'lucide-react';
+// import { Music, Wifi, WifiOff } from 'lucide-react'; // Unused imports - removed
 
 // Import hooks
 import { useAudioPlayer } from '../hooks/useAudioPlayer';
@@ -427,7 +427,7 @@ const MP3CutterMain = React.memo(() => {
     setAudioError(null);
 
     console.log('✅ [AudioSetup] Audio interactions configured successfully');
-  }, [audioFile?.url, setAudioError]); // 🔥 **OPTIMIZED DEPS**: Added missing setAudioError
+  }, [audioFile?.url, audioFile?.name, audioRef, setAudioError]); // 🔥 **OPTIMIZED DEPS**: Added missing dependencies
     
   // 🔥 **UPDATE ANIMATION STATE REF**: Cập nhật ref thay vì tạo object mới
   useEffect(() => {
@@ -461,7 +461,7 @@ const MP3CutterMain = React.memo(() => {
     const setupTimeout = setTimeout(setupWebAudio, 100);
     
     return () => clearTimeout(setupTimeout);
-  }, [audioFile?.url, connectAudioElement, isWebAudioSupported]); // 🔥 **OPTIMIZED DEPS**: Removed getConnectionDebugInfo
+  }, [audioFile?.url, audioRef, connectAudioElement, isWebAudioSupported]); // 🔥 **OPTIMIZED DEPS**: Added missing audioRef
 
   // 🆕 **PLAYBACK STATE SYNC**: Start/stop fade effects khi playback state thay đổi
   useEffect(() => {
@@ -469,7 +469,7 @@ const MP3CutterMain = React.memo(() => {
     if (!audio || !isWebAudioSupported) return;
     
     setFadeActive(isPlaying, audio);
-  }, [isPlaying, setFadeActive, isWebAudioSupported]); // 🔥 **OPTIMIZED DEPS**: Removed excessive deps
+  }, [isPlaying, audioRef, setFadeActive, isWebAudioSupported]); // 🔥 **OPTIMIZED DEPS**: Added missing audioRef
 
   // History handlers
   const handleUndo = useCallback(() => {
@@ -706,14 +706,14 @@ const MP3CutterMain = React.memo(() => {
     return () => {
       // 🔥 **SAFE CLEANUP**: Kiểm tra audio element trước khi cleanup
       if (audio) {
-      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
-      audio.removeEventListener('ended', handleEnded);
-      audio.removeEventListener('play', handlePlay);
-      audio.removeEventListener('pause', handlePause);
-      audio.removeEventListener('error', handleError);
+        audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+        audio.removeEventListener('ended', handleEnded);
+        audio.removeEventListener('play', handlePlay);
+        audio.removeEventListener('pause', handlePause);
+        audio.removeEventListener('error', handleError);
       }
     };
-  }, [audioFile?.name, audioRef, setCurrentTime, setDuration, setIsPlaying, setEndTime, fileValidation, setAudioError]); // 🔥 **FIXED DEPS**: Added missing audioRef
+  }, [audioFile?.name, audioFile?.url, audioRef, setCurrentTime, setDuration, setIsPlaying, setEndTime, fileValidation, setAudioError]); // 🔥 **FIXED DEPS**: Added missing dependencies
 
   // 🚀 **ULTRA-SMOOTH MAIN ANIMATION LOOP** - Tối ưu coordination với tooltip animation
   useEffect(() => {
@@ -821,43 +821,79 @@ const MP3CutterMain = React.memo(() => {
     }
   }, [startTime, endTime, fadeIn, fadeOut, updateFadeConfig]); // 🚀 **ALL DEPS**: But logic prevents fade-only updates
 
+  // 🔥 **AUDIO EVENT HANDLERS**: Extract handlers for SafeAudioElement
+  const handleLoadedMetadata = useCallback(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    
+    const audioDuration = audio.duration;
+    
+    // 🆕 CLEAR AUDIO ERROR ON SUCCESSFUL LOAD
+    setAudioError(null);
+    
+    // 🆕 BATCH STATE UPDATES: Use requestIdleCallback for non-critical updates
+    if (window.requestIdleCallback) {
+      window.requestIdleCallback(() => {
+        setDuration(audioDuration);
+        setEndTime(audioDuration);
+      });
+    } else {
+      setTimeout(() => {
+        setDuration(audioDuration);
+        setEndTime(audioDuration);
+      }, 0);
+    }
+  }, [audioRef, setAudioError, setDuration, setEndTime]);
+
+  const handleCanPlay = useCallback(() => {
+    console.log('✅ [Audio] Can play');
+  }, []);
+
+  const handleError = useCallback((e) => {
+    const error = e.target.error;
+    const filename = audioFile?.name || 'audio file';
+    
+    setTimeout(() => {
+      console.error('❌ [AudioElement] Direct error:', {
+        code: error?.code,
+        message: error?.message,
+        filename: filename,
+        src: e.target.src,
+        currentSrc: e.target.currentSrc,
+        readyState: e.target.readyState,
+        networkState: e.target.networkState
+      });
+    }, 0);
+    
+    // 🔥 **SIMPLIFIED ERROR**: Generate error message without heavy processing
+    const errorDetails = getAudioErrorMessage(error, filename);
+    
+    console.error('❌ [AudioEvents] Error Analysis:', errorDetails);
+    
+    // 🔥 **LIGHTWEIGHT ERROR STATE**: Set minimal error state
+    setAudioError({
+      type: 'playback',
+      title: errorDetails.title,
+      message: errorDetails.message,
+      suggestion: errorDetails.suggestion,
+      code: errorDetails.code,
+      filename: errorDetails.filename,
+      supportedFormats: errorDetails.supportedFormats,
+      compatibilityInfo: fileValidation?.info?.browserSupport,
+      detectedFormat: fileValidation?.info?.detectedMimeType ? 
+        getFormatDisplayName(fileValidation.info.detectedMimeType) : 'Unknown'
+    });
+    
+    // 🔥 **AUTO-STOP**: Auto-stop playback on error
+    if (window.requestIdleCallback) {
+      window.requestIdleCallback(() => setIsPlaying(false));
+    } else {
+      setTimeout(() => setIsPlaying(false), 0);
+    }
+  }, [audioFile?.name, fileValidation, setAudioError, setIsPlaying]);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-pink-50">
-      {/* Header */}
-      <div className="bg-white/80 backdrop-blur-sm border-b border-slate-200/50 shadow-sm">
-        <div className="container mx-auto px-6 py-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Music className="w-8 h-8 text-indigo-600" />
-              <div>
-                <h1 className="text-xl font-bold text-slate-800">MP3 Cutter Pro</h1>
-                <p className="text-xs text-slate-500">Professional Audio Editor</p>
-              </div>
-            </div>
-            
-            {/* 🎯 NEW: Connection Status Indicator */}
-            <div className="flex items-center gap-2">
-              {isConnected === null ? (
-                <div className="flex items-center gap-1 text-amber-600">
-                  <div className="w-2 h-2 bg-amber-400 rounded-full animate-pulse" />
-                  <span className="text-xs">Checking...</span>
-                </div>
-              ) : isConnected ? (
-                <div className="flex items-center gap-1 text-green-600">
-                  <Wifi className="w-4 h-4" />
-                  <span className="text-xs">Connected</span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-1 text-red-600">
-                  <WifiOff className="w-4 h-4" />
-                  <span className="text-xs">Offline</span>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
       <div className="container mx-auto px-6 py-6">
         {/* 🎯 CONNECTION & UPLOAD ERRORS */}
         <ConnectionErrorAlert
@@ -925,14 +961,14 @@ const MP3CutterMain = React.memo(() => {
             {/* 🎯 UNIFIED CONTROLS - Single row layout with all controls */}
             <UnifiedControlBar
               // Audio Player props
-                  isPlaying={isPlaying}
-                  volume={volume}
-                  playbackRate={playbackRate}
-                  onTogglePlayPause={togglePlayPause}
-                  onJumpToStart={handleJumpToStart}
-                  onJumpToEnd={handleJumpToEnd}
-                  onVolumeChange={updateVolume}
-                  onSpeedChange={updatePlaybackRate}
+              isPlaying={isPlaying}
+              volume={volume}
+              playbackRate={playbackRate}
+              onTogglePlayPause={togglePlayPause}
+              onJumpToStart={handleJumpToStart}
+              onJumpToEnd={handleJumpToEnd}
+              onVolumeChange={updateVolume}
+              onSpeedChange={updatePlaybackRate}
               
               // Time Selector props  
               startTime={startTime}
@@ -942,19 +978,19 @@ const MP3CutterMain = React.memo(() => {
               onEndTimeChange={handleEndTimeChange}
               
               // History props
-                  canUndo={canUndo}
-                  canRedo={canRedo}
-                  onUndo={handleUndo}
-                  onRedo={handleRedo}
-                  historyIndex={historyIndex}
-                  historyLength={historyLength}
+              canUndo={canUndo}
+              canRedo={canRedo}
+              onUndo={handleUndo}
+              onRedo={handleRedo}
+              historyIndex={historyIndex}
+              historyLength={historyLength}
               
               // Common props
               disabled={!audioFile}
-                />
+            />
 
             {/* Effects and Export */}
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div className="fade-controls">
                 <FadeControls
                   fadeIn={fadeIn}
@@ -991,41 +1027,10 @@ const MP3CutterMain = React.memo(() => {
       <SafeAudioElement
         audioRef={audioRef}
         audioFile={audioFile}
-        onError={(e) => {
-          // 🔥 **IMMEDIATE ERROR LOG**: Log audio element errors immediately
-          const error = e.target.error;
-          setTimeout(() => {
-            console.error('❌ [AudioElement] Direct error:', {
-              code: error?.code,
-              message: error?.message,
-              src: e.target.src,
-              currentSrc: e.target.currentSrc,
-              readyState: e.target.readyState,
-              networkState: e.target.networkState
-            });
-          }, 0);
-        }}
-        onLoadStart={() => {
-          // 🔥 **LOAD START LOG**: Track load start
-          setTimeout(() => {
-            console.log('🔄 [AudioElement] Load started for:', audioRef.current?.src);
-          }, 0);
-        }}
-        onCanPlay={() => {
-          // 🔥 **CAN PLAY LOG**: Track when audio is ready
-          setTimeout(() => {
-            console.log('✅ [AudioElement] Can play:', audioRef.current?.src);
-          }, 0);
-        }}
-        onLoadedMetadata={() => {
-          // 🔥 **METADATA LOADED**: Track metadata load
-          setTimeout(() => {
-            console.log('📊 [AudioElement] Metadata loaded:', {
-              duration: audioRef.current?.duration,
-              src: audioRef.current?.src
-            });
-          }, 0);
-        }}
+        onError={handleError}
+        onLoadStart={handleCanPlay}
+        onCanPlay={handleCanPlay}
+        onLoadedMetadata={handleLoadedMetadata}
       />
     </div>
   );
