@@ -395,8 +395,8 @@ button[title*="OGG"] {
   transform: translateZ(0) !important;
   backface-visibility: hidden !important;
   
-  /* 🚀 **INSTANT TRANSITIONS**: Ultra-fast response for immediate feel */
-  transition: background-color 25ms cubic-bezier(0.4, 0, 0.2, 1), border-color 25ms cubic-bezier(0.4, 0, 0.2, 1), color 25ms cubic-bezier(0.4, 0, 0.2, 1), transform 50ms cubic-bezier(0.4, 0, 0.2, 1) !important;
+  /* 🚀 **INSTANT TRANSITIONS**: Zero delay for immediate response */
+  transition: background-color 0ms, border-color 0ms, color 0ms, transform 0ms !important;
   
   /* 🔧 **PERFORMANCE OPTIMIZATION**: Prevent layout shifts */
   contain: layout style paint !important;
@@ -406,7 +406,7 @@ button[title*="OGG"] {
   transition-delay: 0ms !important;
 }
 
-/* 🚀 **INSTANT HOVER**: Immediate hover response với ultra-fast animation */
+/* 🚀 **INSTANT HOVER**: Immediate hover response với zero-delay animation */
 .grid .grid-cols-4 button:hover,
 .export-controls button[title*="-"]:hover,
 button[title*="MP3"]:hover, 
@@ -415,11 +415,11 @@ button[title*="WAV"]:hover,
 button[title*="FLAC"]:hover, 
 button[title*="AAC"]:hover, 
 button[title*="OGG"]:hover {
-  /* 🔥 **IMMEDIATE TRANSFORM**: Instant scaling for ultra-responsive feel */
-  transform: translateZ(0) scale(1.02) !important;
+  /* 🔧 **NO SCALE ON HOVER**: Removed scale transform */
+  transform: translateZ(0) !important;
   
-  /* 🚀 **INSTANT RESPONSE**: Ultra-fast transition for immediate feedback */
-  transition: background-color 15ms ease-out, border-color 15ms ease-out, color 15ms ease-out, transform 30ms ease-out !important;
+  /* 🚀 **INSTANT RESPONSE**: Zero delay for immediate feedback */
+  transition: background-color 0ms, border-color 0ms, color 0ms !important;
 }
 
 /* 🎯 **INSTANT ACTIVE STATE**: Immediate feedback on click */
@@ -431,14 +431,14 @@ button[title*="WAV"]:active,
 button[title*="FLAC"]:active, 
 button[title*="AAC"]:active, 
 button[title*="OGG"]:active {
-  transform: translateZ(0) scale(0.98) !important;
-  transition: all 10ms ease-out !important;
+  transform: translateZ(0) !important; /* 🔧 **NO SCALE ON ACTIVE**: Removed scale transform */
+  transition: all 0ms !important;
 }
 
 /* 🔧 **SELECTED STATE**: Stable selected appearance */
 .grid .grid-cols-4 button.bg-indigo-500,
 .export-controls button.bg-indigo-500 {
-  transform: translateZ(0) scale(1.05) !important;
+  transform: translateZ(0) !important; /* 🔧 **NO SCALE ON SELECTED**: Removed scale transform */
 }
 
 /* 🆕 **CURSOR STYLES**: Cross-platform compatible cursor definitions */

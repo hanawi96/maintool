@@ -25,11 +25,11 @@ const FormatPresets = memo(({ selectedFormat, onFormatChange }) => {
               style={{
                 // 🚀 **MAXIMUM PERFORMANCE**: Optimized inline styles to override everything
                 willChange: 'transform, background-color, border-color',
-                transform: isSelected ? 'translateZ(0) scale(1.05)' : 'translateZ(0)',
+                transform: 'translateZ(0)', // 🔧 **NO SCALE**: Removed scale transform for both states
                 backfaceVisibility: 'hidden',
                 contain: 'layout style paint',
-                // 🔥 **INSTANT TRANSITIONS**: Ultra-fast for immediate response
-                transition: 'background-color 15ms ease-out, border-color 15ms ease-out, color 15ms ease-out, transform 30ms ease-out',
+                // 🔥 **INSTANT TRANSITIONS**: Zero delay for immediate response
+                transition: 'background-color 0ms, border-color 0ms, color 0ms',
                 // 🆕 **ELIMINATE ALL DELAYS**: Zero delay for instant response
                 transitionDelay: '0ms',
                 animation: 'none'
