@@ -100,7 +100,7 @@ const FileUploadSection = React.memo(({
         </div>
       </div>
 
-      {/* Upload Card */}
+      {/* Upload Cardd */}
       <div 
         className={`relative overflow-hidden backdrop-blur-xl rounded-3xl border-2 border-dashed transition-all duration-500 ease-out transform ${
           config.borderColor
