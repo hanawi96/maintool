@@ -173,27 +173,6 @@ const FileUploadSection = React.memo(({
             </div>
           )}
 
-          {/* Supported Formats */}
-          {compatibilityReport && !isUploading && (
-            <div className="mb-6 sm:mb-8">
-              <div className="text-xs sm:text-sm text-gray-500 mb-3">Định dạng hỗ trợ:</div>
-              <div className="flex flex-wrap justify-center gap-1 sm:gap-2">
-                {Object.values(compatibilityReport.universal)
-                  .filter(format => format.support.level === 'high')
-                  .slice(0, 6)
-                  .map((format, index) => (
-                    <span 
-                      key={index}
-                      className="inline-flex items-center px-2 sm:px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700 border border-green-200"
-                    >
-                      <CheckCircle className="w-2 h-2 sm:w-3 sm:h-3 mr-1" />
-                      {format.displayName}
-                    </span>
-                  ))}
-              </div>
-            </div>
-          )}
-
           {/* Upload Button */}
           <input
             type="file"
@@ -226,6 +205,23 @@ const FileUploadSection = React.memo(({
               </>
             )}
           </label>
+
+          {/* Supported Formats - Moved below button, single line */}
+          {compatibilityReport && !isUploading && (
+            <div className="mt-4 text-center">
+              <span className="text-xs sm:text-sm text-gray-500 mr-2">Định dạng hỗ trợ:</span>
+              {/* Static list of common formats */}
+              {['MP3', 'WAV', 'M4A', 'AAC', 'FLAC', 'OGG', 'WMA', 'AIFF'].map((format, index) => (
+                <span 
+                  key={index}
+                  className="inline-flex items-center px-1.5 sm:px-2 py-0.5 mx-0.5 rounded text-xs font-medium bg-green-100 text-green-700"
+                >
+                  {format}
+                </span>
+              ))}
+              <span className="text-xs sm:text-sm text-gray-500 ml-1">...</span>
+            </div>
+          )}
 
           {/* Connection Status Indicator */}
           <div className="absolute top-3 sm:top-4 right-3 sm:right-4">
