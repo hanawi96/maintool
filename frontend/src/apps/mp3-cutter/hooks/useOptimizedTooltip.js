@@ -34,18 +34,34 @@ const DURATION_TOOLTIP_CONFIG = {
 
 // 🎯 **TOOLTIP CLAMPING CONSTANTS**
 const TOOLTIP_CLAMP_CONFIG = {
-  ESTIMATED_TOOLTIP_HALF_WIDTH: 15 // Minimal offset for tooltip centering
+  ESTIMATED_TOOLTIP_HALF_WIDTH: 5 // 🔧 **REDUCED PADDING**: Giảm từ 15px xuống 5px để tooltip gần left edge hơn
 };
 
 // 🔧 **TOOLTIP POSITION CLAMP UTILITY** - Clamp tooltip X position within waveform bounds
-const clampTooltipPosition = (x, waveformStartX, waveformEndX) => {
+const clampTooltipPosition = (x, waveformStartX, waveformEndX, tooltipType = 'default') => {
   const { ESTIMATED_TOOLTIP_HALF_WIDTH } = TOOLTIP_CLAMP_CONFIG;
   
-  // 🎯 **PERFECTLY SYMMETRIC BOUNDARIES**: Exact same offset from both edges
-  const leftBoundary = waveformStartX + ESTIMATED_TOOLTIP_HALF_WIDTH;
+  // 🎯 **DIFFERENT LOGIC FOR END POINT**: End point tooltip tính từ right edge
+  if (tooltipType === 'end') {
+    // 🔧 **END POINT LOGIC**: Tính khoảng cách từ right edge  
+    const distanceFromRightEdge = waveformEndX - x;
+    const minDistanceFromRight = ESTIMATED_TOOLTIP_HALF_WIDTH;
+    
+    // 🎯 **CLAMP FROM RIGHT**: Nếu quá gần right edge thì đẩy vào trong
+    if (distanceFromRightEdge < minDistanceFromRight) {
+      return waveformEndX - minDistanceFromRight;
+    }
+    
+    // 🔧 **STILL RESPECT LEFT BOUNDARY**: Vẫn phải tôn trọng left boundary
+    const leftBoundary = ESTIMATED_TOOLTIP_HALF_WIDTH; // 🔧 **ABSOLUTE LEFT**: Từ edge tuyệt đối
+    return Math.max(leftBoundary, x);
+  }
+  
+  // 🎯 **UPDATED LOGIC**: Tooltip cách absolute left edge chỉ 5px (không + handle width)
+  const leftBoundary = ESTIMATED_TOOLTIP_HALF_WIDTH; // 🔧 **ABSOLUTE LEFT**: 5px từ left edge tuyệt đối của canvas
   const rightBoundary = waveformEndX - ESTIMATED_TOOLTIP_HALF_WIDTH;
   
-  // 🔧 **SIMPLE CLAMP**: Keep tooltip centered within waveform area
+  // 🔧 **SIMPLE CLAMP**: Keep tooltip within absolute canvas bounds
   return Math.max(leftBoundary, Math.min(rightBoundary, x));
 };
 
@@ -133,10 +149,10 @@ export const useOptimizedTooltip = (canvasRef, duration, currentTime, isPlaying,
     const regionWidthPx = Math.abs(endX - startX);
     const shouldShowDurationTooltip = selectionDuration >= 0.1 && regionWidthPx >= DURATION_TOOLTIP_CONFIG.MINIMUM_REGION_WIDTH;
     
-    // 🎯 **CLAMP ALL TOOLTIP POSITIONS**: Keep within waveform bounds with 3px padding
-    const clampedStartX = clampTooltipPosition(startX, waveformStartX, waveformEndX);
-    const clampedEndX = clampTooltipPosition(endX, waveformStartX, waveformEndX);
-    const clampedDurationX = clampTooltipPosition(durationX, waveformStartX, waveformEndX);
+    // 🎯 **CLAMP ALL TOOLTIP POSITIONS**: Keep within waveform bounds with different logic for end point
+    const clampedStartX = clampTooltipPosition(startX, waveformStartX, waveformEndX, 'start');
+    const clampedEndX = clampTooltipPosition(endX, waveformStartX, waveformEndX, 'end');
+    const clampedDurationX = clampTooltipPosition(durationX, waveformStartX, waveformEndX, 'center');
     
     return {
       start: {
@@ -150,6 +166,7 @@ export const useOptimizedTooltip = (canvasRef, duration, currentTime, isPlaying,
         visible: true,
         x: clampedEndX,
         originalX: endX, // Keep original position for reference
+        rightX: waveformEndX - clampedEndX, // 🆕 **RIGHT-BASED POSITION**: Distance from right edge
         time: endTime,
         formattedTime: formatTime(endTime)
       },

@@ -153,12 +153,29 @@ export const WaveformUI = memo(({
     top: `${WAVEFORM_HEIGHT + TOOLTIP_OFFSETS.HANDLE}px`
   }), [handleTooltips?.start?.x, WAVEFORM_HEIGHT]);
 
-  const endTooltipStyle = useMemo(() => ({
-    ...TOOLTIP_STYLES.base,
-    ...TOOLTIP_STYLES.tooltip,
-    left: `${handleTooltips?.end?.x || 0}px`,
-    top: `${WAVEFORM_HEIGHT + TOOLTIP_OFFSETS.HANDLE}px`
-  }), [handleTooltips?.end?.x, WAVEFORM_HEIGHT]);
+  const endTooltipStyle = useMemo(() => {
+    // 🎯 **END TOOLTIP RIGHT-BASED**: Use rightX property for right-based positioning
+    const useRightPositioning = handleTooltips?.end?.rightX !== undefined;
+    
+    if (useRightPositioning) {
+      return {
+        ...TOOLTIP_STYLES.base,
+        ...TOOLTIP_STYLES.tooltip,
+        right: `${handleTooltips.end.rightX}px`, // 🔧 **RIGHT POSITIONING**: Distance from right edge
+        top: `${WAVEFORM_HEIGHT + TOOLTIP_OFFSETS.HANDLE}px`,
+        left: 'auto', // 🚫 **DISABLE LEFT**: Disable left positioning
+        transform: 'translateX(50%)' // 🔧 **REVERSE TRANSFORM**: Since we're positioning from right
+      };
+    }
+    
+    // 🔙 **FALLBACK**: Use left positioning if rightX not available
+    return {
+      ...TOOLTIP_STYLES.base,
+      ...TOOLTIP_STYLES.tooltip,
+      left: `${handleTooltips?.end?.x || 0}px`,
+      top: `${WAVEFORM_HEIGHT + TOOLTIP_OFFSETS.HANDLE}px`
+    };
+  }, [handleTooltips?.end?.x, handleTooltips?.end?.rightX, WAVEFORM_HEIGHT]);
 
   const durationTooltipStyle = useMemo(() => ({
     ...TOOLTIP_STYLES.base,
