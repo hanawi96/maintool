@@ -118,7 +118,7 @@ export const useInteractionHandlers = ({
   // 🎯 **OPTIMIZED MOUSE UP**
   const handleCanvasMouseUp = useCallback(() => {
     const manager = interactionManagerRef.current;
-    const result = manager.handleMouseUp(startTime, endTime, audioContext);
+    const result = manager.handleMouseUp(startTime, endTime, audioContext, duration);
     
     switch (result.action) {
       case 'completeDrag':
@@ -176,7 +176,7 @@ export const useInteractionHandlers = ({
     } else if (result.saveHistory && historySavedRef.current) {
       console.log(`🚫 [History] Pending handle update - history already saved, skipping duplicate`);
     }
-  }, [startTime, endTime, fadeIn, fadeOut, saveState, setIsDragging, audioRef, setCurrentTime, jumpToTime, setStartTime, setEndTime, interactionManagerRef, audioContext]);
+  }, [startTime, endTime, fadeIn, fadeOut, duration, saveState, setIsDragging, audioRef, setCurrentTime, jumpToTime, setStartTime, setEndTime, interactionManagerRef, audioContext]);
 
   // 🎯 **OPTIMIZED MOUSE LEAVE**
   const handleCanvasMouseLeave = useCallback(() => {

@@ -931,13 +931,22 @@ export class InteractionManager {
   /**
    * 🎯 Handle mouse up event
    */
-  handleMouseUp(startTime, endTime, audioContext = null) {
+  handleMouseUp(startTime, endTime, audioContext = null, duration = null) {
     const wasDragging = this.state === INTERACTION_STATES.DRAGGING;
     const wasConfirmedDrag = this.isDraggingConfirmed;
     const draggedHandle = this.activeHandle;
     const wasRegionDrag = this.isDraggingRegion;
     const hasPendingJump = this.hasPendingJump; // 🆕 **PENDING JUMP**: Check before reset
     const pendingJumpTime = this.pendingJumpTime; // 🆕 **STORE VALUE**: Store before reset
+    
+    // 🆕 **FULL DURATION REGION CHECK**: Kiểm tra nếu region đã cover toàn bộ audio
+    const isFullDurationRegion = duration !== null && 
+      Math.abs(startTime - 0) < 0.01 && 
+      Math.abs(endTime - duration) < 0.01;
+    
+    // 🆕 **SMART HISTORY LOGIC**: Không lưu history cho region drag toàn bộ duration
+    const executePendingHandleUpdate = this.hasPendingHandleUpdate && !wasConfirmedDrag && this.pendingHandleUpdate !== null;
+    const shouldSaveHistory = (wasConfirmedDrag && !(wasRegionDrag && isFullDurationRegion)) || executePendingHandleUpdate;
     
     if (wasDragging) {
       console.log(`🫳 [${this.debugId}] Drag completed (MODERN):`, {
@@ -946,7 +955,9 @@ export class InteractionManager {
         regionDrag: wasRegionDrag,
         finalRegion: `${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s`,
         hadPendingJump: hasPendingJump,
-        pendingJumpCanceled: wasConfirmedDrag // 🆕 **CANCELED IF DRAG**: Jump bị hủy nếu có drag
+        pendingJumpCanceled: wasConfirmedDrag, // 🆕 **CANCELED IF DRAG**: Jump bị hủy nếu có drag
+        isFullDurationRegion: isFullDurationRegion,
+        shouldSaveHistory: shouldSaveHistory
       });
       
       // 🆕 FINAL AUDIO SYNC: Different logic for region vs handle drag
@@ -991,7 +1002,6 @@ export class InteractionManager {
     
     // 🆕 **EXECUTE PENDING JUMP**: Execute delayed jump nếu không có confirmed drag
     let executePendingJump = false;
-    let executePendingHandleUpdate = false; // 🆕 **PENDING HANDLE UPDATE**: Track pending handle update execution
     let pendingHandleUpdateData = null;     // 🆕 **STORE DATA**: Store before reset
     
     if (hasPendingJump && !wasConfirmedDrag && pendingJumpTime !== null) {
@@ -1002,12 +1012,9 @@ export class InteractionManager {
     }
     
     // 🆕 **EXECUTE PENDING HANDLE UPDATE**: Execute delayed handle update nếu không có confirmed drag
-    if (this.hasPendingHandleUpdate && !wasConfirmedDrag && this.pendingHandleUpdate !== null) {
-      executePendingHandleUpdate = true;
+    if (executePendingHandleUpdate) {
       pendingHandleUpdateData = { ...this.pendingHandleUpdate }; // Store copy before reset
       console.log(`⚡ [${this.debugId}] EXECUTING delayed handle update: ${pendingHandleUpdateData.type} to ${pendingHandleUpdateData.newTime.toFixed(2)}s (no drag detected - safe to update)`);
-    } else if (this.hasPendingHandleUpdate && wasConfirmedDrag) {
-      console.log(`🚫 [${this.debugId}] CANCELED delayed handle update: ${this.pendingHandleUpdate?.type} to ${this.pendingHandleUpdate?.newTime?.toFixed(2)}s (drag was confirmed - anti-shock protection)`);
     }
     
     // 🆕 **RESET PENDING JUMP**: Reset pending jump state
@@ -1024,7 +1031,7 @@ export class InteractionManager {
     
     return {
       action: wasDragging ? 'completeDrag' : 'none',
-      saveHistory: wasConfirmedDrag || executePendingHandleUpdate, // 🆕 **LƯU HISTORY CHO HANDLE UPDATES**: Lưu history cho cả confirmed drag và pending handle updates
+      saveHistory: shouldSaveHistory, // 🆕 **LƯU HISTORY CHO HANDLE UPDATES**: Lưu history cho cả confirmed drag và pending handle updates
       cursor: this.lastHoveredHandle ? 'ew-resize' : 'pointer', // 🔧 **CURSOR LOGIC**: ew-resize for handle hover, pointer for default
       audioSynced: wasDragging && audioContext && (draggedHandle || wasRegionDrag) && wasConfirmedDrag,
       wasRegionDrag: wasRegionDrag, // 🆕 **FLAG**: Thông báo đã hoàn thành region drag
