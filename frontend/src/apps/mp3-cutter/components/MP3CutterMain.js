@@ -769,33 +769,44 @@ const MP3CutterMain = React.memo(() => {
         // 🔥 **INSTANT CURRENTTIME UPDATE** - Cập nhật ngay lập tức cho tooltip sync
         setCurrentTime(audioCurrentTime);
         
-        // 🆕 **INVERT MODE LOGIC**: Handle skipping region when in invert selection mode
+        // 🆕 **INVERT MODE LOGIC**: Smart playback with edge case handling
         if (isInverted && endTime > startTime) {
-          // 🚀 **SKIP REGION LOGIC**: When in invert mode, skip the region between handles
+          // 🚀 **SKIP REGION LOGIC**: When cursor reaches start point, skip to end
           if (audioCurrentTime >= startTime - 0.05 && audioCurrentTime < endTime) {
-            console.log(`⏭️ [InvertMode] Skipping region ${startTime.toFixed(2)}s → ${endTime.toFixed(2)}s, jumping to ${endTime.toFixed(2)}s`);
-            audioRef.current.currentTime = endTime;
-            setCurrentTime(endTime);
-            // ✅ **CONTINUE ANIMATION**: Let animation loop continue to track cursor after jump
+            const hasPostRegion = endTime < audioRef.current.duration;
+            
+            if (hasPostRegion) {
+              console.log(`⏭️ [InvertMode] Skipping region ${startTime.toFixed(2)}s → ${endTime.toFixed(2)}s, jumping to ${endTime.toFixed(2)}s`);
+              audioRef.current.currentTime = endTime;
+              setCurrentTime(endTime);
+            } else {
+              // 🎯 **NO POST REGION**: Stop at start point (end = duration)
+              console.log(`⏹️ [InvertMode] No post region - stopping at start point: ${startTime.toFixed(2)}s`);
+              audioRef.current.pause();
+              setIsPlaying(false);
+              audioRef.current.currentTime = startTime;
+              setCurrentTime(startTime);
+              return;
+            }
           }
           
           // 🎯 **END OF AUDIO LOGIC**: When reaching end of audio in invert mode
           if (audioCurrentTime >= audioRef.current.duration - 0.05) {
             const autoReturnEnabled = getAutoReturnSetting();
+            const preRegionStart = startTime >= 3 ? startTime - 3 : 0;
             
             if (autoReturnEnabled && audioRef.current) {
-              // ✅ **LOOP MODE**: Loop back to beginning (0s) and continue playing
-              console.log(`🔄 [InvertMode-Loop] Looping back to start: 0s`);
-              audioRef.current.currentTime = 0;
-              setCurrentTime(0);
-              // Continue playing
+              // ✅ **LOOP MODE**: Loop back to pre-region start
+              console.log(`🔄 [InvertMode-Loop] Looping back to pre-region start: ${preRegionStart.toFixed(2)}s`);
+              audioRef.current.currentTime = preRegionStart;
+              setCurrentTime(preRegionStart);
             } else if (audioRef.current) {
-              // ✅ **STOP MODE**: Pause and return to beginning
-              console.log(`⏹️ [InvertMode-Stop] Pausing and returning to start: 0s`);
+              // ✅ **STOP MODE**: Pause and return to pre-region start
+              console.log(`⏹️ [InvertMode-Stop] Pausing and returning to pre-region start: ${preRegionStart.toFixed(2)}s`);
               audioRef.current.pause();
               setIsPlaying(false);
-              audioRef.current.currentTime = 0;
-              setCurrentTime(0);
+              audioRef.current.currentTime = preRegionStart;
+              setCurrentTime(preRegionStart);
               return;
             }
           }
@@ -856,7 +867,7 @@ const MP3CutterMain = React.memo(() => {
         console.log('🧹 [MainAnimation] Cleaned up MAIN cursor animation');
       }
     };
-  }, [isPlaying, startTime, endTime, audioRef, setCurrentTime, setIsPlaying]);
+  }, [isPlaying, startTime, endTime, audioRef, setCurrentTime, setIsPlaying, isInverted]);
 
   // 🆕 **INITIAL CONFIG SYNC**: Only sync on startup and when selection changes (not fade values)
   const fadeConfigSyncedRef = useRef(false); // 🆕 **PREVENT MULTIPLE SYNCS**: Track if initial sync done
@@ -957,13 +968,9 @@ const MP3CutterMain = React.memo(() => {
     }
   }, [audioFile?.name, fileValidation, setAudioError, setIsPlaying]);
 
-  // 🆕 **INVERT SELECTION HANDLER**: Smart handler for inverting selection
+  // 🆕 **INVERT SELECTION HANDLER**: Smart handler for inverting selection with playback
   const handleInvertSelection = useCallback(() => {
     if (duration <= 0 || startTime >= endTime) return;
-    
-    console.log(`🔄 [InvertSelection] Toggling invert mode: ${isInverted ? 'ON' : 'OFF'} → ${!isInverted ? 'ON' : 'OFF'}`);
-    console.log(`📍 [InvertSelection] Selection region remains: ${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s`);
-    console.log(`🎨 [InvertSelection] Visual change: ${isInverted ? 'Purple=inside, Gray=outside' : 'Gray=inside, Purple=outside'} → ${!isInverted ? 'Purple=inside, Gray=outside' : 'Gray=inside, Purple=outside'}`);
     
     // 🎯 **HISTORY SAVE**: Save current state before inversion
     saveState({ startTime, endTime, fadeIn, fadeOut, isInverted });
@@ -972,23 +979,36 @@ const MP3CutterMain = React.memo(() => {
     const newInvertState = !isInverted;
     setIsInverted(newInvertState);
     
-    // 🆕 **SMART CURSOR MOVEMENT**: Move cursor based on invert mode change
-    let targetCursorTime;
+    // 🆕 **FORCE FADE CONFIG UPDATE**: Update fade config to ensure visual restoration
+    const newFadeConfig = {
+      fadeIn,
+      fadeOut,
+      startTime,
+      endTime,
+      isInverted: newInvertState, // 🔥 **USE NEW STATE**: Use the new invert state
+      duration
+    };
+    updateFadeConfig(newFadeConfig);
+    
+    // 🆕 **SMART PLAYBACK LOGIC**: Calculate playback segments with edge cases
     if (newInvertState) {
-      // 🎯 **ENABLING INVERT MODE**: Move cursor 3s before left handle
-      targetCursorTime = Math.max(0, startTime - 3);
-      console.log(`🎯 [InvertSelection] ENABLING invert mode - cursor jumping 3s before left handle: ${targetCursorTime.toFixed(2)}s`);
+      // 🎯 **ENABLING INVERT MODE**: Smart cursor positioning and playback
+      const preRegionStart = startTime >= 3 ? startTime - 3 : 0;
+      const hasPostRegion = endTime < duration;
+      
+      console.log(`🔄 [InvertSelection] ENABLING invert mode:`, {
+        preRegion: `${preRegionStart.toFixed(2)}s → ${startTime.toFixed(2)}s`,
+        skipRegion: `${startTime.toFixed(2)}s → ${endTime.toFixed(2)}s`,
+        postRegion: hasPostRegion ? `${endTime.toFixed(2)}s → ${duration.toFixed(2)}s` : 'NONE'
+      });
+      
+      jumpToTime(preRegionStart);
     } else {
-      // 🔙 **DISABLING INVERT MODE**: Move cursor to start point
-      targetCursorTime = startTime;
-      console.log(`🔙 [InvertSelection] DISABLING invert mode - cursor jumping to start point: ${targetCursorTime.toFixed(2)}s`);
+      // 🔙 **DISABLING INVERT MODE**: Return to normal
+      console.log(`🔙 [InvertSelection] DISABLING invert mode - returning to normal playback`);
+      jumpToTime(startTime);
     }
-    
-    jumpToTime(targetCursorTime);
-    
-    console.log(`✅ [InvertSelection] Invert mode ${newInvertState ? 'ENABLED' : 'DISABLED'} - waveform colors will update automatically`);
-    console.log(`🎯 [InvertSelection] Export will now process: ${newInvertState ? 'regions OUTSIDE handles' : 'region BETWEEN handles'}`);
-  }, [duration, startTime, endTime, isInverted, saveState, fadeIn, fadeOut, jumpToTime]);
+  }, [duration, startTime, endTime, isInverted, saveState, fadeIn, fadeOut, jumpToTime, updateFadeConfig]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-pink-50">

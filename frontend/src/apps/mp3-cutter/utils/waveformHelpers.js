@@ -38,9 +38,13 @@ export const calculateFadeMultiplier = (barTime, selectionStart, selectionEnd, f
     
     return Math.max(0.05, Math.min(1.0, fadeMultiplier));
   } else {
-    // 🎯 **NORMAL MODE**: Original logic
-    if (fadeInDuration <= 0 && fadeOutDuration <= 0) return 1.0;
+    // 🎯 **NORMAL MODE**: Enhanced logic with proper volume restoration
+    
+    // 🔥 **OUTSIDE REGION**: Always full volume for bars outside selection
     if (barTime < selectionStart || barTime > selectionEnd) return 1.0;
+    
+    // 🔥 **INSIDE REGION**: Apply fade effects if any, otherwise full volume
+    if (fadeInDuration <= 0 && fadeOutDuration <= 0) return 1.0;
     
     let fadeMultiplier = 1.0;
     const selectionDuration = selectionEnd - selectionStart;
@@ -50,19 +54,20 @@ export const calculateFadeMultiplier = (barTime, selectionStart, selectionEnd, f
       const fadeInEnd = selectionStart + Math.min(fadeInDuration, selectionDuration / 2);
       if (barTime <= fadeInEnd) {
         const fadeProgress = Math.max(0, (barTime - selectionStart) / fadeInDuration);
-        fadeMultiplier = Math.min(fadeMultiplier, fadeProgress);
+        fadeMultiplier = Math.min(fadeMultiplier, Math.max(0.05, fadeProgress));
       }
     }
     
-    // Fade out effect
+    // Fade out effect  
     if (fadeOutDuration > 0) {
       const fadeOutStart = selectionEnd - Math.min(fadeOutDuration, selectionDuration / 2);
       if (barTime >= fadeOutStart) {
         const fadeProgress = Math.max(0, (selectionEnd - barTime) / fadeOutDuration);
-        fadeMultiplier = Math.min(fadeMultiplier, fadeProgress);
+        fadeMultiplier = Math.min(fadeMultiplier, Math.max(0.05, fadeProgress));
       }
     }
     
+    // 🆕 **ENSURE MINIMUM VOLUME**: Never go below 0.05 to maintain visibility
     return Math.max(0.05, Math.min(1.0, fadeMultiplier));
   }
 };
