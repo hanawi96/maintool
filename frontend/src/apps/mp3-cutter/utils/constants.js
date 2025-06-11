@@ -195,5 +195,6 @@ export const API_ENDPOINTS = {
   CUT: '/api/mp3-cutter/cut',
   CUT_BY_FILE_ID: '/api/mp3-cutter/cut-by-fileid',
   CHANGE_SPEED_BY_FILEID: '/api/mp3-cutter/change-speed-by-fileid',
+  DETECT_SILENCE: '/api/mp3-cutter/detect-silence',
   DOWNLOAD: '/api/mp3-cutter/download'
 };

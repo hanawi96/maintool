@@ -19,6 +19,7 @@ import AudioErrorAlert from './AudioErrorAlert';
 import UnifiedControlBar from './UnifiedControlBar';
 import ConnectionErrorAlert from './ConnectionErrorAlert';
 import FileUploadSection from './FileUploadSection';
+import SilenceDetectionPanel from './UnifiedControlBar/SilenceDetectionPanel';
 
 // Import utils
 import { validateAudioFile, getAudioErrorMessage, getFormatDisplayName, generateCompatibilityReport, createSafeAudioURL, validateAudioURL } from '../utils/audioUtils';
@@ -126,10 +127,10 @@ const MP3CutterMain = React.memo(() => {
   const [isConnected, setIsConnected] = useState(null);
   const [connectionError, setConnectionError] = useState(null);
   const [audioError, setAudioError] = useState(null);
-  const [fileValidation, setFileValidation] = useState(null);
-  const [compatibilityReport, setCompatibilityReport] = useState(null);
-  // 🆕 **INVERT SELECTION STATE**: Track invert selection mode
+  const [fileValidation, setFileValidation] = useState(null);  const [compatibilityReport, setCompatibilityReport] = useState(null);  // 🆕 **INVERT SELECTION STATE**: Track invert selection mode
   const [isInverted, setIsInverted] = useState(false);
+  // 🆕 **SILENCE PANEL STATE**: Track silence detection panel visibility
+  const [isSilencePanelOpen, setIsSilencePanelOpen] = useState(false);
 
   // 🔥 **PERFORMANCE REFS**
   const animationStateRef = useRef({ isPlaying: false, startTime: 0, endTime: 0 });
@@ -1003,12 +1004,28 @@ const MP3CutterMain = React.memo(() => {
       });
       
       jumpToTime(preRegionStart);
-    } else {
-      // 🔙 **DISABLING INVERT MODE**: Return to normal
+    } else {    // 🔙 **DISABLING INVERT MODE**: Return to normal
       console.log(`🔙 [InvertSelection] DISABLING invert mode - returning to normal playback`);
       jumpToTime(startTime);
-    }
-  }, [duration, startTime, endTime, isInverted, saveState, fadeIn, fadeOut, jumpToTime, updateFadeConfig]);
+    }  }, [duration, startTime, endTime, isInverted, saveState, fadeIn, fadeOut, jumpToTime, updateFadeConfig]);
+  
+  // 🆕 **SILENCE PANEL TOGGLE HANDLER**: Handler to toggle silence detection panel
+  const handleToggleSilencePanel = useCallback(() => {
+    setIsSilencePanelOpen(prev => !prev);
+    console.log(`🔇 [SilencePanel] Toggle: ${isSilencePanelOpen ? 'OPEN' : 'CLOSED'} → ${!isSilencePanelOpen ? 'OPEN' : 'CLOSED'}`);
+    
+    // 🔍 **DEBUG**: Log audioFile structure for silence detection debugging
+    const computedFileId = audioFile?.filename || audioFile?.name;
+    console.log('🔍 [DEBUG] audioFile structure:', {
+      hasAudioFile: !!audioFile,
+      filename: audioFile?.filename,
+      name: audioFile?.name,
+      computedFileId: computedFileId,
+      shouldButtonBeDisabled: !computedFileId,
+      fileId: audioFile?.fileId,
+      keys: audioFile ? Object.keys(audioFile) : 'No audioFile'
+    });
+  }, [isSilencePanelOpen, audioFile]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-pink-50">
@@ -1072,11 +1089,22 @@ const MP3CutterMain = React.memo(() => {
               
               // 🚀 **REALTIME AUDIO ACCESS**: Direct audio element access cho ultra-smooth tooltips
               audioRef={audioRef}
-              
-              onMouseDown={handleCanvasMouseDown}
+                onMouseDown={handleCanvasMouseDown}
               onMouseMove={handleCanvasMouseMove}
               onMouseUp={handleCanvasMouseUp}
               onMouseLeave={handleCanvasMouseLeave}
+            />            {/* 🔇 SILENCE DETECTION PANEL - Inline panel below waveform */}            <SilenceDetectionPanel
+              fileId={audioFile?.filename || audioFile?.name}
+              duration={duration}
+              waveformData={waveformData}
+              onSilenceDetected={(data) => {
+                if (data) {
+                  console.log('🔇 [SilenceDetection] Data received:', data);
+                }
+              }}
+              disabled={!audioFile}
+              isOpen={isSilencePanelOpen}
+              onToggle={handleToggleSilencePanel}
             />
 
             {/* 🎯 UNIFIED CONTROLS - Single row layout with all controls */}
@@ -1097,10 +1125,18 @@ const MP3CutterMain = React.memo(() => {
               duration={duration}
               onStartTimeChange={handleStartTimeChange}
               onEndTimeChange={handleEndTimeChange}
-              
-              // 🆕 **INVERT SELECTION**: New prop for invert selection handler
+                // 🆕 **INVERT SELECTION**: New prop for invert selection handler
               onInvertSelection={handleInvertSelection}
-              isInverted={isInverted}
+              isInverted={isInverted}              // 🆕 **SILENCE DETECTION**: Props for silence detection
+              fileId={audioFile?.filename || audioFile?.name}
+              waveformData={waveformData}
+              onSilenceDetected={(data) => {
+                if (data) {
+                  console.log('🔇 [SilenceDetection] Data received:', data);
+                }
+              }}
+              isSilencePanelOpen={isSilencePanelOpen}
+              onToggleSilencePanel={handleToggleSilencePanel}
               
               // History props
               canUndo={canUndo}

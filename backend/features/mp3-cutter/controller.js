@@ -459,4 +459,53 @@ export class MP3Controller {
       });
     }
   }
+
+  /**
+   * 🔇 **DETECT SILENCE**: Detect and remove silent parts from audio file
+   */
+  static async detectSilence(req, res) {    try {
+      console.log('🔇 [detectSilence] Starting silence detection:', {
+        fileId: req.fileId,
+        silenceParams: req.silenceParams
+      });
+
+      const result = await MP3Service.detectSilenceByFileId(req.fileId, req.silenceParams);
+
+      console.log('✅ [detectSilence] Silence detection successful:', {
+        silentSegments: result.data?.silentSegments?.length || 0
+      });
+
+      res.json({
+        success: true,
+        message: 'Silence detection completed',
+        data: result,
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      console.error('❌ [detectSilence] Silence detection failed:', error);
+      
+      // 🎯 **DETAILED ERROR RESPONSE**: Provide specific error info
+      let statusCode = 500;
+      let errorMessage = error.message;
+      
+      if (error.message.includes('File not found') || error.message.includes('ENOENT')) {
+        statusCode = 404;
+        errorMessage = 'Audio file not found. Please upload the file again.';
+      } else if (error.message.includes('Invalid threshold') || error.message.includes('Invalid minDuration')) {
+        statusCode = 400;
+        errorMessage = 'Invalid silence detection parameters.';
+      } else if (error.message.includes('FFmpeg') || error.message.includes('Silence detection failed')) {
+        statusCode = 500;
+        errorMessage = 'Silence detection failed. Please try again with different parameters.';
+      }
+
+      res.status(statusCode).json({
+        success: false,
+        error: errorMessage,
+        originalError: error.message,
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
 }

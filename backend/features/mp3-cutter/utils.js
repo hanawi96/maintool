@@ -932,4 +932,94 @@ export class MP3Utils {
     
     return atempoFilters.join(',');
   }
+
+  /**
+   * 🔇 **DETECT AND REMOVE SILENCE**: Detect and remove silent parts from audio using FFmpeg
+   */
+  static async detectAndRemoveSilence(inputPath, outputPath, options = {}) {
+    const {
+      threshold = -40, // dB
+      minDuration = 0.5, // seconds
+      format = 'mp3',
+      quality = 'medium'
+    } = options;
+
+    console.log('🔇 [detectAndRemoveSilence] Starting silence detection and removal:', {
+      input: inputPath,
+      output: outputPath,
+      threshold: threshold + 'dB',
+      minDuration: minDuration + 's'
+    });
+
+    return new Promise((resolve, reject) => {
+      try {
+        // 🔇 **SILENCE DETECTION FILTER**: Use FFmpeg silencedetect and silenceremove filters
+        const silenceDetectFilter = `silencedetect=noise=${threshold}dB:d=${minDuration}`;
+        const silenceRemoveFilter = `silenceremove=window=0:detection=peak:stop_mode=all:start_threshold=${threshold}dB:stop_threshold=${threshold}dB:start_silence=${minDuration}:stop_silence=${minDuration}`;
+        
+        let command = ffmpeg(inputPath);
+        
+        // Apply silence removal filter
+        command = command.audioFilters([silenceRemoveFilter]);
+        
+        // Set output quality
+        command = this.setOutputQuality(command, format, quality);
+
+        let silentSegments = [];
+
+        command
+          .output(outputPath)
+          .on('start', (commandLine) => {
+            console.log('🔇 [detectAndRemoveSilence] FFmpeg command starting:', commandLine);
+          })
+          .on('stderr', (stderrLine) => {
+            // Parse silence detection output
+            if (stderrLine.includes('silencedetect')) {
+              console.log('🔇 [detectAndRemoveSilence] Silence detected:', stderrLine);
+              
+              // Extract silence start/end times from stderr
+              const silenceStartMatch = stderrLine.match(/silence_start: ([\d.]+)/);
+              const silenceEndMatch = stderrLine.match(/silence_end: ([\d.]+)/);
+              
+              if (silenceStartMatch && silenceEndMatch) {
+                const start = parseFloat(silenceStartMatch[1]);
+                const end = parseFloat(silenceEndMatch[1]);
+                silentSegments.push({ start, end, duration: end - start });
+              }
+            }
+          })
+          .on('progress', (progress) => {
+            const percent = Math.round(progress.percent || 0);
+            console.log(`🔇 [detectAndRemoveSilence] Progress: ${percent}%`);
+          })
+          .on('error', (error) => {
+            console.error('❌ [detectAndRemoveSilence] FFmpeg error:', error);
+            reject(new Error(`Silence detection failed: ${error.message}`));
+          })
+          .on('end', () => {
+            console.log('✅ [detectAndRemoveSilence] Silence removal completed successfully');
+            console.log('🔇 [detectAndRemoveSilence] Silent segments found:', silentSegments);
+            
+            resolve({
+              success: true,
+              outputPath,
+              inputPath,
+              silentSegments,
+              settings: {
+                threshold,
+                minDuration,
+                format,
+                quality,
+                segmentsRemoved: silentSegments.length
+              }
+            });
+          })
+          .run();
+
+      } catch (error) {
+        console.error('❌ [detectAndRemoveSilence] Setup failed:', error);
+        reject(new Error(`Failed to setup silence detection: ${error.message}`));
+      }
+    });
+  }
 }

@@ -27,9 +27,15 @@ const UnifiedControlBar = React.memo(({
   
   // 🆕 **INVERT SELECTION**: New prop for invert selection handler
   onInvertSelection,
-  
-  // 🆕 **INVERT STATE**: Prop to track if invert mode is active
+    // 🆕 **INVERT STATE**: Prop to track if invert mode is active
   isInverted = false,
+  
+  // 🆕 **SILENCE DETECTION**: Props for silence detection
+  fileId,
+  waveformData = [],
+  onSilenceDetected,
+  isSilencePanelOpen = false,
+  onToggleSilencePanel,
   
   // History props
   canUndo,
@@ -321,7 +327,6 @@ const UnifiedControlBar = React.memo(({
       </div>
     );
   }, [playbackRate, handleSpeedChange, resetSpeed, disabled]);
-
   // 🆕 **INVERT SELECTION SECTION** - Separate section with border
   const InvertSelectionSection = useMemo(() => (
     <div className="flex items-center gap-2 px-3 border-r border-slate-300/50">
@@ -347,8 +352,31 @@ const UnifiedControlBar = React.memo(({
           <div className="absolute -top-1 -right-1 w-2 h-2 bg-indigo-500 rounded-full shadow-sm"></div>
         )}
       </button>
+      
+      {/* 🆕 **SILENCE DETECTION BUTTON** - Simple toggle button */}
+      <button
+        onClick={onToggleSilencePanel}
+        disabled={disabled || !fileId}
+        className={`relative p-2 rounded-lg transition-all duration-200 group ${
+          isSilencePanelOpen 
+            ? 'bg-red-100 hover:bg-red-200 border border-red-300' 
+            : 'bg-slate-100 hover:bg-slate-200 border border-slate-300'
+        } disabled:opacity-50 disabled:cursor-not-allowed`}
+        title="Silence Detection - Remove silent parts"
+      >
+        <VolumeX className={`w-4 h-4 transition-colors ${
+          isSilencePanelOpen 
+            ? 'text-red-700 group-hover:text-red-800' 
+            : 'text-slate-700 group-hover:text-slate-900'
+        } group-disabled:text-slate-400`} />
+        
+        {/* 🎯 **ACTIVE INDICATOR** - Visual dot when panel is open */}
+        {isSilencePanelOpen && (
+          <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full shadow-sm"></div>
+        )}
+      </button>
     </div>
-  ), [handleInvertSelection, disabled, duration, startTime, endTime, isInverted]);
+  ), [handleInvertSelection, disabled, duration, startTime, endTime, isInverted, fileId, isSilencePanelOpen, onToggleSilencePanel]);
 
   // 🎯 **HISTORY CONTROLS SECTION** - Memoized with badge counters, updated borders
   const HistoryControlsSection = useMemo(() => (

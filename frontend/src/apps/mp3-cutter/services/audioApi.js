@@ -397,5 +397,61 @@ export const audioApi = {
       console.error('❌ [changeAudioSpeedByFileId] Response parsing failed:', parseError);
       throw new Error(`Speed change response parsing failed: ${parseError.message}`);
     }
-  }
+  },
+
+  // 🔇 **SILENCE DETECTION**: Detect and remove silent parts from audio
+  async detectSilence(params) {
+    console.log('🔇 [detectSilence] Starting silence detection:', params);
+
+    // 🔍 **VALIDATE PARAMS**: Check required parameters
+    if (!params.fileId) {
+      throw new Error('fileId is required for silence detection');
+    }
+
+    if (!params.threshold || params.threshold < -60 || params.threshold > -10) {
+      throw new Error('threshold must be between -60dB and -10dB');
+    }
+
+    if (!params.minDuration || params.minDuration < 0.1 || params.minDuration > 10) {
+      throw new Error('minDuration must be between 0.1s and 10s');
+    }
+
+    const silenceUrl = `${API_BASE_URL}${API_ENDPOINTS.DETECT_SILENCE}`;
+    console.log('🔇 [detectSilence] Silence detection URL:', silenceUrl);
+    
+    let response;
+    try {
+      response = await fetch(silenceUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(params)
+      });
+      
+      console.log('📡 [detectSilence] Response received:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok
+      });
+      
+    } catch (networkError) {
+      console.error('🌐 [detectSilence] Network error:', networkError);
+      throw new Error(`Network error: ${networkError.message}. Please check if backend is running on ${API_BASE_URL}`);
+    }
+
+    if (!response.ok) {
+      await handleApiError(response, 'Silence Detection');
+    }
+    
+    // 🎯 Safe JSON parsing
+    try {
+      const result = await safeJsonParse(response);
+      console.log('✅ [detectSilence] Silence detection successful:', result);
+      return result;
+    } catch (parseError) {
+      console.error('❌ [detectSilence] Response parsing failed:', parseError);
+      throw new Error(`Silence detection response parsing failed: ${parseError.message}`);
+    }
+  },
 };

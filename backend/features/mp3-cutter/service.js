@@ -461,4 +461,121 @@ export class MP3Service {
     
     return result;
   }
+
+  /**
+   * 🔇 **DETECT SILENCE BY FILE ID**: Detect silent parts in audio file
+   */
+  static async detectSilenceByFileId(fileId, silenceParams) {
+    const { threshold = -40, minDuration = 0.5, duration } = silenceParams;
+    
+    console.log('🔇 [detectSilenceByFileId] Looking for file:', fileId);
+    
+    // 🔍 **FIND INPUT FILE**: Find uploaded file by fileId
+    const inputPath = path.resolve(MP3_CONFIG.PATHS.UPLOADS, fileId);
+    console.log('🔇 [detectSilenceByFileId] Input path (absolute):', inputPath);
+    
+    try {
+      // 🔍 **CHECK FILE EXISTS**: Verify file exists
+      await fs.access(inputPath);
+      console.log('✅ [detectSilenceByFileId] Input file found:', inputPath);
+    } catch (error) {
+      console.error('❌ [detectSilenceByFileId] Input file not found:', {
+        fileId,
+        inputPath,
+        error: error.message
+      });
+      throw new Error(`File not found: ${fileId}. Please upload the file again.`);
+    }
+    
+    // 🔍 **GET FILE STATS**: Get file information
+    const inputStats = await fs.stat(inputPath);
+    
+    // 🆕 **GENERATE OUTPUT FILENAME**: Create filename for processed file
+    const timestamp = Date.now();
+    const random = Math.random().toString(36).substring(2, 6);
+    const originalName = path.parse(fileId).name;
+    const outputFilename = `silence_removed_${originalName}_${timestamp}_${random}.mp3`;
+    const outputPath = path.resolve(MP3_CONFIG.PATHS.PROCESSED, outputFilename);
+    
+    console.log('📁 [detectSilenceByFileId] File paths:', {
+      input: inputPath,
+      output: outputPath,
+      outputFilename,
+      threshold,
+      minDuration
+    });
+    
+    // 🔧 **ENSURE OUTPUT DIR**: Ensure output directory exists
+    const outputDir = path.resolve(MP3_CONFIG.PATHS.PROCESSED);
+    await fs.mkdir(outputDir, { recursive: true });
+    console.log('📁 [detectSilenceByFileId] Output directory ensured:', outputDir);
+    
+    console.log('🔇 [detectSilenceByFileId] Starting silence detection:', {
+      input: inputPath,
+      output: outputPath,
+      silenceParams: { threshold, minDuration, duration }
+    });
+    
+    // 🚀 **DETECT AND REMOVE SILENCE**: Use FFmpeg to detect and remove silent parts
+    const silenceResult = await MP3Utils.detectAndRemoveSilence(inputPath, outputPath, {
+      threshold,
+      minDuration,
+      format: 'mp3',
+      quality: 'high'
+    });
+    
+    // 🔍 **VERIFY OUTPUT FILE**: Check if output file was created
+    try {
+      await fs.access(outputPath);
+      console.log('✅ [detectSilenceByFileId] Output file created successfully:', outputPath);
+    } catch (error) {
+      console.error('❌ [detectSilenceByFileId] Output file not created:', {
+        outputPath,
+        error: error.message
+      });
+      throw new Error(`Silence detection failed: Output file not created`);
+    }
+    
+    // 🔍 **GET OUTPUT STATS**: Get output file information
+    const outputStats = await fs.stat(outputPath);
+    
+    // 🧹 **AUTO CLEANUP**: Auto cleanup after 24 hours
+    setTimeout(() => {
+      fs.unlink(outputPath).catch(() => {
+        console.log('📁 [detectSilenceByFileId] Auto cleanup completed for:', outputFilename);
+      });
+    }, 24 * 60 * 60 * 1000);
+    
+    console.log('✅ [detectSilenceByFileId] Silence detection completed successfully:', {
+      outputFilename,
+      outputPath,
+      outputSize: outputStats.size,
+      threshold,
+      minDuration
+    });
+      // 🎯 **RETURN STANDARDIZED RESULT**: Return result with standard format
+    return {
+      input: {
+        filename: fileId,
+        originalName: originalName,
+        path: inputPath,
+        size: inputStats.size
+      },
+      output: {
+        filename: outputFilename,
+        path: outputPath,
+        size: outputStats.size
+      },
+      processing: { 
+        threshold,
+        minDuration,
+        duration,
+        silentSegments: silenceResult.silentSegments || []
+      },
+      urls: {
+        download: `/api/mp3-cutter/download/${outputFilename}`
+      },
+      processedAt: new Date().toISOString()
+    };
+  }
 }
