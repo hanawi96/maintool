@@ -1100,6 +1100,7 @@ const MP3CutterMain = React.memo(() => {
               
               // 🆕 **INVERT SELECTION**: New prop for invert selection handler
               onInvertSelection={handleInvertSelection}
+              isInverted={isInverted}
               
               // History props
               canUndo={canUndo}
