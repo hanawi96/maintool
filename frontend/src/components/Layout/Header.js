@@ -2,10 +2,19 @@ import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Scissors, Music, Volume2, Download, FileAudio, Settings, Sun, Moon } from 'lucide-react';
 import { useTheme } from '../../shared/ThemeContext';
+import { preloadOnHover } from '../../utils/preloader';
 
 const Header = () => {
   const location = useLocation();
   const { toggleTheme, isDark } = useTheme();
+
+  // 🎯 Handle hover preloading
+  const handleNavHover = (path) => {
+    const pageName = path.replace('/', '') || 'home';
+    if (pageName !== 'home') {
+      preloadOnHover(pageName);
+    }
+  };
 
   const navItems = [
     { path: '/', label: 'Trang chủ', icon: null },
@@ -40,6 +49,7 @@ const Header = () => {
                 <Link
                   key={item.path}
                   to={item.path}
+                  onMouseEnter={() => handleNavHover(item.path)}
                   className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
                     isActive
                       ? 'bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 shadow-sm'
@@ -101,4 +111,4 @@ const Header = () => {
   );
 };
 
-export default Header; 
+export default Header;

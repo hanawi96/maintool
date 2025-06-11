@@ -1,8 +1,14 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Scissors, Music, Volume2, Download, FileAudio, Settings, Play, ArrowRight } from 'lucide-react';
+import { preloadCriticalPages } from '../utils/preloader';
 
 const HomePage = () => {
+  // 🚀 Preload critical pages after homepage loads
+  useEffect(() => {
+    preloadCriticalPages();
+  }, []);
+
   const categories = [
     {
       id: 'cut-mp3',
@@ -187,4 +193,4 @@ const HomePage = () => {
   );
 };
 
-export default HomePage; 
+export default HomePage;
