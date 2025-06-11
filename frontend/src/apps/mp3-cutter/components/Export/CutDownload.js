@@ -77,6 +77,20 @@ const CutDownload = ({
       return;
     }
 
+    // 🚫 **NO ACTIVE REGIONS CHECK**: Validate invert mode before other checks
+    if (isInverted && audioFile?.duration) {
+      // 🎯 **TOTAL DURATION CHECK**: Check total duration of active regions
+      const active1Duration = startTime; // 0 → startTime
+      const active2Duration = Math.max(0, audioFile.duration - endTime); // endTime → duration
+      const totalActiveRegionDuration = active1Duration + active2Duration;
+      
+      if (totalActiveRegionDuration < 0.1) {
+        const error = 'Please select a cut length greater than 0.1 seconds.';
+        setProcessingError(error);
+        return;
+      }
+    }
+
     if (startTime >= endTime) {
       const error = 'Please select a valid time range (start time must be less than end time)';
       setProcessingError(error);
@@ -259,6 +273,23 @@ const CutDownload = ({
         className: 'bg-gray-300 text-gray-500 cursor-not-allowed'
       };
     }
+
+    // 🚫 **NO ACTIVE REGIONS**: Check for no active regions in invert mode
+    if (isInverted && audioFile?.duration) {
+      // 🎯 **TOTAL DURATION CHECK**: Check total duration of active regions
+      const active1Duration = startTime; // 0 → startTime
+      const active2Duration = Math.max(0, audioFile.duration - endTime); // endTime → duration
+      const totalActiveRegionDuration = active1Duration + active2Duration;
+      
+      if (totalActiveRegionDuration < 0.1) {
+        return {
+          variant: 'disabled',
+          icon: AlertCircle,
+          text: 'No Active Regions',
+          className: 'bg-orange-300 text-orange-700 cursor-not-allowed'
+        };
+      }
+    }
     
     if (isProcessing) {
       return {
@@ -332,21 +363,12 @@ const CutDownload = ({
           <div className="grid grid-cols-2 gap-2">
             <div>Duration: {formatTimeUnified(isInverted ? 
               (() => {
-                // 🧠 **SMART DURATION CALCULATION**: Calculate active segments duration
+                // 🧠 **SMART DURATION CALCULATION**: Calculate total active regions duration
                 const active1Duration = startTime; // 0 → startTime
                 const active2Duration = Math.max(0, audioFile.duration - endTime); // endTime → duration
-                const hasActive1 = active1Duration > 0;
-                const hasActive2 = active2Duration > 0;
+                const totalActiveRegionDuration = active1Duration + active2Duration;
                 
-                if (hasActive1 && hasActive2) {
-                  return active1Duration + active2Duration; // Both segments
-                } else if (hasActive1) {
-                  return active1Duration; // Only segment 1
-                } else if (hasActive2) {
-                  return active2Duration; // Only segment 2
-                } else {
-                  return 0; // No segments (error case)
-                }
+                return totalActiveRegionDuration >= 0.1 ? totalActiveRegionDuration : 0;
               })() : 
               (endTime - startTime) // 🎯 **NORMAL MODE**: Original calculation
             )}</div>
@@ -354,13 +376,26 @@ const CutDownload = ({
             <div>Format: {outputFormat?.toUpperCase() || 'MP3'}</div>
             <div>Mode: {isInverted ? 'Invert (Remove)' : 'Normal (Keep)'}</div>
           </div>
-          {isInverted && (
-            <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-700">
-              <div className="font-medium">🔄 Invert Mode Active</div>
-              <div>Will export segments outside the selected region</div>
-              <div>Will remove: {formatTimeUnified(startTime)}-{formatTimeUnified(endTime)} (silence region)</div>
-            </div>
-          )}
+        </div>
+      )}
+
+      {/* 🚫 **NO ACTIVE REGIONS WARNING**: Show warning when no active regions in invert mode */}
+      {audioFile && isInverted && (() => {
+        // 🎯 **TOTAL DURATION CHECK**: Check total duration of active regions
+        const active1Duration = startTime; // 0 → startTime
+        const active2Duration = Math.max(0, audioFile.duration - endTime); // endTime → duration
+        const totalActiveRegionDuration = active1Duration + active2Duration;
+        
+        return totalActiveRegionDuration < 0.1;
+      })() && (
+        <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+          <div className="flex items-center gap-2 text-orange-700">
+            <AlertCircle className="w-4 h-4" />
+            <span className="font-medium">Cut Length Too Short</span>
+          </div>
+          <p className="text-orange-600 text-sm mt-1">
+            Please select a cut length greater than 0.1 seconds.
+          </p>
         </div>
       )}
 

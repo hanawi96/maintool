@@ -74,8 +74,34 @@ export class MP3Utils {
     });
 
     // 🆕 **INVERT MODE LOGIC**: Handle concatenation for invert mode
-    if (isInverted && endTime && startTime > 0) {
-      console.log('🔄 [cutAudio] INVERT MODE: Processing concatenation logic');
+    if (isInverted && endTime) {
+      // 🧠 **GET AUDIO DURATION**: Get total duration to calculate active regions
+      const audioInfo = await this.getAudioInfo(inputPath);
+      const totalDuration = audioInfo.duration;
+      
+      // 🎯 **SMART SEGMENT CALCULATION**: Calculate which segments would be active
+      const active1Duration = startTime; // 0 → startTime
+      const active2Duration = totalDuration - endTime; // endTime → duration
+      
+      // 🎯 **TOTAL DURATION CHECK**: Check total duration of active regions
+      const totalActiveRegionDuration = active1Duration + active2Duration;
+      
+      // 🚫 **NO ACTIVE REGIONS CHECK**: If total duration < 0.1s, throw error
+      if (totalActiveRegionDuration < 0.1) {
+        console.log('🚫 [cutAudio] INVERT MODE ERROR: Total active regions duration < 0.1s');
+        throw new Error('Please select a cut length greater than 0.1 seconds.');
+      }
+      
+      // 🎯 **INDIVIDUAL SEGMENT CHECK**: For processing logic
+      const hasActive1 = active1Duration > 0;
+      const hasActive2 = active2Duration > 0;
+      
+      console.log('🔄 [cutAudio] INVERT MODE: Processing concatenation logic with active regions:', {
+        hasActive1,
+        hasActive2,
+        active1Duration: active1Duration.toFixed(2) + 's',
+        active2Duration: active2Duration.toFixed(2) + 's'
+      });
       return this.cutAudioInvertMode(inputPath, outputPath, options);
     }
 
@@ -663,6 +689,15 @@ export class MP3Utils {
     const active1Duration = startTime; // 0 → startTime
     const active2Duration = totalDuration - endTime; // endTime → duration
     
+    // 🎯 **TOTAL DURATION CHECK**: Check total duration of active regions
+    const totalActiveRegionDuration = active1Duration + active2Duration;
+    
+    // 🚫 **ERROR CHECK**: Total duration too short
+    if (totalActiveRegionDuration < 0.1) {
+      throw new Error('Please select a cut length greater than 0.1 seconds.');
+    }
+    
+    // 🎯 **INDIVIDUAL SEGMENT CHECK**: For processing logic
     const hasActive1 = active1Duration > 0;
     const hasActive2 = active2Duration > 0;
 
