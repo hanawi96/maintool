@@ -1,5 +1,5 @@
 // 📄 src/apps/mp3-cutter/components/Waveform/WaveformCanvas.js
-import React, { useEffect, useCallback, useMemo } from 'react';
+import React, { useEffect, useCallback, useMemo, useRef } from 'react';
 import { WAVEFORM_CONFIG } from '../../utils/constants';
 import { WaveformUI } from './WaveformUI';
 import { useOptimizedTooltip } from '../../hooks/useOptimizedTooltip';
@@ -33,6 +33,10 @@ const WaveformCanvas = React.memo(({
   onMouseUp,
   onMouseLeave
 }) => {
+
+  // 🚀 **BACKGROUND CANVAS CACHE**: Separate canvas for static gray background
+  const backgroundCacheRef = useRef(null);
+  const lastCacheKey = useRef(null);
 
   // 🚀 **OPTIMIZED TOOLTIP HOOK** - Bao gồm main cursor tooltip
   const {
@@ -276,7 +280,72 @@ const WaveformCanvas = React.memo(({
     }
   }, []);
 
-  // 🎯 **OPTIMIZED DRAW FUNCTION**: Ultra-fast rendering without flicker
+  // 🚀 **BACKGROUND CACHE CREATOR**: Create cached background waveform (gray bars only)
+  const createBackgroundCache = useCallback((waveformData, width, height, containerWidth) => {
+    if (!waveformData?.length || width <= 0 || height <= 0) return null;
+    
+    // 🔧 **HANDLE SPACE CALCULATION**: Same logic as main canvas
+    const { MODERN_HANDLE_WIDTH } = WAVEFORM_CONFIG;
+    const responsiveHandleWidth = containerWidth < WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT ? 
+      Math.max(3, MODERN_HANDLE_WIDTH * 0.75) : MODERN_HANDLE_WIDTH;
+    
+    const leftHandleWidth = responsiveHandleWidth;
+    const rightHandleWidth = responsiveHandleWidth;
+    const waveformStartX = leftHandleWidth;
+    const waveformEndX = width - rightHandleWidth;
+    const availableWaveformWidth = waveformEndX - waveformStartX;
+    
+    if (availableWaveformWidth <= 0) return null;
+    
+    // 🎯 **CREATE BACKGROUND CANVAS**: Temporary canvas for background rendering
+    const bgCanvas = document.createElement('canvas');
+    bgCanvas.width = width;
+    bgCanvas.height = height;
+    const bgCtx = bgCanvas.getContext('2d');
+    
+    // 🚀 **PERFORMANCE SETUP**: GPU acceleration
+    bgCtx.imageSmoothingEnabled = false;
+    
+    // 1. **BACKGROUND GRADIENT**: Match main canvas
+    const gradient = bgCtx.createLinearGradient(0, 0, 0, height);
+    gradient.addColorStop(0, 'rgba(99, 102, 241, 0.04)');
+    gradient.addColorStop(1, 'rgba(168, 85, 247, 0.04)');
+    bgCtx.fillStyle = gradient;
+    bgCtx.fillRect(waveformStartX, 0, availableWaveformWidth, height);
+    
+    // 🔧 **BORDER**: Match main canvas
+    bgCtx.strokeStyle = '#cbd5e1';
+    bgCtx.lineWidth = 1;
+    bgCtx.strokeRect(waveformStartX, 0, availableWaveformWidth, height);
+    
+    // 2. **GRAY WAVEFORM BARS ONLY**: Render all bars in gray (background)
+    const centerY = height / 2;
+    const FLAT_BAR_HEIGHT_PX = 1;
+    const MAX_SCALING_PX = 65;
+    const adjustedBarWidth = availableWaveformWidth / waveformData.length;
+    
+    bgCtx.fillStyle = '#cbd5e1'; // 🔧 **STATIC GRAY**: All background bars are gray
+    
+    for (let i = 0; i < waveformData.length; i++) {
+      const value = waveformData[i];
+      const effectiveBarHeight = FLAT_BAR_HEIGHT_PX + (MAX_SCALING_PX * value);
+      const x = waveformStartX + (i * adjustedBarWidth);
+      
+      bgCtx.fillRect(Math.floor(x), centerY - effectiveBarHeight, adjustedBarWidth, effectiveBarHeight * 2);
+    }
+    
+    // 🚀 **CREATE IMAGEBITMAP**: Convert to ImageBitmap for ultra-fast drawImage
+    return createImageBitmap(bgCanvas);
+  }, []);
+
+  // 🎯 **CACHE KEY GENERATOR**: Detect when background needs re-caching
+  const generateCacheKey = useCallback((renderData, containerWidth) => {
+    if (!renderData?.waveformData) return null;
+    
+    return `${renderData.waveformData.length}-${renderData.containerWidth || containerWidth}-${renderData.mode || 'default'}`;
+  }, []);
+
+  // 🚀 **OPTIMIZED DRAW FUNCTION**: Ultra-fast rendering with cached background  
   const drawWaveform = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas || !renderData) return;
@@ -286,34 +355,8 @@ const WaveformCanvas = React.memo(({
     
     // 🚀 **PERFORMANCE SETUP**: GPU acceleration
     ctx.imageSmoothingEnabled = false;
-    
-    // 🎯 **SMART CLEAR**: Only clear if actually needed
     ctx.clearRect(0, 0, width, height);
     
-    // 🔧 **HANDLE SPACE ADJUSTMENT**: Reserve space for handles (8px each side)
-    const { MODERN_HANDLE_WIDTH } = WAVEFORM_CONFIG;
-    const responsiveHandleWidth = containerWidth < WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT ? 
-      Math.max(3, MODERN_HANDLE_WIDTH * 0.75) : MODERN_HANDLE_WIDTH;
-    
-    const leftHandleWidth = responsiveHandleWidth;
-    const rightHandleWidth = responsiveHandleWidth;
-    const waveformStartX = leftHandleWidth; // Start after left handle
-    const waveformEndX = width - rightHandleWidth; // End before right handle
-    const availableWaveformWidth = waveformEndX - waveformStartX;
-    
-    // 1. **BACKGROUND GRADIENT**: 🔧 **FIXED ALIGNMENT** - Match waveform bars rendering area
-    const gradient = ctx.createLinearGradient(0, 0, 0, height);
-    gradient.addColorStop(0, 'rgba(99, 102, 241, 0.04)');
-    gradient.addColorStop(1, 'rgba(168, 85, 247, 0.04)');
-    ctx.fillStyle = gradient;
-    ctx.fillRect(waveformStartX, 0, availableWaveformWidth, height);
-    
-    // 🔧 **ALIGNED BORDER**: Draw border to match waveform rendering area
-    ctx.strokeStyle = '#cbd5e1'; // Same as CSS border-slate-200
-    ctx.lineWidth = 1;
-    ctx.strokeRect(waveformStartX, 0, availableWaveformWidth, height);
-    
-    // 2. **WAVEFORM BARS**: Ultra-optimized rendering with hybrid system
     const { 
       waveformData, 
       duration, 
@@ -322,99 +365,83 @@ const WaveformCanvas = React.memo(({
       volume: currentVolume, 
       fadeIn: currentFadeIn, 
       fadeOut: currentFadeOut,
-      isInverted // 🆕 **INVERT MODE**: Get invert state from renderData
+      isInverted
     } = renderData;
     
-    const centerY = height / 2;
-    
-    // 🚀 **DEBUG LOG**: Add console.log for debugging if needed
-    if (Math.random() < 0.001) { // Log very rarely to avoid spam
-      console.log(`🔧 [WAVEFORM-RENDER-FIX] Waveform rendering area:`, {
-        canvasWidth: width + 'px',
-        leftHandleWidth: leftHandleWidth + 'px', 
-        rightHandleWidth: rightHandleWidth + 'px',
-        waveformStartX: waveformStartX + 'px',
-        waveformEndX: waveformEndX + 'px',
-        availableWaveformWidth: availableWaveformWidth + 'px',
-        fix: 'Background and border now match waveform bars area'
-      });
+    // 1. **DRAW CACHED BACKGROUND**: Ultra-fast single drawImage call
+    if (backgroundCacheRef.current) {
+      ctx.drawImage(backgroundCacheRef.current, 0, 0);
     }
     
-    // 🎯 **VOLUME SYSTEM**: Perfect linear scaling
-    const FLAT_BAR_HEIGHT_PX = 1;
-    const MAX_SCALING_PX = 65;
-    const volumePercent = Math.max(0, Math.min(100, currentVolume * 100));
-    const volumeStep = volumePercent / 2;
-    const scalingPixels = volumeStep * (MAX_SCALING_PX / 50);
-    const absoluteBarHeightPx = FLAT_BAR_HEIGHT_PX + scalingPixels;
-    const waveformVariation = Math.max(0, Math.min(1, currentVolume));
-    
-    // 🔧 **DEBUG WAVEFORM HEIGHT**: Log để debug height inconsistency
-    if (Math.random() < 0.001) { // Log very rarely
-      console.log(`🔧 [WaveformHeight-DEBUG] Height calculation details:`, {
-        currentVolume: currentVolume.toFixed(3),
-        volumePercent: volumePercent.toFixed(1) + '%',
-        volumeStep: volumeStep.toFixed(1),
-        scalingPixels: scalingPixels.toFixed(1) + 'px',
-        absoluteBarHeightPx: absoluteBarHeightPx.toFixed(1) + 'px',
-        waveformVariation: waveformVariation.toFixed(3),
-        waveformDataLength: waveformData.length,
-        note: 'Tracking height consistency between initial load and completion'
-      });
-    }
-    
-    // 🚀 **HYBRID RENDERING**: Use fixed bar width from hybrid system, but adjust for available space
-    if (absoluteBarHeightPx > 0 && availableWaveformWidth > 0) {
-      ctx.save();
+    // 2. **DRAW ACTIVE SELECTION ONLY**: Only render purple bars for selection
+    if (startTime < endTime && duration > 0) {
+      const { MODERN_HANDLE_WIDTH } = WAVEFORM_CONFIG;
+      const responsiveHandleWidth = containerWidth < WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT ? 
+        Math.max(3, MODERN_HANDLE_WIDTH * 0.75) : MODERN_HANDLE_WIDTH;
       
-      const fadeEffectsActive = currentFadeIn > 0 || currentFadeOut > 0;
+      const leftHandleWidth = responsiveHandleWidth;
+      const rightHandleWidth = responsiveHandleWidth;
+      const waveformStartX = leftHandleWidth;
+      const waveformEndX = width - rightHandleWidth;
+      const availableWaveformWidth = waveformEndX - waveformStartX;
       
-      // 🔧 **ADJUSTED RENDERING**: Render bars within available waveform width
-      const adjustedBarWidth = availableWaveformWidth / waveformData.length;
-      
-      for (let i = 0; i < waveformData.length; i++) {
-        const value = waveformData[i];
-        const barTime = (i / waveformData.length) * duration;
+      if (availableWaveformWidth > 0) {
+        const centerY = height / 2;
+        const FLAT_BAR_HEIGHT_PX = 1;
+        const MAX_SCALING_PX = 65;
+        const volumePercent = Math.max(0, Math.min(100, currentVolume * 100));
+        const volumeStep = volumePercent / 2;
+        const scalingPixels = volumeStep * (MAX_SCALING_PX / 50);
+        const absoluteBarHeightPx = FLAT_BAR_HEIGHT_PX + scalingPixels;
+        const waveformVariation = Math.max(0, Math.min(1, currentVolume));
+        const adjustedBarWidth = availableWaveformWidth / waveformData.length;
         
-        // 🚀 **ULTRA-FAST FADE CALCULATION**: Optimized for speed
-        let fadeMultiplier = 1.0;
+        ctx.save();
+        ctx.fillStyle = '#7c3aed'; // 🚀 **SINGLE COLOR**: Purple for active selection
         
-        if (isInverted && barTime >= startTime && barTime <= endTime) {
-          // 🔇 **SILENCE REGION - VISUAL FLAT LINE**: Show flat line but audio is still 0
-          fadeMultiplier = 0.02; // 🎨 **FLAT LINE**: Small visual multiplier to show silence region boundary
-        } else if (fadeEffectsActive) {
-          // Only calculate fade for non-silence bars
-          fadeMultiplier = calculateFadeMultiplier(barTime, startTime, endTime, currentFadeIn, currentFadeOut, isInverted, duration);
+        const fadeEffectsActive = currentFadeIn > 0 || currentFadeOut > 0;
+        
+        // 🔥 **OPTIMIZED LOOP**: Only render bars in selection (much fewer iterations)
+        const startIndex = Math.floor((startTime / duration) * waveformData.length);
+        const endIndex = Math.ceil((endTime / duration) * waveformData.length);
+        
+        for (let i = startIndex; i < Math.min(endIndex, waveformData.length); i++) {
+          const value = waveformData[i];
+          const barTime = (i / waveformData.length) * duration;
+          
+          // 🆕 **INVERT MODE LOGIC**: Handle silence region
+          const isInSelection = barTime >= startTime && barTime <= endTime;
+          const shouldBeActive = isInverted ? !isInSelection : isInSelection;
+          
+          if (!shouldBeActive) continue; // 🚀 **SKIP INACTIVE**: Don't render inactive bars (already gray in background)
+          
+          // 🚀 **FADE CALCULATION**: Only for active bars
+          let fadeMultiplier = 1.0;
+          if (isInverted && isInSelection) {
+            fadeMultiplier = 0.02; // Silence region flat line
+          } else if (fadeEffectsActive) {
+            fadeMultiplier = calculateFadeMultiplier(barTime, startTime, endTime, currentFadeIn, currentFadeOut, isInverted, duration);
+          }
+          
+          let effectiveBarHeight;
+          if (waveformVariation === 0) {
+            effectiveBarHeight = FLAT_BAR_HEIGHT_PX;
+          } else {
+            const flatHeight = FLAT_BAR_HEIGHT_PX;
+            const dynamicHeight = absoluteBarHeightPx * value;
+            effectiveBarHeight = flatHeight + (dynamicHeight - flatHeight) * waveformVariation;
+          }
+          
+          const finalBarHeight = effectiveBarHeight * fadeMultiplier;
+          const x = waveformStartX + (i * adjustedBarWidth);
+          
+          ctx.fillRect(Math.floor(x), centerY - finalBarHeight, adjustedBarWidth, finalBarHeight * 2);
         }
         
-        let effectiveBarHeight;
-        if (waveformVariation === 0) {
-          effectiveBarHeight = FLAT_BAR_HEIGHT_PX;
-        } else {
-          const flatHeight = FLAT_BAR_HEIGHT_PX;
-          const dynamicHeight = absoluteBarHeightPx * value;
-          effectiveBarHeight = flatHeight + (dynamicHeight - flatHeight) * waveformVariation;
-        }
-        
-        const finalBarHeight = effectiveBarHeight * fadeMultiplier;
-        // 🔧 **FIXED POSITIONING**: Start from waveformStartX instead of 0
-        const x = waveformStartX + (i * adjustedBarWidth);
-        
-        // 🆕 **INVERT SELECTION LOGIC**: Đảo ngược logic màu sắc khi isInverted = true
-        const isInSelection = barTime >= startTime && barTime <= endTime;
-        const shouldBeActive = isInverted ? !isInSelection : isInSelection;
-        ctx.fillStyle = shouldBeActive ? '#7c3aed' : '#cbd5e1';
-        
-        // 🔧 **ADJUSTED BAR WIDTH**: Use adjustedBarWidth for proper spacing
-        ctx.fillRect(Math.floor(x), centerY - finalBarHeight, adjustedBarWidth, finalBarHeight * 2);
+        ctx.restore();
       }
       
-      ctx.restore();
-    }
-    
-    // 3. **SELECTION OVERLAY**: Adjust selection overlay to match waveform area
-    if (startTime < endTime && availableWaveformWidth > 0) {
-      // 🔧 **ADJUSTED SELECTION**: Map selection to available waveform area
+      // 3. **SELECTION OVERLAY**: Add selection overlay
       const startPercent = startTime / duration;
       const endPercent = endTime / duration;
       const startX = waveformStartX + (startPercent * availableWaveformWidth);
@@ -423,10 +450,38 @@ const WaveformCanvas = React.memo(({
       ctx.fillStyle = 'rgba(139, 92, 246, 0.15)';
       ctx.fillRect(startX, 0, endX - startX, height);
     }
-
-    // 🎯 **CURSORS & LINES NOW RENDERED AS REACT COMPONENTS** - No longer drawn on canvas
-    // Main cursor, hover line, and handles are now rendered in WaveformUI using React components for perfect control
   }, [canvasRef, renderData, calculateFadeMultiplier, containerWidth]);
+
+  // 🚀 **BACKGROUND CACHE MANAGEMENT**: Update cache when needed
+  useEffect(() => {
+    const updateCache = async () => {
+      if (!renderData?.waveformData || !canvasRef.current) return;
+      
+      const canvas = canvasRef.current;
+      const currentCacheKey = generateCacheKey(renderData, containerWidth);
+      
+      if (currentCacheKey && currentCacheKey !== lastCacheKey.current) {
+        try {
+          if (backgroundCacheRef.current) {
+            backgroundCacheRef.current.close?.();
+          }
+          backgroundCacheRef.current = await createBackgroundCache(
+            renderData.waveformData, 
+            canvas.width, 
+            canvas.height, 
+            containerWidth
+          );
+          lastCacheKey.current = currentCacheKey;
+          requestRedraw(drawWaveform); // Trigger redraw after cache update
+        } catch (error) {
+          console.warn('🚨 [CACHE-ERROR] Failed to create background cache:', error);
+          backgroundCacheRef.current = null;
+        }
+      }
+    };
+    
+    updateCache();
+  }, [renderData, containerWidth, generateCacheKey, createBackgroundCache, requestRedraw, drawWaveform, canvasRef]);
 
   // 🚀 **EFFECT OPTIMIZATIONS**: Controlled re-renders
   useEffect(() => {
@@ -581,6 +636,16 @@ const WaveformCanvas = React.memo(({
       }
     };
   }, [canvasRef, duration, currentTime, isPlaying, hoverTooltip, isDragging, containerWidth]);
+
+  // 🚀 **CLEANUP**: Clean up ImageBitmap on unmount
+  useEffect(() => {
+    return () => {
+      if (backgroundCacheRef.current) {
+        backgroundCacheRef.current.close?.();
+        backgroundCacheRef.current = null;
+      }
+    };
+  }, []);
 
   return (
     <div className="relative" style={{ 
