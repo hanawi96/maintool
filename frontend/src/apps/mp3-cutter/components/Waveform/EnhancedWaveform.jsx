@@ -102,6 +102,7 @@ const EnhancedWaveform = ({
   onPerformanceStatsRequest = null
 }) => {
   const setupCompleteRef = useRef(false);
+  const lastLogKeyRef = useRef('');
 
   // Log setup completion
   useEffect(() => {
@@ -121,25 +122,35 @@ const EnhancedWaveform = ({
     }
   }, [waveformData.length, duration, volume, enhancedFeatures]);
 
-  // 🔧 **HEIGHT CONSISTENCY DEBUG**: Log state transitions
+  // 🔧 **HEIGHT CONSISTENCY DEBUG**: Log state transitions (THROTTLED)
   useEffect(() => {
-    console.log(`🔧 [EnhancedWaveform] State transition:`, {
-      isGenerating,
-      hasWaveformData: waveformData.length > 0,
-      volume: volume.toFixed(3),
-      duration: duration.toFixed(2) + 's',
-      strategy: enhancedFeatures?.processingStrategy || 'none',
-      fromCache: enhancedFeatures?.fromCache || false,
-      transition: isGenerating ? 'SHOWING_LOADING' : 'SHOWING_WAVEFORM',
-      note: 'Enhanced tracking with hybrid system metrics'
-    });
-  }, [isGenerating, waveformData.length, volume, duration, enhancedFeatures]);
+    const logKey = `${isGenerating}-${waveformData.length > 0}-${enhancedFeatures?.processingStrategy || 'none'}`;
+    
+    // Only log when significant state changes occur
+    if (logKey !== lastLogKeyRef.current) {
+      lastLogKeyRef.current = logKey;
+      
+      console.log(`🔧 [EnhancedWaveform] State transition:`, {
+        isGenerating,
+        hasWaveformData: waveformData.length > 0,
+        volume: volume.toFixed(3),
+        duration: duration.toFixed(2) + 's',
+        strategy: enhancedFeatures?.processingStrategy || 'none',
+        fromCache: enhancedFeatures?.fromCache || false,
+        transition: isGenerating ? 'SHOWING_LOADING' : 'SHOWING_WAVEFORM',
+        note: 'Enhanced tracking with hybrid system metrics (THROTTLED)'
+      });
+    }
+  }, [isGenerating, waveformData.length, volume, duration, enhancedFeatures?.processingStrategy, enhancedFeatures?.fromCache]);
   
   const minWidth = WAVEFORM_CONFIG.RESPONSIVE.MIN_WIDTH;
   
   // 🆕 **ENHANCED LOADING STATE** - Shows hybrid processing info
   if (isGenerating) {
-    console.log(`🔧 [EnhancedWaveform] Rendering enhanced loading indicator with height: ${WAVEFORM_CONFIG.HEIGHT}px`);
+    // 🔧 **THROTTLED LOGGING**: Only log occasionally to prevent spam
+    if (Math.random() < 0.01) { // 1% chance to log
+      console.log(`🔧 [EnhancedWaveform] Rendering enhanced loading indicator with height: ${WAVEFORM_CONFIG.HEIGHT}px`);
+    }
     return (
       <div className="bg-white/70 backdrop-blur-sm rounded-xl p-4 border border-slate-200/50 shadow-sm">
         <div 

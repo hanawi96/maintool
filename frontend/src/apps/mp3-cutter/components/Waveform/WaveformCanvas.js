@@ -175,7 +175,25 @@ const WaveformCanvas = React.memo(({
 
   // 🎯 **RENDER DATA MEMOIZATION**: Prevent unnecessary recalculations  
   const renderData = useMemo(() => {
-    if (!hybridWaveformData?.data?.length || duration <= 0) return null;
+    if (!hybridWaveformData?.data?.length || duration <= 0) {
+      console.log('🚫 [WaveformCanvas] No render data:', {
+        hasHybridData: !!hybridWaveformData?.data,
+        hybridDataLength: hybridWaveformData?.data?.length || 0,
+        duration: duration,
+        reason: 'Missing waveform data or invalid duration'
+      });
+      return null;
+    }
+    
+    console.log('🎯 [WaveformCanvas] Creating render data:', {
+      waveformDataLength: hybridWaveformData.data.length,
+      barWidth: hybridWaveformData.barWidth,
+      mode: hybridWaveformData.mode,
+      duration: duration.toFixed(2) + 's',
+      selection: `${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s`,
+      volume: animatedVolume.toFixed(2),
+      containerWidth: containerWidth
+    });
     
     return {
       waveformData: hybridWaveformData.data, // 🚀 **HYBRID DATA**: Use processed data
@@ -280,11 +298,18 @@ const WaveformCanvas = React.memo(({
     }
   }, []);
 
-  // 🚀 **BACKGROUND CACHE CREATOR**: Create cached background waveform (gray bars only)
-  const createBackgroundCache = useCallback((waveformData, width, height, containerWidth) => {
-    if (!waveformData?.length || width <= 0 || height <= 0) return null;
+  // 🚀 **BACKGROUND CACHE CREATOR**: Create cached background for ultra-fast re-renders
+  const createBackgroundCache = useCallback(async (waveformData, width, height, containerWidth) => {
+    console.log('🎨 [WaveformCanvas] Creating background cache:', {
+      waveformDataLength: waveformData.length,
+      canvasSize: `${width}x${height}`,
+      containerWidth: containerWidth,
+      firstSample: waveformData[0],
+      maxSample: Math.max(...waveformData),
+      avgSample: (waveformData.reduce((sum, val) => sum + val, 0) / waveformData.length).toFixed(4)
+    });
     
-    // 🔧 **HANDLE SPACE CALCULATION**: Same logic as main canvas
+    // 🔧 **HANDLE SPACE ADJUSTMENT**: Calculate available waveform area
     const { MODERN_HANDLE_WIDTH } = WAVEFORM_CONFIG;
     const responsiveHandleWidth = containerWidth < WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT ? 
       Math.max(3, MODERN_HANDLE_WIDTH * 0.75) : MODERN_HANDLE_WIDTH;
@@ -295,7 +320,12 @@ const WaveformCanvas = React.memo(({
     const waveformEndX = width - rightHandleWidth;
     const availableWaveformWidth = waveformEndX - waveformStartX;
     
-    if (availableWaveformWidth <= 0) return null;
+    console.log('🔧 [WaveformCanvas] Background cache layout:', {
+      waveformArea: `${waveformStartX}px - ${waveformEndX}px (${availableWaveformWidth}px wide)`,
+      handleWidths: `${leftHandleWidth}px | ${rightHandleWidth}px`,
+      barsCount: waveformData.length,
+      barWidth: (availableWaveformWidth / waveformData.length).toFixed(2) + 'px'
+    });
     
     // 🎯 **CREATE BACKGROUND CANVAS**: Temporary canvas for background rendering
     const bgCanvas = document.createElement('canvas');
@@ -326,13 +356,29 @@ const WaveformCanvas = React.memo(({
     
     bgCtx.fillStyle = '#cbd5e1'; // 🔧 **STATIC GRAY**: All background bars are gray
     
+    console.log('🎨 [WaveformCanvas] Rendering background bars:', {
+      totalBars: waveformData.length,
+      barWidth: adjustedBarWidth.toFixed(2) + 'px',
+      centerY: centerY + 'px',
+      baseHeight: FLAT_BAR_HEIGHT_PX + 'px',
+      maxHeight: (FLAT_BAR_HEIGHT_PX + MAX_SCALING_PX) + 'px'
+    });
+    
+    let renderedBars = 0;
     for (let i = 0; i < waveformData.length; i++) {
       const value = waveformData[i];
       const effectiveBarHeight = FLAT_BAR_HEIGHT_PX + (MAX_SCALING_PX * value);
       const x = waveformStartX + (i * adjustedBarWidth);
       
       bgCtx.fillRect(Math.floor(x), centerY - effectiveBarHeight, adjustedBarWidth, effectiveBarHeight * 2);
+      renderedBars++;
     }
+    
+    console.log('✅ [WaveformCanvas] Background cache created:', {
+      renderedBars: renderedBars,
+      totalExpected: waveformData.length,
+      success: renderedBars === waveformData.length
+    });
     
     // 🚀 **CREATE IMAGEBITMAP**: Convert to ImageBitmap for ultra-fast drawImage
     return createImageBitmap(bgCanvas);
@@ -348,10 +394,25 @@ const WaveformCanvas = React.memo(({
   // 🚀 **OPTIMIZED DRAW FUNCTION**: Ultra-fast rendering with cached background  
   const drawWaveform = useCallback(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !renderData) return;
+    if (!canvas || !renderData) {
+      console.log('🚫 [WaveformCanvas] Cannot draw waveform:', {
+        hasCanvas: !!canvas,
+        hasRenderData: !!renderData,
+        reason: 'Missing canvas or render data'
+      });
+      return;
+    }
 
     const ctx = canvas.getContext('2d');
     const { width, height } = canvas;
+    
+    console.log('🎨 [WaveformCanvas] Drawing waveform:', {
+      canvasSize: `${width}x${height}`,
+      hasBackgroundCache: !!backgroundCacheRef.current,
+      renderDataKeys: Object.keys(renderData),
+      waveformDataLength: renderData.waveformData?.length || 0,
+      selection: `${renderData.startTime?.toFixed(2)}s - ${renderData.endTime?.toFixed(2)}s`
+    });
     
     // 🚀 **PERFORMANCE SETUP**: GPU acceleration
     ctx.imageSmoothingEnabled = false;
@@ -368,9 +429,18 @@ const WaveformCanvas = React.memo(({
       isInverted
     } = renderData;
     
-    // 1. **DRAW CACHED BACKGROUND**: Ultra-fast single drawImage call
+    // 1. **DRAW CACHED BACKGROUND**: Ultra-fast single drawImage call with volume opacity sync
     if (backgroundCacheRef.current) {
+      // 🆕 **BACKGROUND OPACITY SYNC**: Sync background opacity with volume (minimum 0.05 for visibility)
+      ctx.globalAlpha = Math.max(0.05, currentVolume);
       ctx.drawImage(backgroundCacheRef.current, 0, 0);
+      ctx.globalAlpha = 1.0; // Reset alpha for subsequent drawings
+      console.log('✅ [WaveformCanvas] Background cache drawn with volume opacity sync:', {
+        volume: currentVolume.toFixed(2),
+        opacity: Math.max(0.05, currentVolume).toFixed(2)
+      });
+    } else {
+      console.log('⚠️ [WaveformCanvas] No background cache available');
     }
     
     // 2. **DRAW ACTIVE SELECTION ONLY**: Only render purple bars for selection
@@ -401,42 +471,110 @@ const WaveformCanvas = React.memo(({
         
         const fadeEffectsActive = currentFadeIn > 0 || currentFadeOut > 0;
         
-        // 🔥 **OPTIMIZED LOOP**: Only render bars in selection (much fewer iterations)
+        // 🔥 **OPTIMIZED LOOP**: Render bars based on invert mode
         const startIndex = Math.floor((startTime / duration) * waveformData.length);
         const endIndex = Math.ceil((endTime / duration) * waveformData.length);
         
-        for (let i = startIndex; i < Math.min(endIndex, waveformData.length); i++) {
-          const value = waveformData[i];
-          const barTime = (i / waveformData.length) * duration;
-          
-          // 🆕 **INVERT MODE LOGIC**: Handle silence region
-          const isInSelection = barTime >= startTime && barTime <= endTime;
-          const shouldBeActive = isInverted ? !isInSelection : isInSelection;
-          
-          if (!shouldBeActive) continue; // 🚀 **SKIP INACTIVE**: Don't render inactive bars (already gray in background)
-          
-          // 🚀 **FADE CALCULATION**: Only for active bars
-          let fadeMultiplier = 1.0;
-          if (isInverted && isInSelection) {
-            fadeMultiplier = 0.02; // Silence region flat line
-          } else if (fadeEffectsActive) {
-            fadeMultiplier = calculateFadeMultiplier(barTime, startTime, endTime, currentFadeIn, currentFadeOut, isInverted, duration);
+        console.log('🎨 [WaveformCanvas] Rendering active selection bars:', {
+          selectionRange: `${startIndex} - ${endIndex} (${endIndex - startIndex} bars)`,
+          totalBars: waveformData.length,
+          volume: `${currentVolume.toFixed(2)} (${volumePercent.toFixed(1)}%)`,
+          fadeEffects: fadeEffectsActive,
+          isInverted: isInverted,
+          barWidth: adjustedBarWidth.toFixed(2) + 'px'
+        });
+        
+        let renderedActiveBars = 0;
+        
+        if (isInverted) {
+          // 🆕 **INVERT MODE**: Render bars OUTSIDE selection (before + after)
+          // Render before selection: 0 -> startIndex
+          for (let i = 0; i < startIndex; i++) {
+            const value = waveformData[i];
+            const barTime = (i / waveformData.length) * duration;
+            
+            // 🚀 **FADE CALCULATION**: Only for active bars
+            let fadeMultiplier = 1.0;
+            if (fadeEffectsActive) {
+              fadeMultiplier = calculateFadeMultiplier(barTime, startTime, endTime, currentFadeIn, currentFadeOut, isInverted, duration);
+            }
+            
+            let effectiveBarHeight;
+            if (waveformVariation === 0) {
+              effectiveBarHeight = FLAT_BAR_HEIGHT_PX;
+            } else {
+              const flatHeight = FLAT_BAR_HEIGHT_PX;
+              const dynamicHeight = absoluteBarHeightPx * value;
+              effectiveBarHeight = flatHeight + (dynamicHeight - flatHeight) * waveformVariation;
+            }
+            
+            const finalBarHeight = effectiveBarHeight * fadeMultiplier;
+            const x = waveformStartX + (i * adjustedBarWidth);
+            
+            ctx.fillRect(Math.floor(x), centerY - finalBarHeight, adjustedBarWidth, finalBarHeight * 2);
+            renderedActiveBars++;
           }
           
-          let effectiveBarHeight;
-          if (waveformVariation === 0) {
-            effectiveBarHeight = FLAT_BAR_HEIGHT_PX;
-          } else {
-            const flatHeight = FLAT_BAR_HEIGHT_PX;
-            const dynamicHeight = absoluteBarHeightPx * value;
-            effectiveBarHeight = flatHeight + (dynamicHeight - flatHeight) * waveformVariation;
+          // Render after selection: endIndex -> total length
+          for (let i = endIndex; i < waveformData.length; i++) {
+            const value = waveformData[i];
+            const barTime = (i / waveformData.length) * duration;
+            
+            // 🚀 **FADE CALCULATION**: Only for active bars
+            let fadeMultiplier = 1.0;
+            if (fadeEffectsActive) {
+              fadeMultiplier = calculateFadeMultiplier(barTime, startTime, endTime, currentFadeIn, currentFadeOut, isInverted, duration);
+            }
+            
+            let effectiveBarHeight;
+            if (waveformVariation === 0) {
+              effectiveBarHeight = FLAT_BAR_HEIGHT_PX;
+            } else {
+              const flatHeight = FLAT_BAR_HEIGHT_PX;
+              const dynamicHeight = absoluteBarHeightPx * value;
+              effectiveBarHeight = flatHeight + (dynamicHeight - flatHeight) * waveformVariation;
+            }
+            
+            const finalBarHeight = effectiveBarHeight * fadeMultiplier;
+            const x = waveformStartX + (i * adjustedBarWidth);
+            
+            ctx.fillRect(Math.floor(x), centerY - finalBarHeight, adjustedBarWidth, finalBarHeight * 2);
+            renderedActiveBars++;
           }
-          
-          const finalBarHeight = effectiveBarHeight * fadeMultiplier;
-          const x = waveformStartX + (i * adjustedBarWidth);
-          
-          ctx.fillRect(Math.floor(x), centerY - finalBarHeight, adjustedBarWidth, finalBarHeight * 2);
+        } else {
+          // 🎯 **NORMAL MODE**: Render bars INSIDE selection only
+          for (let i = startIndex; i < Math.min(endIndex, waveformData.length); i++) {
+            const value = waveformData[i];
+            const barTime = (i / waveformData.length) * duration;
+            
+            // 🚀 **FADE CALCULATION**: Only for active bars
+            let fadeMultiplier = 1.0;
+            if (fadeEffectsActive) {
+              fadeMultiplier = calculateFadeMultiplier(barTime, startTime, endTime, currentFadeIn, currentFadeOut, isInverted, duration);
+            }
+            
+            let effectiveBarHeight;
+            if (waveformVariation === 0) {
+              effectiveBarHeight = FLAT_BAR_HEIGHT_PX;
+            } else {
+              const flatHeight = FLAT_BAR_HEIGHT_PX;
+              const dynamicHeight = absoluteBarHeightPx * value;
+              effectiveBarHeight = flatHeight + (dynamicHeight - flatHeight) * waveformVariation;
+            }
+            
+            const finalBarHeight = effectiveBarHeight * fadeMultiplier;
+            const x = waveformStartX + (i * adjustedBarWidth);
+            
+            ctx.fillRect(Math.floor(x), centerY - finalBarHeight, adjustedBarWidth, finalBarHeight * 2);
+            renderedActiveBars++;
+          }
         }
+        
+        console.log('✅ [WaveformCanvas] Active bars rendered:', {
+          renderedActiveBars: renderedActiveBars,
+          expectedRange: endIndex - startIndex,
+          success: renderedActiveBars > 0
+        });
         
         ctx.restore();
       }
@@ -449,6 +587,17 @@ const WaveformCanvas = React.memo(({
       
       ctx.fillStyle = 'rgba(139, 92, 246, 0.15)';
       ctx.fillRect(startX, 0, endX - startX, height);
+      
+      console.log('✅ [WaveformCanvas] Selection overlay drawn:', {
+        overlayArea: `${startX.toFixed(1)}px - ${endX.toFixed(1)}px (${(endX - startX).toFixed(1)}px wide)`
+      });
+    } else {
+      console.log('⚠️ [WaveformCanvas] No active selection to render:', {
+        startTime: startTime,
+        endTime: endTime,
+        duration: duration,
+        validSelection: startTime < endTime && duration > 0
+      });
     }
   }, [canvasRef, renderData, calculateFadeMultiplier, containerWidth]);
 

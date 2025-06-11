@@ -1,5 +1,9 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-// import { Music, Wifi, WifiOff } from 'lucide-react'; // Unused imports - removed
+import React, { useState, useEffect, useRef, useCallback, useMemo, lazy } from 'react';
+
+// Import utilities (must be at top)
+import { validateAudioFile, getAudioErrorMessage, getFormatDisplayName, generateCompatibilityReport, createSafeAudioURL, validateAudioURL } from '../utils/audioUtils';
+import { createInteractionManager } from '../utils/interactionUtils';
+import { getAutoReturnSetting } from '../utils/safeStorage';
 
 // Import hooks
 import { useAudioPlayer } from '../hooks/useAudioPlayer';
@@ -10,21 +14,38 @@ import { useRealTimeFadeEffects } from '../hooks/useRealTimeFadeEffects';
 import { useInteractionHandlers } from '../hooks/useInteractionHandlers';
 import { useTimeChangeHandlers } from '../hooks/useTimeChangeHandlers';
 
-// Import components
+// 🚀 PHASE 2: Advanced preloading hooks
+import { 
+  useProgressivePreloader, 
+  useNetworkAwarePreloader, 
+  useMemoryAwarePreloader,
+  useInteractionPreloader
+} from '../../../hooks/useAdvancedPreloader';
+
+// 🚀 PHASE 3: Web Worker and Advanced Caching optimizations (Stable version)
+import { 
+  useWebWorkerPreloader,
+  useIdleCallbackPreloader,
+  useAdvancedComponentCache
+} from '../../../hooks/usePhase3OptimizationStable';
+
+// Import essential components (immediate load)
 import FileInfo from './FileInfo';
-import SmartWaveform from './Waveform/SmartWaveform';
-import FadeControls from './Effects';
-import Export from './Export';
 import AudioErrorAlert from './AudioErrorAlert';
-import UnifiedControlBar from './UnifiedControlBar';
 import ConnectionErrorAlert from './ConnectionErrorAlert';
 import FileUploadSection from './FileUploadSection';
-import SilenceDetectionPanel from './UnifiedControlBar/SilenceDetectionPanel';
 
-// Import utils
-import { validateAudioFile, getAudioErrorMessage, getFormatDisplayName, generateCompatibilityReport, createSafeAudioURL, validateAudioURL } from '../utils/audioUtils';
-import { createInteractionManager } from '../utils/interactionUtils';
-import { getAutoReturnSetting } from '../utils/safeStorage';
+// 🚀 PHASE 2: Advanced lazy loading with custom loading states
+import { 
+  SmartWaveformLazy, 
+  FadeControlsLazy, 
+  ExportPanelLazy, 
+  UnifiedControlBarLazy,
+  preloadHeavyComponents
+} from '../../../components/LazyComponents';
+
+// 🚀 Additional lazy components for Phase 2
+const SilenceDetectionPanel = lazy(() => import('./UnifiedControlBar/SilenceDetectionPanel'));
 
 // 🔥 **ULTRA-LIGHT AUDIO COMPONENT**: Minimized for best performance
 const SafeAudioElement = React.memo(({ 
@@ -119,6 +140,25 @@ const MP3CutterMain = React.memo(() => {
     setFadeActive,
     isWebAudioSupported
   } = useRealTimeFadeEffects();
+  // 🚀 **PHASE 3: ULTIMATE OPTIMIZATION HOOKS**
+  const {
+    isReady: isWorkerReady,
+    isSupported: isWorkerSupported,
+    metrics: workerMetrics,
+    addToPreloadQueue,
+    // startPreloading, // Currently not used
+    preloadCriticalComponents
+  } = useWebWorkerPreloader();
+
+  const { 
+    scheduleIdlePreload,
+    isIdle
+  } = useIdleCallbackPreloader();
+
+  const {
+    addToCache: addComponentToCache,
+    // getFromCache: getComponentFromCache, // Currently not used
+  } = useAdvancedComponentCache();
 
   // 🔥 **MINIMAL STATE**
   const [fadeIn, setFadeIn] = useState(0);
@@ -135,6 +175,7 @@ const MP3CutterMain = React.memo(() => {
   // 🔥 **PERFORMANCE REFS**
   const animationStateRef = useRef({ isPlaying: false, startTime: 0, endTime: 0 });
   const interactionManagerRef = useRef(null);
+  const lastPhase3LogKeyRef = useRef(''); // Throttle Phase 3 logging
 
   // 🎯 **AUDIO CONTEXT**: Audio context for interactions with fade config
   const audioContext = useMemo(() => ({
@@ -1026,6 +1067,134 @@ const MP3CutterMain = React.memo(() => {
       keys: audioFile ? Object.keys(audioFile) : 'No audioFile'
     });
   }, [isSilencePanelOpen, audioFile]);
+  // 🚀 **PHASE 2: ADVANCED PRELOADING HOOKS** - Smart preloading system
+  const { triggerPreload } = useProgressivePreloader();
+  const { shouldPreload: networkShouldPreload } = useNetworkAwarePreloader();
+  const { shouldPreload: memoryShouldPreload } = useMemoryAwarePreloader();
+  const { trackInteraction } = useInteractionPreloader();
+  const lastPhase2LogKeyRef = useRef(''); // Throttle Phase 2 logging
+
+  // 🚀 **PHASE 2: SMART PRELOADING** - Preload heavy components when user starts interacting
+  useEffect(() => {
+    if (audioFile) {
+      // Check if we should preload based on network/memory conditions
+      const canPreload = networkShouldPreload('large') && memoryShouldPreload() !== false;
+      
+      if (canPreload) {
+        // Only log once per file
+        if (lastPhase2LogKeyRef.current !== audioFile.name) {
+          lastPhase2LogKeyRef.current = audioFile.name;
+          console.log('🚀 [Phase2] Starting intelligent component preloading...');
+        }
+        
+        const startTime = performance.now();
+        
+        // Trigger progressive preloading
+        triggerPreload('fileLoad');
+        preloadHeavyComponents();
+        
+        // Track preloading performance
+        setTimeout(() => {
+          const endTime = performance.now();
+          console.log(`⚡ [Phase2] Component preloading completed in ${(endTime - startTime).toFixed(2)}ms`);
+        }, 1000);
+      } else {
+        console.log('🚀 [Phase2] Skipping preload due to network/memory constraints');
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [audioFile?.name]); // Only depend on filename to prevent re-trigger
+
+  // 🎯 **INTERACTION TRACKING** - Track user interactions for smart preloading
+  const handleUserInteraction = useCallback((type) => {
+    trackInteraction(type);
+    triggerPreload('userInteraction');
+  }, [trackInteraction, triggerPreload]);
+
+  // 🎯 **PERFORMANCE MONITORING** - Track component load times
+  useEffect(() => {
+    if (waveformData.length > 0) {
+      // Heavy components are likely loaded, log performance metrics
+      triggerPreload('waveformReady');
+      
+      setTimeout(() => {
+        if (window.lazyLoadMetrics) {
+          console.log('📊 [Phase2] Component Load Performance:', window.lazyLoadMetrics);
+        }
+      }, 2000);
+    }
+  }, [waveformData.length, triggerPreload]);
+
+  // 🚀 **PHASE 3: ULTIMATE OPTIMIZATION INITIALIZATION**
+  useEffect(() => {
+    // Throttle logging để tránh spam console
+    const logKey = `${isWorkerSupported}-${isWorkerReady}-${!!audioFile}`;
+    
+    if (logKey !== lastPhase3LogKeyRef.current) {
+      lastPhase3LogKeyRef.current = logKey;
+      console.log('🚀 [Phase3] Initializing ultimate optimization system...');
+    }
+    
+    // Initialize Web Worker preloading
+    if (isWorkerSupported && !isWorkerReady) {
+      console.log('⏳ [Phase3] Waiting for Web Worker to be ready...');
+    }
+    
+    if (isWorkerReady) {
+      console.log('✅ [Phase3] Web Worker ready - starting critical component preloading');
+      
+      // Preload critical components via Web Worker
+      const preloadedCount = preloadCriticalComponents();
+      if (preloadedCount > 0) {
+        console.log(`🎯 [Phase3] Queued ${preloadedCount} critical components for Web Worker preloading`);
+      }
+    }
+    
+    // Schedule idle preloading for non-critical components
+    if (audioFile) {
+      scheduleIdlePreload(() => {
+        console.log('🛌 [Phase3] Executing idle preload for secondary components');
+        // Preload secondary components during idle time
+        addToPreloadQueue('SilenceDetectionPanel', '../apps/mp3-cutter/components/UnifiedControlBar/SilenceDetectionPanel', 2);
+      });
+    }
+    
+    // 🔧 **SIMPLIFIED LOGGING**: Log status with minimal dependencies
+    if (logKey !== lastPhase3LogKeyRef.current) {
+      console.log('📊 [Phase3] Status:', {
+        workerSupported: isWorkerSupported,
+        workerReady: isWorkerReady,
+        isIdle,
+        note: 'Cache stats available via getCacheSize() and getCacheKeys() methods'
+      });
+    }
+    
+  }, [isWorkerSupported, isWorkerReady, audioFile, preloadCriticalComponents, 
+      scheduleIdlePreload, addToPreloadQueue, isIdle]); // 🔧 **REMOVED cacheStats**: Removed to prevent infinite loop
+
+  // 🚀 **PHASE 3: PERFORMANCE MONITORING & OPTIMIZATION**
+  useEffect(() => {
+    if (isWorkerReady && workerMetrics.totalPreloaded > 0) {
+      console.log('📊 [Phase3] Web Worker Performance Metrics:', {
+        totalPreloaded: workerMetrics.totalPreloaded,
+        averageLoadTime: `${workerMetrics.averageLoadTime.toFixed(2)}ms`,
+        failureRate: `${((workerMetrics.failureCount / workerMetrics.totalPreloaded) * 100).toFixed(1)}%`,
+        queueLength: workerMetrics.queueLength
+      });
+      
+      // 🔧 **THROTTLED CACHE UPDATES**: Only update cache if components are actually new
+      workerMetrics.loadedComponents.forEach(componentName => {
+        // Use setTimeout to prevent blocking and infinite loops
+        setTimeout(() => {
+          addComponentToCache(componentName, null, { 
+            source: 'webWorker',
+            preloadTime: Date.now() 
+          });
+        }, 0);
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workerMetrics.totalPreloaded, isWorkerReady]); // Remove addComponentToCache from deps to prevent loop
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-pink-50">
@@ -1043,15 +1212,20 @@ const MP3CutterMain = React.memo(() => {
           compatibilityReport={compatibilityReport}
         />
 
-        {!audioFile ? (
-          /* Upload Section */
+        {!audioFile ? (          /* Upload Section */
           <FileUploadSection
             isConnected={isConnected}
             isUploading={isUploading}
             uploadProgress={uploadProgress}
             compatibilityReport={compatibilityReport}
-            onFileUpload={handleFileUpload}
-            onDrop={handleDrop}
+            onFileUpload={(file) => {
+              handleUserInteraction('fileUpload');
+              handleFileUpload(file);
+            }}
+            onDrop={(e) => {
+              handleUserInteraction('fileDrop');
+              handleDrop(e);
+            }}
           />
         ) : (
           /* Audio Editor */
@@ -1065,7 +1239,7 @@ const MP3CutterMain = React.memo(() => {
                 isPlaying={isPlaying}
               />
             </div>            {/* Smart Waveform with Hybrid System */}
-            <SmartWaveform
+            <SmartWaveformLazy
               canvasRef={canvasRef}
               waveformData={waveformData}
               currentTime={currentTime}
@@ -1107,7 +1281,7 @@ const MP3CutterMain = React.memo(() => {
             />
 
             {/* 🎯 UNIFIED CONTROLS - Single row layout with all controls */}
-            <UnifiedControlBar
+            <UnifiedControlBarLazy
               // Audio Player props
               isPlaying={isPlaying}
               volume={volume}
@@ -1152,7 +1326,7 @@ const MP3CutterMain = React.memo(() => {
             {/* Effects and Export */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div className="fade-controls">
-                <FadeControls
+                <FadeControlsLazy
                   fadeIn={fadeIn}
                   fadeOut={fadeOut}
                   maxDuration={duration}
@@ -1166,7 +1340,7 @@ const MP3CutterMain = React.memo(() => {
               </div>
 
               <div className="export-controls">
-                <Export
+                <ExportPanelLazy
                   outputFormat={outputFormat}
                   onFormatChange={setOutputFormat}
                   audioFile={audioFile}
