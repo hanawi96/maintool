@@ -297,29 +297,6 @@ const WaveformCanvas = React.memo(({
     // 🎯 **SMART CLEAR**: Only clear if actually needed
     ctx.clearRect(0, 0, width, height);
     
-    // 1. **BACKGROUND GRADIENT**
-    const gradient = ctx.createLinearGradient(0, 0, 0, height);
-    gradient.addColorStop(0, 'rgba(99, 102, 241, 0.04)');
-    gradient.addColorStop(1, 'rgba(168, 85, 247, 0.04)');
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, width, height);
-    
-    // 2. **WAVEFORM BARS**: Ultra-optimized rendering with hybrid system
-    const { 
-      waveformData, 
-      // barWidth: fixedBarWidth, // 🚀 **REMOVED**: Not used in adjusted rendering
-      // mode, // 🚀 **REMOVED**: Not used in adjusted rendering
-      duration, 
-      startTime, 
-      endTime, 
-      volume: currentVolume, 
-      fadeIn: currentFadeIn, 
-      fadeOut: currentFadeOut,
-      isInverted // 🆕 **INVERT MODE**: Get invert state from renderData
-    } = renderData;
-    
-    const centerY = height / 2;
-    
     // 🔧 **HANDLE SPACE ADJUSTMENT**: Reserve space for handles (8px each side)
     const { MODERN_HANDLE_WIDTH } = WAVEFORM_CONFIG;
     const responsiveHandleWidth = containerWidth < WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT ? 
@@ -331,6 +308,32 @@ const WaveformCanvas = React.memo(({
     const waveformEndX = width - rightHandleWidth; // End before right handle
     const availableWaveformWidth = waveformEndX - waveformStartX;
     
+    // 1. **BACKGROUND GRADIENT**: 🔧 **FIXED ALIGNMENT** - Match waveform bars rendering area
+    const gradient = ctx.createLinearGradient(0, 0, 0, height);
+    gradient.addColorStop(0, 'rgba(99, 102, 241, 0.04)');
+    gradient.addColorStop(1, 'rgba(168, 85, 247, 0.04)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(waveformStartX, 0, availableWaveformWidth, height);
+    
+    // 🔧 **ALIGNED BORDER**: Draw border to match waveform rendering area
+    ctx.strokeStyle = '#cbd5e1'; // Same as CSS border-slate-200
+    ctx.lineWidth = 1;
+    ctx.strokeRect(waveformStartX, 0, availableWaveformWidth, height);
+    
+    // 2. **WAVEFORM BARS**: Ultra-optimized rendering with hybrid system
+    const { 
+      waveformData, 
+      duration, 
+      startTime, 
+      endTime, 
+      volume: currentVolume, 
+      fadeIn: currentFadeIn, 
+      fadeOut: currentFadeOut,
+      isInverted // 🆕 **INVERT MODE**: Get invert state from renderData
+    } = renderData;
+    
+    const centerY = height / 2;
+    
     // 🚀 **DEBUG LOG**: Add console.log for debugging if needed
     if (Math.random() < 0.001) { // Log very rarely to avoid spam
       console.log(`🔧 [WAVEFORM-RENDER-FIX] Waveform rendering area:`, {
@@ -340,7 +343,7 @@ const WaveformCanvas = React.memo(({
         waveformStartX: waveformStartX + 'px',
         waveformEndX: waveformEndX + 'px',
         availableWaveformWidth: availableWaveformWidth + 'px',
-        fix: 'Waveform now renders only between handles'
+        fix: 'Background and border now match waveform bars area'
       });
     }
     
@@ -597,7 +600,7 @@ const WaveformCanvas = React.memo(({
         onPointerMove={handleEnhancedPointerMove}
         onPointerUp={handleEnhancedPointerUp}
         onPointerLeave={handleEnhancedPointerLeave}
-        className="w-full border border-slate-200"
+        className="w-full"
         style={{ 
           height: WAVEFORM_CONFIG.HEIGHT,
           touchAction: 'none', // 🚀 **IMPORTANT**: Prevent default touch actions for better pointer control
