@@ -1,0 +1,301 @@
+// 🎨 **OFFSCREEN CANVAS RENDERER** - Background rendering without blocking UI
+// filepath: d:\mp3-cutter-pro\frontend\src\apps\mp3-cutter\services\offscreenRenderer.js
+
+import { WAVEFORM_CONFIG } from '../utils/constants';
+
+export class OffscreenWaveformRenderer {
+  constructor() {
+    this.offscreenCanvas = null;
+    this.offscreenCtx = null;
+    this.renderWorker = null;
+    this.renderQueue = [];
+    this.isInitialized = false;
+    
+    console.log('🎨 [OffscreenRenderer] Initializing...');
+    this.initialize();
+  }
+
+  // 🚀 **INITIALIZATION**: Setup OffscreenCanvas và render worker
+  async initialize() {
+    try {
+      // 🔧 **FEATURE DETECTION**: Check OffscreenCanvas support
+      if (typeof OffscreenCanvas === 'undefined') {
+        console.warn('⚠️ [OffscreenRenderer] OffscreenCanvas not supported, falling back to main thread');
+        this.fallbackToMainThread = true;
+        return;
+      }
+
+      // 🎯 **CREATE OFFSCREEN CANVAS**: Tạo canvas cho background rendering
+      this.offscreenCanvas = new OffscreenCanvas(800, WAVEFORM_CONFIG.HEIGHT);
+      this.offscreenCtx = this.offscreenCanvas.getContext('2d');
+      
+      // ⚡ **PERFORMANCE SETUP**: Optimize context settings
+      this.offscreenCtx.imageSmoothingEnabled = false;
+      this.offscreenCtx.textBaseline = 'middle';
+      
+      // 🔧 **RENDER WORKER**: Setup dedicated render worker if available
+      if (window.Worker) {
+        try {
+          this.renderWorker = new Worker('/workers/render-worker.js');
+          this.setupWorkerHandlers();
+        } catch (error) {
+          console.warn('⚠️ [OffscreenRenderer] Render worker failed, using main thread:', error);
+        }
+      }
+
+      this.isInitialized = true;
+      console.log('✅ [OffscreenRenderer] Initialized successfully:', {
+        offscreenSupport: true,
+        workerSupport: !!this.renderWorker,
+        canvasSize: `${this.offscreenCanvas.width}x${this.offscreenCanvas.height}`
+      });
+
+    } catch (error) {
+      console.error('❌ [OffscreenRenderer] Initialization failed:', error);
+      this.fallbackToMainThread = true;
+    }
+  }
+
+  // 🔧 **WORKER HANDLERS**: Setup communication với render worker
+  setupWorkerHandlers() {
+    this.renderWorker.onmessage = (e) => {
+      const { type, id, result, error } = e.data;
+      
+      if (error) {
+        console.error('❌ [OffscreenRenderer] Worker error:', error);
+        return;
+      }
+
+      switch (type) {
+        case 'render-complete':
+          this.handleRenderComplete(id, result);
+          break;
+        case 'progress':
+          this.handleRenderProgress(id, result.progress);
+          break;
+      }
+    };
+
+    this.renderWorker.onerror = (error) => {
+      console.error('❌ [OffscreenRenderer] Worker error:', error);
+      this.fallbackToMainThread = true;
+    };
+  }
+
+  // 🎨 **BACKGROUND RENDER**: Render waveform ở background thread
+  async renderWaveformBackground(waveformData, options = {}) {
+    if (!this.isInitialized || this.fallbackToMainThread) {
+      return this.renderWaveformMainThread(waveformData, options);
+    }
+
+    const renderId = Date.now() + Math.random();
+    console.log('🎨 [OffscreenRenderer] Starting background render:', {
+      renderId,
+      dataLength: waveformData.length,
+      canvasSize: `${options.width || 800}x${options.height || WAVEFORM_CONFIG.HEIGHT}`
+    });
+
+    return new Promise((resolve, reject) => {
+      try {
+        // 🔧 **RESIZE OFFSCREEN CANVAS**: Resize to match target
+        const targetWidth = options.width || 800;
+        const targetHeight = options.height || WAVEFORM_CONFIG.HEIGHT;
+        
+        if (this.offscreenCanvas.width !== targetWidth || this.offscreenCanvas.height !== targetHeight) {
+          this.offscreenCanvas.width = targetWidth;
+          this.offscreenCanvas.height = targetHeight;
+          console.log('📐 [OffscreenRenderer] Canvas resized:', `${targetWidth}x${targetHeight}`);
+        }
+
+        // 🎯 **PREPARE RENDER DATA**: Chuẩn bị data cho rendering
+        const renderData = {
+          waveformData,
+          width: targetWidth,
+          height: targetHeight,
+          volume: options.volume || 1,
+          startTime: options.startTime || 0,
+          endTime: options.endTime || 100,
+          duration: options.duration || 100,
+          fadeIn: options.fadeIn || 0,
+          fadeOut: options.fadeOut || 0,
+          isInverted: options.isInverted || false,
+          style: {
+            backgroundColor: options.backgroundColor || 'transparent',
+            waveformColor: options.waveformColor || '#7c3aed',
+            selectionColor: options.selectionColor || 'rgba(139, 92, 246, 0.15)'
+          }
+        };
+
+        // 🚀 **RENDER EXECUTION**: Execute render
+        if (this.renderWorker) {
+          // Use worker for complex rendering
+          this.renderWorker.postMessage({
+            type: 'render-waveform',
+            id: renderId,
+            data: renderData,
+            canvas: this.offscreenCanvas
+          }, [this.offscreenCanvas]);
+
+          // Setup promise handlers
+          this.renderQueue.push({ id: renderId, resolve, reject });
+        } else {
+          // Use main thread offscreen canvas
+          this.executeRender(renderData).then(resolve).catch(reject);
+        }
+
+      } catch (error) {
+        console.error('❌ [OffscreenRenderer] Background render failed:', error);
+        reject(error);
+      }
+    });
+  }
+
+  // 🎨 **MAIN THREAD RENDER**: Fallback rendering
+  async renderWaveformMainThread(waveformData, options = {}) {
+    console.log('🎨 [OffscreenRenderer] Using main thread fallback');
+    
+    // Create temporary canvas for rendering
+    const canvas = document.createElement('canvas');
+    canvas.width = options.width || 800;
+    canvas.height = options.height || WAVEFORM_CONFIG.HEIGHT;
+    const ctx = canvas.getContext('2d');
+    
+    // Execute render synchronously
+    await this.executeRender({
+      waveformData,
+      width: canvas.width,
+      height: canvas.height,
+      volume: options.volume || 1,
+      ...options
+    }, ctx);
+
+    return canvas;
+  }
+
+  // ⚡ **EXECUTE RENDER**: Core rendering logic
+  async executeRender(renderData, ctx = this.offscreenCtx) {
+    const startTime = performance.now();
+    const { waveformData, width, height, volume, style } = renderData;
+
+    try {
+      // 🔧 **PERFORMANCE SETUP**
+      ctx.imageSmoothingEnabled = false;
+      
+      // 🎯 **CLEAR CANVAS**
+      ctx.clearRect(0, 0, width, height);
+      
+      // 🎨 **BACKGROUND GRADIENT**
+      const gradient = ctx.createLinearGradient(0, 0, 0, height);
+      gradient.addColorStop(0, 'rgba(99, 102, 241, 0.04)');
+      gradient.addColorStop(1, 'rgba(168, 85, 247, 0.04)');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, width, height);
+
+      // 🌊 **RENDER WAVEFORM BARS**
+      await this.renderWaveformBars(ctx, renderData);
+      
+      // 🎯 **RENDER SELECTION OVERLAY** 
+      this.renderSelectionOverlay(ctx, renderData);
+
+      const renderTime = performance.now() - startTime;
+      console.log('✅ [OffscreenRenderer] Render complete:', {
+        renderTime: renderTime.toFixed(2) + 'ms',
+        dataPoints: waveformData.length,
+        canvasSize: `${width}x${height}`
+      });
+
+      return this.offscreenCanvas || ctx.canvas;
+
+    } catch (error) {
+      console.error('❌ [OffscreenRenderer] Render execution failed:', error);
+      throw error;
+    }
+  }
+
+  // 🌊 **RENDER WAVEFORM BARS**: Optimized bar rendering
+  async renderWaveformBars(ctx, renderData) {
+    const { waveformData, width, height, volume, startTime, endTime, duration } = renderData;
+    const centerY = height / 2;
+    const barWidth = width / waveformData.length;
+    
+    // 🎯 **VOLUME CALCULATION**: Linear scaling
+    const FLAT_BAR_HEIGHT_PX = 1;
+    const MAX_SCALING_PX = 65;
+    const volumePercent = Math.max(0, Math.min(100, volume * 100));
+    const volumeStep = volumePercent / 2;
+    const scalingPixels = volumeStep * (MAX_SCALING_PX / 50);
+    const absoluteBarHeightPx = FLAT_BAR_HEIGHT_PX + scalingPixels;
+
+    ctx.save();
+    
+    // 🚀 **BATCH RENDERING**: Render bars in batches for performance
+    const batchSize = 100;
+    for (let batchStart = 0; batchStart < waveformData.length; batchStart += batchSize) {
+      const batchEnd = Math.min(batchStart + batchSize, waveformData.length);
+      
+      for (let i = batchStart; i < batchEnd; i++) {
+        const value = waveformData[i];
+        const barTime = (i / waveformData.length) * duration;
+        
+        // 🎨 **BAR HEIGHT CALCULATION**
+        const effectiveBarHeight = absoluteBarHeightPx * value;
+        const x = i * barWidth;
+        
+        // 🎯 **SELECTION LOGIC**
+        const isInSelection = barTime >= startTime && barTime <= endTime;
+        ctx.fillStyle = isInSelection ? '#7c3aed' : '#cbd5e1';
+        
+        // 🎨 **DRAW BAR**
+        ctx.fillRect(Math.floor(x), centerY - effectiveBarHeight, Math.max(0.4, barWidth), effectiveBarHeight * 2);
+      }
+
+      // 🔄 **YIELD CONTROL**: Cho phép other operations
+      if (batchStart % (batchSize * 10) === 0) {
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
+    }
+    
+    ctx.restore();
+  }
+
+  // 🎯 **RENDER SELECTION OVERLAY**: Selection highlight
+  renderSelectionOverlay(ctx, renderData) {
+    const { width, height, startTime, endTime, duration, style } = renderData;
+    
+    if (startTime < endTime) {
+      const startPercent = startTime / duration;
+      const endPercent = endTime / duration;
+      const startX = startPercent * width;
+      const endX = endPercent * width;
+      
+      ctx.fillStyle = style.selectionColor || 'rgba(139, 92, 246, 0.15)';
+      ctx.fillRect(startX, 0, endX - startX, height);
+    }
+  }
+
+  // 🔄 **HANDLE RENDER COMPLETE**: Process completed renders
+  handleRenderComplete(id, result) {
+    const queueItem = this.renderQueue.find(item => item.id === id);
+    if (queueItem) {
+      queueItem.resolve(result);
+      this.renderQueue = this.renderQueue.filter(item => item.id !== id);
+    }
+  }
+
+  // 📊 **HANDLE RENDER PROGRESS**: Progress updates
+  handleRenderProgress(id, progress) {
+    console.log(`🎨 [OffscreenRenderer] Render progress ${id}: ${progress}%`);
+    // Có thể emit events cho UI progress bars
+  }
+
+  // 🧹 **CLEANUP**: Clean up resources
+  dispose() {
+    if (this.renderWorker) {
+      this.renderWorker.terminate();
+    }
+    this.offscreenCanvas = null;
+    this.offscreenCtx = null;
+    this.renderQueue = [];
+    console.log('🧹 [OffscreenRenderer] Disposed');
+  }
+}

@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 
 // Import hooks
 import { useAudioPlayer } from '../hooks/useAudioPlayer';
-import { useWaveform } from '../hooks/useWaveform';
+import { useEnhancedWaveform } from '../hooks/useEnhancedWaveform';
 import { useHistory } from '../hooks/useHistory';
 import { useFileUpload } from '../hooks/useFileUpload';
 import { useRealTimeFadeEffects } from '../hooks/useRealTimeFadeEffects';
@@ -12,7 +12,7 @@ import { useTimeChangeHandlers } from '../hooks/useTimeChangeHandlers';
 
 // Import components
 import FileInfo from './FileInfo';
-import Waveform from './Waveform';
+import SmartWaveform from './Waveform/SmartWaveform';
 import FadeControls from './Effects';
 import Export from './Export';
 import AudioErrorAlert from './AudioErrorAlert';
@@ -102,13 +102,13 @@ const MP3CutterMain = React.memo(() => {
     isDragging,
     hoveredHandle,
     generateWaveform,
-    setStartTime,
-    setEndTime,
+    setStartTime,    setEndTime,
     setIsDragging,
     setHoveredHandle,
     canvasRef,
-    isGenerating
-  } = useWaveform();
+    isGenerating,
+    enhancedFeatures
+  } = useEnhancedWaveform();
 
   const { saveState, undo, redo, canUndo, canRedo, historyIndex, historyLength } = useHistory();
 
@@ -1064,10 +1064,8 @@ const MP3CutterMain = React.memo(() => {
                 currentTime={currentTime}
                 isPlaying={isPlaying}
               />
-            </div>
-
-            {/* Waveform */}
-            <Waveform
+            </div>            {/* Smart Waveform with Hybrid System */}
+            <SmartWaveform
               canvasRef={canvasRef}
               waveformData={waveformData}
               currentTime={currentTime}
@@ -1079,6 +1077,7 @@ const MP3CutterMain = React.memo(() => {
               isPlaying={isPlaying}
               volume={volume}
               isGenerating={isGenerating}
+              enhancedFeatures={enhancedFeatures}
               
               // 🆕 **FADE EFFECTS**: Visual fade in/out effects trên waveform
               fadeIn={fadeIn}   // Fade in duration - bars sẽ hiển thị thấp → cao dần trong khoảng này
