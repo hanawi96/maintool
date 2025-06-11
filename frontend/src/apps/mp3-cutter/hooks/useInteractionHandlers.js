@@ -141,17 +141,23 @@ export const useInteractionHandlers = ({
         break;
     }
     
-    // Execute pending actions
+    // 🆕 **INVERT MODE PRIORITY**: In invert mode, prioritize cursor jump over handle updates
+    const isInvertMode = audioContext?.isInverted;
+    
+    // Execute pending actions based on mode
     if (result.executePendingJump && result.pendingJumpTime !== null) {
       jumpToTime(result.pendingJumpTime);
       if (audioRef.current) {
         audioRef.current.currentTime = result.pendingJumpTime;
         setCurrentTime(result.pendingJumpTime);
       }
+      console.log(`⚡ [${isInvertMode ? 'InvertMode' : 'NormalMode'}] Jumped cursor to ${result.pendingJumpTime.toFixed(2)}s`);
     }
     
-    if (result.executePendingHandleUpdate && result.pendingHandleUpdate !== null) {
+    // 🔄 **HANDLE UPDATE LOGIC**: Only in normal mode, or in invert mode without pending jump
+    if (result.executePendingHandleUpdate && result.pendingHandleUpdate !== null && !isInvertMode) {
       const updateData = result.pendingHandleUpdate;
+      
       if (updateData.type === 'start') {
         setStartTime(updateData.newTime);
         if (audioRef.current) {
@@ -166,17 +172,37 @@ export const useInteractionHandlers = ({
           setCurrentTime(previewTime);
         }
       }
+      console.log(`📍 [NormalMode] Updated ${updateData.type} handle to ${updateData.newTime.toFixed(2)}s`);
+    } else if (result.executePendingHandleUpdate && result.pendingHandleUpdate !== null && isInvertMode) {
+      // 🆕 **INVERT MODE CURSOR JUMP**: Instead of updating handle, jump cursor to click position
+      const updateData = result.pendingHandleUpdate;
+      const targetTime = updateData.newTime;
+      
+      jumpToTime(targetTime);
+      if (audioRef.current) {
+        audioRef.current.currentTime = targetTime;
+        setCurrentTime(targetTime);
+      }
+      
+      console.log(`⚡ [InvertMode] Cursor jumped to click position: ${targetTime.toFixed(2)}s (handle update skipped)`);
     }
     
     if (result.saveHistory && !historySavedRef.current) {
       console.log(`💾 [History] Pending handle update - saving history (first save)`);
       historySavedRef.current = true;
       setTimeout(() => {
-        const finalStartTime = result.executePendingHandleUpdate && result.pendingHandleUpdate?.type === 'start' 
-          ? result.pendingHandleUpdate.newTime : startTime;
-        const finalEndTime = result.executePendingHandleUpdate && result.pendingHandleUpdate?.type === 'end' 
-          ? result.pendingHandleUpdate.newTime : endTime;
-        saveState({ startTime: finalStartTime, endTime: finalEndTime, fadeIn, fadeOut });
+        // 🔄 **INVERT MODE HISTORY**: Don't save handle changes in invert mode, only current state
+        if (isInvertMode) {
+          // In invert mode, no handle changes occurred, just save current state
+          saveState({ startTime, endTime, fadeIn, fadeOut });
+        } else {
+          // Normal mode: save with potential handle changes
+          const finalStartTime = result.executePendingHandleUpdate && result.pendingHandleUpdate?.type === 'start'
+            ? result.pendingHandleUpdate.newTime : startTime;
+          const finalEndTime = result.executePendingHandleUpdate && result.pendingHandleUpdate?.type === 'end'
+            ? result.pendingHandleUpdate.newTime : endTime;
+          saveState({ startTime: finalStartTime, endTime: finalEndTime, fadeIn, fadeOut });
+        }
       }, 100);
     } else if (result.saveHistory && historySavedRef.current) {
       console.log(`🚫 [History] Pending handle update - history already saved, skipping duplicate`);
@@ -199,4 +225,4 @@ export const useInteractionHandlers = ({
     handleCanvasMouseUp,
     handleCanvasMouseLeave
   };
-}; 
+};

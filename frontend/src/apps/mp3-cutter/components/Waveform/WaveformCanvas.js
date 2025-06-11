@@ -41,7 +41,7 @@ const WaveformCanvas = React.memo(({
     mainCursorTooltip,
     updateHoverTooltip,
     clearHoverTooltip
-  } = useOptimizedTooltip(canvasRef, duration, currentTime, isPlaying, audioRef, startTime, endTime, hoveredHandle, isDragging);
+  } = useOptimizedTooltip(canvasRef, duration, currentTime, isPlaying, audioRef, startTime, endTime, hoveredHandle, isDragging, isInverted);
 
   const {
     updateCursor
@@ -98,10 +98,17 @@ const WaveformCanvas = React.memo(({
 
   const handleEnhancedPointerLeave = useCallback((e) => {
     if (onMouseLeave) onMouseLeave(e);
-    // 🚀 **NO CURSOR/TOOLTIP RESET**: Không reset cursor hay tooltip khi pointer leave vì có pointer capture
+    
+    // 🆕 **INVERT MODE INSTANT HIDE**: When in invert mode, immediately hide hover cursor line
+    if (isInverted) {
+      clearHoverTooltip();
+      console.log('🔄 [InvertMode] Mouse left waveform - hover cursor line hidden instantly');
+    }
+    
+    // 🚀 **NO CURSOR/TOOLTIP RESET**: Không reset cursor hay tooltip khi pointer leave trong normal mode vì có pointer capture
     // resetCursor();
     // clearHoverTooltip();
-  }, [onMouseLeave]);
+  }, [onMouseLeave, isInverted, clearHoverTooltip]);
 
   // 🆕 **HANDLE EVENT HANDLERS**: Direct handlers cho handles - Updated for Pointer Events
   const handleHandlePointerDown = useCallback((e) => {

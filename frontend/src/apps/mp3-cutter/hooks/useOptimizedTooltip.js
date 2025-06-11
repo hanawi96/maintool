@@ -66,7 +66,7 @@ const clampTooltipPosition = (x, waveformStartX, waveformEndXOrCanvasWidth, tool
 
 // 🚀 **60FPS OPTIMIZED TOOLTIP HOOK** - Minimal overhead cho drag performance
 
-export const useOptimizedTooltip = (canvasRef, duration, currentTime, isPlaying, audioRef, startTime, endTime, hoveredHandle, isDragging) => {
+export const useOptimizedTooltip = (canvasRef, duration, currentTime, isPlaying, audioRef, startTime, endTime, hoveredHandle, isDragging, isInverted = false) => {
   // 🎯 **INSTANT HOVER STATE** - Track mouse position cho instant calculation
   const [hoverMousePosition, setHoverMousePosition] = useState(null);
   const [isHoverActive, setIsHoverActive] = useState(false);
@@ -240,7 +240,12 @@ export const useOptimizedTooltip = (canvasRef, duration, currentTime, isPlaying,
     }
     setIsHoverActive(false);
     setHoverMousePosition(null);
-  }, []);
+    
+    // 🆕 **INVERT MODE LOGGING**: Log clear action trong invert mode
+    if (isInverted) {
+      console.log('⚡ [InvertMode] Hover tooltip cleared instantly');
+    }
+  }, [isInverted]);
   
   useEffect(() => {
     return () => {
