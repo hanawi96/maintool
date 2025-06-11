@@ -99,16 +99,9 @@ const WaveformCanvas = React.memo(({
   const handleEnhancedPointerLeave = useCallback((e) => {
     if (onMouseLeave) onMouseLeave(e);
     
-    // 🆕 **INVERT MODE INSTANT HIDE**: When in invert mode, immediately hide hover cursor line
-    if (isInverted) {
-      clearHoverTooltip();
-      console.log('🔄 [InvertMode] Mouse left waveform - hover cursor line hidden instantly');
-    }
-    
-    // 🚀 **NO CURSOR/TOOLTIP RESET**: Không reset cursor hay tooltip khi pointer leave trong normal mode vì có pointer capture
-    // resetCursor();
-    // clearHoverTooltip();
-  }, [onMouseLeave, isInverted, clearHoverTooltip]);
+    // 🚀 **ALWAYS HIDE HOVER LINE**: Hide hover cursor line when leaving waveform
+    clearHoverTooltip();
+  }, [onMouseLeave, clearHoverTooltip]);
 
   // 🆕 **HANDLE EVENT HANDLERS**: Direct handlers cho handles - Updated for Pointer Events
   const handleHandlePointerDown = useCallback((e) => {

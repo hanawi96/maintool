@@ -67,64 +67,12 @@ const EnhancedWaveformLoadingIndicator = React.memo(({ processingStrategy, fromC
         )}
       </div>
 
-      {/* 🎨 **CSS ANIMATIONS** */}
-      <style>
-        {`
-          @keyframes waveform-shimmer {
-            0% { transform: translateX(-100%) skewX(-12deg); }
-            100% { transform: translateX(100%) skewX(-12deg); }
-          }
-
-          @keyframes waveform-bounce {
-            0% { transform: scaleY(0.3); }
-            100% { transform: scaleY(1.5); }
-          }
-        `}
-      </style>
+      {/* CSS animations are shared with original Waveform component */}
     </div>
   );
 });
 
 EnhancedWaveformLoadingIndicator.displayName = 'EnhancedWaveformLoadingIndicator';
-
-// 🚀 **PERFORMANCE BADGE** - Shows hybrid system performance
-const PerformanceBadge = React.memo(({ enhancedFeatures }) => {
-  if (!enhancedFeatures || (!enhancedFeatures.fromCache && !enhancedFeatures.processingStrategy)) {
-    return null;
-  }
-
-  const { fromCache, processingStrategy, processingTime } = enhancedFeatures;
-  
-  let badgeText = '';
-  let badgeColor = 'bg-gray-100 text-gray-600';
-  
-  if (fromCache) {
-    badgeText = '⚡ Instant Cache';
-    badgeColor = 'bg-green-100 text-green-700';
-  } else if (processingStrategy === 'worker') {
-    badgeText = '🚀 4-10x Faster';
-    badgeColor = 'bg-blue-100 text-blue-700';
-  } else if (processingStrategy === 'hybrid') {
-    badgeText = '🔧 Hybrid Accelerated';
-    badgeColor = 'bg-purple-100 text-purple-700';
-  } else if (processingStrategy === 'fallback') {
-    badgeText = '🔄 Standard Processing';
-    badgeColor = 'bg-yellow-100 text-yellow-700';
-  }
-
-  return (
-    <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${badgeColor} ml-2`}>
-      {badgeText}
-      {processingTime > 0 && (
-        <span className="ml-1 opacity-75">
-          ({processingTime}ms)
-        </span>
-      )}
-    </div>
-  );
-});
-
-PerformanceBadge.displayName = 'PerformanceBadge';
 
 const EnhancedWaveform = ({
   // 🔄 **BACKWARD COMPATIBLE PROPS**: Same as original Waveform
@@ -194,12 +142,6 @@ const EnhancedWaveform = ({
     console.log(`🔧 [EnhancedWaveform] Rendering enhanced loading indicator with height: ${WAVEFORM_CONFIG.HEIGHT}px`);
     return (
       <div className="bg-white/70 backdrop-blur-sm rounded-xl p-4 border border-slate-200/50 shadow-sm">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-medium text-gray-700">Processing Audio</span>
-          {showPerformanceBadge && enhancedFeatures && (
-            <PerformanceBadge enhancedFeatures={enhancedFeatures} />
-          )}
-        </div>
         <div 
           className="w-full relative"
           style={{
@@ -222,25 +164,6 @@ const EnhancedWaveform = ({
   // 🎯 **MAIN WAVEFORM DISPLAY** - Enhanced with performance indicators
   return (
     <div className="bg-white/70 backdrop-blur-sm rounded-xl p-4 border border-slate-200/50 shadow-sm">
-      {/* 🆕 **PERFORMANCE HEADER** */}
-      {showPerformanceBadge && enhancedFeatures && waveformData.length > 0 && (
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-sm font-medium text-gray-700">Audio Waveform</span>
-          <div className="flex items-center">
-            <PerformanceBadge enhancedFeatures={enhancedFeatures} />
-            {onPerformanceStatsRequest && (
-              <button 
-                onClick={onPerformanceStatsRequest}
-                className="ml-2 text-xs text-gray-500 hover:text-gray-700 cursor-pointer"
-                title="View performance details"
-              >
-                📊
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
       <div 
         className="w-full"
         style={{

@@ -1,11 +1,10 @@
 // 🔄 **HYBRID WAVEFORM INTEGRATION** - Bridge between old and new systems
-import { WaveformGenerator } from './waveformGenerator.js';
-import { SimpleHybridService } from './simpleHybridService.js';
-import { WAVEFORM_CONFIG } from '../utils/constants.js';
+import { WaveformGenerator } from './waveformGenerator';
+import { HybridWaveformService } from './hybridWaveformService';
 
 export class HybridWaveformIntegration {
   constructor() {
-    this.hybridService = new SimpleHybridService();
+    this.hybridService = new HybridWaveformService();
     this.fallbackGenerator = WaveformGenerator;
     this.useHybridSystem = true; // Flag to enable/disable hybrid system
     
@@ -73,10 +72,8 @@ export class HybridWaveformIntegration {
    */
   async processWithHybridSystem(file, options = {}) {
     const hybridOptions = {
-      samples: options.samples || WAVEFORM_CONFIG.SAMPLE_COUNT,
-      width: options.width || 800,
-      height: options.height || WAVEFORM_CONFIG.HEIGHT,
-      quality: options.quality || 'medium'
+      quality: options.quality || 'standard',
+      priority: options.priority || 'normal'
     };
 
     const result = await this.hybridService.processFile(file, hybridOptions);
@@ -89,7 +86,6 @@ export class HybridWaveformIntegration {
       numberOfChannels: result.numberOfChannels || 1,
       strategy: result.strategy,
       fromCache: result.fromCache,
-      canvas: result.canvas, // Additional benefit: pre-rendered canvas
       processingTime: result.processingTime
     };
   }

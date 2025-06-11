@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, memo, useCallback, useMemo } from 'react';
-import { WAVEFORM_CONFIG } from '../../utils/constants.js';
+import { WAVEFORM_CONFIG } from '../../utils/constants';
 
 // 🚀 **PHASE 1: CONSTANTS OPTIMIZATION** - Moved outside component to prevent recreation
 const TOOLTIP_STYLES = {

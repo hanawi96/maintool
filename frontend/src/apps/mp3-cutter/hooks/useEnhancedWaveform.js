@@ -1,6 +1,6 @@
 // 🪝 **ENHANCED WAVEFORM HOOK** - Hybrid system integration with backward compatibility
 import { useState, useRef, useCallback } from 'react';
-import { HybridWaveformGenerator } from '../services/hybridWaveformIntegration.js';
+import { HybridWaveformGenerator } from '../services/hybridWaveformIntegration';
 
 export const useEnhancedWaveform = () => {
   const [waveformData, setWaveformData] = useState([]);

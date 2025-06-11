@@ -2,8 +2,8 @@
 import React from 'react';
 
 // 🔄 **IMPORT BOTH SYSTEMS**
-import OriginalWaveform from './index.js'; // Original system
-import EnhancedWaveform from './EnhancedWaveform.jsx'; // Hybrid system
+import OriginalWaveform from './index'; // Original system
+import EnhancedWaveform from './EnhancedWaveform'; // Hybrid system
 
 // 🎯 **SYSTEM FLAGS** - Easy way to enable/disable features
 const WAVEFORM_FEATURES = {
