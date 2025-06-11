@@ -32,18 +32,8 @@ export const HANDLE_TYPES = {
 export const detectHandle = (x, canvasWidth, duration, startTime, endTime, eventInfo = null) => {
   if (duration === 0 || canvasWidth === 0) return null;
   
-  // 🔧 **DEBUG FIX**: Quick log cho startTime = 0 để confirm fix
-  if (startTime === 0 && Math.random() < 0.1) {
-    console.log(`🔧 [START-HANDLE-FIX] startTime=0 detected, handle wrapping logic applied`);
-  }
-  
   // 🆕 **DIRECT HANDLE EVENT**: Nếu event đến từ handle trực tiếp, return ngay
   if (eventInfo?.isHandleEvent && eventInfo?.handleType) {
-    console.log(`🎯 [DIRECT-HANDLE-DETECT] Direct handle event detected:`, {
-      handleType: eventInfo.handleType,
-      mouseX: x.toFixed(1),
-      note: 'Bypassing detection - using direct handle type from event'
-    });
     return eventInfo.handleType;
   }
   
@@ -83,34 +73,11 @@ export const detectHandle = (x, canvasWidth, duration, startTime, endTime, event
   const startDetected = x >= startHandleLeftEdge && x <= startHandleRightEdge;
   const endDetected = x >= endHandleLeftEdge && x <= endHandleRightEdge;
   
-  // 🔍 **ENHANCED DEBUG**: More detailed logging for handle detection
-  const shouldLogDebug = Math.random() < 0.05 || eventInfo?.forceDebug;
-  
-  if (shouldLogDebug || eventInfo?.isHandleEvent) {
-    console.log(`🎯 [HANDLE-DETECTION-WRAP] Handle detection with wrapping logic:`, {
-      mouseX: x.toFixed(1) + 'px',
-      regionBounds: `[${regionStartX.toFixed(1)}, ${regionEndX.toFixed(1)}] (region area)`,
-      startHandle: {
-        position: `${startHandleX.toFixed(1)}px (wraps to ${startHandleRightEdge.toFixed(1)}px)`,
-        alignsWithRegionStart: `right edge @ ${startHandleRightEdge.toFixed(1)}px = region start @ ${regionStartX.toFixed(1)}px`,
-        detected: startDetected
-      },
-      endHandle: {
-        position: `${endHandleX.toFixed(1)}px (wraps to ${endHandleRightEdge.toFixed(1)}px)`,
-        alignsWithRegionEnd: `left edge @ ${endHandleX.toFixed(1)}px = region end @ ${regionEndX.toFixed(1)}px`,
-        detected: endDetected
-      },
-      fix: 'Handles now wrap around region boundaries for precise boundary control'
-    });
-  }
-  
   if (startDetected) {
-    console.log(`✅ [START-DETECTED-WRAP] at ${x.toFixed(1)}px (handle wraps around region start at ${regionStartX.toFixed(1)}px)`);
     return HANDLE_TYPES.START;
   }
   
   if (endDetected) {
-    console.log(`✅ [END-DETECTED-WRAP] at ${x.toFixed(1)}px (handle wraps around region end at ${regionEndX.toFixed(1)}px)`);
     return HANDLE_TYPES.END;
   }
   
@@ -145,17 +112,6 @@ export const positionToTime = (x, canvasWidth, duration) => {
   const waveformRelativeX = clampedX - waveformStartX;
   const timePercent = waveformRelativeX / availableWaveformWidth;
   const time = timePercent * duration;
-  
-  // 🚀 **DEBUG LOG**: Add occasional debug logging for handle wrapping context
-  if (Math.random() < 0.02) {
-    console.log(`🔧 [POSITION-TO-TIME-WRAP] Mouse to time conversion (handle wrapping compatible):`, {
-      originalX: x.toFixed(1) + 'px',
-      clampedX: clampedX.toFixed(1) + 'px',
-      waveformArea: `[${waveformStartX}, ${waveformEndX}] (${availableWaveformWidth}px)`,
-      time: time.toFixed(2) + 's',
-      note: 'Mouse position correctly mapped to waveform area, compatible with handle wrapping'
-    });
-  }
   
   return Math.max(0, Math.min(duration, time));
 };

@@ -339,8 +339,6 @@ const MP3CutterMain = React.memo(() => {
 
   // 🎯 NEW: File upload handler with audio validation
   const handleFileUpload = useCallback(async (file) => {
-    console.log('📤 [FileUpload] Starting file upload process...');
-    
     // 🆕 RESET PREVIOUS ERRORS
     setAudioError(null);
     setFileValidation(null);
@@ -350,11 +348,8 @@ const MP3CutterMain = React.memo(() => {
     
     try {
       // 🆕 1. VALIDATE AUDIO FILE FIRST
-      console.log('🔍 [Validation] Checking file format and browser compatibility...');
       const validation = validateAudioFile(file);
       setFileValidation(validation);
-      
-      console.log('📋 [Validation] Result:', validation);
       
       // 🆕 SHOW WARNINGS BUT CONTINUE IF NO ERRORS
       if (validation.warnings.length > 0) {
@@ -366,7 +361,6 @@ const MP3CutterMain = React.memo(() => {
       // 🆕 STOP IF VALIDATION FAILED
       if (!validation.valid) {
         const errorMsg = validation.errors.join('; ');
-        console.error('❌ [Validation] Failed:', errorMsg);
         
         // 🆕 SET DETAILED ERROR INFO
         setAudioError({
@@ -382,16 +376,9 @@ const MP3CutterMain = React.memo(() => {
         });
         return;
       }
-      
-      // 🆕 LOG COMPATIBILITY INFO
-      if (validation.info.browserSupport) {
-        const { level, support } = validation.info.browserSupport;
-        console.log(`✅ [Compatibility] ${getFormatDisplayName(validation.info.detectedMimeType)}: ${level} support (${support})`);
-      }
 
       // 🎯 2. Test connection first if not already connected
       if (isConnected === false) {
-        console.log('🔄 [Connection] Testing connection before upload...');
         const connected = await testConnection();
         if (!connected) {
           throw new Error('Backend server is not available. Please start the backend server.');
@@ -401,7 +388,6 @@ const MP3CutterMain = React.memo(() => {
       }
 
       // 🎯 3. UPLOAD FILE AND GET IMMEDIATE AUDIO URL
-      console.log('🎯 [FileUpload] Uploading file...');
       await uploadFile(file);
       
       // 🔥 **IMMEDIATE URL CREATION**: Create URL directly from file for immediate use
@@ -411,22 +397,15 @@ const MP3CutterMain = React.memo(() => {
         throw new Error('Failed to create audio URL for immediate playback');
       }
       
-      console.log('🔧 [FileUpload] Created immediate audio URL for:', file.name);
-      
       // 🔥 **IMMEDIATE AUDIO SETUP**: Set audio source right away
       if (audioRef.current) {
-        console.log('🔧 [AudioSetup] Setting audio src immediately');
-        
         try {
           audioRef.current.src = immediateAudioUrl;
           audioRef.current.load();
           
-          console.log('✅ [AudioSetup] Audio element loaded successfully');
           setAudioError(null);
           
         } catch (loadError) {
-          console.error('❌ [AudioSetup] Audio load failed:', loadError);
-          
           setAudioError({
             type: 'load',
             title: 'Audio Load Failed',
@@ -434,18 +413,10 @@ const MP3CutterMain = React.memo(() => {
             suggestions: ['Try a different file', 'Check if the file is corrupted']
           });
         }
-      } else {
-        console.error('❌ [AudioSetup] No audio element available');
       }
       
       // 🎯 4. GENERATE WAVEFORM
-      console.log('🎯 [Waveform] Generating waveform...');
       const waveformResult = await generateWaveform(file);
-      
-      console.log('✅ [Waveform] Generation complete:', {
-        dataLength: waveformResult.data.length,
-        duration: waveformResult.duration
-      });
       
       // 🎯 5. Initialize history with safe duration
       const audioDuration = waveformResult.duration || audioRef.current?.duration || duration || 0;
@@ -458,12 +429,9 @@ const MP3CutterMain = React.memo(() => {
           isInverted: false // 🆕 **RESET INVERT**: Reset invert mode for new file
         };
         saveState(initialState);
-        console.log('✅ [FileUpload] File upload and setup complete');
       }
       
     } catch (error) {
-      console.error('❌ [FileUpload] Failed:', error);
-      
       // 🆕 ENHANCED ERROR HANDLING
       setAudioError({
         type: 'upload',
@@ -488,20 +456,13 @@ const MP3CutterMain = React.memo(() => {
     }
     
     // 🔥 **AUDIO FILE READY**: Setup interaction manager when audio is ready
-    console.log('🔧 [AudioSetup] Audio file ready, setting up interactions...', {
-      audioFileName: audioFile.name
-    });
-
     // 🎯 Reset interaction manager for new file
     if (interactionManagerRef.current) {
       interactionManagerRef.current.reset();
-      console.log('🎮 [InteractionManager] Reset for new audio file');
     }
 
     // 🔥 **CLEAR PREVIOUS ERRORS**: Clear any audio errors from previous files
     setAudioError(null);
-
-    console.log('✅ [AudioSetup] Audio interactions configured successfully');
   }, [audioFile?.url, audioFile?.name, audioRef, setAudioError]); // 🔥 **OPTIMIZED DEPS**: Added missing dependencies
     
   // 🔥 **UPDATE ANIMATION STATE REF**: Cập nhật ref thay vì tạo object mới
