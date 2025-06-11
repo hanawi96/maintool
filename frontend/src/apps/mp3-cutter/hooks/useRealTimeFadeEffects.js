@@ -147,44 +147,79 @@ export const useRealTimeFadeEffects = () => {
     }
   }, []);
   
-  // 🎯 **OPTIMIZED FADE MULTIPLIER CALCULATION** với better debugging
+  // 🎯 **OPTIMIZED FADE MULTIPLIER CALCULATION** với corrected invert mode logic
   const calculateFadeMultiplier = useCallback((currentTime, config) => {
-    const { fadeIn, fadeOut, startTime, endTime } = config;
+    const { fadeIn, fadeOut, startTime, endTime, isInverted, duration = 0 } = config;
     
     // 🔧 **DEBUG CURRENT TIME** để detect stuck time
     if (Math.abs(currentTime - debugStateRef.current.lastCurrentTime) > 0.1) {
       debugStateRef.current.lastCurrentTime = currentTime;
     }
     
-    // 🚫 **NO FADE CONDITIONS**
-    if (fadeIn === 0 && fadeOut === 0) return 1.0;
-    if (currentTime < startTime || currentTime > endTime) return 1.0;
-    
-    const timeInSelection = currentTime - startTime;
-    const timeFromEnd = endTime - currentTime;
-    let multiplier = 1.0;
-    
-    // 🔥 **FADE IN EFFECT** với enhanced calculation
-    if (fadeIn > 0 && timeInSelection <= fadeIn) {
-      const fadeProgress = timeInSelection / fadeIn; // 0.0 → 1.0
-      const easedProgress = 1 - Math.pow(1 - fadeProgress, 1.5);
-      multiplier = Math.min(multiplier, 0.001 + (easedProgress * 0.999));
+    if (isInverted) {
+      // 🆕 **INVERT MODE**: Silence region has absolute priority
+      if (currentTime >= startTime && currentTime <= endTime) {
+        return 0.001; // Silence region - no fade effects apply here
+      }
       
+      // 🔥 **FADE EFFECTS FOR ACTIVE REGIONS**: Apply to regions before startTime and after endTime
+      if (fadeIn === 0 && fadeOut === 0) return 1.0;
       
+      let multiplier = 1.0;
+      
+      // 🎯 **FADE IN - FIRST ACTIVE REGION** (0 to startTime)
+      if (fadeIn > 0 && currentTime < startTime) {
+        const activeRegionDuration = startTime; // From 0 to startTime
+        const fadeInEnd = Math.min(fadeIn, activeRegionDuration);
+        
+        if (currentTime <= fadeInEnd) {
+          const fadeProgress = currentTime / fadeInEnd;
+          const easedProgress = 1 - Math.pow(1 - fadeProgress, 1.5);
+          multiplier = Math.min(multiplier, 0.001 + (easedProgress * 0.999));
+        }
+      }
+      
+      // 🔥 **FADE OUT - SECOND ACTIVE REGION** (endTime to duration)
+      if (fadeOut > 0 && currentTime >= endTime && duration > 0) {
+        const activeRegionDuration = duration - endTime; // From endTime to duration
+        const actualFadeOutDuration = Math.min(fadeOut, activeRegionDuration);
+        const fadeOutStart = duration - actualFadeOutDuration; // Fade at the END of this region
+        
+        if (currentTime >= fadeOutStart) {
+          const fadeProgress = (duration - currentTime) / actualFadeOutDuration;
+          const easedProgress = Math.pow(fadeProgress, 1.5);
+          const fadeOutMultiplier = 0.001 + (easedProgress * 0.999);
+          multiplier = Math.min(multiplier, fadeOutMultiplier);
+        }
+      }
+      
+      return Math.max(0.0001, Math.min(1.0, multiplier));
+    } else {
+      // 🎯 **NORMAL MODE**: Original logic
+      if (fadeIn === 0 && fadeOut === 0) return 1.0;
+      if (currentTime < startTime || currentTime > endTime) return 1.0;
+      
+      let multiplier = 1.0;
+      const timeInSelection = currentTime - startTime;
+      const timeFromEnd = endTime - currentTime;
+      
+      // 🔥 **FADE IN EFFECT** với enhanced calculation
+      if (fadeIn > 0 && timeInSelection <= fadeIn) {
+        const fadeProgress = timeInSelection / fadeIn;
+        const easedProgress = 1 - Math.pow(1 - fadeProgress, 1.5);
+        multiplier = Math.min(multiplier, 0.001 + (easedProgress * 0.999));
+      }
+      
+      // 🔥 **FADE OUT EFFECT** với enhanced calculation
+      if (fadeOut > 0 && timeFromEnd <= fadeOut) {
+        const fadeProgress = timeFromEnd / fadeOut;
+        const easedProgress = Math.pow(fadeProgress, 1.5);
+        const fadeOutMultiplier = 0.001 + (easedProgress * 0.999);
+        multiplier = Math.min(multiplier, fadeOutMultiplier);
+      }
+      
+      return Math.max(0.0001, Math.min(1.0, multiplier));
     }
-    
-    // 🔥 **FADE OUT EFFECT** với enhanced calculation
-    if (fadeOut > 0 && timeFromEnd <= fadeOut) {
-      const fadeProgress = timeFromEnd / fadeOut; // 1.0 → 0.0
-      const easedProgress = Math.pow(fadeProgress, 1.5);
-      const fadeOutMultiplier = 0.001 + (easedProgress * 0.999);
-      multiplier = Math.min(multiplier, fadeOutMultiplier);
-      
-      // 🔧 **FADE OUT DEBUG**: Log fade out progress occasionally
-      
-    }
-    
-    return Math.max(0.0001, Math.min(1.0, multiplier));
   }, []);
   
   // 🆕 **OPTIMIZED ANIMATION LOOP** - sử dụng ref để access latest config
@@ -333,8 +368,13 @@ export const useRealTimeFadeEffects = () => {
   
   // 🆕 **REAL-TIME CONFIG UPDATE** - instant update với enhanced animation restart
   const updateFadeConfig = useCallback((newConfig) => {
-    const { fadeIn, fadeOut, startTime, endTime } = newConfig;
+    const { fadeIn, fadeOut, startTime, endTime, isInverted = false, duration = 0 } = newConfig;
     const isActive = (fadeIn > 0 || fadeOut > 0) && startTime < endTime;
+    
+    // 🔍 **DEBUG FADE CONFIG UPDATE**: Log khi fadeOut thay đổi trong invert mode
+    if (isInverted && fadeOut > 0) {
+      console.log(`🔥 [INVERT-FADEOUT-CONFIG] Config updated: fadeOut=${fadeOut.toFixed(1)}s, duration=${duration.toFixed(1)}s, activeRegion=[${endTime.toFixed(2)}s-${duration.toFixed(2)}s]`);
+    }
     
     // 🔍 **DETECT CONFIG CHANGES**: Track previous state để detect activation
     const wasActive = fadeConfigRef.current.isActive;
@@ -345,7 +385,9 @@ export const useRealTimeFadeEffects = () => {
       fadeOut, 
       startTime,
       endTime,
-      isActive
+      isActive,
+      isInverted, // 🆕 **INVERT MODE**: Include invert mode in config
+      duration // 🆕 **DURATION**: Include duration for correct invert mode fadeout
     };
     
     // 🔥 **IMMEDIATE REF UPDATE**: Update ref TRƯỚC state để animation loop ngay lập tức thấy config mới

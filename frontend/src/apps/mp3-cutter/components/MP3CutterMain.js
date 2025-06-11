@@ -565,15 +565,14 @@ const MP3CutterMain = React.memo(() => {
       fadeIn: newFadeIn,
       fadeOut,
       startTime,
-      endTime
+      endTime,
+      isInverted, // 🆕 **INVERT MODE**: Pass invert state for correct fade logic
+      duration // 🆕 **DURATION**: Required for correct invert mode fadeout
     };
     
     // 🚀 **INSTANT UPDATE**: Apply config ngay lập tức
     updateFadeConfig(newConfig);
-    
-    // 🎯 **DEBUG REAL-TIME**: Log fade change với immediate feedback
-    console.log(`🎨 [FadeControls] Fade In REAL-TIME: ${newFadeIn.toFixed(1)}s - effects applied instantly`);
-  }, [fadeOut, startTime, endTime, updateFadeConfig]);
+  }, [fadeOut, startTime, endTime, isInverted, duration, updateFadeConfig]);
 
   const handleFadeOutChange = useCallback((newFadeOut) => {
     setFadeOut(newFadeOut);
@@ -583,15 +582,14 @@ const MP3CutterMain = React.memo(() => {
       fadeIn,
       fadeOut: newFadeOut,
       startTime,
-      endTime
+      endTime,
+      isInverted, // 🆕 **INVERT MODE**: Pass invert state for correct fade logic
+      duration // 🆕 **DURATION**: Required for correct invert mode fadeout
     };
     
     // 🚀 **INSTANT UPDATE**: Apply config ngay lập tức
     updateFadeConfig(newConfig);
-    
-    // 🎯 **DEBUG REAL-TIME**: Log fade change với immediate feedback
-    console.log(`🎨 [FadeControls] Fade Out REAL-TIME: ${newFadeOut.toFixed(1)}s - effects applied instantly`);
-  }, [fadeIn, startTime, endTime, updateFadeConfig]);
+  }, [fadeIn, startTime, endTime, isInverted, duration, updateFadeConfig]);
 
   // 🆕 **FADE DRAG HISTORY CALLBACKS**: Lưu lịch sử khi kết thúc drag fade sliders
   const handleFadeInDragEnd = useCallback((finalFadeIn) => {
@@ -615,13 +613,15 @@ const MP3CutterMain = React.memo(() => {
       fadeIn: newFadeIn,
       fadeOut: newFadeOut,
       startTime,
-      endTime
+      endTime,
+      isInverted, // 🆕 **INVERT MODE**: Pass invert state for correct fade logic
+      duration // 🆕 **DURATION**: Required for correct invert mode fadeout
     };
     updateFadeConfig(newConfig);
     
     // Save to history
     saveState({ startTime, endTime, fadeIn: newFadeIn, fadeOut: newFadeOut, isInverted });
-  }, [startTime, endTime, updateFadeConfig, saveState, isInverted]);
+  }, [startTime, endTime, updateFadeConfig, saveState, isInverted, duration]);
 
   // Drag and drop handler
   const handleDrop = useCallback((e) => {
@@ -871,7 +871,9 @@ const MP3CutterMain = React.memo(() => {
         fadeIn,
         fadeOut,
         startTime,
-        endTime
+        endTime,
+        isInverted, // 🆕 **INVERT MODE**: Pass invert state for correct fade logic
+        duration // 🆕 **DURATION**: Required for correct invert mode fadeout
       });
       
       // 🆕 **TRACK SYNC STATE**: Remember last synced values
@@ -881,16 +883,8 @@ const MP3CutterMain = React.memo(() => {
         lastFadeIn: fadeIn,
         lastFadeOut: fadeOut
       };
-      
-      console.log('🔄 [ConfigSync] Initial/Selection config sync:', {
-        startTime: startTime.toFixed(2) + 's',
-        endTime: endTime.toFixed(2) + 's',
-        fadeIn: fadeIn.toFixed(1) + 's',
-        fadeOut: fadeOut.toFixed(1) + 's',
-        reason: !fadeConfigSyncedRef.current ? 'INITIAL_MOUNT' : 'SELECTION_CHANGE'
-      });
     }
-  }, [startTime, endTime, fadeIn, fadeOut, updateFadeConfig, isInverted]); // 🚀 **ALL DEPS**: But logic prevents fade-only updates
+  }, [startTime, endTime, fadeIn, fadeOut, updateFadeConfig, isInverted, duration]); // 🚀 **ALL DEPS**: But logic prevents fade-only updates
 
   // 🔥 **AUDIO EVENT HANDLERS**: Extract handlers for SafeAudioElement
   const handleLoadedMetadata = useCallback(() => {

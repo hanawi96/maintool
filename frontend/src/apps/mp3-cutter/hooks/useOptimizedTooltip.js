@@ -240,12 +240,7 @@ export const useOptimizedTooltip = (canvasRef, duration, currentTime, isPlaying,
     }
     setIsHoverActive(false);
     setHoverMousePosition(null);
-    
-    // 🆕 **INVERT MODE LOGGING**: Log clear action trong invert mode
-    if (isInverted) {
-      console.log('⚡ [InvertMode] Hover tooltip cleared instantly');
-    }
-  }, [isInverted]);
+  }, []);
   
   useEffect(() => {
     return () => {

@@ -1,32 +1,70 @@
 import { WAVEFORM_CONFIG } from './constants';
 
 // Fade effects calculator
-export const calculateFadeMultiplier = (barTime, selectionStart, selectionEnd, fadeInDuration, fadeOutDuration) => {
-  if (fadeInDuration <= 0 && fadeOutDuration <= 0) return 1.0;
-  if (barTime < selectionStart || barTime > selectionEnd) return 1.0;
-  
-  const selectionDuration = selectionEnd - selectionStart;
-  let fadeMultiplier = 1.0;
-  
-  // Fade in effect
-  if (fadeInDuration > 0) {
-    const fadeInEnd = selectionStart + Math.min(fadeInDuration, selectionDuration / 2);
-    if (barTime <= fadeInEnd) {
-      const fadeProgress = Math.max(0, (barTime - selectionStart) / fadeInDuration);
-      fadeMultiplier = Math.min(fadeMultiplier, fadeProgress);
+export const calculateFadeMultiplier = (barTime, selectionStart, selectionEnd, fadeInDuration, fadeOutDuration, isInverted = false, duration = 0) => {
+  if (isInverted) {
+    // 🆕 **INVERT MODE**: Silence region has absolute priority
+    if (barTime >= selectionStart && barTime <= selectionEnd) {
+      return 0.05; // Silence region - no fade effects apply here
     }
-  }
-  
-  // Fade out effect
-  if (fadeOutDuration > 0) {
-    const fadeOutStart = selectionEnd - Math.min(fadeOutDuration, selectionDuration / 2);
-    if (barTime >= fadeOutStart) {
-      const fadeProgress = Math.max(0, (selectionEnd - barTime) / fadeOutDuration);
-      fadeMultiplier = Math.min(fadeMultiplier, fadeProgress);
+    
+    // 🔥 **FADE EFFECTS FOR ACTIVE REGIONS**: Apply to regions before startTime and after endTime
+    if (fadeInDuration <= 0 && fadeOutDuration <= 0) return 1.0;
+    
+    let fadeMultiplier = 1.0;
+    
+    // 🎯 **FADE IN - FIRST ACTIVE REGION** (0 to selectionStart)
+    if (fadeInDuration > 0 && barTime < selectionStart) {
+      const activeRegionDuration = selectionStart; // From 0 to selectionStart
+      const fadeInEnd = Math.min(fadeInDuration, activeRegionDuration);
+      
+      if (barTime <= fadeInEnd) {
+        const fadeProgress = barTime / fadeInEnd;
+        fadeMultiplier = Math.min(fadeMultiplier, fadeProgress);
+      }
     }
+    
+    // 🔥 **FADE OUT - SECOND ACTIVE REGION** (selectionEnd to duration)
+    if (fadeOutDuration > 0 && barTime >= selectionEnd) {
+      const activeRegionDuration = duration - selectionEnd; // From selectionEnd to duration
+      const actualFadeOutDuration = Math.min(fadeOutDuration, activeRegionDuration);
+      const fadeOutStart = duration - actualFadeOutDuration; // Fade at the END of this region
+      
+      if (barTime >= fadeOutStart) {
+        const fadeProgress = (duration - barTime) / actualFadeOutDuration;
+        fadeMultiplier = Math.min(fadeMultiplier, Math.max(0.05, fadeProgress));
+      }
+    }
+    
+    return Math.max(0.05, Math.min(1.0, fadeMultiplier));
+  } else {
+    // 🎯 **NORMAL MODE**: Original logic
+    if (fadeInDuration <= 0 && fadeOutDuration <= 0) return 1.0;
+    if (barTime < selectionStart || barTime > selectionEnd) return 1.0;
+    
+    let fadeMultiplier = 1.0;
+    const selectionDuration = selectionEnd - selectionStart;
+    
+    // Fade in effect
+    if (fadeInDuration > 0) {
+      const fadeInEnd = selectionStart + Math.min(fadeInDuration, selectionDuration / 2);
+      if (barTime <= fadeInEnd) {
+        const fadeProgress = Math.max(0, (barTime - selectionStart) / fadeInDuration);
+        fadeMultiplier = Math.min(fadeMultiplier, fadeProgress);
+      }
+    }
+    
+    // Fade out effect
+    if (fadeOutDuration > 0) {
+      const fadeOutStart = selectionEnd - Math.min(fadeOutDuration, selectionDuration / 2);
+      if (barTime >= fadeOutStart) {
+        const fadeProgress = Math.max(0, (selectionEnd - barTime) / fadeOutDuration);
+        fadeMultiplier = Math.min(fadeMultiplier, fadeProgress);
+      }
+    }
+    
+    return Math.max(0.05, Math.min(1.0, fadeMultiplier));
   }
-  
-  return Math.max(0.05, Math.min(1.0, fadeMultiplier));
 };
 
 // Adaptive waveform data processing

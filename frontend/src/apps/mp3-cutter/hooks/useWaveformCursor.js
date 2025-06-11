@@ -11,11 +11,6 @@ export const useWaveformCursor = (canvasRef, duration, startTime, endTime, isDra
 
     // 🆕 **DIRECT HANDLE EVENT**: Nếu event từ handle trực tiếp, return resize cursor
     if (eventInfo?.isHandleEvent && eventInfo?.handleType) {
-      console.log(`🖱️ [CURSOR-DIRECT] Handle event detected, cursor: ew-resize`, {
-        handleType: eventInfo.handleType,
-        mouseX: mouseX.toFixed(1),
-        source: 'DIRECT_HANDLE'
-      });
       return 'ew-resize';
     }
 
@@ -44,26 +39,6 @@ export const useWaveformCursor = (canvasRef, duration, startTime, endTime, isDra
       // 🔧 **EXACT HANDLE AREA ONLY**: Chỉ detect khi mouse nằm chính xác trong visual area của handle
       const overStartHandle = mouseX >= startHandleLeftEdge && mouseX <= startHandleRightEdge;
       const overEndHandle = mouseX >= endHandleLeftEdge && mouseX <= endHandleRightEdge;
-      
-      // 🚀 **CURSOR DEBUG**: Log khi detect handle với zero tolerance
-      if (overStartHandle || overEndHandle) {
-        console.log(`🖱️ [CURSOR-DETECT-ZERO-AREA] Handle detected with ZERO detection area:`, {
-          mouseX: mouseX.toFixed(1),
-          startHandle: overStartHandle ? {
-            detected: true,
-            visualArea: `[${startHandleLeftEdge.toFixed(1)}, ${startHandleRightEdge.toFixed(1)}]`,
-            width: responsiveHandleWidth + 'px'
-          } : { detected: false },
-          endHandle: overEndHandle ? {
-            detected: true, 
-            visualArea: `[${endHandleLeftEdge.toFixed(1)}, ${endHandleRightEdge.toFixed(1)}]`,
-            width: responsiveHandleWidth + 'px'
-          } : { detected: false },
-          detectionArea: '0px (ZERO TOLERANCE)',
-          cursor: 'ew-resize',
-          userFix: 'Now 8px area before handle right is clickable for cursor movement'
-        });
-      }
       
       if (overStartHandle || overEndHandle) {
         return 'ew-resize';
@@ -153,14 +128,6 @@ export const useWaveformCursor = (canvasRef, duration, startTime, endTime, isDra
     if (newCursor !== currentCursorRef.current) {
       canvas.style.cursor = newCursor;
       currentCursorRef.current = newCursor;
-      
-      // 🔧 **CURSOR CHANGE LOG**: Enhanced logging với eventInfo
-      console.log(`🖱️ [CURSOR-UPDATE] Cursor changed to: ${newCursor}`, {
-        mouseX: mouseX.toFixed(1),
-        previous: currentCursorRef.current,
-        eventSource: eventInfo?.isHandleEvent ? 'HANDLE' : 'CANVAS',
-        handleType: eventInfo?.handleType || 'none'
-      });
     }
   }, [canvasRef, detectCursorType]);
 

@@ -208,31 +208,79 @@ const WaveformCanvas = React.memo(({
     }
   }, [canvasRef, renderData]);  // Trigger when render data changes
 
-  // 🆕 **FADE EFFECT CALCULATOR**: Optimized fade calculation
-  const calculateFadeMultiplier = useCallback((barTime, selectionStart, selectionEnd, fadeInDuration, fadeOutDuration) => {
-    if (fadeInDuration <= 0 && fadeOutDuration <= 0) return 1.0;
-    if (barTime < selectionStart || barTime > selectionEnd) return 1.0;
-    
-    const selectionDuration = selectionEnd - selectionStart;
-    let fadeMultiplier = 1.0;
-    
-    if (fadeInDuration > 0) {
-      const fadeInEnd = selectionStart + Math.min(fadeInDuration, selectionDuration / 2);
-      if (barTime <= fadeInEnd) {
-        const fadeProgress = Math.max(0, (barTime - selectionStart) / fadeInDuration);
-        fadeMultiplier = Math.min(fadeMultiplier, fadeProgress);
+  // 🆕 **FADE EFFECT CALCULATOR**: Ultra-optimized fade calculation - Fixed invert mode fadeout
+  const calculateFadeMultiplier = useCallback((barTime, selectionStart, selectionEnd, fadeInDuration, fadeOutDuration, isInverted = false, duration = 0) => {
+    if (isInverted) {
+      // 🆕 **INVERT MODE**: Silence region has absolute priority
+      if (barTime >= selectionStart && barTime <= selectionEnd) {
+        return 0.05; // Silence region - no fade effects apply here
       }
-    }
-    
-    if (fadeOutDuration > 0) {
-      const fadeOutStart = selectionEnd - Math.min(fadeOutDuration, selectionDuration / 2);
-      if (barTime >= fadeOutStart) {
-        const fadeProgress = Math.max(0, (selectionEnd - barTime) / fadeOutDuration);
-        fadeMultiplier = Math.min(fadeMultiplier, fadeProgress);
+      
+      // 🔥 **FADE EFFECTS FOR ACTIVE REGIONS**: Apply to regions before startTime and after endTime
+      if (fadeInDuration <= 0 && fadeOutDuration <= 0) return 1.0;
+      
+      let fadeMultiplier = 1.0;
+      
+      // 🎯 **FADE IN - FIRST ACTIVE REGION** (0 to selectionStart)
+      if (fadeInDuration > 0 && barTime < selectionStart) {
+        const activeRegionDuration = selectionStart; // From 0 to selectionStart
+        const fadeInEnd = Math.min(fadeInDuration, activeRegionDuration);
+        
+        if (barTime <= fadeInEnd) {
+          const fadeProgress = barTime / fadeInEnd;
+          fadeMultiplier = Math.min(fadeMultiplier, fadeProgress);
+          
+          // 🔍 **DEBUG FADE IN**: Log fade in calculation occasionally
+          if (Math.random() < 0.01) {
+            console.log(`🎨 [INVERT-FADEIN] Bar at ${barTime.toFixed(2)}s: fadeProgress=${fadeProgress.toFixed(3)}, fadeIn=${fadeInDuration.toFixed(1)}s, region=[0-${selectionStart.toFixed(2)}s]`);
+          }
+        }
       }
+      
+      // 🔥 **FADE OUT - SECOND ACTIVE REGION** (selectionEnd to duration)
+      if (fadeOutDuration > 0 && barTime >= selectionEnd) {
+        const activeRegionDuration = duration - selectionEnd; // From selectionEnd to duration
+        const actualFadeOutDuration = Math.min(fadeOutDuration, activeRegionDuration);
+        const fadeOutStart = duration - actualFadeOutDuration; // Fade at the END of this region
+        
+        if (barTime >= fadeOutStart) {
+          const fadeProgress = (duration - barTime) / actualFadeOutDuration;
+          fadeMultiplier = Math.min(fadeMultiplier, Math.max(0.05, fadeProgress));
+          
+          // 🔍 **DEBUG FADE OUT**: Log fade out calculation occasionally  
+          if (Math.random() < 0.01) {
+            console.log(`🔥 [INVERT-FADEOUT] Bar at ${barTime.toFixed(2)}s: fadeProgress=${fadeProgress.toFixed(3)}, fadeOut=${fadeOutDuration.toFixed(1)}s, region=[${selectionEnd.toFixed(2)}s-${duration.toFixed(2)}s], fadeStart=${fadeOutStart.toFixed(2)}s`);
+          }
+        }
+      }
+      
+      return Math.max(0.05, Math.min(1.0, fadeMultiplier));
+    } else {
+      // 🎯 **NORMAL MODE**: Original logic unchanged
+      if (fadeInDuration <= 0 && fadeOutDuration <= 0) return 1.0;
+      if (barTime < selectionStart || barTime > selectionEnd) return 1.0;
+      
+      let fadeMultiplier = 1.0;
+      const selectionDuration = selectionEnd - selectionStart;
+      
+      if (fadeInDuration > 0) {
+        const fadeInEnd = selectionStart + Math.min(fadeInDuration, selectionDuration / 2);
+        if (barTime <= fadeInEnd) {
+          const fadeProgress = Math.max(0, (barTime - selectionStart) / fadeInDuration);
+          fadeMultiplier = Math.min(fadeMultiplier, fadeProgress);
+        }
+      }
+      
+      if (fadeOutDuration > 0) {
+        const fadeOutStart = selectionEnd - Math.min(fadeOutDuration, selectionDuration / 2);
+        if (barTime >= fadeOutStart) {
+          const fadeProgress = Math.max(0, (selectionEnd - barTime) / fadeOutDuration);
+          fadeMultiplier = Math.min(fadeMultiplier, fadeProgress);
+        }
+      }
+      
+      return Math.max(0.05, Math.min(1.0, fadeMultiplier));
     }
-    
-    return Math.max(0.05, Math.min(1.0, fadeMultiplier));
   }, []);
 
   // 🎯 **OPTIMIZED DRAW FUNCTION**: Ultra-fast rendering without flicker
@@ -284,7 +332,7 @@ const WaveformCanvas = React.memo(({
     const availableWaveformWidth = waveformEndX - waveformStartX;
     
     // 🚀 **DEBUG LOG**: Add console.log for debugging if needed
-    if (Math.random() < 0.02) { // Log occasionally to avoid spam
+    if (Math.random() < 0.001) { // Log very rarely to avoid spam
       console.log(`🔧 [WAVEFORM-RENDER-FIX] Waveform rendering area:`, {
         canvasWidth: width + 'px',
         leftHandleWidth: leftHandleWidth + 'px', 
@@ -306,7 +354,7 @@ const WaveformCanvas = React.memo(({
     const waveformVariation = Math.max(0, Math.min(1, currentVolume));
     
     // 🔧 **DEBUG WAVEFORM HEIGHT**: Log để debug height inconsistency
-    if (Math.random() < 0.05) { // Log occasionally
+    if (Math.random() < 0.001) { // Log very rarely
       console.log(`🔧 [WaveformHeight-DEBUG] Height calculation details:`, {
         currentVolume: currentVolume.toFixed(3),
         volumePercent: volumePercent.toFixed(1) + '%',
@@ -332,8 +380,16 @@ const WaveformCanvas = React.memo(({
         const value = waveformData[i];
         const barTime = (i / waveformData.length) * duration;
         
-        const fadeMultiplier = fadeEffectsActive ? 
-          calculateFadeMultiplier(barTime, startTime, endTime, currentFadeIn, currentFadeOut) : 1.0;
+        // 🚀 **ULTRA-FAST FADE CALCULATION**: Optimized for speed
+        let fadeMultiplier = 1.0;
+        
+        if (isInverted && barTime >= startTime && barTime <= endTime) {
+          // 🔇 **SILENCE REGION - COMPLETELY ISOLATED**: Fixed multiplier, never affected by fade controls
+          fadeMultiplier = 0.03; // Lower and more stable value
+        } else if (fadeEffectsActive) {
+          // Only calculate fade for non-silence bars
+          fadeMultiplier = calculateFadeMultiplier(barTime, startTime, endTime, currentFadeIn, currentFadeOut, isInverted, duration);
+        }
         
         let effectiveBarHeight;
         if (waveformVariation === 0) {
@@ -433,7 +489,7 @@ const WaveformCanvas = React.memo(({
     }
     
     // 🚀 **DEBUG LOG**: Add console.log to show handle positioning logic
-    if (Math.random() < 0.02) { // Log occasionally to avoid spam
+    if (Math.random() < 0.001) { // Log very rarely to avoid spam
       console.log(`🔧 [HANDLE-INVERT-POSITIONING] Handle positioning with invert mode:`, {
         isInverted,
         regionBounds: `${regionStartX.toFixed(1)}px - ${regionEndX.toFixed(1)}px`,
