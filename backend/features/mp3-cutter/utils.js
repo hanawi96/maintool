@@ -641,7 +641,7 @@ export class MP3Utils {
   }
 
   /**
-   * 🆕 **CUT AUDIO INVERT MODE**: Cut and concatenate segments outside selected region
+   * 🆕 **CUT AUDIO INVERT MODE**: Cut and concatenate segments outside selected region with smart edge case handling
    */
   static async cutAudioInvertMode(inputPath, outputPath, options = {}) {
     const {
@@ -655,22 +655,37 @@ export class MP3Utils {
       sessionId = null
     } = options;
 
-    console.log('🔄 [cutAudioInvertMode] Starting invert mode concatenation:', {
-      startTime,
-      endTime,
-      fadeIn,
-      fadeOut,
-      format,
-      quality,
-      playbackRate,
-      sessionId
+    // 🧠 **GET AUDIO DURATION**: First get audio duration to calculate segments properly
+    const audioInfo = await this.getAudioInfo(inputPath);
+    const totalDuration = audioInfo.duration;
+
+    // 🎯 **SMART SEGMENT CALCULATION**: Calculate which segments to include
+    const active1Duration = startTime; // 0 → startTime
+    const active2Duration = totalDuration - endTime; // endTime → duration
+    
+    const hasActive1 = active1Duration > 0;
+    const hasActive2 = active2Duration > 0;
+
+    console.log('🔄 [cutAudioInvertMode] Smart invert mode analysis:', {
+      totalDuration: totalDuration.toFixed(2) + 's',
+      startTime: startTime.toFixed(2) + 's',
+      endTime: endTime.toFixed(2) + 's',
+      active1Duration: active1Duration.toFixed(2) + 's',
+      active2Duration: active2Duration.toFixed(2) + 's',
+      hasActive1,
+      hasActive2,
+      mode: hasActive1 && hasActive2 ? 'BOTH_SEGMENTS' : hasActive1 ? 'ONLY_SEGMENT_1' : hasActive2 ? 'ONLY_SEGMENT_2' : 'NO_SEGMENTS'
     });
+
+    // 🚫 **ERROR CHECK**: No valid segments
+    if (!hasActive1 && !hasActive2) {
+      throw new Error('No active segments to export in invert mode');
+    }
 
     // 🔌 **WEBSOCKET PROGRESS EMITTER**: Function để emit progress
     const emitProgress = (progressData) => {
       if (sessionId && global.io) {
         const roomName = `progress-${sessionId}`;
-        console.log(`📊 [cutAudioInvertMode] Emitting progress to room ${roomName}:`, progressData);
         global.io.to(roomName).emit('cut-progress', {
           sessionId,
           ...progressData,
@@ -685,47 +700,74 @@ export class MP3Utils {
         emitProgress({
           stage: 'initializing',
           percent: 0,
-          message: 'Initializing invert mode concatenation...'
+          message: 'Initializing smart invert mode...'
         });
 
-        // 🔗 **FFmpeg CONCATENATION**: Use FFmpeg filter_complex to concatenate segments
         let command = ffmpeg(inputPath);
-
-        // Build complex filter for concatenation
         const filters = [];
-        
-        // 🆕 **SEGMENT EXTRACTION**: Extract two segments and concatenate
-        // Segment 1: 0 → startTime
-        // Segment 2: endTime → end of file
-        
-        const segment1Filter = `[0:a]atrim=start=0:end=${startTime}[seg1]`;
-        const segment2Filter = `[0:a]atrim=start=${endTime}[seg2]`;
-        
-        filters.push(segment1Filter);
-        filters.push(segment2Filter);
 
-        // 🆕 **SPEED/TEMPO FILTERS**: Apply speed change to each segment if needed
-        if (playbackRate && playbackRate !== 1) {
-          console.log(`⚡ [cutAudioInvertMode] Applying speed change: ${playbackRate}x to both segments`);
+        // 🎯 **CASE 1: Only Segment 1** (startTime > 0, endTime = duration)
+        if (hasActive1 && !hasActive2) {
+          console.log('🎯 [cutAudioInvertMode] CASE 1: Only active segment 1 (0 → startTime)');
           
-          // Build atempo chain for segments
-          const atempoChain = this.buildAtempoChain(playbackRate);
+          const trimFilter = `[0:a]atrim=start=0:end=${startTime}[seg1]`;
+          filters.push(trimFilter);
+
+          // Apply speed if needed
+          if (playbackRate !== 1) {
+            const atempoChain = this.buildAtempoChain(playbackRate);
+            const speedFilter = `[seg1]${atempoChain}[out]`;
+            filters.push(speedFilter);
+          } else {
+            // Just rename the output
+            const renameFilter = `[seg1]anull[out]`;
+            filters.push(renameFilter);
+          }
+        }
+        // 🎯 **CASE 2: Only Segment 2** (startTime = 0, endTime < duration)  
+        else if (!hasActive1 && hasActive2) {
+          console.log('🎯 [cutAudioInvertMode] CASE 2: Only active segment 2 (endTime → duration)');
           
-          // Apply to segment 1
-          const seg1SpeedFilter = `[seg1]${atempoChain}[seg1_speed]`;
-          filters.push(seg1SpeedFilter);
+          const trimFilter = `[0:a]atrim=start=${endTime}[seg2]`;
+          filters.push(trimFilter);
+
+          // Apply speed if needed
+          if (playbackRate !== 1) {
+            const atempoChain = this.buildAtempoChain(playbackRate);
+            const speedFilter = `[seg2]${atempoChain}[out]`;
+            filters.push(speedFilter);
+          } else {
+            // Just rename the output
+            const renameFilter = `[seg2]anull[out]`;
+            filters.push(renameFilter);
+          }
+        }
+        // 🎯 **CASE 3: Both Segments** (startTime > 0, endTime < duration)
+        else if (hasActive1 && hasActive2) {
+          console.log('🎯 [cutAudioInvertMode] CASE 3: Both active segments - concatenation mode');
           
-          // Apply to segment 2 
-          const seg2SpeedFilter = `[seg2]${atempoChain}[seg2_speed]`;
-          filters.push(seg2SpeedFilter);
-          
-          // Concatenate speed-adjusted segments
-          const concatFilter = `[seg1_speed][seg2_speed]concat=n=2:v=0:a=1[out]`;
-          filters.push(concatFilter);
-        } else {
-          // No speed change, just concatenate
-          const concatFilter = `[seg1][seg2]concat=n=2:v=0:a=1[out]`;
-          filters.push(concatFilter);
+          // Extract both segments
+          const segment1Filter = `[0:a]atrim=start=0:end=${startTime}[seg1]`;
+          const segment2Filter = `[0:a]atrim=start=${endTime}[seg2]`;
+          filters.push(segment1Filter);
+          filters.push(segment2Filter);
+
+          // Apply speed if needed
+          if (playbackRate !== 1) {
+            const atempoChain = this.buildAtempoChain(playbackRate);
+            const seg1SpeedFilter = `[seg1]${atempoChain}[seg1_speed]`;
+            const seg2SpeedFilter = `[seg2]${atempoChain}[seg2_speed]`;
+            filters.push(seg1SpeedFilter);
+            filters.push(seg2SpeedFilter);
+            
+            // Concatenate speed-adjusted segments
+            const concatFilter = `[seg1_speed][seg2_speed]concat=n=2:v=0:a=1[out]`;
+            filters.push(concatFilter);
+          } else {
+            // Concatenate original segments
+            const concatFilter = `[seg1][seg2]concat=n=2:v=0:a=1[out]`;
+            filters.push(concatFilter);
+          }
         }
 
         // 🆕 **FADE EFFECTS**: Apply fade to final output if needed
@@ -735,19 +777,18 @@ export class MP3Utils {
             fadeFilters.push(`afade=t=in:st=0:d=${fadeIn}`);
           }
           if (fadeOut > 0) {
-            fadeFilters.push(`afade=t=out:st=0:d=${fadeOut}`); // Will be calculated properly by FFmpeg
+            fadeFilters.push(`afade=t=out:st=0:d=${fadeOut}`);
           }
           
           if (fadeFilters.length > 0) {
-            const lastOutputLabel = playbackRate !== 1 ? '[out]' : '[out]';
-            const fadeFilter = `${lastOutputLabel}${fadeFilters.join(',')}[final]`;
+            const fadeFilter = `[out]${fadeFilters.join(',')}[final]`;
             filters.push(fadeFilter);
           }
         }
 
         // Apply complex filter
         const complexFilter = filters.join(';');
-        console.log('🔗 [cutAudioInvertMode] Complex filter:', complexFilter);
+        console.log('🔗 [cutAudioInvertMode] Smart complex filter:', complexFilter);
         
         command = command.complexFilter(complexFilter);
         
@@ -761,29 +802,32 @@ export class MP3Utils {
         command
           .output(outputPath)
           .on('start', (commandLine) => {
-            console.log('🚀 [cutAudioInvertMode] FFmpeg command starting:', commandLine);
+            console.log('🚀 [cutAudioInvertMode] Smart FFmpeg command starting:', commandLine);
             emitProgress({
               stage: 'processing',
               percent: 10,
-              message: 'Processing invert mode concatenation...'
+              message: 'Processing smart invert mode...'
             });
           })
           .on('progress', (progress) => {
             const percent = Math.round(progress.percent || 0);
-            const progressData = {
+            emitProgress({
               stage: 'processing',
               percent: Math.min(90, Math.max(10, percent)),
-              message: `Concatenating segments... ${percent}%`
-            };
-            emitProgress(progressData);
+              message: `Processing segments... ${percent}%`
+            });
           })
           .on('end', () => {
-            console.log('✅ [cutAudioInvertMode] Invert mode concatenation completed successfully');
+            console.log('✅ [cutAudioInvertMode] Smart invert mode completed successfully');
             emitProgress({
               stage: 'completed',
               percent: 100,
-              message: 'Invert mode concatenation completed!'
+              message: 'Smart invert mode completed!'
             });
+            
+            const finalDuration = hasActive1 && hasActive2 ? 
+              active1Duration + active2Duration : 
+              hasActive1 ? active1Duration : active2Duration;
             
             resolve({
               success: true,
@@ -796,7 +840,8 @@ export class MP3Utils {
                 format,
                 quality,
                 isInverted: true,
-                duration: startTime + (endTime > 0 ? 0 : endTime) // Approximate duration
+                duration: finalDuration,
+                segmentsProcessed: hasActive1 && hasActive2 ? 'both' : hasActive1 ? 'segment1' : 'segment2'
               }
             });
           })

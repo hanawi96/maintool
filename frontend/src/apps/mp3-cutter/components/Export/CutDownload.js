@@ -331,7 +331,23 @@ const CutDownload = ({
         <div className="bg-gray-50 p-3 rounded-lg text-sm">
           <div className="grid grid-cols-2 gap-2">
             <div>Duration: {formatTimeUnified(isInverted ? 
-              (startTime + (endTime < Number.MAX_VALUE ? (endTime - startTime) : 0)) : // 🆕 **INVERT MODE**: Simple calculation
+              (() => {
+                // 🧠 **SMART DURATION CALCULATION**: Calculate active segments duration
+                const active1Duration = startTime; // 0 → startTime
+                const active2Duration = Math.max(0, audioFile.duration - endTime); // endTime → duration
+                const hasActive1 = active1Duration > 0;
+                const hasActive2 = active2Duration > 0;
+                
+                if (hasActive1 && hasActive2) {
+                  return active1Duration + active2Duration; // Both segments
+                } else if (hasActive1) {
+                  return active1Duration; // Only segment 1
+                } else if (hasActive2) {
+                  return active2Duration; // Only segment 2
+                } else {
+                  return 0; // No segments (error case)
+                }
+              })() : 
               (endTime - startTime) // 🎯 **NORMAL MODE**: Original calculation
             )}</div>
             <div>Speed: {playbackRate !== 1 ? `${playbackRate}x` : 'Normal'}</div>
