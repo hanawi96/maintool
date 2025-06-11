@@ -213,7 +213,7 @@ const WaveformCanvas = React.memo(({
     if (isInverted) {
       // 🆕 **INVERT MODE**: Silence region has absolute priority
       if (barTime >= selectionStart && barTime <= selectionEnd) {
-        return 0.05; // Silence region - no fade effects apply here
+        return 0.02; // 🎨 **FLAT LINE**: Small visual multiplier for silence region boundary
       }
       
       // 🔥 **FADE EFFECTS FOR ACTIVE REGIONS**: Apply to regions before startTime and after endTime
@@ -384,8 +384,8 @@ const WaveformCanvas = React.memo(({
         let fadeMultiplier = 1.0;
         
         if (isInverted && barTime >= startTime && barTime <= endTime) {
-          // 🔇 **SILENCE REGION - COMPLETELY ISOLATED**: Fixed multiplier, never affected by fade controls
-          fadeMultiplier = 0.03; // Lower and more stable value
+          // 🔇 **SILENCE REGION - VISUAL FLAT LINE**: Show flat line but audio is still 0
+          fadeMultiplier = 0.02; // 🎨 **FLAT LINE**: Small visual multiplier to show silence region boundary
         } else if (fadeEffectsActive) {
           // Only calculate fade for non-silence bars
           fadeMultiplier = calculateFadeMultiplier(barTime, startTime, endTime, currentFadeIn, currentFadeOut, isInverted, duration);

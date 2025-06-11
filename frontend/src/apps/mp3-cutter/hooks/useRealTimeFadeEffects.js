@@ -159,7 +159,7 @@ export const useRealTimeFadeEffects = () => {
     if (isInverted) {
       // 🆕 **INVERT MODE**: Silence region has absolute priority
       if (currentTime >= startTime && currentTime <= endTime) {
-        return 0.001; // Silence region - no fade effects apply here
+        return 0.0; // 🔇 **COMPLETE SILENCE**: Zero volume in silence region
       }
       
       // 🔥 **FADE EFFECTS FOR ACTIVE REGIONS**: Apply to regions before startTime and after endTime

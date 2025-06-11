@@ -5,7 +5,7 @@ export const calculateFadeMultiplier = (barTime, selectionStart, selectionEnd, f
   if (isInverted) {
     // 🆕 **INVERT MODE**: Silence region has absolute priority
     if (barTime >= selectionStart && barTime <= selectionEnd) {
-      return 0.05; // Silence region - no fade effects apply here
+      return 0.02; // 🎨 **FLAT LINE**: Small visual multiplier for silence region boundary
     }
     
     // 🔥 **FADE EFFECTS FOR ACTIVE REGIONS**: Apply to regions before startTime and after endTime
