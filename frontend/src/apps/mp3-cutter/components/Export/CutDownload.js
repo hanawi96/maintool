@@ -14,6 +14,7 @@ const CutDownload = ({
   fadeIn, 
   fadeOut,
   playbackRate = 1,
+  isInverted = false,
   onFormatChange,
   disabled = false 
 }) => {
@@ -104,7 +105,7 @@ const CutDownload = ({
         console.warn('⚠️ [CutDownload] WebSocket session failed to start, continuing without real-time progress');
       }
       
-      // 🔧 **CRITICAL**: Đảm bảo playbackRate được truyền đúng
+      // 🔧 **CRITICAL**: Đảm bảo playbackRate được truyền đúng và thêm invert mode
       const cutParams = {
         fileId: audioFile.filename,
         startTime,
@@ -113,14 +114,16 @@ const CutDownload = ({
         fadeIn: fadeIn || 0,
         fadeOut: fadeOut || 0,
         playbackRate: playbackRate, // 🚨 **KEY FIX**: Truyền đúng speed setting
+        isInverted: isInverted, // 🆕 **INVERT MODE**: Pass invert mode to backend
         quality: 'high',
         sessionId // 🆕 **WEBSOCKET SESSION**: Include sessionId for progress tracking
       };
 
-      console.log('📊 [CutDownload] CUT-ONLY parameters with SPEED, FORMAT and WebSocket:', {
+      console.log('📊 [CutDownload] CUT-ONLY parameters with SPEED, FORMAT, INVERT MODE and WebSocket:', {
         ...cutParams,
         speedApplied: playbackRate !== 1 ? `${playbackRate}x speed` : 'normal speed',
         formatSelected: outputFormat,
+        invertMode: isInverted ? 'INVERT (cut outside region + concatenate)' : 'NORMAL (cut inside region)',
         websocketEnabled: sessionStarted
       });
 
@@ -327,11 +330,21 @@ const CutDownload = ({
       {audioFile && (
         <div className="bg-gray-50 p-3 rounded-lg text-sm">
           <div className="grid grid-cols-2 gap-2">
-            <div>Duration: {formatTimeUnified(endTime - startTime)}</div>
+            <div>Duration: {formatTimeUnified(isInverted ? 
+              (startTime + (endTime < Number.MAX_VALUE ? (endTime - startTime) : 0)) : // 🆕 **INVERT MODE**: Simple calculation
+              (endTime - startTime) // 🎯 **NORMAL MODE**: Original calculation
+            )}</div>
             <div>Speed: {playbackRate !== 1 ? `${playbackRate}x` : 'Normal'}</div>
             <div>Format: {outputFormat?.toUpperCase() || 'MP3'}</div>
-            <div>Quality: High</div>
+            <div>Mode: {isInverted ? 'Invert (Remove)' : 'Normal (Keep)'}</div>
           </div>
+          {isInverted && (
+            <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-700">
+              <div className="font-medium">🔄 Invert Mode Active</div>
+              <div>Will export segments outside the selected region</div>
+              <div>Will remove: {formatTimeUnified(startTime)}-{formatTimeUnified(endTime)} (silence region)</div>
+            </div>
+          )}
         </div>
       )}
 

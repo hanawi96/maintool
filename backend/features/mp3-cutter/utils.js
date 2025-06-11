@@ -55,6 +55,7 @@ export class MP3Utils {
       format = 'mp3',
       quality = 'medium',
       playbackRate = 1,
+      isInverted = false, // 🆕 **INVERT MODE**: Add invert mode parameter
       sessionId = null // 🆕 **SESSION ID**: Để identify WebSocket room
     } = options;
 
@@ -66,9 +67,17 @@ export class MP3Utils {
       format,
       quality,
       playbackRate,
+      isInverted, // 🆕 **INVERT MODE**: Log invert mode
       sessionId, // 🆕 **LOG SESSION ID**
-      speedChangeRequested: playbackRate !== 1
+      speedChangeRequested: playbackRate !== 1,
+      cutMode: isInverted ? 'INVERT (cut outside + concatenate)' : 'NORMAL (cut inside)' // 🆕 **CUT MODE**
     });
+
+    // 🆕 **INVERT MODE LOGIC**: Handle concatenation for invert mode
+    if (isInverted && endTime && startTime > 0) {
+      console.log('🔄 [cutAudio] INVERT MODE: Processing concatenation logic');
+      return this.cutAudioInvertMode(inputPath, outputPath, options);
+    }
 
     return new Promise((resolve, reject) => {
       try {
@@ -629,5 +638,218 @@ export class MP3Utils {
           }
         });
     });
+  }
+
+  /**
+   * 🆕 **CUT AUDIO INVERT MODE**: Cut and concatenate segments outside selected region
+   */
+  static async cutAudioInvertMode(inputPath, outputPath, options = {}) {
+    const {
+      startTime = 0,
+      endTime,
+      fadeIn = 0,
+      fadeOut = 0,
+      format = 'mp3',
+      quality = 'medium',
+      playbackRate = 1,
+      sessionId = null
+    } = options;
+
+    console.log('🔄 [cutAudioInvertMode] Starting invert mode concatenation:', {
+      startTime,
+      endTime,
+      fadeIn,
+      fadeOut,
+      format,
+      quality,
+      playbackRate,
+      sessionId
+    });
+
+    // 🔌 **WEBSOCKET PROGRESS EMITTER**: Function để emit progress
+    const emitProgress = (progressData) => {
+      if (sessionId && global.io) {
+        const roomName = `progress-${sessionId}`;
+        console.log(`📊 [cutAudioInvertMode] Emitting progress to room ${roomName}:`, progressData);
+        global.io.to(roomName).emit('cut-progress', {
+          sessionId,
+          ...progressData,
+          timestamp: new Date().toISOString()
+        });
+      }
+    };
+
+    return new Promise((resolve, reject) => {
+      try {
+        // 📊 **INITIAL PROGRESS**: Emit starting progress
+        emitProgress({
+          stage: 'initializing',
+          percent: 0,
+          message: 'Initializing invert mode concatenation...'
+        });
+
+        // 🔗 **FFmpeg CONCATENATION**: Use FFmpeg filter_complex to concatenate segments
+        let command = ffmpeg(inputPath);
+
+        // Build complex filter for concatenation
+        const filters = [];
+        
+        // 🆕 **SEGMENT EXTRACTION**: Extract two segments and concatenate
+        // Segment 1: 0 → startTime
+        // Segment 2: endTime → end of file
+        
+        const segment1Filter = `[0:a]atrim=start=0:end=${startTime}[seg1]`;
+        const segment2Filter = `[0:a]atrim=start=${endTime}[seg2]`;
+        
+        filters.push(segment1Filter);
+        filters.push(segment2Filter);
+
+        // 🆕 **SPEED/TEMPO FILTERS**: Apply speed change to each segment if needed
+        if (playbackRate && playbackRate !== 1) {
+          console.log(`⚡ [cutAudioInvertMode] Applying speed change: ${playbackRate}x to both segments`);
+          
+          // Build atempo chain for segments
+          const atempoChain = this.buildAtempoChain(playbackRate);
+          
+          // Apply to segment 1
+          const seg1SpeedFilter = `[seg1]${atempoChain}[seg1_speed]`;
+          filters.push(seg1SpeedFilter);
+          
+          // Apply to segment 2 
+          const seg2SpeedFilter = `[seg2]${atempoChain}[seg2_speed]`;
+          filters.push(seg2SpeedFilter);
+          
+          // Concatenate speed-adjusted segments
+          const concatFilter = `[seg1_speed][seg2_speed]concat=n=2:v=0:a=1[out]`;
+          filters.push(concatFilter);
+        } else {
+          // No speed change, just concatenate
+          const concatFilter = `[seg1][seg2]concat=n=2:v=0:a=1[out]`;
+          filters.push(concatFilter);
+        }
+
+        // 🆕 **FADE EFFECTS**: Apply fade to final output if needed
+        if (fadeIn > 0 || fadeOut > 0) {
+          const fadeFilters = [];
+          if (fadeIn > 0) {
+            fadeFilters.push(`afade=t=in:st=0:d=${fadeIn}`);
+          }
+          if (fadeOut > 0) {
+            fadeFilters.push(`afade=t=out:st=0:d=${fadeOut}`); // Will be calculated properly by FFmpeg
+          }
+          
+          if (fadeFilters.length > 0) {
+            const lastOutputLabel = playbackRate !== 1 ? '[out]' : '[out]';
+            const fadeFilter = `${lastOutputLabel}${fadeFilters.join(',')}[final]`;
+            filters.push(fadeFilter);
+          }
+        }
+
+        // Apply complex filter
+        const complexFilter = filters.join(';');
+        console.log('🔗 [cutAudioInvertMode] Complex filter:', complexFilter);
+        
+        command = command.complexFilter(complexFilter);
+        
+        // Map output
+        const outputLabel = (fadeIn > 0 || fadeOut > 0) ? '[final]' : '[out]';
+        command = command.outputOptions([`-map`, outputLabel]);
+
+        // Set output quality
+        command = this.setOutputQuality(command, format, quality);
+
+        command
+          .output(outputPath)
+          .on('start', (commandLine) => {
+            console.log('🚀 [cutAudioInvertMode] FFmpeg command starting:', commandLine);
+            emitProgress({
+              stage: 'processing',
+              percent: 10,
+              message: 'Processing invert mode concatenation...'
+            });
+          })
+          .on('progress', (progress) => {
+            const percent = Math.round(progress.percent || 0);
+            const progressData = {
+              stage: 'processing',
+              percent: Math.min(90, Math.max(10, percent)),
+              message: `Concatenating segments... ${percent}%`
+            };
+            emitProgress(progressData);
+          })
+          .on('end', () => {
+            console.log('✅ [cutAudioInvertMode] Invert mode concatenation completed successfully');
+            emitProgress({
+              stage: 'completed',
+              percent: 100,
+              message: 'Invert mode concatenation completed!'
+            });
+            
+            resolve({
+              success: true,
+              settings: {
+                startTime,
+                endTime,
+                fadeIn,
+                fadeOut,
+                playbackRate,
+                format,
+                quality,
+                isInverted: true,
+                duration: startTime + (endTime > 0 ? 0 : endTime) // Approximate duration
+              }
+            });
+          })
+          .on('error', (error) => {
+            console.error('❌ [cutAudioInvertMode] FFmpeg error:', error);
+            emitProgress({
+              stage: 'error',
+              percent: 0,
+              message: `Error: ${error.message}`
+            });
+            reject(error);
+          })
+          .run();
+
+      } catch (error) {
+        console.error('❌ [cutAudioInvertMode] Setup error:', error);
+        emitProgress({
+          stage: 'error',
+          percent: 0,
+          message: `Setup error: ${error.message}`
+        });
+        reject(error);
+      }
+    });
+  }
+
+  /**
+   * 🆕 **BUILD ATEMPO CHAIN**: Build atempo filter chain for speed changes
+   */
+  static buildAtempoChain(playbackRate) {
+    const atempoFilters = [];
+    let currentRate = playbackRate;
+    
+    if (currentRate >= 0.5 && currentRate <= 2.0) {
+      atempoFilters.push(`atempo=${currentRate.toFixed(3)}`);
+    } else if (currentRate > 2.0) {
+      while (currentRate > 2.0) {
+        atempoFilters.push(`atempo=2`);
+        currentRate /= 2;
+      }
+      if (currentRate > 1.01) {
+        atempoFilters.push(`atempo=${currentRate.toFixed(3)}`);
+      }
+    } else if (currentRate < 0.5) {
+      while (currentRate < 0.5) {
+        atempoFilters.push(`atempo=0.5`);
+        currentRate *= 2;
+      }
+      if (currentRate < 0.99) {
+        atempoFilters.push(`atempo=${currentRate.toFixed(3)}`);
+      }
+    }
+    
+    return atempoFilters.join(',');
   }
 }

@@ -102,7 +102,8 @@ export const validateFileId = (req, res, next) => {
     fadeOut = 0, 
     playbackRate = 1,
     outputFormat = 'mp3',
-    quality = 'high'
+    quality = 'high',
+    isInverted = false
   } = req.body;
   
   // 🔍 **VALIDATE FILE ID**: Kiểm tra fileId có tồn tại
@@ -175,7 +176,7 @@ export const validateFileId = (req, res, next) => {
     });
   }
   
-  // 🆕 **SET REQUEST DATA**: Set validated data to request với đầy đủ params bao gồm format
+  // 🆕 **SET REQUEST DATA**: Set validated data to request với đầy đủ params bao gồm format và invert mode
   req.fileId = fileId;
   req.cutParams = {
     startTime: start,
@@ -184,14 +185,16 @@ export const validateFileId = (req, res, next) => {
     fadeOut: fadeOutValue,
     playbackRate: rate,
     outputFormat: outputFormat.toLowerCase(),
-    quality: quality.toLowerCase()
+    quality: quality.toLowerCase(),
+    isInverted: Boolean(isInverted) // 🆕 **INVERT MODE**: Include invert mode in cut params
   };
   
-  console.log('✅ [validateFileId] Validation passed with FORMAT & SPEED SUPPORT:', {
+  console.log('✅ [validateFileId] Validation passed with FORMAT, SPEED & INVERT MODE SUPPORT:', {
     fileId,
     cutParams: req.cutParams,
     formatSelected: req.cutParams.outputFormat,
-    speedIncluded: req.cutParams.playbackRate !== 1 ? `${req.cutParams.playbackRate}x` : 'normal'
+    speedIncluded: req.cutParams.playbackRate !== 1 ? `${req.cutParams.playbackRate}x` : 'normal',
+    invertMode: req.cutParams.isInverted ? 'INVERT (cut outside + concatenate)' : 'NORMAL (cut inside)' // 🆕 **INVERT MODE LOG**
   });
   
   next();

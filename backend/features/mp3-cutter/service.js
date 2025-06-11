@@ -98,7 +98,8 @@ export class MP3Service {
       fadeOut, 
       playbackRate = 1,
       outputFormat = 'mp3', // 🆕 **OUTPUT FORMAT**: Lấy format từ cutParams
-      quality = 'high' // 🆕 **QUALITY**: Lấy quality từ cutParams
+      quality = 'high', // 🆕 **QUALITY**: Lấy quality từ cutParams
+      isInverted = false // 🆕 **INVERT MODE**: Add invert mode parameter
     } = cutParams;
     
     console.log('🔍 [cutAudioByFileId] Looking for file:', fileId);
@@ -110,8 +111,10 @@ export class MP3Service {
       playbackRate, // 🔧 **DEBUG**: Log playback rate
       outputFormat, // 🆕 **LOG FORMAT**: Log selected format
       quality, // 🆕 **LOG QUALITY**: Log selected quality
+      isInverted, // 🆕 **INVERT MODE**: Log invert mode status
       sessionId, // 🆕 **LOG SESSION ID**
-      speedChange: playbackRate !== 1 ? `${playbackRate}x speed` : 'normal speed'
+      speedChange: playbackRate !== 1 ? `${playbackRate}x speed` : 'normal speed',
+      cutMode: isInverted ? 'INVERT (cut outside + concatenate)' : 'NORMAL (cut inside)' // 🆕 **CUT MODE**
     });
     
     // 🔍 **FIND INPUT FILE**: Tìm file đã upload theo fileId với absolute path
@@ -184,6 +187,7 @@ export class MP3Service {
       playbackRate, // 🆕 **PASS SPEED**: Truyền playback rate to FFmpeg
       format: outputFormat, // 🚨 **KEY FIX**: Truyền format đúng thay vì cứng định 'mp3'
       quality, // 🚨 **KEY FIX**: Truyền quality đúng
+      isInverted, // 🆕 **INVERT MODE**: Pass invert mode to FFmpeg
       sessionId // 🆕 **PASS SESSION ID**: Truyền sessionId cho WebSocket progress
     });
     
