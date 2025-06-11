@@ -14,7 +14,7 @@ const PERFORMANCE_CONFIG = {
 // 🔍 **DEVICE CAPABILITY DETECTION**: Phát hiện khả năng device
 export const detectDeviceCapability = () => {
   const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
   
   // 🎯 **HARDWARE ACCELERATION CHECK**: Kiểm tra GPU acceleration
   const hasHardwareAcceleration = !!(
@@ -91,7 +91,7 @@ export const setupUltraFastHighDPICanvas = (canvas, logicalWidth, logicalHeight)
   
   // 🎯 **OPTIMAL DPR**: Tính toán DPR tối ưu
   const optimalDPR = getOptimalDevicePixelRatio(logicalWidth, logicalHeight);
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
   
   // 🎯 **LOGICAL SIZE**: Size hiển thị
   canvas.style.width = `${logicalWidth}px`;

@@ -194,8 +194,17 @@ export const useWaveformRender = (canvasRef, waveformData, volume, isDragging, i
     
     let resizeTimeoutId = null;
     let lastResizeTime = 0;
+    let canvasContext = null;
     
-    // 🚀 **SMOOTH RESIZE WITH DEBOUNCE**: Tránh nhấp nháy với debounce
+    // 🔥 **OPTIMIZED CONTEXT CACHE**: Cache context with willReadFrequently
+    const getOptimizedContext = () => {
+      if (!canvasContext) {
+        canvasContext = canvas.getContext('2d', { willReadFrequently: true });
+      }
+      return canvasContext;
+    };
+    
+    // 🚀 **SMOOTH RESIZE WITH DEBOUNCE**: Optimized resize handling
     const smoothResize = () => {
       const now = performance.now();
       if (now - lastResizeTime < 16) return; // Throttle to 60fps
@@ -208,19 +217,12 @@ export const useWaveformRender = (canvasRef, waveformData, volume, isDragging, i
       const newWidth = Math.max(WAVEFORM_CONFIG.RESPONSIVE.MIN_WIDTH, parentWidth || 800);
       
       if (Math.abs(containerWidth - newWidth) > 2) { // Only update if significant change
-        // 🔥 **PRESERVE CANVAS CONTENT**: Không clear canvas ngay lập tức
-        const imageData = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
-        
         setContainerWidth(newWidth);
         
-        // 🔥 **IMMEDIATE CANVAS RESIZE**: Resize canvas với preserved content
+        // 🔥 **EFFICIENT CANVAS RESIZE**: Only resize canvas if necessary
         if (Math.abs(canvas.width - newWidth) > 2) {
           canvas.width = newWidth;
           canvas.height = WAVEFORM_CONFIG.HEIGHT;
-          
-          // 🚀 **RESTORE CONTENT TEMPORARILY**: Restore content để tránh flicker
-          canvas.getContext('2d').putImageData(imageData, 0, 0);
-          
           lastCanvasWidthRef.current = newWidth;
         }
       }

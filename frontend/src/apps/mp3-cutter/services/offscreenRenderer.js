@@ -27,7 +27,7 @@ export class OffscreenWaveformRenderer {
 
       // 🎯 **CREATE OFFSCREEN CANVAS**: Tạo canvas cho background rendering
       this.offscreenCanvas = new OffscreenCanvas(800, WAVEFORM_CONFIG.HEIGHT);
-      this.offscreenCtx = this.offscreenCanvas.getContext('2d');
+      this.offscreenCtx = this.offscreenCanvas.getContext('2d', { willReadFrequently: true });
       
       // ⚡ **PERFORMANCE SETUP**: Optimize context settings
       this.offscreenCtx.imageSmoothingEnabled = false;
@@ -158,7 +158,7 @@ export class OffscreenWaveformRenderer {
     const canvas = document.createElement('canvas');
     canvas.width = options.width || 800;
     canvas.height = options.height || WAVEFORM_CONFIG.HEIGHT;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
     
     // Execute render synchronously
     await this.executeRender({

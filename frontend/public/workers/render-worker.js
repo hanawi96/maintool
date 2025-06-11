@@ -26,7 +26,7 @@ class RenderWorker {
 
       // Create OffscreenCanvas for rendering
       const canvas = new OffscreenCanvas(width, height);
-      const ctx = canvas.getContext('2d');
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
       // 🔧 **PERFORMANCE SETUP**
       ctx.imageSmoothingEnabled = false;

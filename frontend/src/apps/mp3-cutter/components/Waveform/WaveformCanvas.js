@@ -284,7 +284,7 @@ const WaveformCanvas = React.memo(({
     const bgCanvas = document.createElement('canvas');
     bgCanvas.width = width;
     bgCanvas.height = height;
-    const bgCtx = bgCanvas.getContext('2d');
+    const bgCtx = bgCanvas.getContext('2d', { willReadFrequently: true });
     
     // 🚀 **PERFORMANCE SETUP**: GPU acceleration
     bgCtx.imageSmoothingEnabled = false;
@@ -335,7 +335,7 @@ const WaveformCanvas = React.memo(({
       return;
     }
 
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
     const { width, height } = canvas;
     
     // 🚀 **PERFORMANCE SETUP**: GPU acceleration
@@ -572,11 +572,6 @@ const WaveformCanvas = React.memo(({
       // 🎯 **NORMAL MODE POSITIONING**: Standard positioning
       startHandleX = regionStartX - responsiveHandleWidth; // Right edge aligns with region start
       endHandleX = regionEndX; // Left edge aligns with region end
-    }
-    
-    // 🚀 **DEBUG LOG**: Add console.log to show handle positioning logic
-    if (Math.random() < 0.001) { // Log very rarely to avoid spam
-      // Removed debug logging for production performance
     }
     
     return {
