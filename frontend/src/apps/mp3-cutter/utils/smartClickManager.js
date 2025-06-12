@@ -51,7 +51,6 @@ export class SmartClickManager {
       enableHoverProtection: true         // 🆕 **HOVER PROTECTION**: Bảo vệ handles khỏi hover events
     };
     
-    console.log(`🎯 [SmartClickManager] Created with ENHANCED PROTECTION enabled - ID: ${this.debugId}`);
   }
   
   /**
@@ -64,48 +63,31 @@ export class SmartClickManager {
    * @returns {string} Click zone classification
    */
   analyzeClickZone(clickTime, startTime, endTime, duration, handleAtPosition) {
-    // 🔧 **ENHANCED DEBUG**: Log all input parameters
-    console.log(`🎯 [${this.debugId}] ClickZone Analysis:`, {
-      clickTime: clickTime.toFixed(2) + 's',
-      startTime: startTime.toFixed(2) + 's', 
-      endTime: endTime.toFixed(2) + 's',
-      duration: duration.toFixed(2) + 's',
-      handleAtPosition: handleAtPosition || 'none',
-      hasValidSelection: startTime < endTime
-    });
-    
     // 🎯 HANDLE DETECTION: Priority check
     if (handleAtPosition === 'start') {
-      console.log(`🎯 [${this.debugId}] ClickZone Result: ON_START_HANDLE`);
       return CLICK_ZONES.ON_START_HANDLE;
     }
     if (handleAtPosition === 'end') {
-      console.log(`🎯 [${this.debugId}] ClickZone Result: ON_END_HANDLE`);
       return CLICK_ZONES.ON_END_HANDLE;
     }
     
     // 🎯 BOUNDARY CHECKS: Duration limits
     if (clickTime < 0 || clickTime > duration) {
-      console.log(`🎯 [${this.debugId}] ClickZone Result: OUTSIDE_DURATION (clickTime: ${clickTime.toFixed(2)}s, duration: ${duration.toFixed(2)}s)`);
       return CLICK_ZONES.OUTSIDE_DURATION;
     }
     
     // 🎯 POSITION ANALYSIS: Relative to selection
     if (clickTime < startTime) {
-      console.log(`🎯 [${this.debugId}] ClickZone Result: BEFORE_START (${clickTime.toFixed(2)}s < ${startTime.toFixed(2)}s)`);
       return CLICK_ZONES.BEFORE_START;
     }
     if (clickTime > endTime) {
-      console.log(`🎯 [${this.debugId}] ClickZone Result: AFTER_END (${clickTime.toFixed(2)}s > ${endTime.toFixed(2)}s)`);
       return CLICK_ZONES.AFTER_END;
     }
     if (clickTime >= startTime && clickTime <= endTime) {
-      console.log(`🎯 [${this.debugId}] ClickZone Result: INSIDE_SELECTION (${startTime.toFixed(2)}s <= ${clickTime.toFixed(2)}s <= ${endTime.toFixed(2)}s) - REGION DRAG POTENTIAL!`);
       return CLICK_ZONES.INSIDE_SELECTION;
     }
     
     // 🎯 FALLBACK: Should not reach here
-    console.warn(`⚠️ [${this.debugId}] ClickZone Result: OUTSIDE_DURATION (fallback case - should not happen)`);
     return CLICK_ZONES.OUTSIDE_DURATION;
   }
   
@@ -130,12 +112,6 @@ export class SmartClickManager {
       cursor: 'pointer',
       reason: 'Unknown'
     };
-    
-    console.log(`🎯 [${this.debugId}] Analyzing click:`, {
-      zone: clickZone,
-      time: clickTime.toFixed(2) + 's',
-      selection: `${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s`
-    });
     
     switch (clickZone) {
       case CLICK_ZONES.ON_START_HANDLE:
@@ -162,9 +138,6 @@ export class SmartClickManager {
         
         // 🆕 **REGION DRAG POTENTIAL**: Mark để có thể trigger region drag khi có movement
         actionDetails.regionDragPotential = true; // 🔧 **ENABLE REGION DRAG**: Flag để interactionManager biết có thể drag region
-        
-        // 🔧 **DEBUG INFO**: Log jump action with drag potential
-        console.log(`⏯️ [${this.debugId}] INSIDE_SELECTION click → JUMP_TO_TIME with region drag potential: ${clickTime.toFixed(2)}s`);
         break;
         
       case CLICK_ZONES.BEFORE_START:
@@ -173,7 +146,6 @@ export class SmartClickManager {
           actionDetails.action = CLICK_ACTIONS.NO_ACTION;
           actionDetails.cursor = 'pointer';
           actionDetails.reason = 'PROTECTED: Handle update blocked by protection logic';
-          console.log(`🛡️ [${this.debugId}] BEFORE_START update BLOCKED by protection`);
           break;
         }
         
@@ -184,7 +156,6 @@ export class SmartClickManager {
           actionDetails.newStartTime = clickTime;
           actionDetails.cursor = 'pointer';
           actionDetails.reason = `Moving start to ${clickTime.toFixed(2)}s (right edge of start handle aligns with click)`;
-          console.log(`✅ [${this.debugId}] BEFORE_START update ALLOWED with handle wrapping: ${startTime.toFixed(2)}s → ${clickTime.toFixed(2)}s (right edge alignment)`);
         } else {
           actionDetails.action = CLICK_ACTIONS.CREATE_SELECTION;
           actionDetails.newStartTime = clickTime;
@@ -200,7 +171,6 @@ export class SmartClickManager {
           actionDetails.action = CLICK_ACTIONS.NO_ACTION;
           actionDetails.cursor = 'pointer';
           actionDetails.reason = 'PROTECTED: Handle update blocked by protection logic';
-          console.log(`🛡️ [${this.debugId}] AFTER_END update BLOCKED by protection`);
           break;
         }
         
@@ -211,7 +181,6 @@ export class SmartClickManager {
           actionDetails.newEndTime = clickTime;
           actionDetails.cursor = 'pointer';
           actionDetails.reason = `Moving end to ${clickTime.toFixed(2)}s (left edge of end handle aligns with click)`;
-          console.log(`✅ [${this.debugId}] AFTER_END update ALLOWED with handle wrapping: ${endTime.toFixed(2)}s → ${clickTime.toFixed(2)}s (left edge alignment)`);
         } else {
           actionDetails.action = CLICK_ACTIONS.CREATE_SELECTION;
           actionDetails.newStartTime = clickTime;
@@ -239,18 +208,10 @@ export class SmartClickManager {
       const newDuration = actionDetails.newEndTime - actionDetails.newStartTime;
       
       if (newDuration < this.preferences.requireMinSelection) {
-        console.warn(`⚠️ [${this.debugId}] Selection too short: ${newDuration.toFixed(3)}s < ${this.preferences.requireMinSelection}s`);
         actionDetails.action = CLICK_ACTIONS.NO_ACTION;
         actionDetails.reason = `Selection duration would be too short (${newDuration.toFixed(3)}s)`;
       }
     }
-    
-    console.log(`🎯 [${this.debugId}] Action determined:`, {
-      action: actionDetails.action,
-      reason: actionDetails.reason,
-      newRegion: actionDetails.action.includes('UPDATE') ? 
-        `${actionDetails.newStartTime.toFixed(2)}s - ${actionDetails.newEndTime.toFixed(2)}s` : 'unchanged'
-    });
     
     return actionDetails;
   }
@@ -276,27 +237,6 @@ export class SmartClickManager {
       clickZone, clickTime, startTime, endTime, duration, isActualClick
     );
     
-    // 🎯 ENHANCED LOGGING: Debug information with protection status
-    console.log(`🎯 [${this.debugId}] Smart click processed WITH PROTECTION:`, {
-      input: {
-        clickTime: clickTime.toFixed(2) + 's',
-        currentSelection: `${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s`,
-        handle: handleAtPosition || 'none',
-        isActualClick: isActualClick,
-        duration: duration.toFixed(2) + 's'
-      },
-      analysis: {
-        zone: clickZone,
-        action: actionDetails.action,
-        protected: actionDetails.reason.includes('PROTECTED')
-      },
-      result: {
-        newSelection: `${actionDetails.newStartTime.toFixed(2)}s - ${actionDetails.newEndTime.toFixed(2)}s`,
-        seekTime: actionDetails.seekTime ? actionDetails.seekTime.toFixed(2) + 's' : null,
-        reason: actionDetails.reason
-      }
-    });
-    
     return actionDetails;
   }
   
@@ -306,7 +246,6 @@ export class SmartClickManager {
    */
   updatePreferences(newPreferences) {
     this.preferences = { ...this.preferences, ...newPreferences };
-    console.log(`⚙️ [${this.debugId}] Updated preferences:`, this.preferences);
   }
   
   /**
@@ -335,7 +274,6 @@ export class SmartClickManager {
   shouldAllowHandleUpdate(clickZone, clickTime, startTime, endTime, duration, isActualClick = true) {
     // 🚫 **HOVER PROTECTION**: Nếu chỉ hover và protection enabled, không cho phép update
     if (!isActualClick && this.preferences.enableHoverProtection) {
-      console.log(`🛡️ [${this.debugId}] HOVER PROTECTION: Blocking handle update for hover event`);
       return false;
     }
     
@@ -351,7 +289,6 @@ export class SmartClickManager {
       // 🛡️ **DISTANCE CHECK**: Kiểm tra khoảng cách click với start handle
       const distanceFromStart = Math.abs(clickTime - startTime);
       if (distanceFromStart < edgeProtectionThreshold) {
-        console.log(`🛡️ [${this.debugId}] ENHANCED EDGE PROTECTION: Start handle at edge (${startTime.toFixed(2)}s), click too close (${distanceFromStart.toFixed(2)}s < ${edgeProtectionThreshold}s), blocking BEFORE_START update`);
         return false;
       }
     }
@@ -361,7 +298,6 @@ export class SmartClickManager {
       // 🛡️ **DISTANCE CHECK**: Kiểm tra khoảng cách click với end handle
       const distanceFromEnd = Math.abs(clickTime - endTime);
       if (distanceFromEnd < edgeProtectionThreshold) {
-        console.log(`🛡️ [${this.debugId}] ENHANCED EDGE PROTECTION: End handle at edge (${endTime.toFixed(2)}s), click too close (${distanceFromEnd.toFixed(2)}s < ${edgeProtectionThreshold}s), blocking AFTER_END update`);
         return false;
       }
     }
@@ -371,7 +307,6 @@ export class SmartClickManager {
     if (clickZone === CLICK_ZONES.BEFORE_START) {
       const movementDistance = Math.abs(startTime - clickTime);
       if (movementDistance < minMovementThreshold) {
-        console.log(`🛡️ [${this.debugId}] ENHANCED MINIMAL MOVEMENT PROTECTION: Start movement too small (${movementDistance.toFixed(2)}s < ${minMovementThreshold}s)`);
         return false;
       }
     }
@@ -379,7 +314,6 @@ export class SmartClickManager {
     if (clickZone === CLICK_ZONES.AFTER_END) {
       const movementDistance = Math.abs(endTime - clickTime);
       if (movementDistance < minMovementThreshold) {
-        console.log(`🛡️ [${this.debugId}] ENHANCED MINIMAL MOVEMENT PROTECTION: End movement too small (${movementDistance.toFixed(2)}s < ${minMovementThreshold}s)`);
         return false;
       }
     }
@@ -392,7 +326,6 @@ export class SmartClickManager {
       
       // 🛡️ **COOLDOWN PERIOD**: 500ms cooldown sau mouse interactions
       if (timeSinceLastInteraction < 500) {
-        console.log(`🛡️ [${this.debugId}] MOUSE RE-ENTRY PROTECTION: Too soon after last interaction (${timeSinceLastInteraction.toFixed(0)}ms < 500ms), blocking hover update`);
         return false;
       }
     } else {
@@ -430,4 +363,4 @@ export const isValidClickTime = (time, duration) => {
  */
 export const calculateSelectionDuration = (startTime, endTime) => {
   return Math.max(0, endTime - startTime);
-}; 
+};

@@ -21,12 +21,6 @@ export class AudioSyncManager {
       smoothTransition: true,      // Enable smooth transitions
       endHandleOffset: 3           // Seconds offset for end handle
     };
-    
-    console.log(`🔄 [AudioSyncManager] Created with ULTRA-SMOOTH settings:`, {
-      ...this.preferences,
-      standardThrottle: this.syncThrottleInterval + 'ms (60fps)',
-      regionDragThrottle: this.regionDragThrottleInterval + 'ms (500fps)'
-    });
   }
   
   /**
@@ -52,17 +46,6 @@ export class AudioSyncManager {
     const shouldSync = rules.isValidHandle && rules.isValidTime && 
                       rules.isPlayingRule && !rules.isThrottled;
     
-    // 🆕 DEBUG: Log sync decision with improved logging for region drag
-    if (rules.isValidHandle && rules.isValidTime && Math.random() < (handleType === 'region' ? 0.01 : 0.05)) {
-      console.log(`🔄 [${this.debugId}] Sync decision for ${handleType}:`, {
-        shouldSync,
-        isPlaying,
-        newTime: newTime.toFixed(2) + 's',
-        rules,
-        throttleMode: handleType === 'region' ? 'ULTRA_SMOOTH_500FPS' : 'STANDARD_60FPS'
-      });
-    }
-    
     return shouldSync;
   }
   
@@ -78,7 +61,6 @@ export class AudioSyncManager {
    */
   syncAudioCursor(newTime, audioRef, setCurrentTime, isPlaying, handleType, startTime = 0, isInverted = false) {
     if (!audioRef.current) {
-      console.warn(`⚠️ [${this.debugId}] No audio element for sync`);
       return;
     }
     
@@ -92,7 +74,6 @@ export class AudioSyncManager {
       if (isInverted) {
         // 🆕 **INVERT MODE**: Cursor 3s before start handle
         targetTime = Math.max(0, newTime - 3);
-        console.log(`🔄 [${this.debugId}] INVERT mode - start handle sync 3s before: ${newTime.toFixed(2)}s → ${targetTime.toFixed(2)}s`);
       } else {
         // 🎯 **NORMAL MODE**: Cursor at start handle position
         targetTime = newTime;
@@ -101,56 +82,30 @@ export class AudioSyncManager {
       if (isInverted) {
         // 🆕 **INVERT MODE - END HANDLE**: Cursor luôn ở end point khi drag handle right
         targetTime = newTime;
-        console.log(`🔄 [${this.debugId}] INVERT mode - end handle sync to end point: ${newTime.toFixed(2)}s`);
       } else {
         // 🔥 **NORMAL MODE - INTELLIGENT REGION SIZE CHECK**: Calculate region duration
         const regionDuration = newTime - startTime;
         
-        console.log(`🎯 [${this.debugId}] End handle analysis:`, {
-          endTime: newTime.toFixed(2) + 's',
-          startTime: startTime.toFixed(2) + 's', 
-          regionDuration: regionDuration.toFixed(2) + 's',
-          offsetPreference: this.preferences.endHandleOffset + 's'
-        });
-        
         if (regionDuration < 1.0) {
           // 🚫 **SMALL REGION**: Region < 1s → cursor stays at startTime
           targetTime = startTime;
-          console.log(`🚫 [${this.debugId}] SMALL REGION (${regionDuration.toFixed(2)}s < 1s) → cursor locked to startTime: ${startTime.toFixed(2)}s`);
         } else {
           // 🎯 **NORMAL REGION**: Apply offset but ensure cursor doesn't go before startTime
           const proposedTime = newTime - this.preferences.endHandleOffset;
           targetTime = Math.max(startTime, proposedTime); // ✅ Never go before startTime
-          
-          console.log(`🎯 [${this.debugId}] NORMAL REGION (${regionDuration.toFixed(2)}s ≥ 1s):`, {
-            proposedTime: proposedTime.toFixed(2) + 's',
-            finalTargetTime: targetTime.toFixed(2) + 's',
-            boundaryProtected: proposedTime < startTime ? 'YES (clamped to startTime)' : 'NO'
-          });
         }
       }
     } else if (handleType === 'region') {
       // 🆕 **REGION START SYNC**: newTime is already startTime - no offset needed
       targetTime = newTime; // 🎯 **SIMPLIFIED**: newTime is already startTime for region
-      console.log(`🔄 [${this.debugId}] Region sync - using START position: ${targetTime.toFixed(2)}s (always start)`);
     }
     
     const timeDifference = Math.abs(targetTime - currentAudioTime);
     
     // 🎯 SMART SYNC: Only sync if significant change (avoid micro-updates)
     if (timeDifference < 0.05) { // 50ms threshold
-      console.log(`🔄 [${this.debugId}] Skipping micro-sync: ${timeDifference.toFixed(3)}s difference`);
       return;
     }
-    
-    console.log(`🎯 [${this.debugId}] Syncing ${handleType} → audio cursor:`, {
-      handlePosition: newTime.toFixed(2) + 's',
-      targetTime: targetTime.toFixed(2) + 's', 
-      from: currentAudioTime.toFixed(2) + 's',
-      difference: timeDifference.toFixed(3) + 's',
-      smartLogic: handleType === 'end' ? (isInverted ? 'INVERT_END_TO_ENDPOINT' : 'REGION_SIZE_AWARE') : 'STANDARD',
-      isPlaying
-    });
     
     // 🎯 IMMEDIATE SYNC: Update audio element with target time
     audio.currentTime = targetTime;
@@ -172,11 +127,10 @@ export class AudioSyncManager {
     // 🆕 PLAYING STATE MANAGEMENT: Handle play/pause scenarios
     if (isPlaying && audio.paused) {
       // 🎯 RESUME PLAYBACK: If was playing but got paused during sync
-      console.log(`▶️ [${this.debugId}] Resuming playback after sync`);
       const playPromise = audio.play();
       if (playPromise !== undefined) {
         playPromise.catch(error => {
-          console.warn(`⚠️ [${this.debugId}] Resume playback failed:`, error);
+          // Resume playback failed
         });
       }
     }
@@ -198,21 +152,16 @@ export class AudioSyncManager {
     const shouldSyncRegion = handleType === 'region'; // 🆕 **REGION SYNC**
     
     if (shouldSyncStart || shouldSyncEnd || shouldSyncRegion) {
-      console.log(`🏁 [${this.debugId}] Completing ${handleType} drag sync to ${finalTime.toFixed(2)}s`);
-      
       // 🎯 FORCE FINAL SYNC: Ignore throttling for completion
       this.lastSyncTime = 0; // Reset throttle
       
       // 🆕 **REGION SYNC**: Region drag completion - sync to start not middle
       if (handleType === 'region') {
-        console.log(`🔄 [${this.debugId}] Region drag completion - sync to START: ${startTime.toFixed(2)}s (not middle as before)`);
         this.syncAudioCursor(startTime, audioRef, setCurrentTime, isPlaying, 'region', startTime, isInverted); // 🎯 **SYNC TO START**: Use startTime instead of finalTime
       } else {
         // 🔥 **INTELLIGENT SYNC**: Pass startTime for boundary checking in end handle sync
         this.syncAudioCursor(finalTime, audioRef, setCurrentTime, isPlaying, handleType, startTime, isInverted);
       }
-      
-      console.log(`✅ [${this.debugId}] Drag sync completed for ${handleType}`);
     }
   }
   
@@ -222,7 +171,6 @@ export class AudioSyncManager {
    */
   updatePreferences(newPreferences) {
     this.preferences = { ...this.preferences, ...newPreferences };
-    console.log(`⚙️ [${this.debugId}] Updated preferences:`, this.preferences);
   }
   
   /**
@@ -231,7 +179,6 @@ export class AudioSyncManager {
    */
   setEnabled(enabled) {
     this.isEnabled = enabled;
-    console.log(`🔄 [${this.debugId}] Sync manager ${enabled ? 'enabled' : 'disabled'}`);
   }
   
   /**
@@ -247,14 +194,6 @@ export class AudioSyncManager {
     // 🆕 **ULTRA-SMOOTH REGION DRAG**: Use different throttling for region drag
     if (handleType === 'region') {
       const isThrottled = timeSinceLastSync < this.regionDragThrottleInterval;
-      if (Math.random() < 0.01) { // 1% sampling
-        console.log(`🚀 [${this.debugId}] Region drag throttle check:`, {
-          timeSinceLastSync: timeSinceLastSync.toFixed(1) + 'ms',
-          threshold: this.regionDragThrottleInterval + 'ms',
-          isThrottled,
-          performance: 'ULTRA_SMOOTH_500FPS'
-        });
-      }
       return isThrottled;
     }
     
@@ -281,7 +220,6 @@ export class AudioSyncManager {
    */
   reset() {
     this.lastSyncTime = 0;
-    console.log(`🔄 [${this.debugId}] AudioSyncManager reset`);
   }
   
   /**
@@ -294,7 +232,6 @@ export class AudioSyncManager {
    */
   forceImmediateSync(targetTime, audioRef, setCurrentTime, handleType = 'unknown', offset = 0) {
     if (!audioRef.current) {
-      console.warn(`⚠️ [${this.debugId}] No audio element for force sync`);
       return false;
     }
     
@@ -304,15 +241,6 @@ export class AudioSyncManager {
     // 🔥 **CALCULATE FINAL TIME**: Apply offset if provided
     const finalTime = offset > 0 ? Math.max(0, targetTime - offset) : targetTime;
     
-    console.log(`🚀 [${this.debugId}] FORCE IMMEDIATE SYNC:`, {
-      handleType,
-      targetTime: targetTime.toFixed(2) + 's',
-      offset: offset > 0 ? offset + 's' : 'none', 
-      finalTime: finalTime.toFixed(2) + 's',
-      wasPlaying,
-      skipValidation: true
-    });
-    
     // 🔥 **SAFE IMMEDIATE AUDIO UPDATE**: Direct update with play state protection
     try {
       const audio = audioRef.current;
@@ -320,9 +248,8 @@ export class AudioSyncManager {
       
       // 🎵 **RESTORE PLAY STATE**: If was playing, ensure it continues playing
       if (wasPlaying && audio.paused) {
-        console.log(`🎵 [ForceSync] Restoring play state after immediate sync`);
         audio.play().catch(e => {
-          console.warn(`⚠️ [ForceSync] Failed to restore play state:`, e);
+          // Failed to restore play state
         });
       }
       
@@ -330,14 +257,12 @@ export class AudioSyncManager {
       setCurrentTime(finalTime);
       
     } catch (error) {
-      console.warn(`⚠️ [ForceSync] Force sync error:`, error);
       return false;
     }
     
     // 🔥 **RESET THROTTLE**: Allow next sync immediately
     this.lastSyncTime = 0;
     
-    console.log(`✅ [${this.debugId}] Force sync completed: ${finalTime.toFixed(2)}s, play state: ${wasPlaying ? 'preserved' : 'paused'}`);
     return true;
   }
   
@@ -383,9 +308,6 @@ export class AudioSyncManager {
       if (isInverted) {
         // 🆕 **INVERT MODE**: Cursor 3s before start handle (real-time during drag)
         targetTime = Math.max(0, newTime - 3);
-        if (Math.random() < 0.02) { // 2% sampling to avoid spam
-          console.log(`🔄 [RealTimeSync] INVERT mode - start handle sync 3s before: ${newTime.toFixed(2)}s → ${targetTime.toFixed(2)}s`);
-        }
       } else {
         // 🎯 **NORMAL MODE**: Cursor at start handle position
         targetTime = newTime;
@@ -394,9 +316,6 @@ export class AudioSyncManager {
       if (isInverted) {
         // 🆕 **INVERT MODE - END HANDLE**: Cursor luôn ở end point khi drag handle right
         targetTime = newTime;
-        if (Math.random() < 0.02) { // 2% sampling to avoid spam
-          console.log(`🔄 [RealTimeSync] INVERT mode - end handle sync to end point: ${newTime.toFixed(2)}s`);
-        }
       } else {
         // 🔥 **NORMAL MODE - INTELLIGENT REGION SIZE CHECK**: Calculate region duration
         const regionDuration = newTime - startTime;
@@ -404,29 +323,15 @@ export class AudioSyncManager {
         if (regionDuration < 1.0) {
           // 🚫 **SMALL REGION**: Region < 1s → cursor stays at startTime
           targetTime = startTime;
-          if (Math.random() < 0.02) { // 2% sampling to avoid spam
-            console.log(`🚫 [RealTimeSync] SMALL REGION (${regionDuration.toFixed(2)}s < 1s) → cursor locked to startTime: ${startTime.toFixed(2)}s`);
-          }
         } else {
           // 🎯 **NORMAL REGION**: Apply offset but ensure cursor doesn't go before startTime  
           const proposedTime = newTime - this.preferences.endHandleOffset;
           targetTime = Math.max(startTime, proposedTime); // ✅ Never go before startTime
-          
-          if (Math.random() < 0.02) { // 2% sampling
-            console.log(`🎯 [RealTimeSync] NORMAL REGION (${regionDuration.toFixed(2)}s ≥ 1s):`, {
-              proposedTime: proposedTime.toFixed(2) + 's',
-              finalTargetTime: targetTime.toFixed(2) + 's',
-              boundaryProtected: proposedTime < startTime ? 'YES (clamped to startTime)' : 'NO'
-            });
-          }
         }
       }
     } else if (handleType === 'region') {
       // 🆕 **REGION START SYNC**: Always sync to region start as requested by user
       targetTime = startTime; // 🎯 **SIMPLIFIED**: Use startTime instead of newTime (which was middle)
-      if (Math.random() < 0.01) { // 1% sampling for region drag
-        console.log(`🚀 [RealTimeSync] REGION START sync to: ${targetTime.toFixed(2)}s (always start - not middle) (${wasPlaying ? '125fps' : '500fps'} throttling)`);
-      }
     }
     
     // 🔥 **MICRO-OPTIMIZATION**: Skip if change is too small (< 1ms) but allow for region drag
@@ -444,16 +349,14 @@ export class AudioSyncManager {
       
       // 🎵 **RESTORE PLAY STATE**: If was playing, ensure it continues playing
       if (wasPlaying && audioRef.current.paused) {
-        console.log(`🎵 [RealTimeSync] Restoring play state after currentTime change`);
         audioRef.current.play().catch(e => {
-          console.warn(`⚠️ [RealTimeSync] Failed to restore play state:`, e);
+          // Failed to restore play state
         });
       }
       
       setCurrentTime(targetTime);
       
     } catch (error) {
-      console.warn(`⚠️ [RealTimeSync] Audio sync error:`, error);
       return false;
     }
     
@@ -493,4 +396,4 @@ export const getOptimalSyncInterval = (isPlaying, isDragging) => {
   if (isDragging) return 50;              // 20fps for drag during pause
   if (isPlaying) return 100;              // 10fps for normal playback
   return 200;                             // 5fps for idle state
-}; 
+};

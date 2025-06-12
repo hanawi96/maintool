@@ -47,15 +47,14 @@ export const safeGetItem = (key, defaultValue = null) => {
       console.warn(`⚠️ [safeStorage] Key "${key}" contains literal "null" string, using default:`, defaultValue);
       return defaultValue;
     }
-    
-    // 🎯 TRY JSON PARSING (for complex data)
+      // 🎯 TRY JSON PARSING (for complex data)
     try {
       const parsedValue = JSON.parse(rawValue);
-      console.log(`✅ [safeStorage] Successfully parsed JSON for "${key}":`, parsedValue);
+      // Successfully parsed JSON value
       return parsedValue;
     } catch (jsonError) {
       // 🎯 FALLBACK: Return raw string value
-      console.log(`📝 [safeStorage] JSON parse failed for "${key}", returning raw string:`, rawValue);
+      // JSON parse failed, returning raw string
       return rawValue;
     }
     
@@ -160,9 +159,8 @@ export const safeClear = () => {
       console.warn('⚠️ [safeStorage] localStorage not available for clear');
       return false;
     }
-    
-    localStorage.clear();
-    console.log('🧹 [safeStorage] Successfully cleared all localStorage');
+      localStorage.clear();
+    // Successfully cleared all localStorage
     return true;
     
   } catch (error) {
@@ -253,11 +251,10 @@ export const setAutoReturnSetting = (enabled) => {
     console.warn('⚠️ [safeStorage] Invalid auto-return value, must be boolean:', enabled);
     return false;
   }
-  
-  const success = safeSetItem('mp3cutter_auto_return', enabled);
+    const success = safeSetItem('mp3cutter_auto_return', enabled);
   
   if (success) {
-    console.log(`⚙️ [MP3Cutter] Auto-return ${enabled ? 'ENABLED' : 'DISABLED'}`);
+    // Auto-return setting updated
   }
   
   return success;
@@ -293,26 +290,24 @@ export const cleanupUndefinedValues = () => {
       const key = localStorage.key(i);
       if (key) {
         const value = localStorage.getItem(key);
-        
-        // 🎯 Check for problematic values
+          // 🎯 Check for problematic values
         if (value === 'undefined' || value === 'null' || value === '' || !value) {
           keysToRemove.push(key);
-          console.log(`🧹 [cleanupUndefinedValues] Marked for removal: "${key}" = "${value}"`);
+          // Marked for removal: problematic value
         }
       }
     }
-    
-    // 🗑️ Remove problematic entries
+      // 🗑️ Remove problematic entries
     keysToRemove.forEach(key => {
       localStorage.removeItem(key);
       cleanedCount++;
-      console.log(`✅ [cleanupUndefinedValues] Removed: "${key}"`);
+      // Removed problematic entry
     });
     
     if (cleanedCount > 0) {
-      console.log(`🎉 [cleanupUndefinedValues] Cleaned ${cleanedCount} problematic localStorage entries`);
+      // Cleaned problematic localStorage entries
     } else {
-      console.log('✨ [cleanupUndefinedValues] No problematic entries found - localStorage is clean');
+      // No problematic entries found - localStorage is clean
     }
     
     return cleanedCount;

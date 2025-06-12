@@ -1000,7 +1000,6 @@ const MP3CutterMain = React.memo(() => {
     
     if (logKey !== lastPhase3LogKeyRef.current) {
       lastPhase3LogKeyRef.current = logKey;
-      console.log('🚀 [Phase3] Initializing ultimate optimization system...');
     }
     
     // Initialize Web Worker preloading

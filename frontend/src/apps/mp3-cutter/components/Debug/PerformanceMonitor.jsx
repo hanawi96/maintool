@@ -1,5 +1,5 @@
-// 🎨 **PERFORMANCE MONITOR COMPONENT** - Real-time performance visualization
-// filepath: d:\mp3-cutter-pro\frontend\src\apps\mp3-cutter\components\Debug\PerformanceMonitor.jsx
+// 🎨 **PERFORMANCE MONITOR COMPONENT** - Development only component
+// This component should only be used in development mode
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useHybridWaveform } from '../../hooks/useHybridWaveform';
@@ -130,12 +130,11 @@ const PerformanceMonitor = ({ isVisible, onToggle }) => {
   
   // 🗑️ **CLEAR CACHE**: Clear entire cache
   const clearCache = useCallback(async () => {
-    if (window.confirm('Clear all cached data? This will reset performance metrics.')) {
-      try {
+    if (window.confirm('Clear all cached data? This will reset performance metrics.')) {      try {
         await cacheManager.clearAll();
         clearHistory();
         updateStats();
-        console.log('🗑️ [PerformanceMonitor] Cache cleared successfully');
+        // Cache cleared successfully
       } catch (error) {
         console.error('❌ [PerformanceMonitor] Failed to clear cache:', error);
       }

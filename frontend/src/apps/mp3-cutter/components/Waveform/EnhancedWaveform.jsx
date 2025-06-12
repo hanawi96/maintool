@@ -108,53 +108,28 @@ const EnhancedWaveform = ({
   const setupCompleteRef = useRef(false);
   const lastLogKeyRef = useRef('');
 
-  // Log setup completion
+  // Setup completion tracking (production optimized)
   useEffect(() => {
     if (!setupCompleteRef.current && waveformData.length > 0 && duration > 0) {
       setupCompleteRef.current = true;
-      
-      setTimeout(() => {
-        console.log('🌊 [EnhancedWaveform] Initial setup complete:', {
-          waveformLength: waveformData.length,
-          duration: duration.toFixed(2) + 's',
-          volume: volume.toFixed(2),
-          strategy: enhancedFeatures?.processingStrategy || 'unknown',
-          fromCache: enhancedFeatures?.fromCache || false,
-          note: 'Enhanced with hybrid system capabilities'
-        });
-      }, 0);
+      // Removed excessive console logging for production
     }
   }, [waveformData.length, duration, volume, enhancedFeatures]);
 
-  // 🔧 **HEIGHT CONSISTENCY DEBUG**: Log state transitions (THROTTLED)
+  // State transition tracking (production optimized)
   useEffect(() => {
     const logKey = `${isGenerating}-${waveformData.length > 0}-${enhancedFeatures?.processingStrategy || 'none'}`;
     
-    // Only log when significant state changes occur
+    // Removed excessive console logging for production
     if (logKey !== lastLogKeyRef.current) {
       lastLogKeyRef.current = logKey;
-      
-      console.log(`🔧 [EnhancedWaveform] State transition:`, {
-        isGenerating,
-        hasWaveformData: waveformData.length > 0,
-        volume: volume.toFixed(3),
-        duration: duration.toFixed(2) + 's',
-        strategy: enhancedFeatures?.processingStrategy || 'none',
-        fromCache: enhancedFeatures?.fromCache || false,
-        transition: isGenerating ? 'SHOWING_LOADING' : 'SHOWING_WAVEFORM',
-        note: 'Enhanced tracking with hybrid system metrics (THROTTLED)'
-      });
     }
   }, [isGenerating, waveformData.length, volume, duration, enhancedFeatures?.processingStrategy, enhancedFeatures?.fromCache]);
   
   const minWidth = WAVEFORM_CONFIG.RESPONSIVE.MIN_WIDTH;
   
-  // 🆕 **ENHANCED LOADING STATE** - Shows hybrid processing info
+  // Enhanced loading state display (production optimized)
   if (isGenerating) {
-    // 🔧 **THROTTLED LOGGING**: Only log occasionally to prevent spam
-    if (Math.random() < 0.01) { // 1% chance to log
-      console.log(`🔧 [EnhancedWaveform] Rendering enhanced loading indicator with height: ${WAVEFORM_CONFIG.HEIGHT}px`);
-    }
     return (
       <div className="bg-white/70 backdrop-blur-sm rounded-xl p-4 border border-slate-200/50 shadow-sm">
         <div 

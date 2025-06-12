@@ -56,32 +56,29 @@ export const detectDeviceCapability = () => {
 export const getOptimalDevicePixelRatio = (canvasWidth, canvasHeight) => {
   const actualDPR = window.devicePixelRatio || 1;
   const deviceCapability = detectDeviceCapability();
-  
-  // 🚫 **EARLY EXIT**: Không dùng High DPI cho low-end devices
+    // 🚫 **EARLY EXIT**: Không dùng High DPI cho low-end devices
   if (!deviceCapability.shouldUseHighDPI || actualDPR < PERFORMANCE_CONFIG.MIN_DPR_FOR_HIGH_DPI) {
-    console.log(`⚡ [HighDPI] Disabled for low-end device or low DPR (${actualDPR})`);
+    // Disabled for low-end device or low DPR
     return 1;
   }
   
   // 🎯 **CANVAS AREA CHECK**: Giới hạn canvas size
   const canvasArea = canvasWidth * canvasHeight;
   const maxAreaForHighDPI = PERFORMANCE_CONFIG.MAX_CANVAS_AREA / (actualDPR * actualDPR);
-  
-  if (canvasArea > maxAreaForHighDPI) {
+    if (canvasArea > maxAreaForHighDPI) {
     const limitedDPR = Math.sqrt(PERFORMANCE_CONFIG.MAX_CANVAS_AREA / canvasArea);
-    console.log(`📏 [HighDPI] Limited DPR due to large canvas: ${actualDPR} → ${limitedDPR.toFixed(2)}`);
+    // Limited DPR due to large canvas for performance
     return Math.max(1, Math.min(limitedDPR, actualDPR));
   }
-  
-  // 🧠 **MEMORY-BASED LIMITING**: Giới hạn theo memory
+    // 🧠 **MEMORY-BASED LIMITING**: Giới hạn theo memory
   const memoryUsageMB = (canvasWidth * canvasHeight * actualDPR * actualDPR * 4) / (1024 * 1024);
   if (memoryUsageMB > PERFORMANCE_CONFIG.MEMORY_THRESHOLD_MB) {
     const memoryLimitedDPR = Math.sqrt(PERFORMANCE_CONFIG.MEMORY_THRESHOLD_MB * 1024 * 1024 / (canvasWidth * canvasHeight * 4));
-    console.log(`🧠 [HighDPI] Limited DPR due to memory: ${actualDPR} → ${memoryLimitedDPR.toFixed(2)} (would use ${memoryUsageMB.toFixed(1)}MB)`);
+    // Limited DPR due to memory constraints
     return Math.max(1, Math.min(memoryLimitedDPR, actualDPR));
   }
   
-  console.log(`✅ [HighDPI] Using full DPR: ${actualDPR} (${deviceCapability.deviceClass} device, ${memoryUsageMB.toFixed(1)}MB)`);
+  // Using full DPR for optimal quality
   return actualDPR;
 };
 
@@ -120,9 +117,8 @@ export const setupUltraFastHighDPICanvas = (canvas, logicalWidth, logicalHeight)
   if (optimalDPR === Math.floor(optimalDPR)) {
     ctx.translate(0.5, 0.5); // Only for integer DPR
   }
-  
-  const setupTime = performance.now() - startTime;
-  console.log(`🚀 [HighDPI] Ultra-fast setup completed in ${setupTime.toFixed(2)}ms: ${logicalWidth}×${logicalHeight} @ ${optimalDPR}x DPR`);
+    const setupTime = performance.now() - startTime;
+  // Ultra-fast setup completed in optimal time
   
   return {
     ctx,
@@ -192,12 +188,11 @@ export class PerformanceMonitor {
       console.warn(`🐌 [Performance] Entering fallback mode - average frame time: ${this.getAverageFrameTime().toFixed(2)}ms`);
     }
   }
-  
-  // ✅ **EXIT FALLBACK**: Exit fallback mode
+    // ✅ **EXIT FALLBACK**: Exit fallback mode
   exitFallbackMode() {
     if (this.isInFallbackMode) {
       this.isInFallbackMode = false;
-      console.log(`🚀 [Performance] Exiting fallback mode - performance improved`);
+      // Performance improved - exiting fallback mode
     }
   }
   

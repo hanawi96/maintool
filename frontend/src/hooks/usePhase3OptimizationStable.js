@@ -15,14 +15,14 @@ export const useWebWorkerPreloader = () => {
     }
   });
 
-  // 🎯 Mock functions for compatibility
+  // 🎯 Mock functions for compatibility  // 🎯 Mock functions for compatibility
   const addToPreloadQueue = useCallback(() => {
-    console.log('🛠️ [WebWorkerPreloader] Currently disabled - preload queue not available');
+    // Currently disabled - preload queue not available
     return false;
   }, []);
 
   const startPreloading = useCallback(() => {
-    console.log('🛠️ [WebWorkerPreloader] Currently disabled');
+    // Currently disabled
     return false;
   }, []);
 
@@ -34,9 +34,8 @@ export const useWebWorkerPreloader = () => {
     console.log('🛠️ [WebWorkerPreloader] Currently disabled');
     return false;
   }, []);
-
   const preloadCriticalComponents = useCallback(() => {
-    console.log('🛠️ [WebWorkerPreloader] Currently disabled - using fallback preloading');
+    // Currently disabled - using fallback preloading
     
     // Fallback: Use regular dynamic imports for preloading
     const criticalComponents = [
@@ -103,12 +102,10 @@ export const useIdleCallbackPreloader = () => {
     // Use ref value to avoid stale closure
     if (idleHandleRef.current) {
       cancelIdleCallback(idleHandleRef.current);
-    }
-
-    const handle = requestIdleCallback((deadline) => {
+    }    const handle = requestIdleCallback((deadline) => {
       if (deadline.timeRemaining() > 10 || deadline.didTimeout) {
         setIsIdle(true);
-        console.log('🛌 [IdlePreloader] Browser is idle - executing preload');
+        // Browser is idle - executing preload
         
         try {
           preloadFunction();

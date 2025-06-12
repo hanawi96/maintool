@@ -68,22 +68,11 @@ const UnifiedControlBar = React.memo(({
     onInvertSelection();
     
   }, [onInvertSelection, duration, startTime, endTime]);
-  
-  // 🔥 **SINGLE SETUP LOG**: Only log initial setup once, asynchronously
+    // 🔥 **SINGLE SETUP LOG**: Only log initial setup once, asynchronously (production optimized)
   useEffect(() => {
     if (!setupCompleteRef.current && duration > 0) {
       setupCompleteRef.current = true;
-      // 🔥 **ASYNC LOG**: Move out of render cycle
-      setTimeout(() => {
-        console.log('🎛️ [UnifiedControlBar] Initial setup complete:', {
-          isPlaying,
-          volume: volume.toFixed(2),
-          speed: playbackRate + 'x',
-          timeRange: `${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s`,
-          historyState: `${historyIndex}/${historyLength}`,
-          disabled
-        });
-      }, 0);
+      // Initial setup complete - production optimized
     }
   }, [duration, isPlaying, volume, playbackRate, startTime, endTime, historyIndex, historyLength, disabled]);
 

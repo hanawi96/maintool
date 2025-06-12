@@ -101,39 +101,23 @@ const Waveform = ({
   // 🔥 **OPTIMIZED**: Removed all logging refs to prevent spam
   const setupCompleteRef = useRef(false);
   
-  // 🔥 **SINGLE SETUP LOG**: Only log initial setup once, asynchronously
+  // Setup completion tracking (production optimized)
   useEffect(() => {
     if (!setupCompleteRef.current && waveformData.length > 0 && duration > 0) {
       setupCompleteRef.current = true;
-      // 🔥 **ASYNC LOG**: Move out of render cycle
-      setTimeout(() => {
-        console.log('🌊 [Waveform] Initial setup complete:', {
-          waveformLength: waveformData.length,
-          duration: duration.toFixed(2) + 's',
-          volume: volume.toFixed(2),
-          note: 'TimeSelector moved to UnifiedControlBar'
-        });
-      }, 0);
+      // Removed excessive console logging for production
     }
   }, [waveformData.length, duration, volume]);
   
-  // 🔧 **HEIGHT CONSISTENCY DEBUG**: Log state transitions để debug height issues
+  // State transition tracking (production optimized)
   useEffect(() => {
-    console.log(`🔧 [WaveformHeight-DEBUG] Waveform state transition:`, {
-      isGenerating,
-      hasWaveformData: waveformData.length > 0,
-      volume: volume.toFixed(3),
-      duration: duration.toFixed(2) + 's',
-      transition: isGenerating ? 'SHOWING_LOADING' : 'SHOWING_WAVEFORM',
-      note: 'Tracking transitions that might cause height inconsistency'
-    });
+    // Removed excessive console logging for production
   }, [isGenerating, waveformData.length, volume, duration]);
   
   const minWidth = WAVEFORM_CONFIG.RESPONSIVE.MIN_WIDTH;
   
-  // 🆕 **LOADING STATE DISPLAY** - With consistent height
+  // Loading state display (production optimized)
   if (isGenerating) {
-    console.log(`🔧 [WaveformHeight-DEBUG] Rendering loading indicator with height: ${WAVEFORM_CONFIG.HEIGHT}px`);
     return (
       <div className="bg-white/70 backdrop-blur-sm rounded-xl p-4 border border-slate-200/50 shadow-sm">
         <div 

@@ -9,16 +9,13 @@ export const useIntersectionPreloader = () => {
     if (!elementRef.current || preloadTriggers.has(componentName)) return;
 
     const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
+      (entries) => {        entries.forEach((entry) => {
           if (entry.isIntersecting) {
-            console.log(`🎯 [IntersectionPreloader] Preloading ${componentName}...`);
-            const startTime = performance.now();
+            // Preloading component...
             
             loadComponent()
               .then(() => {
-                const endTime = performance.now();
-                console.log(`⚡ [IntersectionPreloader] ${componentName} preloaded in ${(endTime - startTime).toFixed(2)}ms`);
+                // Component preloaded successfully
               })
               .catch(console.warn);
             
@@ -47,10 +44,9 @@ export const useIdlePreloader = () => {
 
   useEffect(() => {
     const requestIdleCallback = window.requestIdleCallback || ((cb) => setTimeout(cb, 1));
-    
-    const handleIdle = () => {
+      const handleIdle = () => {
       setIsIdle(true);
-      console.log('🛌 [IdlePreloader] Browser is idle - perfect time for preloading');
+      // Browser is idle - perfect time for preloading
     };
 
     requestIdleCallback(handleIdle, { timeout: 2000 });
@@ -60,15 +56,12 @@ export const useIdlePreloader = () => {
     if (!isIdle) return;
 
     const requestIdleCallback = window.requestIdleCallback || ((cb) => setTimeout(cb, 1));
-    
-    requestIdleCallback(() => {
-      console.log(`🛌 [IdlePreloader] Preloading ${componentName} during idle time...`);
-      const startTime = performance.now();
+      requestIdleCallback(() => {
+      // Preloading component during idle time...
       
       loadComponent()
         .then(() => {
-          const endTime = performance.now();
-          console.log(`⚡ [IdlePreloader] ${componentName} preloaded in ${(endTime - startTime).toFixed(2)}ms`);
+          // Component preloaded successfully
         })
         .catch(console.warn);
     }, { timeout: 1000 });
@@ -84,12 +77,11 @@ export const useInteractionPreloader = () => {
   const trackInteraction = useCallback((type) => {
     setInteractionScore(prev => {
       const newScore = prev + 1;
-      
-      // Trigger preloading after certain interaction thresholds
+        // Trigger preloading after certain interaction thresholds
       if (newScore === 3) {
-        console.log('🖱️ [InteractionPreloader] User is actively engaging - preloading FadeControls');
+        // User is actively engaging - preloading FadeControls
         import('../apps/mp3-cutter/components/Effects/FadeControls').catch(console.warn);      } else if (newScore === 5) {
-        console.log('🖱️ [InteractionPreloader] High engagement - preloading ExportPanel');
+        // High engagement - preloading ExportPanel
         import('../apps/mp3-cutter/components/Export').catch(console.warn);
       }
       
@@ -137,16 +129,13 @@ export const useProgressivePreloader = () => {
       .filter(comp => comp.trigger === trigger && !loadedComponents.has(comp.name))
       .sort((a, b) => a.priority - b.priority);
 
-    componentsToLoad.forEach((component, index) => {
-      // Stagger loading to avoid overwhelming the browser
+    componentsToLoad.forEach((component, index) => {      // Stagger loading to avoid overwhelming the browser
       setTimeout(() => {
-        console.log(`🎯 [ProgressivePreloader] Loading ${component.name} (priority ${component.priority})`);
-        const startTime = performance.now();
+        // Loading component with priority order
         
         component.loader()
           .then(() => {
-            const endTime = performance.now();
-            console.log(`⚡ [ProgressivePreloader] ${component.name} loaded in ${(endTime - startTime).toFixed(2)}ms`);
+            // Component loaded successfully
             setLoadedComponents(prev => new Set([...prev, component.name]));
           })
           .catch(console.warn);
@@ -182,24 +171,23 @@ export const useNetworkAwarePreloader = () => {
         navigator.connection.removeEventListener('change', updateConnection);
       };
     }
-  }, []);
-  const shouldPreload = useCallback((componentSize = 'medium') => {
+  }, []);  const shouldPreload = useCallback((componentSize = 'medium') => {
     const { effectiveType, saveData } = connectionInfo;
     
     // Don't preload if user has save-data enabled
     if (saveData) {
-      console.log('📶 [NetworkPreloader] Save-data mode - skipping preload');
+      // Save-data mode - skipping preload
       return false;
     }
     
     // Adjust based on connection speed
     if (effectiveType === 'slow-2g' || effectiveType === '2g') {
-      console.log('📶 [NetworkPreloader] Slow connection - minimal preloading');
+      // Slow connection - minimal preloading
       return componentSize === 'small';
     }
     
     if (effectiveType === '3g' && componentSize === 'large') {
-      console.log('📶 [NetworkPreloader] 3G connection - skipping large components');
+      // 3G connection - skipping large components
       return false;
     }
     
@@ -246,19 +234,18 @@ export const useMemoryAwarePreloader = () => {
       };
     }
   }, []); // Empty dependency array to run only once
-
   const shouldPreload = useCallback(() => {
     if (!memoryInfo) return true; // If we can't measure, proceed
 
     const usagePercent = (memoryInfo.used / memoryInfo.limit) * 100;
     
     if (usagePercent > 80) {
-      console.log('🧠 [MemoryPreloader] High memory usage - skipping preload');
+      // High memory usage - skipping preload
       return false;
     }
     
     if (usagePercent > 60) {
-      console.log('🧠 [MemoryPreloader] Moderate memory usage - limited preloading');
+      // Moderate memory usage - limited preloading
       return 'limited';
     }
     

@@ -81,12 +81,10 @@ export const WaveformUI = memo(({
   const renderCountRef = useRef(0);
   const WAVEFORM_HEIGHT = WAVEFORM_CONFIG.HEIGHT;
 
-  // 🔥 **MINIMAL LOGGING** - Chỉ log mỗi 100 renders
+  // Performance tracking (production optimized)
   useEffect(() => {
     renderCountRef.current++;
-    if (renderCountRef.current % 100 === 0) {
-      console.log(`🎨 [WaveformUI] Render #${renderCountRef.current} - 60fps optimized (Playing: ${isPlaying})`);
-    }
+    // Removed excessive console logging for production
   });
 
   // 🚀 **PHASE 2: ALWAYS SHOW TOOLTIPS** - Remove playing state restrictions for tooltips
