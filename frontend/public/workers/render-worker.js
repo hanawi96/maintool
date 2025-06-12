@@ -4,7 +4,6 @@
 class RenderWorker {
   constructor() {
     this.renderQueue = [];
-    console.log('🎨 [RenderWorker] Worker initialized');
   }
 
   // 🎨 **RENDER WAVEFORM**: Main rendering function
@@ -39,15 +38,11 @@ class RenderWorker {
       gradient.addColorStop(0, 'rgba(99, 102, 241, 0.04)');
       gradient.addColorStop(1, 'rgba(168, 85, 247, 0.04)');
       ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, width, height);
-
-      // 🌊 **RENDER WAVEFORM BARS**
+      ctx.fillRect(0, 0, width, height);      // 🌊 **RENDER WAVEFORM BARS**
       await this.renderWaveformBars(ctx, renderData);
       
       // 🎯 **RENDER SELECTION OVERLAY** 
       this.renderSelectionOverlay(ctx, renderData);
-
-      console.log('✅ [RenderWorker] Render complete for:', id);
 
       // Send result back
       self.postMessage({
@@ -60,7 +55,6 @@ class RenderWorker {
       });
 
     } catch (error) {
-      console.error('❌ [RenderWorker] Render failed:', error);
       self.postMessage({
         type: 'error',
         id,
@@ -119,15 +113,14 @@ const renderWorker = new RenderWorker();
 
 self.onmessage = async function(e) {
   const { type, id, data } = e.data;
-  
-  try {
+    try {
     switch (type) {
       case 'render-waveform':
         await renderWorker.renderWaveform(id, data);
         break;
         
       default:
-        console.warn('🚨 [RenderWorker] Unknown message type:', type);
+        // Unknown message type - silently ignore
     }
   } catch (error) {
     self.postMessage({
@@ -138,5 +131,3 @@ self.onmessage = async function(e) {
     });
   }
 };
-
-console.log('🚀 [RenderWorker] Worker ready for rendering'); 

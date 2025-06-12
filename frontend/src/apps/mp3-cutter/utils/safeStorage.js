@@ -28,13 +28,11 @@ export const safeGetItem = (key, defaultValue = null) => {
     
     // 🎯 HANDLE NULL/UNDEFINED
     if (rawValue === null || rawValue === undefined) {
-      console.log(`📋 [safeStorage] Key "${key}" not found, using default:`, defaultValue);
       return defaultValue;
     }
     
     // 🎯 HANDLE EMPTY STRING
     if (rawValue === '') {
-      console.log(`📋 [safeStorage] Key "${key}" is empty string, using default:`, defaultValue);
       return defaultValue;
     }
     
@@ -108,7 +106,6 @@ export const safeSetItem = (key, value) => {
     
     // 🎯 STORE VALUE
     localStorage.setItem(key, serializedValue);
-    console.log(`✅ [safeStorage] Successfully stored "${key}":`, value);
     return true;
     
   } catch (error) {
@@ -144,7 +141,6 @@ export const safeRemoveItem = (key) => {
     }
     
     localStorage.removeItem(key);
-    console.log(`🗑️ [safeStorage] Successfully removed "${key}"`);
     return true;
     
   } catch (error) {
@@ -214,7 +210,6 @@ export const getStorageInfo = () => {
       usagePercent: Math.round((totalSize / (5 * 1024 * 1024)) * 100)
     };
     
-    console.log('📊 [safeStorage] Storage info:', info);
     return info;
     
   } catch (error) {
@@ -340,5 +335,4 @@ if (typeof window !== 'undefined') {
     setAutoReturn: setAutoReturnSetting
   };
   
-  console.log('🔧 [safeStorage] Debug functions available at window.mp3CutterStorageDebug');
 } 

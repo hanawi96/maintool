@@ -29,7 +29,6 @@ export class HybridWaveformService {
       qualityDistribution: { low: 0, standard: 0, high: 0, premium: 0 }
     };
     
-    console.log('🚀 [HybridWaveformService] Initialized with capabilities:', this.capabilities);
   }
 
   // 🔍 **CAPABILITY DETECTION**: Detect browser features
@@ -74,7 +73,6 @@ export class HybridWaveformService {
   // 🚀 **INITIALIZE WEB WORKER**: Setup worker for background processing
   async initializeWorker() {
     // 🚀 **TEMPORARILY DISABLED**: Worker processing disabled for stability
-    console.log('🛠️ [HybridWaveformService] Worker processing temporarily disabled for stability');
     this.processingWorker = null;
     return false;
   }
@@ -84,14 +82,6 @@ export class HybridWaveformService {
     const startTime = performance.now();
     const fileId = await this.generateFileId(file);
     const { priority = 'normal', quality = 'standard' } = options;
-    
-    console.log('🎯 [HybridWaveformService] Processing file:', {
-      fileName: file.name,
-      fileSize: this.formatBytes(file.size),
-      duration: 'detecting...',
-      quality,
-      strategy: this.capabilities.recommendedStrategy
-    });
     
     try {      // 🏎️ **IMMEDIATE RESPONSE**: Always provide immediate visual feedback
       this.generateThumbnail(file); // Generate thumbnail but don't block on it
@@ -103,12 +93,7 @@ export class HybridWaveformService {
       if (cached) {
         const processingTime = performance.now() - startTime;
         this.updateMetrics('cache-hit', processingTime, quality);
-        
-        console.log('⚡ [HybridWaveformService] Cache hit - instant load:', {
-          processingTime: processingTime.toFixed(2) + 'ms',
-          quality,
-          cacheType: 'full'
-        });
+
         
         return {
           ...cached,
@@ -153,13 +138,6 @@ export class HybridWaveformService {
         this.scheduleFullProcessing(file, fileId, { ...options, quality: 'premium' });
       }
       
-      console.log('✅ [HybridWaveformService] Processing complete:', {
-        strategy: this.capabilities.recommendedStrategy,
-        totalTime: totalTime.toFixed(2) + 'ms',
-        quality: result.quality || quality,
-        cacheStored: true
-      });
-      
       return {
         ...result,
         processingTime: totalTime,
@@ -188,8 +166,6 @@ export class HybridWaveformService {
 
   // 🏆 **HYBRID SUPREME PROCESSING**: Best performance - combines all available optimizations
   async processWithHybridSupreme(file, fileId, options) {
-    console.log('🏆 [HybridWaveformService] Using Hybrid Supreme processing');
-    
     const processingStart = performance.now();
     
     // 🚀 **DIRECT OPTIMIZED PROCESSING**: Use best available method without Worker complexity
@@ -201,11 +177,6 @@ export class HybridWaveformService {
         ...options,
         priority: 'primary'
       });
-      
-      console.log('✅ [HybridWaveformService] Primary processing complete');
-      
-      // 🎨 **BACKGROUND ENHANCEMENT**: Temporarily disabled to avoid transfer errors
-      console.log('🛠️ [HybridWaveformService] Background rendering temporarily disabled for stability');
       
       const processingTime = performance.now() - processingStart;
       this.updateMetrics('hybrid-supreme', processingTime, options.quality);
@@ -225,7 +196,6 @@ export class HybridWaveformService {
 
   // 🏆 **WORKER CACHED PROCESSING**: Supreme performance - with intelligent caching
   async processWithWorkerCached(file, fileId, options) {
-    console.log('🏆 [HybridWaveformService] Using optimized main thread processing (Worker temporarily disabled)');
     
     // 🚀 **DIRECT PROCESSING**: Use main thread with optimizations for now
     return this.processWithEnhancedLegacy(file, fileId, options);
@@ -233,13 +203,9 @@ export class HybridWaveformService {
 
   // 🥉 **OFFSCREEN ONLY PROCESSING**: Decent performance - OffscreenCanvas rendering only
   async processWithOffscreenOnly(file, fileId, options) {
-    console.log('🥉 [HybridWaveformService] Using simplified main thread processing (Offscreen temporarily disabled)');
     
     // 🔧 **MAIN THREAD PROCESSING**: Use current system for data generation
     const waveformData = await WaveformGenerator.generateWaveform(file);
-    
-    // 🎨 **SIMPLIFIED PROCESSING**: Direct return without offscreen rendering
-    console.log('🛠️ [HybridWaveformService] Offscreen rendering temporarily disabled for stability');
     
     return {
       ...waveformData,
@@ -249,9 +215,6 @@ export class HybridWaveformService {
 
   // 🔄 **ENHANCED LEGACY PROCESSING**: Optimized main thread processing
   async processWithEnhancedLegacy(file, fileId, options) {
-    console.log('🔄 [HybridWaveformService] Using Enhanced Legacy processing');
-    
-    // 🎯 **OPTIMIZED PROCESSING**: Efficient main thread processing with minimal blocking
     try {
       // 🚀 **NON-BLOCKING DELAY**: Prevent UI freeze
       if (options.priority !== 'primary') {
@@ -275,7 +238,6 @@ export class HybridWaveformService {
 
   // 🖼️ **THUMBNAIL GENERATION**: Quick preview for immediate feedback
   async generateThumbnail(file) {
-    console.log('🖼️ [HybridWaveformService] Generating thumbnail for immediate feedback');
     
     try {
       // 🏃‍♂️ **QUICK PROCESSING**: Generate low-quality thumbnail quickly
@@ -298,7 +260,6 @@ export class HybridWaveformService {
 
   // ⏰ **BACKGROUND PROCESSING**: Schedule full processing without blocking UI
   async scheduleFullProcessing(file, fileId, options) {
-    console.log('⏰ [HybridWaveformService] Scheduling full background processing');
     
     // 🔄 **BACKGROUND PROCESSING**: Process in background with low priority
     setTimeout(async () => {
@@ -316,7 +277,6 @@ export class HybridWaveformService {
           }
         });
         
-        console.log('✅ [HybridWaveformService] Background processing complete and cached');
       } catch (error) {
         console.error('❌ [HybridWaveformService] Background processing failed:', error);
       }
@@ -401,7 +361,5 @@ export class HybridWaveformService {
     if (this.intelligentCache) {
       this.intelligentCache.dispose();
     }
-    
-    console.log('🧹 [HybridWaveformService] Disposed successfully');
   }
 }

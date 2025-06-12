@@ -15,10 +15,8 @@ const ProgressIndicator = ({
       
       // 🎯 **AUTO FADE OUT**: Nếu completed, hiển thị đầy đủ 2s rồi mới fade out 1.5s
       if (progress.stage === 'completed') {
-        console.log('✅ [ProgressIndicator] Completed detected, starting fade sequence...');
         
         const showCompletedTimeout = setTimeout(() => {
-          console.log('🎨 [ProgressIndicator] Starting fade out after 2s display...');
           setIsVisible(false);
         }, 2000); // Hiển thị đầy đủ trong 2 giây trước khi bắt đầu fade
         

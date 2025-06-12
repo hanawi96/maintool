@@ -108,7 +108,6 @@ export const validateFileId = (req, res, next) => {
   // For silence detection, we only need fileId
   if (req.path.includes('detect-silence')) {
     req.fileId = fileId;
-    console.log('✅ [validateFileId] Silence detection fileId validated:', { fileId });
     return next();
   }
 
@@ -149,11 +148,7 @@ export const validateFileId = (req, res, next) => {
   // 🔧 **FIX: VALIDATE PLAYBACK RATE**: Validate tốc độ phát như trong validateCutParams
   const rate = parseFloat(playbackRate);
   if (isNaN(rate) || rate < 0.25 || rate > 4) {
-    console.log('❌ [validateFileId] Invalid playback rate:', { 
-      provided: playbackRate, 
-      parsed: rate, 
-      isNaN: isNaN(rate) 
-    });
+
     return res.status(400).json({ 
       success: false,
       error: 'Invalid playback rate. Must be between 0.25x and 4x' 
@@ -163,10 +158,7 @@ export const validateFileId = (req, res, next) => {
   // 🆕 **VALIDATE OUTPUT FORMAT**: Validate format có được hỗ trợ không
   const supportedFormats = ['mp3', 'wav', 'aac', 'ogg', 'flac', 'm4a', 'm4r'];
   if (!supportedFormats.includes(outputFormat.toLowerCase())) {
-    console.log('❌ [validateFileId] Invalid output format:', { 
-      provided: outputFormat,
-      supported: supportedFormats 
-    });
+
     return res.status(400).json({ 
       success: false,
       error: `Invalid output format. Supported formats: ${supportedFormats.join(', ')}` 
@@ -176,10 +168,7 @@ export const validateFileId = (req, res, next) => {
   // 🆕 **VALIDATE QUALITY**: Validate quality setting
   const supportedQualities = ['low', 'medium', 'high'];
   if (!supportedQualities.includes(quality.toLowerCase())) {
-    console.log('❌ [validateFileId] Invalid quality:', { 
-      provided: quality,
-      supported: supportedQualities 
-    });
+
     return res.status(400).json({ 
       success: false,
       error: `Invalid quality. Supported qualities: ${supportedQualities.join(', ')}` 
@@ -198,14 +187,6 @@ export const validateFileId = (req, res, next) => {
     quality: quality.toLowerCase(),
     isInverted: Boolean(isInverted) // 🆕 **INVERT MODE**: Include invert mode in cut params
   };
-  
-  console.log('✅ [validateFileId] Validation passed with FORMAT, SPEED & INVERT MODE SUPPORT:', {
-    fileId,
-    cutParams: req.cutParams,
-    formatSelected: req.cutParams.outputFormat,
-    speedIncluded: req.cutParams.playbackRate !== 1 ? `${req.cutParams.playbackRate}x` : 'normal',
-    invertMode: req.cutParams.isInverted ? 'INVERT (cut outside + concatenate)' : 'NORMAL (cut inside)' // 🆕 **INVERT MODE LOG**
-  });
   
   next();
 };
@@ -279,11 +260,7 @@ export const validateSilenceParams = (req, res, next) => {
     minDuration: minDurationValue,
     duration: duration ? parseFloat(duration) : undefined
   };
-  
-  console.log('✅ [validateSilenceParams] Validation passed:', {
-    fileId: req.fileId,
-    silenceParams: req.silenceParams
-  });
+
   
   next();
 };

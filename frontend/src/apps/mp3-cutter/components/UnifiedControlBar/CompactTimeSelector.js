@@ -161,14 +161,6 @@ const ArrowTimeInput = React.memo(({ value, onChange, label, max, min = 0, isSta
     // 🔥 **DEBUG LOG**: Log manual edits với deciseconds detail để verify precision
     const oldDs = Math.round(normalizedValue * 10);
     const newDs = Math.round(newValue * 10);
-    console.log(`✏️ [ArrowTimeInput] ${label} manual edit PRECISE:`, {
-      input: tempValue,
-      original: `${normalizedValue.toFixed(1)}s (${oldDs}ds)`,
-      result: `${newValue.toFixed(1)}s (${newDs}ds)`,
-      exact_diff: `${(newValue - normalizedValue).toFixed(1)}s`,
-      is_0_1s_multiple: (newDs % 1 === 0) ? '✅ EXACT 0.1s' : '❌ NOT 0.1s multiple',
-      display_format: formattedTime
-    });
     
     onChange(newValue);
     setIsEditing(false);
@@ -282,12 +274,7 @@ const CompactTimeSelector = React.memo(({
       setupCompleteRef.current = true;
       // 🔥 **ASYNC LOG**: Move out of render cycle
       setTimeout(() => {
-        console.log('⏰ [CompactTimeSelector] PRECISE 0.1s ArrowTimeInput setup complete:', {
-          timeRange: `${startTime.toFixed(1)}s - ${endTime.toFixed(1)}s`,
-          duration: duration.toFixed(1),
-          format: 'MM.SS.CS với PRECISE ±0.1s steps',
-          improvements: 'Decisecond arithmetic, exact 0.1s increments, no floating point errors'
-        });
+
       }, 0);
     }
   }, [duration, startTime, endTime]);

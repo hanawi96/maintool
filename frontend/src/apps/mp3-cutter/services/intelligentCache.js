@@ -17,7 +17,6 @@ export class IntelligentCache {
       averageRetrievalTime: 0
     };
     
-    console.log('🧠 [IntelligentCache] Initializing...');
     this.initializeDB();
   }
 
@@ -48,9 +47,6 @@ export class IntelligentCache {
         };
       });
       
-      console.log('✅ [IntelligentCache] IndexedDB initialized successfully');
-      
-      // 🧹 **CLEANUP OLD ENTRIES**: Remove entries older than 7 days
       await this.cleanupOldEntries();
       
     } catch (error) {
@@ -71,13 +67,6 @@ export class IntelligentCache {
         this.performanceMetrics.hits++;
         const retrievalTime = performance.now() - startTime;
         this.updateAverageRetrievalTime(retrievalTime);
-        
-        console.log('⚡ [IntelligentCache] Memory cache hit:', {
-          key: key.substring(0, 16) + '...',
-          quality: memoryCached.quality,
-          retrievalTime: retrievalTime.toFixed(2) + 'ms'
-        });
-        
         return memoryCached.data;
       }
       
@@ -106,26 +95,12 @@ export class IntelligentCache {
           const retrievalTime = performance.now() - startTime;
           this.updateAverageRetrievalTime(retrievalTime);
           
-          console.log('💾 [IntelligentCache] IndexedDB cache hit:', {
-            key: key.substring(0, 16) + '...',
-            quality: result.quality,
-            compressed: result.compressed,
-            retrievalTime: retrievalTime.toFixed(2) + 'ms'
-          });
-          
           return data;
         }
       }
       
       // ❌ **CACHE MISS**: No cached data found
       this.performanceMetrics.misses++;
-      console.log('❌ [IntelligentCache] Cache miss:', {
-        key: key.substring(0, 16) + '...',
-        quality,
-        totalHits: this.performanceMetrics.hits,
-        totalMisses: this.performanceMetrics.misses
-      });
-      
       return null;
       
     } catch (error) {
@@ -160,11 +135,6 @@ export class IntelligentCache {
         const compressionRatio = processedData.length / dataSize;
         this.performanceMetrics.compressionRatio = (this.performanceMetrics.compressionRatio + compressionRatio) / 2;
         
-        console.log('🗜️ [IntelligentCache] Data compressed:', {
-          originalSize: this.formatBytes(dataSize),
-          compressedSize: this.formatBytes(processedData.length),
-          ratio: (compressionRatio * 100).toFixed(1) + '%'
-        });
       }
       
       const cacheEntry = {
@@ -194,13 +164,6 @@ export class IntelligentCache {
       }
       
       const operationTime = performance.now() - startTime;
-      console.log('✅ [IntelligentCache] Data cached successfully:', {
-        key: key.substring(0, 16) + '...',
-        quality,
-        size: this.formatBytes(dataSize),
-        compressed,
-        operationTime: operationTime.toFixed(2) + 'ms'
-      });
       
     } catch (error) {
       console.error('❌ [IntelligentCache] Set operation failed:', error);
@@ -218,11 +181,6 @@ export class IntelligentCache {
       this.currentMemoryUsage -= this.estimateDataSize(oldestEntry.data);
       this.memoryCache.delete(oldestKey);
       
-      console.log('🧹 [IntelligentCache] LRU eviction:', {
-        evictedKey: oldestKey.substring(0, 16) + '...',
-        memoryFreed: this.formatBytes(this.estimateDataSize(oldestEntry.data)),
-        remainingEntries: this.memoryCache.size
-      });
     }
     
     // 💾 **ADD TO MEMORY**: Store in memory cache
@@ -425,7 +383,6 @@ export class IntelligentCache {
       });
     }
     
-    console.log(`🔄 [IntelligentCache] Cache invalidated for pattern: ${pattern}`);
   }
 
   // 🧹 **DISPOSE**: Cleanup resources
@@ -435,6 +392,5 @@ export class IntelligentCache {
     if (this.db) {
       this.db.close();
     }
-    console.log('🧹 [IntelligentCache] Disposed successfully');
   }
 }

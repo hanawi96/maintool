@@ -28,7 +28,6 @@ const PageLoader = () => (
 function App() {
   // 🧹 **STARTUP CLEANUP**: Clean localStorage on app startup
   useEffect(() => {
-    console.log('🚀 [App] Starting localStorage cleanup...');
     const cleanedCount = cleanupUndefinedValues();
     if (cleanedCount > 0) {
       console.log(`✅ [App] Cleaned ${cleanedCount} problematic localStorage entries`);

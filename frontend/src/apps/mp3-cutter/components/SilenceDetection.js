@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { VolumeX, Loader2, ChevronDown, X } from 'lucide-react';
+import { BarChart, Loader2, ChevronDown, X } from 'lucide-react';
 import { audioApi } from '../services/audioApi';
 
 // 🎨 **INJECT OPTIMIZED CSS**: Single injection for ultra-smooth panel animations
@@ -268,14 +268,12 @@ const SilenceDetection = ({
             }
           });
         });
-        console.log('🚀 [SilenceDetection-CACHE] Warmed cache with popular values');
       });
     }
   }, [isOpen, waveformData.length, duration, calculateSilenceRegions]);  // 🔍 **OPTIMIZED SILENCE DETECTION**: Full server-side analysis with smart loading
   const detectSilence = useCallback(async () => {
     if (!fileId || isDetecting) return;
     
-    console.log('🔇 [SilenceDetection-BALANCED] Starting optimized detection:', { fileId, threshold, minDuration });
     setIsDetecting(true);
     
     try {
@@ -355,7 +353,7 @@ const SilenceDetection = ({
                 ? 'bg-red-100 hover:bg-red-150 border border-red-300 text-red-800' 
                 : 'bg-red-50 hover:bg-red-100 border border-red-200 text-red-700'
             }`}
-          ><VolumeX className="w-4 h-4" />
+          >            <BarChart className="w-4 h-4" />
             <span>Find silence regions</span>
             <div 
               className="w-4 h-4 transition-transform duration-200 ease-out"
@@ -369,12 +367,11 @@ const SilenceDetection = ({
         </div>
       )}      {/* 🎛️ **MAIN PANEL**: Ultra-smooth animation with optimized transforms */}
       <div className={`silence-panel-container ${isOpen ? 'is-open' : 'is-closed'}`}>
-        <div className="silence-panel-content bg-white/90 rounded-xl p-4 border border-slate-200/50 shadow-sm">
+        <div className="silence-panel-content bg-white/90 rounded-xl p-4 border border-slate-200/50 shadow-sm border-t-2 border-t-red-200/60">
           {/* 📋 **PANEL HEADER**: Show only in panel mode with close button */}
           {isPanelMode && (
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <VolumeX className="w-4 h-4 text-red-600" />
+            <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-200/50">              <div className="flex items-center gap-2">
+                <BarChart className="w-4 h-4 text-red-600" />
                 <span className="text-sm font-semibold text-slate-800">Silence Detection</span>
               </div>
               <button
@@ -473,10 +470,9 @@ const SilenceDetection = ({
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
                   Processing...
-                </>
-              ) : (
+                </>              ) : (
                 <>
-                  <VolumeX className="w-4 h-4" />
+                  <BarChart className="w-4 h-4" />
                   Remove Silent Parts
                 </>
               )}

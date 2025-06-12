@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useEffect, useRef } from 'react';
-import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Zap, RotateCcw, RotateCw, Repeat, Shuffle } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Zap, RotateCcw, RotateCw, Repeat, Shuffle, BarChart } from 'lucide-react';
 import CompactTimeSelector from './CompactTimeSelector';
 import { getAutoReturnSetting, setAutoReturnSetting } from '../../utils/safeStorage';
 import '../../styles/UnifiedControlBar.css';
@@ -59,20 +59,14 @@ const UnifiedControlBar = React.memo(({
     const newValue = !autoReturnEnabled;
     setAutoReturnEnabled(newValue);
     setAutoReturnSetting(newValue);
-    console.log(`🔄 [AutoReturn] Toggle: ${autoReturnEnabled ? 'ON' : 'OFF'} → ${newValue ? 'ON' : 'OFF'}`);
   }, [autoReturnEnabled]);
   
   // 🆕 **INVERT SELECTION HANDLER**: Smart handler for inverting selection
   const handleInvertSelection = useCallback(() => {
     if (!onInvertSelection || duration <= 0 || startTime >= endTime) return;
-    
-    console.log(`🔄 [InvertSelection] Button clicked - toggling invert mode`);
-    console.log(`📍 [InvertSelection] Current selection: ${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s`);
-    
     // 🚀 **SIMPLE TOGGLE**: Just call the handler, no calculations needed
     onInvertSelection();
     
-    console.log(`✅ [InvertSelection] Invert toggle command sent`);
   }, [onInvertSelection, duration, startTime, endTime]);
   
   // 🔥 **SINGLE SETUP LOG**: Only log initial setup once, asynchronously
@@ -280,13 +274,12 @@ const UnifiedControlBar = React.memo(({
       </div>
     );
   }, [volume, handleVolumeChange, toggleMute, disabled]);
-
-  // 🎯 **SPEED CONTROL SECTION** - Enhanced with invert selection button
+  // 🎯 **SPEED CONTROL SECTION** - Enhanced with border ngăn cách
   const SpeedControlSection = useMemo(() => {
     const progressPercent = ((playbackRate - 0.5) / (2 - 0.5)) * 100;
 
     return (
-      <div className="flex items-center gap-2 px-3">
+      <div className="flex items-center gap-2 px-3 border-r border-slate-300/50">
         {/* Speed Icon */}
         <Zap className="w-4 h-4 text-slate-600" />
 
@@ -363,8 +356,7 @@ const UnifiedControlBar = React.memo(({
             : 'bg-slate-100 hover:bg-slate-200 border border-slate-300'
         } disabled:opacity-50 disabled:cursor-not-allowed`}
         title="Silence Detection - Remove silent parts"
-      >
-        <VolumeX className={`w-4 h-4 transition-colors ${
+      >        <BarChart className={`w-4 h-4 transition-colors ${
           isSilencePanelOpen 
             ? 'text-red-700 group-hover:text-red-800' 
             : 'text-slate-700 group-hover:text-slate-900'
@@ -453,12 +445,11 @@ const UnifiedControlBar = React.memo(({
           />
         </div>
       </div>
-      
-      {/* 🎯 **MOBILE RESPONSIVE** - Tối ưu responsive cho mobile */}
+        {/* 🎯 **MOBILE RESPONSIVE** - Tối ưu responsive với border ngăn cách */}
       <div className="sm:hidden mt-4 pt-4 border-t border-slate-200">
         <div className="flex items-center justify-center gap-4">
-          {/* Mobile Volume - Compact size */}
-          <div className="flex items-center gap-2">
+          {/* Mobile Volume - Compact với border */}
+          <div className="flex items-center gap-2 px-3 border-r border-slate-300/50">
             <Volume2 className="w-4 h-4 text-slate-600" />
             <input
               type="range"
@@ -475,11 +466,31 @@ const UnifiedControlBar = React.memo(({
             />
             <span className="text-sm text-slate-600 w-8 text-center">{Math.round(volume * 100)}%</span>
           </div>
+
+          {/* 🆕 **MOBILE SILENCE DETECTION** - Compact button for mobile */}
+          <button
+            onClick={onToggleSilencePanel}
+            disabled={disabled || !fileId}
+            className={`relative p-2 rounded-lg transition-all duration-200 ${
+              isSilencePanelOpen 
+                ? 'bg-red-100 border border-red-300' 
+                : 'bg-slate-100 border border-slate-300'
+            } disabled:opacity-50 disabled:cursor-not-allowed`}
+            title="Silence Detection"
+          >
+            <BarChart className={`w-4 h-4 ${
+              isSilencePanelOpen ? 'text-red-700' : 'text-slate-700'
+            }`} />
+            {isSilencePanelOpen && (
+              <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full shadow-sm"></div>
+            )}
+          </button>
         </div>
         
-        {/* Mobile Speed Row - Hidden trên mobile quá nhỏ */}
-        <div className="md:hidden mt-3 flex items-center justify-center gap-4">
-          <div className="flex items-center gap-2">
+        {/* Mobile Speed Row - với border ngăn cách */}
+        <div className="md:hidden mt-3 pt-3 border-t border-slate-200/50 flex items-center justify-center gap-4">
+          {/* Speed Control với border */}
+          <div className="flex items-center gap-2 px-3 border-r border-slate-300/50">
             <Zap className="w-4 h-4 text-slate-600" />
             <input
               type="range"
@@ -497,7 +508,7 @@ const UnifiedControlBar = React.memo(({
             <span className="text-sm text-slate-600 w-9 text-center">{playbackRate.toFixed(1)}x</span>
           </div>
           
-          {/* 🆕 **MOBILE INVERT SELECTION** - Compact button for mobile */}
+          {/* 🆕 **MOBILE INVERT SELECTION** - Compact button với border */}
           <button
             onClick={handleInvertSelection}
             disabled={disabled || duration <= 0 || startTime >= endTime}

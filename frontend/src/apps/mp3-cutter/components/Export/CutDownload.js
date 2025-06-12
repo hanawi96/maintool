@@ -39,7 +39,6 @@ const CutDownload = ({
     if (progress && progress.stage === 'completed') {
       // Tổng thời gian: 2s hiển thị + 1.5s fade-out = 3.5s
       const totalTimeout = setTimeout(() => {
-        console.log('🧹 [CutDownload] Auto-clearing completed progress after fade-out');
         clearProgress();
       }, 3500); // 2s hiển thị + 1.5s fade-out
       
@@ -49,12 +48,7 @@ const CutDownload = ({
 
   // 🔍 **DEBUG FORMAT CHANGES**: Log khi format thay đổi
   useEffect(() => {
-    console.log('🎯 [CutDownload] Format changed:', {
-      newFormat: outputFormat,
-      hasProcessedFile: !!processedFile,
-      processedFormat: processedFile?.outputFormat,
-      willNeedRecut: processedFile && processedFile.outputFormat !== outputFormat
-    });
+
     
     if (processedFile && processedFile.outputFormat !== outputFormat) {
       console.log('⚠️ [CutDownload] Format mismatch detected - user will need to recut or switch back');
@@ -63,7 +57,6 @@ const CutDownload = ({
 
   // 🆕 **CUT ONLY FUNCTION**: Cut audio với speed nhưng KHÔNG auto download
   const handleCutOnly = async () => {
-    console.log('✂️ [CutDownload] Starting CUT-ONLY process with WebSocket progress...');
     
     // 🎯 Reset previous state
     setProcessingError(null);
@@ -107,11 +100,7 @@ const CutDownload = ({
     setIsProcessing(true);
 
     try {
-      console.log('🎯 [CutDownload] Validated inputs, starting CUT-ONLY operation with WebSocket...');
-      
-      // 🆕 **GENERATE SESSION ID**: Tạo unique session ID cho WebSocket tracking
       const sessionId = `cut-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
-      console.log('📊 [CutDownload] Generated sessionId for WebSocket:', sessionId);
 
       // 🔌 **START WEBSOCKET SESSION**: Bắt đầu tracking progress qua WebSocket
       const sessionStarted = startProgressSession(sessionId);
@@ -133,17 +122,8 @@ const CutDownload = ({
         sessionId // 🆕 **WEBSOCKET SESSION**: Include sessionId for progress tracking
       };
 
-      console.log('📊 [CutDownload] CUT-ONLY parameters with SPEED, FORMAT, INVERT MODE and WebSocket:', {
-        ...cutParams,
-        speedApplied: playbackRate !== 1 ? `${playbackRate}x speed` : 'normal speed',
-        formatSelected: outputFormat,
-        invertMode: isInverted ? 'INVERT (cut outside region + concatenate)' : 'NORMAL (cut inside region)',
-        websocketEnabled: sessionStarted
-      });
-
       const result = await audioApi.cutAudioByFileId(cutParams);
 
-      console.log('✅ [CutDownload] CUT-ONLY operation successful:', result);
 
       if (!result || !result.success) {
         throw new Error(result?.error || 'Cut operation failed - invalid response');
@@ -155,7 +135,6 @@ const CutDownload = ({
         throw new Error('No output file received from server');
       }
 
-      console.log('📁 [CutDownload] Output file determined:', outputFile);
 
       // 🆕 **SAVE PROCESSED FILE INFO**: Store info for later download
       const processedFileInfo = {
@@ -170,9 +149,6 @@ const CutDownload = ({
 
       setProcessedFile(processedFileInfo);
 
-      // 🎉 **SUCCESS - NO ALERT**: Silent success, just ready for download
-      console.log('🎉 [CutDownload] CUT-ONLY completed successfully - ready for download:', processedFileInfo);
-      
     } catch (error) {
       console.error('❌ [CutDownload] CUT-ONLY operation failed:', error);
       
@@ -205,11 +181,9 @@ const CutDownload = ({
       return;
     }
 
-    console.log('📥 [CutDownload] Starting download for processed file:', processedFile);
 
     try {
       const downloadUrl = audioApi.getDownloadUrl(processedFile.filename);
-      console.log('📥 [CutDownload] Triggering download:', downloadUrl);
       
       // 🎯 **ENHANCED DOWNLOAD**: Better filename với speed info và format
       const speedSuffix = processedFile.playbackRate !== 1 ? `_${processedFile.playbackRate}x` : '';
@@ -223,13 +197,7 @@ const CutDownload = ({
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      
-      console.log('✅ [CutDownload] Download triggered successfully:', {
-        filename: downloadFilename,
-        originalFile: processedFile.filename,
-        speed: processedFile.playbackRate !== 1 ? `${processedFile.playbackRate}x` : 'normal',
-        format: processedFile.outputFormat
-      });
+
 
       // 🎉 **DOWNLOAD SUCCESS - NO ALERT**: Silent download success
       console.log('📥 [CutDownload] Download completed silently');
@@ -256,7 +224,6 @@ const CutDownload = ({
       // Reset copy success state after 2 seconds
       setTimeout(() => setCopyLinkSuccess(false), 2000);
       
-      console.log('🔗 [CopyLink] Download link copied to clipboard:', fullUrl);
     } catch (error) {
       console.error('❌ [CopyLink] Failed to copy link:', error);
       setProcessingError('Failed to copy link to clipboard');

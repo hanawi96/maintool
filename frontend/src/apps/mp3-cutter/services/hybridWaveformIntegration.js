@@ -17,11 +17,6 @@ export class HybridWaveformIntegration {
   async generateWaveform(file, options = {}) {
     const startTime = performance.now();
     
-    console.log('🌊 [HybridWaveformIntegration] Starting waveform generation...', {
-      fileName: file.name,
-      fileSize: (file.size / 1024 / 1024).toFixed(2) + 'MB',
-      useHybrid: this.useHybridSystem
-    });
 
     try {
       let result;
@@ -35,14 +30,7 @@ export class HybridWaveformIntegration {
       }
 
       const processingTime = performance.now() - startTime;
-      
-      console.log('✅ [HybridWaveformIntegration] Generation complete:', {
-        fileName: file.name,
-        strategy: result.strategy || 'fallback',
-        processingTime: processingTime.toFixed(2) + 'ms',
-        fromCache: result.fromCache || false,
-        dataLength: result.data?.length || 0
-      });
+
 
       return {
         ...result,
@@ -54,7 +42,6 @@ export class HybridWaveformIntegration {
       
       // 🔄 **AUTO-FALLBACK**: If hybrid fails, try fallback
       if (this.useHybridSystem) {
-        console.log('🔄 [HybridWaveformIntegration] Falling back to original system...');
         try {
           return await this.processWithFallback(file, options);
         } catch (fallbackError) {

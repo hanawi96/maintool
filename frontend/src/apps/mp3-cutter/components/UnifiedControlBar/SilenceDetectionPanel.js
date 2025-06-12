@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { VolumeX } from 'lucide-react';
+import { BarChart } from 'lucide-react';
 import { audioApi } from '../../services/audioApi';
 
 const SilenceDetectionPanel = ({ 
@@ -45,9 +45,8 @@ const SilenceDetectionPanel = ({
   if (!isOpen) return null;
 
   return (
-    <div className="bg-white border border-slate-200 rounded-lg p-4 mt-4 shadow-sm">
-      <div className="flex items-center gap-2 mb-4">
-        <VolumeX className="w-4 h-4 text-red-600" />
+    <div className="bg-white border border-slate-200 rounded-lg p-4 mt-4 shadow-sm">      <div className="flex items-center gap-2 mb-4">
+        <BarChart className="w-4 h-4 text-red-600" />
         <h3 className="text-sm font-semibold text-slate-700">Silence Detection</h3>
       </div>
 

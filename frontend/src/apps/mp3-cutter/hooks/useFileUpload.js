@@ -9,9 +9,6 @@ export const useFileUpload = () => {
   const [uploadError, setUploadError] = useState(null);
 
   const uploadFile = useCallback(async (file) => {
-    console.log('📤 [useFileUpload] Starting upload process:', file.name);
-    
-    // 🎯 Reset previous errors
     setUploadError(null);
     
     // 🎯 Validate file before upload
@@ -26,7 +23,6 @@ export const useFileUpload = () => {
 
     try {
       // 🔥 **ENHANCED FILE SETUP**: Create URL with better tracking
-      console.log('🔧 [useFileUpload] Creating audio URL for immediate use...');
       const audioUrl = createAudioURL(file);
       
       // 🔥 **IMMEDIATE FILE STATE**: Set file with URL immediately for UI
@@ -39,23 +35,9 @@ export const useFileUpload = () => {
       
       setAudioFile(immediateAudioFile);
       setUploadProgress(25); // Local file loaded
-      
-      console.log('🎯 [useFileUpload] File validated and URL created:', {
-        fileName: file.name,
-        fileSize: file.size,
-        audioUrl: audioUrl,
-        mimeType: file.type
-      });
-
-      console.log('🎯 [useFileUpload] File validated, starting upload...');
-
       // 🎯 Upload to backend with enhanced error handling
       const result = await audioApi.uploadFile(file);
       setUploadProgress(75); // Upload completed
-      
-      console.log('✅ [useFileUpload] Upload successful:', result);
-      
-      // 🔥 **PRESERVE LOCAL URL**: Keep the local URL for immediate playback
       // Backend URL can be used for other purposes if needed
       setAudioFile(prev => ({
         ...prev,
@@ -79,7 +61,6 @@ export const useFileUpload = () => {
                            !error.message.includes('Backend server is not available');
       
       if (shouldCleanup && audioFile?.url) {
-        console.log('🧹 [useFileUpload] Cleaning up audio URL on error');
         URL.revokeObjectURL(audioFile.url);
         setAudioFile(null);
       }
@@ -106,11 +87,7 @@ export const useFileUpload = () => {
   }, [audioFile]);
 
   const clearFile = useCallback(() => {
-    console.log('🗑️ [useFileUpload] Clearing file...');
-    
-    // 🔥 **SAFE URL CLEANUP**: Only revoke if it's a blob URL
     if (audioFile?.url && audioFile.url.startsWith('blob:')) {
-      console.log('🧹 [useFileUpload] Revoking blob URL:', audioFile.url);
       URL.revokeObjectURL(audioFile.url);
     }
     
@@ -122,9 +99,7 @@ export const useFileUpload = () => {
   // 🎯 NEW: Test backend connectivity
   const testConnection = useCallback(async () => {
     try {
-      console.log('🏥 [useFileUpload] Testing backend connection...');
       await audioApi.healthCheck();
-      console.log('✅ [useFileUpload] Backend connection OK');
       return true;
     } catch (error) {
       console.error('❌ [useFileUpload] Backend connection failed:', error);

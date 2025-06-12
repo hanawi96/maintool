@@ -246,7 +246,6 @@ const MP3CutterMain = React.memo(() => {
 
   // 🆕 **ENHANCED START TIME HANDLER**: Auto-jump cursor to new start point
   const handleStartTimeChange = useCallback((newStartTime) => {
-    console.log(`⏰ [StartTimeChange] Changing start time: ${startTime.toFixed(1)}s → ${newStartTime.toFixed(1)}s`);
     
     // 1. Update start time first
     originalHandleStartTimeChange(newStartTime);
@@ -256,7 +255,6 @@ const MP3CutterMain = React.memo(() => {
     if (isInverted) {
       // 🆕 **INVERT MODE**: Jump cursor 3s before left handle
       targetCursorTime = Math.max(0, newStartTime - 3);
-      console.log(`🔄 [StartTimeChange] INVERT mode - cursor jumping 3s before left handle: ${targetCursorTime.toFixed(2)}s`);
     } else {
       // 🎯 **NORMAL MODE**: Jump cursor to start point
       targetCursorTime = newStartTime;
@@ -264,19 +262,11 @@ const MP3CutterMain = React.memo(() => {
     
     jumpToTime(targetCursorTime);
     
-    // 3. Log behavior based on play state
-    if (isPlaying) {
-      console.log(`🎵 [StartTimeChange] Music was playing - cursor jumped to ${targetCursorTime.toFixed(2)}s and continues playing`);
-    } else {
-      console.log(`⏸️ [StartTimeChange] Music was paused - cursor moved to ${targetCursorTime.toFixed(2)}s`);
-    }
-    
     // No need to change play state - if it was playing, it continues; if paused, stays paused
   }, [originalHandleStartTimeChange, jumpToTime, isPlaying, startTime, isInverted]);
 
   // 🆕 **ENHANCED END TIME HANDLER**: Auto-jump cursor to 3 seconds before new end point
   const handleEndTimeChange = useCallback((newEndTime) => {
-    console.log(`⏰ [EndTimeChange] Changing end time: ${endTime.toFixed(1)}s → ${newEndTime.toFixed(1)}s`);
     
     // 1. Update end time first
     originalHandleEndTimeChange(newEndTime);
@@ -289,12 +279,7 @@ const MP3CutterMain = React.memo(() => {
     
     // 4. Log behavior based on play state and position
     const positionDesc = targetCursorTime === startTime ? 'start point (end point too close)' : `${targetCursorTime.toFixed(1)}s (3s before end)`;
-    
-    if (isPlaying) {
-      console.log(`🎵 [EndTimeChange] Music was playing - cursor jumped to ${positionDesc} and continues playing`);
-    } else {
-      console.log(`⏸️ [EndTimeChange] Music was paused - cursor moved to ${positionDesc}`);
-    }
+
     
     // No need to change play state - if it was playing, it continues; if paused, stays paused
   }, [originalHandleEndTimeChange, jumpToTime, isPlaying, endTime, startTime]);
@@ -309,7 +294,6 @@ const MP3CutterMain = React.memo(() => {
         window.mp3CutterInteractionDebug.registerManager(interactionManagerRef.current);
       }
 
-      console.log('🎮 [MP3CutterMain] InteractionManager initialized and registered');
     }
     
     // 🧹 **CLEANUP ON UNMOUNT**: Cleanup time handlers để prevent memory leaks
@@ -352,12 +336,9 @@ const MP3CutterMain = React.memo(() => {
       // 🆕 1. VALIDATE AUDIO FILE FIRST
       const validation = validateAudioFile(file);
       setFileValidation(validation);
-      
-      // 🆕 SHOW WARNINGS BUT CONTINUE IF NO ERRORS
+        // 🆕 SHOW WARNINGS BUT CONTINUE IF NO ERRORS
       if (validation.warnings.length > 0) {
-        validation.warnings.forEach(warning => {
-          console.warn('⚠️ [FileWarning]', warning);
-        });
+        // Warnings handled silently for performance
       }
       
       // 🆕 STOP IF VALIDATION FAILED
@@ -484,14 +465,13 @@ const MP3CutterMain = React.memo(() => {
     // 🎯 **CONNECT AUDIO** với Web Audio graph
     const setupWebAudio = async () => {
       try {
-        const success = await connectAudioElement(audio);
-        if (success) {
+        const success = await connectAudioElement(audio);        if (success) {
           // Web Audio API connected successfully
         } else {
-          console.warn('⚠️ [MP3CutterMain] Failed to connect Web Audio API');
+          // Failed to connect Web Audio API
         }
       } catch (error) {
-        console.error('❌ [MP3CutterMain] Web Audio setup failed:', error);
+        // Web Audio setup failed - continue without Web Audio features
       }
     };
     
@@ -513,7 +493,6 @@ const MP3CutterMain = React.memo(() => {
   const handleUndo = useCallback(() => {
     const prevState = undo();
     if (prevState) {
-      console.log(`⏪ [History] Undo - restoring state and jumping cursor to start point: ${prevState.startTime.toFixed(2)}s`);
       
       setStartTime(prevState.startTime);
       setEndTime(prevState.endTime);
@@ -527,14 +506,12 @@ const MP3CutterMain = React.memo(() => {
       // 🆕 **JUMP CURSOR TO START POINT**: Move cursor to start point of restored state
       jumpToTime(prevState.startTime);
       
-      console.log(`📍 [History] Undo complete - cursor positioned at start: ${prevState.startTime.toFixed(2)}s`);
     }
   }, [undo, setStartTime, setEndTime, jumpToTime]);
 
   const handleRedo = useCallback(() => {
     const nextState = redo();
     if (nextState) {
-      console.log(`⏩ [History] Redo - restoring state and jumping cursor to start point: ${nextState.startTime.toFixed(2)}s`);
       
       setStartTime(nextState.startTime);
       setEndTime(nextState.endTime);
@@ -548,7 +525,6 @@ const MP3CutterMain = React.memo(() => {
       // 🆕 **JUMP CURSOR TO START POINT**: Move cursor to start point of restored state
       jumpToTime(nextState.startTime);
       
-      console.log(`📍 [History] Redo complete - cursor positioned at start: ${nextState.startTime.toFixed(2)}s`);
     }
   }, [redo, setStartTime, setEndTime, jumpToTime]);
 
@@ -598,18 +574,15 @@ const MP3CutterMain = React.memo(() => {
 
   // 🆕 **FADE DRAG HISTORY CALLBACKS**: Lưu lịch sử khi kết thúc drag fade sliders
   const handleFadeInDragEnd = useCallback((finalFadeIn) => {
-    console.log(`💾 [FadeControls] Fade In drag ended: ${finalFadeIn.toFixed(1)}s - saving to history`);
     saveState({ startTime, endTime, fadeIn: finalFadeIn, fadeOut, isInverted });
   }, [startTime, endTime, fadeOut, saveState, isInverted]);
 
   const handleFadeOutDragEnd = useCallback((finalFadeOut) => {
-    console.log(`💾 [FadeControls] Fade Out drag ended: ${finalFadeOut.toFixed(1)}s - saving to history`);
     saveState({ startTime, endTime, fadeIn, fadeOut: finalFadeOut, isInverted });
   }, [startTime, endTime, fadeIn, saveState, isInverted]);
 
   // 🆕 **PRESET APPLY CALLBACK**: Lưu lịch sử khi apply preset
   const handlePresetApply = useCallback((newFadeIn, newFadeOut) => {
-    console.log(`🎨 [FadeControls] Preset applied: ${newFadeIn.toFixed(1)}s / ${newFadeOut.toFixed(1)}s - saving to history`);
     setFadeIn(newFadeIn);
     setFadeOut(newFadeOut);
     
@@ -649,9 +622,6 @@ const MP3CutterMain = React.memo(() => {
     if (!audio || !audioFile?.url) {
       return;
     }
-
-    // 🔥 **SINGLE SETUP LOG**: Chỉ log một lần khi setup
-    console.log('🎧 [AudioEvents] Setting up event listeners for:', audioFile.name);
 
     const handleLoadedMetadata = () => {
       const audioDuration = audio.duration;
@@ -781,12 +751,10 @@ const MP3CutterMain = React.memo(() => {
             const hasPostRegion = endTime < audioRef.current.duration;
             
             if (hasPostRegion) {
-              console.log(`⏭️ [InvertMode] Skipping region ${startTime.toFixed(2)}s → ${endTime.toFixed(2)}s, jumping to ${endTime.toFixed(2)}s`);
               audioRef.current.currentTime = endTime;
               setCurrentTime(endTime);
             } else {
               // 🎯 **NO POST REGION**: Stop at start point (end = duration)
-              console.log(`⏹️ [InvertMode] No post region - stopping at start point: ${startTime.toFixed(2)}s`);
               audioRef.current.pause();
               setIsPlaying(false);
               audioRef.current.currentTime = startTime;
@@ -802,12 +770,10 @@ const MP3CutterMain = React.memo(() => {
             
             if (autoReturnEnabled && audioRef.current) {
               // ✅ **LOOP MODE**: Loop back to pre-region start
-              console.log(`🔄 [InvertMode-Loop] Looping back to pre-region start: ${preRegionStart.toFixed(2)}s`);
               audioRef.current.currentTime = preRegionStart;
               setCurrentTime(preRegionStart);
             } else if (audioRef.current) {
               // ✅ **STOP MODE**: Pause and return to pre-region start
-              console.log(`⏹️ [InvertMode-Stop] Pausing and returning to pre-region start: ${preRegionStart.toFixed(2)}s`);
               audioRef.current.pause();
               setIsPlaying(false);
               audioRef.current.currentTime = preRegionStart;
@@ -822,14 +788,12 @@ const MP3CutterMain = React.memo(() => {
             
             if (autoReturnEnabled && audioRef.current) {
               // ✅ **LOOP MODE**: Auto-return BẬT → loop về startTime và tiếp tục phát
-              console.log(`🔄 [AutoReturn] LOOP mode - returning to start: ${startTime.toFixed(2)}s`);
               audioRef.current.currentTime = startTime;
               setCurrentTime(startTime);
               // Continue playing (không pause)
               
             } else if (audioRef.current) {
               // ✅ **STOP MODE**: Auto-return TẮT → pause và quay cursor về startTime
-              console.log(`⏹️ [AutoReturn] STOP mode - pausing and returning to start: ${startTime.toFixed(2)}s`);
               audioRef.current.pause();
               
               // 🎯 **CURSOR RESET**: Quay cursor về startTime như yêu cầu
@@ -840,17 +804,10 @@ const MP3CutterMain = React.memo(() => {
             }
           }
         }
-        
-        // 🔧 **PERFORMANCE TRACKING** - Log mỗi 2 giây để track framerate
+          // 🔧 **PERFORMANCE TRACKING** - Track framerate without logging
         frameCount++;
         const now = performance.now();
-        if (now - lastLogTime > 2000) { // Log every 2 seconds
-          const fps = (frameCount / 2).toFixed(1);
-          console.log(`🚀 [ULTRA-SMOOTH] Main cursor animation performance: ${fps}fps`, {
-            currentTime: audioCurrentTime.toFixed(3) + 's',
-            framesSinceLastLog: frameCount,
-            note: 'Auto-return logic active - no drag protection'
-          });
+        if (now - lastLogTime > 2000) { // Reset counters every 2 seconds
           frameCount = 0;
           lastLogTime = now;
         }
@@ -858,10 +815,8 @@ const MP3CutterMain = React.memo(() => {
         animationId = requestAnimationFrame(updateCursor);
       }
     };
-    
-    // 🎯 **SINGLE ANIMATION CONTROL** - Chỉ start khi thực sự cần thiết
+      // 🎯 **SINGLE ANIMATION CONTROL** - Chỉ start khi thực sự cần thiết
     if (isPlaying && audioRef.current) {
-      console.log('🎬 [ULTRA-SMOOTH] Starting MAIN cursor animation - auto-return logic active');
       animationId = requestAnimationFrame(updateCursor);
     }
     
@@ -869,7 +824,6 @@ const MP3CutterMain = React.memo(() => {
     return () => {
       if (animationId) {
         cancelAnimationFrame(animationId);
-        console.log('🧹 [MainAnimation] Cleaned up MAIN cursor animation');
       }
     };
   }, [isPlaying, startTime, endTime, audioRef, setCurrentTime, setIsPlaying, isInverted]);
@@ -925,31 +879,15 @@ const MP3CutterMain = React.memo(() => {
       }, 0);
     }
   }, [audioRef, setAudioError, setDuration, setEndTime]);
-
   const handleCanPlay = useCallback(() => {
-    console.log('✅ [Audio] Can play');
+    // Audio can play - ready for playback
   }, []);
-
   const handleError = useCallback((e) => {
     const error = e.target.error;
     const filename = audioFile?.name || 'audio file';
     
-    setTimeout(() => {
-      console.error('❌ [AudioElement] Direct error:', {
-        code: error?.code,
-        message: error?.message,
-        filename: filename,
-        src: e.target.src,
-        currentSrc: e.target.currentSrc,
-        readyState: e.target.readyState,
-        networkState: e.target.networkState
-      });
-    }, 0);
-    
     // 🔥 **SIMPLIFIED ERROR**: Generate error message without heavy processing
     const errorDetails = getAudioErrorMessage(error, filename);
-    
-    console.error('❌ [AudioEvents] Error Analysis:', errorDetails);
     
     // 🔥 **LIGHTWEIGHT ERROR STATE**: Set minimal error state
     setAudioError({
@@ -978,9 +916,7 @@ const MP3CutterMain = React.memo(() => {
     if (duration <= 0 || startTime >= endTime) return;
     
     // 🎯 **HISTORY SAVE**: Save current state before inversion
-    saveState({ startTime, endTime, fadeIn, fadeOut, isInverted });
-    
-    // 🚀 **TOGGLE INVERT MODE**: Simply toggle the invert state
+    saveState({ startTime, endTime, fadeIn, fadeOut, isInverted });    // 🚀 **TOGGLE INVERT MODE**: Simply toggle the invert state
     const newInvertState = !isInverted;
     setIsInverted(newInvertState);
     
@@ -999,22 +935,14 @@ const MP3CutterMain = React.memo(() => {
     if (newInvertState) {
       // 🎯 **ENABLING INVERT MODE**: Smart cursor positioning and playback
       const preRegionStart = startTime >= 3 ? startTime - 3 : 0;
-      const hasPostRegion = endTime < duration;
-      
-      console.log(`🔄 [InvertSelection] ENABLING invert mode:`, {
-        preRegion: `${preRegionStart.toFixed(2)}s → ${startTime.toFixed(2)}s`,
-        skipRegion: `${startTime.toFixed(2)}s → ${endTime.toFixed(2)}s`,
-        postRegion: hasPostRegion ? `${endTime.toFixed(2)}s → ${duration.toFixed(2)}s` : 'NONE'
-      });
       
       jumpToTime(preRegionStart);
-    } else {    // 🔙 **DISABLING INVERT MODE**: Return to normal
-      console.log(`🔙 [InvertSelection] DISABLING invert mode - returning to normal playback`);
+    } else {
+      // 🔙 **DISABLING INVERT MODE**: Return to normal
       jumpToTime(startTime);
-    }  }, [duration, startTime, endTime, isInverted, saveState, fadeIn, fadeOut, jumpToTime, updateFadeConfig]);
+    }}, [duration, startTime, endTime, isInverted, saveState, fadeIn, fadeOut, jumpToTime, updateFadeConfig]);
     // 🆕 **SILENCE PANEL TOGGLE HANDLER**: Handler to toggle silence detection panel
-  const handleToggleSilencePanel = useCallback(() => {
-    setIsSilencePanelOpen(prev => {
+  const handleToggleSilencePanel = useCallback(() => {    setIsSilencePanelOpen(prev => {
       const newIsOpen = !prev;
       // Clear silence regions when closing panel
       if (!newIsOpen) {
@@ -1022,25 +950,10 @@ const MP3CutterMain = React.memo(() => {
       }
       return newIsOpen;
     });
-    console.log(`🔇 [SilencePanel] Toggle: ${isSilencePanelOpen ? 'OPEN' : 'CLOSED'} → ${!isSilencePanelOpen ? 'OPEN' : 'CLOSED'}`);
-    
-    // 🔍 **DEBUG**: Log audioFile structure for silence detection debugging
-    const computedFileId = audioFile?.filename || audioFile?.name;
-    console.log('🔍 [DEBUG] audioFile structure:', {
-      hasAudioFile: !!audioFile,
-      filename: audioFile?.filename,
-      name: audioFile?.name,
-      computedFileId: computedFileId,
-      shouldButtonBeDisabled: !computedFileId,
-      fileId: audioFile?.fileId,
-      keys: audioFile ? Object.keys(audioFile) : 'No audioFile'
-    });
   }, [isSilencePanelOpen, audioFile]);
-
   // 🆕 **SILENCE PREVIEW HANDLER**: Handler for real-time silence preview updates
   const handleSilencePreviewUpdate = useCallback((regions) => {
     setSilenceRegions(regions || []);
-    console.log(`🔇 [SilencePreview] Updated regions: ${regions?.length || 0} regions`);
   }, []);
   // 🚀 **PHASE 2: ADVANCED PRELOADING HOOKS** - Smart preloading system
   const { triggerPreload } = useProgressivePreloader();
@@ -1053,28 +966,15 @@ const MP3CutterMain = React.memo(() => {
   useEffect(() => {
     if (audioFile) {
       // Check if we should preload based on network/memory conditions
-      const canPreload = networkShouldPreload('large') && memoryShouldPreload() !== false;
-      
-      if (canPreload) {
-        // Only log once per file
+      const canPreload = networkShouldPreload('large') && memoryShouldPreload() !== false;      if (canPreload) {
+        // Only track once per file
         if (lastPhase2LogKeyRef.current !== audioFile.name) {
           lastPhase2LogKeyRef.current = audioFile.name;
-          console.log('🚀 [Phase2] Starting intelligent component preloading...');
         }
-        
-        const startTime = performance.now();
         
         // Trigger progressive preloading
         triggerPreload('fileLoad');
         preloadHeavyComponents();
-        
-        // Track preloading performance
-        setTimeout(() => {
-          const endTime = performance.now();
-          console.log(`⚡ [Phase2] Component preloading completed in ${(endTime - startTime).toFixed(2)}ms`);
-        }, 1000);
-      } else {
-        console.log('🚀 [Phase2] Skipping preload due to network/memory constraints');
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1085,18 +985,11 @@ const MP3CutterMain = React.memo(() => {
     trackInteraction(type);
     triggerPreload('userInteraction');
   }, [trackInteraction, triggerPreload]);
-
   // 🎯 **PERFORMANCE MONITORING** - Track component load times
   useEffect(() => {
     if (waveformData.length > 0) {
-      // Heavy components are likely loaded, log performance metrics
+      // Heavy components are likely loaded
       triggerPreload('waveformReady');
-      
-      setTimeout(() => {
-        if (window.lazyLoadMetrics) {
-          console.log('📊 [Phase2] Component Load Performance:', window.lazyLoadMetrics);
-        }
-      }, 2000);
     }
   }, [waveformData.length, triggerPreload]);
 

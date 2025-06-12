@@ -11,7 +11,6 @@ export class OffscreenWaveformRenderer {
     this.renderQueue = [];
     this.isInitialized = false;
     
-    console.log('🎨 [OffscreenRenderer] Initializing...');
     this.initialize();
   }
 
@@ -44,11 +43,6 @@ export class OffscreenWaveformRenderer {
       }
 
       this.isInitialized = true;
-      console.log('✅ [OffscreenRenderer] Initialized successfully:', {
-        offscreenSupport: true,
-        workerSupport: !!this.renderWorker,
-        canvasSize: `${this.offscreenCanvas.width}x${this.offscreenCanvas.height}`
-      });
 
     } catch (error) {
       console.error('❌ [OffscreenRenderer] Initialization failed:', error);
@@ -89,11 +83,6 @@ export class OffscreenWaveformRenderer {
     }
 
     const renderId = Date.now() + Math.random();
-    console.log('🎨 [OffscreenRenderer] Starting background render:', {
-      renderId,
-      dataLength: waveformData.length,
-      canvasSize: `${options.width || 800}x${options.height || WAVEFORM_CONFIG.HEIGHT}`
-    });
 
     return new Promise((resolve, reject) => {
       try {
@@ -104,7 +93,6 @@ export class OffscreenWaveformRenderer {
         if (this.offscreenCanvas.width !== targetWidth || this.offscreenCanvas.height !== targetHeight) {
           this.offscreenCanvas.width = targetWidth;
           this.offscreenCanvas.height = targetHeight;
-          console.log('📐 [OffscreenRenderer] Canvas resized:', `${targetWidth}x${targetHeight}`);
         }
 
         // 🎯 **PREPARE RENDER DATA**: Chuẩn bị data cho rendering
@@ -152,9 +140,6 @@ export class OffscreenWaveformRenderer {
 
   // 🎨 **MAIN THREAD RENDER**: Fallback rendering
   async renderWaveformMainThread(waveformData, options = {}) {
-    console.log('🎨 [OffscreenRenderer] Using main thread fallback');
-    
-    // Create temporary canvas for rendering
     const canvas = document.createElement('canvas');
     canvas.width = options.width || 800;
     canvas.height = options.height || WAVEFORM_CONFIG.HEIGHT;
@@ -198,12 +183,6 @@ export class OffscreenWaveformRenderer {
       this.renderSelectionOverlay(ctx, renderData);
 
       const renderTime = performance.now() - startTime;
-      console.log('✅ [OffscreenRenderer] Render complete:', {
-        renderTime: renderTime.toFixed(2) + 'ms',
-        dataPoints: waveformData.length,
-        canvasSize: `${width}x${height}`
-      });
-
       return this.offscreenCanvas || ctx.canvas;
 
     } catch (error) {
@@ -281,11 +260,6 @@ export class OffscreenWaveformRenderer {
     }
   }
 
-  // 📊 **HANDLE RENDER PROGRESS**: Progress updates
-  handleRenderProgress(id, progress) {
-    console.log(`🎨 [OffscreenRenderer] Render progress ${id}: ${progress}%`);
-    // Có thể emit events cho UI progress bars
-  }
 
   // 🧹 **CLEANUP**: Clean up resources
   dispose() {
@@ -295,6 +269,5 @@ export class OffscreenWaveformRenderer {
     this.offscreenCanvas = null;
     this.offscreenCtx = null;
     this.renderQueue = [];
-    console.log('🧹 [OffscreenRenderer] Disposed');
   }
 }

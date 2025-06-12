@@ -3,18 +3,9 @@ import { API_ENDPOINTS } from '../utils/constants';
 // Hardcode API URL to ensure it works
 const API_BASE_URL = 'http://localhost:3001';
 
-// Debug logging
-console.log('🔧 [audioApi] API_BASE_URL:', API_BASE_URL);
-console.log('🔧 [audioApi] process.env.REACT_APP_API_URL:', process.env.REACT_APP_API_URL);
-console.log('🔧 [audioApi] API_ENDPOINTS:', API_ENDPOINTS);
-
 // 🎯 SAFE JSON PARSER - Prevents "undefined" JSON errors
 const safeJsonParse = async (response) => {
-  console.log('🔍 [safeJsonParse] Response status:', response.status);
-  console.log('🔍 [safeJsonParse] Response headers:', {
-    contentType: response.headers.get('content-type'),
-    contentLength: response.headers.get('content-length')
-  });
+
 
   // 🎯 Check if response has content
   const contentType = response.headers.get('content-type');
@@ -27,7 +18,6 @@ const safeJsonParse = async (response) => {
     // Try to get text content for debugging
     try {
       const textContent = await response.text();
-      console.log('📝 [safeJsonParse] Response text:', textContent?.substring(0, 200));
       
       // 🎯 ULTRA SAFE: Check for undefined/null/empty content
       if (!textContent || textContent === 'undefined' || textContent === 'null' || textContent.trim() === '') {
@@ -55,7 +45,6 @@ const safeJsonParse = async (response) => {
         throw new Error('Parsed JSON is undefined or null');
       }
       
-      console.log('✅ [safeJsonParse] Successfully parsed JSON:', jsonData);
       return jsonData;
       
     } catch (textError) {
@@ -73,7 +62,6 @@ const safeJsonParse = async (response) => {
   try {
     // 🎯 ULTRA SAFE: Always get text first, never use response.json() directly
     const responseText = await response.text();
-    console.log('📝 [safeJsonParse] Raw response text:', responseText?.substring(0, 100));
     
     // 🎯 COMPREHENSIVE VALIDATION
     if (!responseText || responseText === 'undefined' || responseText === 'null' || responseText.trim() === '') {
@@ -95,7 +83,6 @@ const safeJsonParse = async (response) => {
       throw new Error('Parsed JSON is undefined or null');
     }
     
-    console.log('✅ [safeJsonParse] Successfully parsed JSON:', jsonData);
     return jsonData;
     
   } catch (jsonError) {
@@ -105,7 +92,6 @@ const safeJsonParse = async (response) => {
     try {
       const responseClone = response.clone();
       const rawText = await responseClone.text();
-      console.log('📝 [safeJsonParse] Raw response text:', rawText);
       
       if (!rawText || rawText.trim() === '' || rawText === 'undefined' || rawText === 'null') {
         throw new Error('Response body is empty, undefined, or null');
@@ -154,17 +140,11 @@ const handleApiError = async (response, operation) => {
 export const audioApi = {
   // 🎯 ENHANCED: Upload file with comprehensive error handling
   async uploadFile(file) {
-    console.log('🚀 [uploadFile] Starting upload:', {
-      fileName: file.name,
-      fileSize: file.size,
-      fileType: file.type
-    });
 
     const formData = new FormData();
     formData.append('audio', file);
     
     const uploadUrl = `${API_BASE_URL}${API_ENDPOINTS.UPLOAD}`;
-    console.log('🚀 [uploadFile] Upload URL:', uploadUrl);
     
     let response;
     try {
@@ -172,12 +152,7 @@ export const audioApi = {
         method: 'POST',
         body: formData
       });
-      
-      console.log('📡 [uploadFile] Response received:', {
-        status: response.status,
-        statusText: response.statusText,
-        ok: response.ok
-      });
+ 
       
     } catch (networkError) {
       console.error('🌐 [uploadFile] Network error:', networkError);
@@ -191,7 +166,6 @@ export const audioApi = {
     // 🎯 Safe JSON parsing
     try {
       const result = await safeJsonParse(response);
-      console.log('✅ [uploadFile] Upload successful:', result);
       return result;
     } catch (parseError) {
       console.error('❌ [uploadFile] Response parsing failed:', parseError);
@@ -201,10 +175,8 @@ export const audioApi = {
 
   // 🎯 ENHANCED: Cut audio with comprehensive error handling
   async cutAudio(params) {
-    console.log('✂️ [cutAudio] Starting cut operation:', params);
 
     const cutUrl = `${API_BASE_URL}${API_ENDPOINTS.CUT}`;
-    console.log('✂️ [cutAudio] Cut URL:', cutUrl);
     
     let response;
     try {
@@ -215,12 +187,7 @@ export const audioApi = {
         },
         body: JSON.stringify(params)
       });
-      
-      console.log('📡 [cutAudio] Response received:', {
-        status: response.status,
-        statusText: response.statusText,
-        ok: response.ok
-      });
+ 
       
     } catch (networkError) {
       console.error('🌐 [cutAudio] Network error:', networkError);
@@ -234,7 +201,6 @@ export const audioApi = {
     // 🎯 Safe JSON parsing
     try {
       const result = await safeJsonParse(response);
-      console.log('✅ [cutAudio] Cut successful:', result);
       return result;
     } catch (parseError) {
       console.error('❌ [cutAudio] Response parsing failed:', parseError);
@@ -249,13 +215,11 @@ export const audioApi = {
     }
     
     const downloadUrl = `${API_BASE_URL}${API_ENDPOINTS.DOWNLOAD}/${encodeURIComponent(filename)}`;
-    console.log('📥 [getDownloadUrl] Download URL generated:', downloadUrl);
     return downloadUrl;
   },
 
   // 🎯 NEW: Health check for debugging
   async healthCheck() {
-    console.log('🏥 [healthCheck] Checking backend health...');
     
     try {
       const response = await fetch(`${API_BASE_URL}/health`, {
@@ -263,18 +227,11 @@ export const audioApi = {
         timeout: 5000 // 5 second timeout
       });
       
-      console.log('🏥 [healthCheck] Response received:', {
-        status: response.status,
-        statusText: response.statusText,
-        ok: response.ok
-      });
-      
       if (!response.ok) {
         throw new Error(`Health check failed: ${response.status} ${response.statusText}`);
       }
       
       const result = await safeJsonParse(response);
-      console.log('✅ [healthCheck] Backend is healthy:', result);
       return result;
       
     } catch (error) {
@@ -293,10 +250,8 @@ export const audioApi = {
 
   // 🎯 ENHANCED: Cut audio by fileId with comprehensive error handling and WebSocket support
   async cutAudioByFileId(params) {
-    console.log('✂️ [cutAudioByFileId] Starting cut by fileId:', params);
 
     const cutUrl = `${API_BASE_URL}${API_ENDPOINTS.CUT_BY_FILE_ID}`;
-    console.log('✂️ [cutAudioByFileId] Cut URL:', cutUrl);
     
     // 🆕 **ADD SESSION ID**: Add sessionId để backend có thể track progress
     const requestBody = {
@@ -304,7 +259,6 @@ export const audioApi = {
       sessionId: params.sessionId || `cut-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`
     };
 
-    console.log('📊 [cutAudioByFileId] Request body with sessionId:', requestBody);
     
     let response;
     try {
@@ -315,12 +269,7 @@ export const audioApi = {
         },
         body: JSON.stringify(requestBody)
       });
-      
-      console.log('📡 [cutAudioByFileId] Response received:', {
-        status: response.status,
-        statusText: response.statusText,
-        ok: response.ok
-      });
+
       
     } catch (networkError) {
       console.error('🌐 [cutAudioByFileId] Network error:', networkError);
@@ -334,7 +283,6 @@ export const audioApi = {
     // 🎯 Safe JSON parsing
     try {
       const result = await safeJsonParse(response);
-      console.log('✅ [cutAudioByFileId] Cut successful:', result);
       
       // 🆕 **RETURN WITH SESSION ID**: Include sessionId in result for WebSocket tracking
       return {
@@ -349,7 +297,6 @@ export const audioApi = {
 
   // 🆕 **CHANGE AUDIO SPEED BY FILE ID**: Thay đổi tốc độ audio bằng fileId
   async changeAudioSpeedByFileId(params) {
-    console.log('⚡ [changeAudioSpeedByFileId] Starting speed change by fileId:', params);
 
     // 🔍 **VALIDATE PARAMS**: Kiểm tra params có đủ không
     if (!params.fileId) {
@@ -361,7 +308,6 @@ export const audioApi = {
     }
 
     const speedUrl = `${API_BASE_URL}${API_ENDPOINTS.CHANGE_SPEED_BY_FILEID}`;
-    console.log('⚡ [changeAudioSpeedByFileId] Speed URL:', speedUrl);
     
     let response;
     try {
@@ -373,11 +319,7 @@ export const audioApi = {
         body: JSON.stringify(params)
       });
       
-      console.log('📡 [changeAudioSpeedByFileId] Response received:', {
-        status: response.status,
-        statusText: response.statusText,
-        ok: response.ok
-      });
+
       
     } catch (networkError) {
       console.error('🌐 [changeAudioSpeedByFileId] Network error:', networkError);
@@ -391,7 +333,6 @@ export const audioApi = {
     // 🎯 Safe JSON parsing
     try {
       const result = await safeJsonParse(response);
-      console.log('✅ [changeAudioSpeedByFileId] Speed change successful:', result);
       return result;
     } catch (parseError) {
       console.error('❌ [changeAudioSpeedByFileId] Response parsing failed:', parseError);
@@ -400,7 +341,6 @@ export const audioApi = {
   },
   // 🔇 **SILENCE DETECTION**: Detect and remove silent parts from audio
   async detectSilence(params) {
-    console.log('🔇 [detectSilence] Starting silence detection:', params);
 
     // 🔍 **VALIDATE PARAMS**: Check required parameters
     if (!params.fileId) {
@@ -416,7 +356,6 @@ export const audioApi = {
     }
 
     const silenceUrl = `${API_BASE_URL}${API_ENDPOINTS.DETECT_SILENCE}/${params.fileId}`;
-    console.log('🔇 [detectSilence] Silence detection URL:', silenceUrl);
     
     let response;
     try {
@@ -431,12 +370,7 @@ export const audioApi = {
           duration: params.duration
         })
       });
-      
-      console.log('📡 [detectSilence] Response received:', {
-        status: response.status,
-        statusText: response.statusText,
-        ok: response.ok
-      });
+
       
     } catch (networkError) {
       console.error('🌐 [detectSilence] Network error:', networkError);
@@ -450,7 +384,6 @@ export const audioApi = {
     // 🎯 Safe JSON parsing
     try {
       const result = await safeJsonParse(response);
-      console.log('✅ [detectSilence] Silence detection successful:', result);
       return result;
     } catch (parseError) {
       console.error('❌ [detectSilence] Response parsing failed:', parseError);

@@ -20,12 +20,10 @@ const io = new SocketIOServer(httpServer, {
 
 // 🔌 **WEBSOCKET CONNECTION HANDLER**
 io.on('connection', (socket) => {
-  console.log('🔌 [WebSocket] Client connected:', socket.id);
   
   // 📊 **PROGRESS ROOM**: Client tham gia room để nhận progress updates
   socket.on('join-progress-room', (data) => {
     const { sessionId } = data;
-    console.log(`📊 [WebSocket] Client ${socket.id} joined progress room: ${sessionId}`);
     socket.join(`progress-${sessionId}`);
     
     // Xác nhận join room
@@ -34,7 +32,6 @@ io.on('connection', (socket) => {
   
   // 🔌 **DISCONNECT HANDLER**
   socket.on('disconnect', () => {
-    console.log('🔌 [WebSocket] Client disconnected:', socket.id);
   });
 });
 

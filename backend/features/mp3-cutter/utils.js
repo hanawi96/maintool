@@ -42,7 +42,6 @@ export class MP3Utils {
       throw new Error(`Failed to get audio info: ${error.message}`);
     }
   }
-
   /**
    * Cut audio file with optional fade effects
    */
@@ -55,53 +54,23 @@ export class MP3Utils {
       format = 'mp3',
       quality = 'medium',
       playbackRate = 1,
-      isInverted = false, // 🆕 **INVERT MODE**: Add invert mode parameter
-      sessionId = null // 🆕 **SESSION ID**: Để identify WebSocket room
+      isInverted = false,
+      sessionId = null
     } = options;
 
-    console.log('🎬 [cutAudio] Starting cut operation with options:', {
-      startTime,
-      endTime,
-      fadeIn,
-      fadeOut,
-      format,
-      quality,
-      playbackRate,
-      isInverted, // 🆕 **INVERT MODE**: Log invert mode
-      sessionId, // 🆕 **LOG SESSION ID**
-      speedChangeRequested: playbackRate !== 1,
-      cutMode: isInverted ? 'INVERT (cut outside + concatenate)' : 'NORMAL (cut inside)' // 🆕 **CUT MODE**
-    });
-
-    // 🆕 **INVERT MODE LOGIC**: Handle concatenation for invert mode
+    // Handle invert mode logic
     if (isInverted && endTime) {
-      // 🧠 **GET AUDIO DURATION**: Get total duration to calculate active regions
       const audioInfo = await this.getAudioInfo(inputPath);
       const totalDuration = audioInfo.duration;
       
-      // 🎯 **SMART SEGMENT CALCULATION**: Calculate which segments would be active
-      const active1Duration = startTime; // 0 → startTime
-      const active2Duration = totalDuration - endTime; // endTime → duration
-      
-      // 🎯 **TOTAL DURATION CHECK**: Check total duration of active regions
+      const active1Duration = startTime;
+      const active2Duration = totalDuration - endTime;
       const totalActiveRegionDuration = active1Duration + active2Duration;
       
-      // 🚫 **NO ACTIVE REGIONS CHECK**: If total duration < 0.1s, throw error
       if (totalActiveRegionDuration < 0.1) {
-        console.log('🚫 [cutAudio] INVERT MODE ERROR: Total active regions duration < 0.1s');
         throw new Error('Please select a cut length greater than 0.1 seconds.');
       }
       
-      // 🎯 **INDIVIDUAL SEGMENT CHECK**: For processing logic
-      const hasActive1 = active1Duration > 0;
-      const hasActive2 = active2Duration > 0;
-      
-      console.log('🔄 [cutAudio] INVERT MODE: Processing concatenation logic with active regions:', {
-        hasActive1,
-        hasActive2,
-        active1Duration: active1Duration.toFixed(2) + 's',
-        active2Duration: active2Duration.toFixed(2) + 's'
-      });
       return this.cutAudioInvertMode(inputPath, outputPath, options);
     }
 
@@ -122,12 +91,8 @@ export class MP3Utils {
 
         // Build audio filters
         const filters = [];
-        
-        // 🆕 **SPEED/TEMPO FILTER**: Thay đổi tốc độ phát với atempo
+          // 🆕 **SPEED/TEMPO FILTER**: Thay đổi tốc độ phát với atempo
         if (playbackRate && playbackRate !== 1) {
-          console.log(`⚡ [cutAudio] Applying speed change: ${playbackRate}x`);
-          console.log(`🔧 [cutAudio] Speed filter logic: playbackRate=${playbackRate}, type=${typeof playbackRate}`);
-          
           // 🎯 **ATEMPO CHAINING**: FFmpeg atempo chỉ hỗ trợ 0.5-2.0, cần chain cho giá trị cực
           let currentRate = playbackRate;
           const originalRate = playbackRate;
@@ -136,45 +101,32 @@ export class MP3Utils {
             // 🎯 **SINGLE ATEMPO**: Tốc độ trong khoảng hỗ trợ
             const atempoFilter = `atempo=${currentRate.toFixed(3)}`;
             filters.push(atempoFilter);
-            console.log(`🎯 [cutAudio] SINGLE atempo filter: ${atempoFilter}`);
           } else if (currentRate > 2.0) {
             // 🎯 **CHAIN FOR FAST**: Tốc độ > 2x cần chain nhiều atempo
-            console.log(`🔗 [cutAudio] CHAINING for fast speed > 2x:`, { originalRate: currentRate });
             while (currentRate > 2.0) {
               filters.push(`atempo=2`);
               currentRate /= 2;
-              console.log(`🔗 [cutAudio] Added atempo=2, remaining rate: ${currentRate}`);
             }
             if (currentRate > 1.01) { // Tránh rounding error
               const finalFilter = `atempo=${currentRate.toFixed(3)}`;
               filters.push(finalFilter);
-              console.log(`🔗 [cutAudio] Final atempo filter: ${finalFilter}`);
             }
           } else if (currentRate < 0.5) {
             // 🎯 **CHAIN FOR SLOW**: Tốc độ < 0.5x cần chain nhiều atempo  
-            console.log(`🔗 [cutAudio] CHAINING for slow speed < 0.5x:`, { originalRate: currentRate });
             while (currentRate < 0.5) {
               filters.push(`atempo=0.5`);
               currentRate *= 2;
-              console.log(`🔗 [cutAudio] Added atempo=0.5, remaining rate: ${currentRate}`);
             }
             if (currentRate < 0.99) { // Tránh rounding error
               const finalFilter = `atempo=${currentRate.toFixed(3)}`;
               filters.push(finalFilter);
-              console.log(`🔗 [cutAudio] Final atempo filter: ${finalFilter}`);
             }
           }
-          
-          console.log(`✅ [cutAudio] Speed filters completed for ${originalRate}x:`, filters.filter(f => f.startsWith('atempo')));
-        } else {
-          console.log(`🚫 [cutAudio] No speed change applied (playbackRate=${playbackRate})`);
         }
-        
-        // Add fade in effect
+          // Add fade in effect
         if (fadeIn > 0) {
           const fadeInFilter = `afade=t=in:st=0:d=${fadeIn}`;
           filters.push(fadeInFilter);
-          console.log(`🎵 [cutAudio] Added fade in filter: ${fadeInFilter}`);
         }
         
         // Add fade out effect
@@ -184,48 +136,21 @@ export class MP3Utils {
             const fadeOutStart = Math.max(0, segmentDuration - fadeOut);
             const fadeOutFilter = `afade=t=out:st=${fadeOutStart}:d=${fadeOut}`;
             filters.push(fadeOutFilter);
-            console.log(`🎵 [cutAudio] Added fade out filter: ${fadeOutFilter}`);
           }
         }
 
         // Apply filters if any
         if (filters.length > 0) {
-          console.log(`🎛️ [cutAudio] Applying ${filters.length} filters:`, filters.join(', '));
           command = command.audioFilters(filters);
-        } else {
-          console.log(`🚫 [cutAudio] No filters to apply`);
-        }
-
-        // 🔧 **FORMAT PROCESSING DEBUG**: Log format processing details
-        console.log('🎵 [cutAudio] FORMAT PROCESSING START:', {
-          format,
-          quality,
-          outputPath,
-          outputExtension: path.extname(outputPath),
-          isM4R: format === 'm4r',
-          isM4A: format === 'm4a'
-        });
-
-        // Set output quality based on format and quality preset
+        }        // Set output quality based on format and quality preset
         try {
-          console.log(`🔧 [cutAudio] Calling setOutputQuality with format: ${format}, quality: ${quality}`);
           command = this.setOutputQuality(command, format, quality);
-          console.log(`✅ [cutAudio] setOutputQuality completed successfully for ${format}`);
         } catch (qualityError) {
-          console.error('❌ [cutAudio] setOutputQuality failed:', {
-            format,
-            quality,
-            error: qualityError.message,
-            stack: qualityError.stack
-          });
           throw qualityError;
-        }
-
-        // 🔌 **WEBSOCKET PROGRESS EMITTER**: Function để emit progress
+        }        // 🔌 **WEBSOCKET PROGRESS EMITTER**: Function để emit progress
         const emitProgress = (progressData) => {
           if (sessionId && global.io) {
             const roomName = `progress-${sessionId}`;
-            console.log(`📊 [cutAudio] Emitting progress to room ${roomName}:`, progressData);
             global.io.to(roomName).emit('cut-progress', {
               sessionId,
               ...progressData,
@@ -242,23 +167,14 @@ export class MP3Utils {
         });
 
         command
-          .output(outputPath)
-          .on('start', (commandLine) => {
-            console.log('🚀 [cutAudio] FFmpeg command starting:', commandLine);
-            console.log('🔍 [cutAudio] Command analysis:', {
-              hasAtempo: commandLine.includes('atempo'),
-              atempoCount: (commandLine.match(/atempo/g) || []).length,
-              fullCommand: commandLine
-            });
-
+          .output(outputPath)          .on('start', (commandLine) => {
             // 📊 **START PROGRESS**: Emit start progress
             emitProgress({
               stage: 'processing',
               percent: 5,
               message: 'FFmpeg processing started...'
             });
-          })
-          .on('progress', (progress) => {
+          })          .on('progress', (progress) => {
             // 📊 **REAL-TIME PROGRESS**: Emit actual FFmpeg progress
             const percent = Math.round(progress.percent || 0);
             const progressData = {
@@ -269,7 +185,6 @@ export class MP3Utils {
               message: `Processing audio... ${percent}%`
             };
 
-            console.log(`📊 [cutAudio] FFmpeg progress: ${percent}% - ${progress.timemark}`);
             emitProgress(progressData);
 
             // 🔄 **LEGACY CALLBACK**: Keep existing callback for backward compatibility
@@ -280,17 +195,7 @@ export class MP3Utils {
                 targetSize: progress.targetSize
               });
             }
-          })
-          .on('error', (error) => {
-            console.error('❌ [cutAudio] FFmpeg error:', error);
-            console.error('❌ [cutAudio] FFmpeg error context:', {
-              inputPath,
-              outputPath,
-              playbackRate,
-              filters,
-              errorMessage: error.message
-            });
-
+          })          .on('error', (error) => {
             // 📊 **ERROR PROGRESS**: Emit error progress
             emitProgress({
               stage: 'error',
@@ -300,17 +205,7 @@ export class MP3Utils {
             });
 
             reject(new Error(`Audio cutting failed: ${error.message}`));
-          })
-          .on('end', () => {
-            console.log('✅ [cutAudio] FFmpeg processing completed successfully');
-            console.log('🎉 [cutAudio] Final result summary:', {
-              inputPath,
-              outputPath,
-              playbackRateApplied: playbackRate,
-              filtersApplied: filters,
-              speedSuccess: playbackRate !== 1 ? `${playbackRate}x speed applied` : 'normal speed'
-            });
-
+          })          .on('end', () => {
             // 📊 **COMPLETION PROGRESS**: Emit completion progress
             emitProgress({
               stage: 'completed',
@@ -336,11 +231,7 @@ export class MP3Utils {
               }
             });
           })
-          .run();
-
-      } catch (error) {
-        console.error('❌ [cutAudio] Setup failed:', error);
-        
+          .run();      } catch (error) {
         // 📊 **SETUP ERROR PROGRESS**: Emit setup error
         if (sessionId && global.io) {
           const roomName = `progress-${sessionId}`;
@@ -358,7 +249,6 @@ export class MP3Utils {
       }
     });
   }
-
   /**
    * 🆕 **CHANGE AUDIO SPEED**: Chỉ thay đổi tốc độ không cắt đoạn
    */
@@ -368,12 +258,6 @@ export class MP3Utils {
       format = 'mp3',
       quality = 'medium'
     } = options;
-
-    console.log(`⚡ [changeAudioSpeed] Changing speed to ${playbackRate}x:`, {
-      input: inputPath,
-      output: outputPath,
-      playbackRate
-    });
 
     return new Promise((resolve, reject) => {
       try {
@@ -406,7 +290,6 @@ export class MP3Utils {
         }
 
         if (filters.length > 0) {
-          console.log(`🎛️ [changeAudioSpeed] Applying tempo filters:`, filters.join(', '));
           command = command.audioFilters(filters);
         }
 
@@ -415,17 +298,15 @@ export class MP3Utils {
         command
           .output(outputPath)
           .on('start', (commandLine) => {
-            console.log('⚡ [changeAudioSpeed] FFmpeg command:', commandLine);
+            // Start processing
           })
           .on('progress', (progress) => {
-            console.log(`⚡ [changeAudioSpeed] Progress: ${Math.round(progress.percent || 0)}%`);
+            // Processing progress
           })
           .on('error', (error) => {
-            console.error('❌ [changeAudioSpeed] FFmpeg error:', error);
             reject(new Error(`Speed change failed: ${error.message}`));
           })
           .on('end', () => {
-            console.log('✅ [changeAudioSpeed] Speed change completed successfully');
             resolve({
               success: true,
               outputPath,
@@ -440,7 +321,6 @@ export class MP3Utils {
           .run();
 
       } catch (error) {
-        console.error('❌ [changeAudioSpeed] Setup failed:', error);
         reject(new Error(`Failed to setup speed change: ${error.message}`));
       }
     });
@@ -518,27 +398,17 @@ export class MP3Utils {
         .run();
     });
   }
-
   /**
    * Set output quality based on format and quality preset
    */
   static setOutputQuality(command, format, quality) {
-    console.log(`🎛️ [setOutputQuality] Setting quality for format: ${format}, quality: ${quality}`);
-    
     const qualitySettings = MP3_CONFIG.QUALITY_PRESETS[quality];
     
     if (!qualitySettings || !qualitySettings[format]) {
-      console.error(`❌ [setOutputQuality] Unsupported format/quality combination:`, {
-        format,
-        quality,
-        availableQualities: Object.keys(MP3_CONFIG.QUALITY_PRESETS),
-        availableFormats: qualitySettings ? Object.keys(qualitySettings) : 'N/A'
-      });
       throw new Error(`Unsupported format/quality combination: ${format}/${quality}`);
     }
 
     const settings = qualitySettings[format];
-    console.log(`🔧 [setOutputQuality] Using settings for ${format}:`, settings);
     
     // Set audio codec
     command = command.audioCodec(settings.codec);
@@ -546,11 +416,8 @@ export class MP3Utils {
     // Set bitrate if specified
     if (settings.bitrate) {
       command = command.audioBitrate(settings.bitrate);
-    }
-
-    // 🚨 **M4R SPECIAL HANDLING**: M4R needs special container format
+    }    // 🚨 **M4R SPECIAL HANDLING**: M4R needs special container format
     if (format === 'm4r') {
-      console.log('🎵 [setOutputQuality] M4R SPECIAL HANDLING: Setting MP4 container format');
       // 🎯 **FORCE MP4 CONTAINER**: M4R is basically AAC in MP4 container with .m4r extension
       command = command.format('mp4');
       
@@ -559,27 +426,20 @@ export class MP3Utils {
         '-f', 'mp4',           // Force MP4 container
         '-movflags', '+faststart' // Optimize for playback
       ]);
-      
-      console.log('✅ [setOutputQuality] M4R format configured with MP4 container');
     } else if (format === 'm4a') {
-      console.log('🎵 [setOutputQuality] M4A: Setting MP4 container format');
       // 🎯 **M4A CONTAINER**: M4A also uses MP4 container
       command = command.format('mp4');
       command = command.outputOptions([
         '-f', 'mp4',
         '-movflags', '+faststart'
       ]);
-      console.log('✅ [setOutputQuality] M4A format configured with MP4 container');
     } else if (format === 'flac') {
-      console.log('🎵 [setOutputQuality] FLAC: Setting FLAC container format');
       command = command.format('flac');
     } else if (format === 'ogg') {
-      console.log('🎵 [setOutputQuality] OGG: Setting OGG container format');
       command = command.format('ogg');
     }
     // 🚫 **NO EXPLICIT FORMAT**: MP3, WAV, AAC use default container detection
 
-    console.log(`✅ [setOutputQuality] Quality configuration completed for ${format}`);
     return command;
   }
 
@@ -696,26 +556,9 @@ export class MP3Utils {
     if (totalActiveRegionDuration < 0.1) {
       throw new Error('Please select a cut length greater than 0.1 seconds.');
     }
-    
-    // 🎯 **INDIVIDUAL SEGMENT CHECK**: For processing logic
+      // 🎯 **INDIVIDUAL SEGMENT CHECK**: For processing logic
     const hasActive1 = active1Duration > 0;
     const hasActive2 = active2Duration > 0;
-
-    console.log('🔄 [cutAudioInvertMode] Smart invert mode analysis:', {
-      totalDuration: totalDuration.toFixed(2) + 's',
-      startTime: startTime.toFixed(2) + 's',
-      endTime: endTime.toFixed(2) + 's',
-      active1Duration: active1Duration.toFixed(2) + 's',
-      active2Duration: active2Duration.toFixed(2) + 's',
-      hasActive1,
-      hasActive2,
-      mode: hasActive1 && hasActive2 ? 'BOTH_SEGMENTS' : hasActive1 ? 'ONLY_SEGMENT_1' : hasActive2 ? 'ONLY_SEGMENT_2' : 'NO_SEGMENTS'
-    });
-
-    // 🚫 **ERROR CHECK**: No valid segments
-    if (!hasActive1 && !hasActive2) {
-      throw new Error('No active segments to export in invert mode');
-    }
 
     // 🔌 **WEBSOCKET PROGRESS EMITTER**: Function để emit progress
     const emitProgress = (progressData) => {
@@ -739,12 +582,8 @@ export class MP3Utils {
         });
 
         let command = ffmpeg(inputPath);
-        const filters = [];
-
-        // 🎯 **CASE 1: Only Segment 1** (startTime > 0, endTime = duration)
+        const filters = [];        // 🎯 **CASE 1: Only Segment 1** (startTime > 0, endTime = duration)
         if (hasActive1 && !hasActive2) {
-          console.log('🎯 [cutAudioInvertMode] CASE 1: Only active segment 1 (0 → startTime)');
-          
           const trimFilter = `[0:a]atrim=start=0:end=${startTime}[seg1]`;
           filters.push(trimFilter);
 
@@ -761,8 +600,6 @@ export class MP3Utils {
         }
         // 🎯 **CASE 2: Only Segment 2** (startTime = 0, endTime < duration)  
         else if (!hasActive1 && hasActive2) {
-          console.log('🎯 [cutAudioInvertMode] CASE 2: Only active segment 2 (endTime → duration)');
-          
           const trimFilter = `[0:a]atrim=start=${endTime}[seg2]`;
           filters.push(trimFilter);
 
@@ -779,8 +616,6 @@ export class MP3Utils {
         }
         // 🎯 **CASE 3: Both Segments** (startTime > 0, endTime < duration)
         else if (hasActive1 && hasActive2) {
-          console.log('🎯 [cutAudioInvertMode] CASE 3: Both active segments - concatenation mode');
-          
           // Extract both segments
           const segment1Filter = `[0:a]atrim=start=0:end=${startTime}[seg1]`;
           const segment2Filter = `[0:a]atrim=start=${endTime}[seg2]`;
@@ -819,11 +654,8 @@ export class MP3Utils {
             const fadeFilter = `[out]${fadeFilters.join(',')}[final]`;
             filters.push(fadeFilter);
           }
-        }
-
-        // Apply complex filter
+        }        // Apply complex filter
         const complexFilter = filters.join(';');
-        console.log('🔗 [cutAudioInvertMode] Smart complex filter:', complexFilter);
         
         command = command.complexFilter(complexFilter);
         
@@ -832,12 +664,9 @@ export class MP3Utils {
         command = command.outputOptions([`-map`, outputLabel]);
 
         // Set output quality
-        command = this.setOutputQuality(command, format, quality);
-
-        command
+        command = this.setOutputQuality(command, format, quality);        command
           .output(outputPath)
           .on('start', (commandLine) => {
-            console.log('🚀 [cutAudioInvertMode] Smart FFmpeg command starting:', commandLine);
             emitProgress({
               stage: 'processing',
               percent: 10,
@@ -853,7 +682,6 @@ export class MP3Utils {
             });
           })
           .on('end', () => {
-            console.log('✅ [cutAudioInvertMode] Smart invert mode completed successfully');
             emitProgress({
               stage: 'completed',
               percent: 100,
@@ -881,7 +709,6 @@ export class MP3Utils {
             });
           })
           .on('error', (error) => {
-            console.error('❌ [cutAudioInvertMode] FFmpeg error:', error);
             emitProgress({
               stage: 'error',
               percent: 0,
@@ -889,10 +716,7 @@ export class MP3Utils {
             });
             reject(error);
           })
-          .run();
-
-      } catch (error) {
-        console.error('❌ [cutAudioInvertMode] Setup error:', error);
+          .run();      } catch (error) {
         emitProgress({
           stage: 'error',
           percent: 0,
@@ -931,8 +755,7 @@ export class MP3Utils {
     }
     
     return atempoFilters.join(',');
-  }
-  /**
+  }  /**
    * 🔇 **DETECT AND REMOVE SILENCE**: Detect and remove silent parts from audio using FFmpeg
    */
   static async detectAndRemoveSilence(inputPath, outputPath, options = {}) {
@@ -942,13 +765,6 @@ export class MP3Utils {
       format = 'mp3',
       quality = 'medium'
     } = options;
-
-    console.log('🔇 [detectAndRemoveSilence] Starting silence detection and removal:', {
-      input: inputPath,
-      output: outputPath,
-      threshold: threshold + 'dB',
-      minDuration: minDuration + 's'
-    });
 
     return new Promise((resolve, reject) => {
       try {
@@ -971,18 +787,15 @@ export class MP3Utils {
         command
           .output(outputPath)
           .on('start', (commandLine) => {
-            console.log('🔇 [detectAndRemoveSilence] FFmpeg command starting:', commandLine);
+            // Processing started
           })
           .on('stderr', (stderrLine) => {
             // Parse silence detection output from silencedetect filter
             if (stderrLine.includes('silencedetect')) {
-              console.log('🔇 [detectAndRemoveSilence] Silence log:', stderrLine);
-              
               // Extract silence start times
               const silenceStartMatch = stderrLine.match(/silence_start: ([\d.]+)/);
               if (silenceStartMatch) {
                 currentSilenceStart = parseFloat(silenceStartMatch[1]);
-                console.log('🔇 [detectAndRemoveSilence] Silence start detected:', currentSilenceStart);
               }
               
               // Extract silence end times and calculate duration
@@ -996,27 +809,17 @@ export class MP3Utils {
                   end: end, 
                   duration: duration 
                 });
-                console.log('🔇 [detectAndRemoveSilence] Silence segment added:', { 
-                  start: currentSilenceStart, 
-                  end: end, 
-                  duration: duration 
-                });
                 currentSilenceStart = null;
               }
             }
           })
           .on('progress', (progress) => {
-            const percent = Math.round(progress.percent || 0);
-            console.log(`🔇 [detectAndRemoveSilence] Progress: ${percent}%`);
+            // Processing progress
           })
           .on('error', (error) => {
-            console.error('❌ [detectAndRemoveSilence] FFmpeg error:', error);
             reject(new Error(`Silence detection failed: ${error.message}`));
           })
           .on('end', () => {
-            console.log('✅ [detectAndRemoveSilence] Silence removal completed successfully');
-            console.log('🔇 [detectAndRemoveSilence] Silent segments found:', silentSegments);
-            
             resolve({
               success: true,
               outputPath,
@@ -1034,7 +837,6 @@ export class MP3Utils {
           .run();
 
       } catch (error) {
-        console.error('❌ [detectAndRemoveSilence] Setup failed:', error);
         reject(new Error(`Failed to setup silence detection: ${error.message}`));
       }
     });

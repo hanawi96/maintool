@@ -20,11 +20,7 @@ export const useEnhancedWaveform = () => {
 
   // 🎯 **ENHANCED WAVEFORM GENERATION**: Uses hybrid system with fallback
   const generateWaveform = useCallback(async (file) => {
-    console.log('🌊 [useEnhancedWaveform] Starting waveform generation...', {
-      fileName: file.name,
-      fileSize: file.size,
-      fileType: file.type
-    });
+
 
     setIsGenerating(true);
     setFromCache(false);
@@ -42,18 +38,7 @@ export const useEnhancedWaveform = () => {
         throw new Error('File is empty');
       }
 
-      console.log('🎯 [useEnhancedWaveform] Calling HybridWaveformGenerator...');
       const result = await HybridWaveformGenerator.generateWaveform(file);
-      
-      console.log('✅ [useEnhancedWaveform] Waveform generation successful:', {
-        dataLength: result.data.length,
-        duration: result.duration,
-        strategy: result.strategy,
-        fromCache: result.fromCache,
-        processingTime: result.processingTime
-      });
-
-      // 🎯 Validate result
       if (!result.data || result.data.length === 0) {
         throw new Error('Generated waveform data is empty');
       }
@@ -73,20 +58,9 @@ export const useEnhancedWaveform = () => {
       setProcessingTime(result.processingTime || 0);
       setPrerenderedCanvas(result.canvas || null);
       
-      console.log('🎯 [useEnhancedWaveform] Enhanced state updated:', {
-        waveformDataLength: result.data.length,
-        startTime: 0,
-        endTime: result.duration,
-        strategy: result.strategy,
-        fromCache: result.fromCache,
-        processingTime: result.processingTime + 'ms'
-      });
-      
       return result;
       
     } catch (error) {
-      console.error('❌ [useEnhancedWaveform] Waveform generation failed:', error);
-      
       // 🎯 Reset state on error
       setWaveformData([]);
       setStartTime(0);
@@ -104,8 +78,6 @@ export const useEnhancedWaveform = () => {
 
   // 🎯 **ENHANCED RESET**: Reset function with hybrid state
   const reset = useCallback(() => {
-    console.log('🔄 [useEnhancedWaveform] Resetting waveform state...');
-    
     setWaveformData([]);
     setStartTime(0);
     setEndTime(0);
@@ -119,19 +91,16 @@ export const useEnhancedWaveform = () => {
     setProcessingTime(0);
     setPrerenderedCanvas(null);
     
-    console.log('✅ [useEnhancedWaveform] Enhanced waveform state reset complete');
   }, []);
 
   // 🎯 Enhanced setters with validation and logging
   const setStartTimeWithValidation = useCallback((time) => {
     const validTime = Math.max(0, Math.min(time, endTime - 0.1));
-    console.log('⏮️ [useEnhancedWaveform] Setting start time:', time, '→', validTime);
     setStartTime(validTime);
   }, [endTime]);
 
   const setEndTimeWithValidation = useCallback((time) => {
     const validTime = Math.max(startTime + 0.1, time);
-    console.log('⏭️ [useEnhancedWaveform] Setting end time:', time, '→', validTime);
     setEndTime(validTime);
   }, [startTime]);
 
