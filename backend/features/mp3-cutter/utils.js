@@ -55,6 +55,7 @@ export class MP3Utils {
       quality = 'medium',
       playbackRate = 1,
       isInverted = false,
+      normalizeVolume = false,
       sessionId = null
     } = options;
 
@@ -91,7 +92,8 @@ export class MP3Utils {
 
         // Build audio filters
         const filters = [];
-          // 🆕 **SPEED/TEMPO FILTER**: Thay đổi tốc độ phát với atempo
+        
+        // 🆕 **SPEED/TEMPO FILTER**: Thay đổi tốc độ phát với atempo
         if (playbackRate && playbackRate !== 1) {
           // 🎯 **ATEMPO CHAINING**: FFmpeg atempo chỉ hỗ trợ 0.5-2.0, cần chain cho giá trị cực
           let currentRate = playbackRate;
@@ -123,7 +125,14 @@ export class MP3Utils {
             }
           }
         }
-          // Add fade in effect
+        
+        // 🔊 **VOLUME NORMALIZATION**: Add loudnorm filter for volume normalization
+        if (normalizeVolume) {
+          const normFilter = `loudnorm=I=-16:TP=-1.5:LRA=11:print_format=none`;
+          filters.push(normFilter);
+        }
+        
+        // Add fade in effect
         if (fadeIn > 0) {
           const fadeInFilter = `afade=t=in:st=0:d=${fadeIn}`;
           filters.push(fadeInFilter);
@@ -142,7 +151,9 @@ export class MP3Utils {
         // Apply filters if any
         if (filters.length > 0) {
           command = command.audioFilters(filters);
-        }        // Set output quality based on format and quality preset
+        }
+        
+        // Set output quality based on format and quality preset
         try {
           command = this.setOutputQuality(command, format, quality);
         } catch (qualityError) {
@@ -213,8 +224,7 @@ export class MP3Utils {
               message: 'Audio processing completed successfully!',
               success: true
             });
-            
-            resolve({
+              resolve({
               success: true,
               outputPath,
               inputPath,
@@ -227,6 +237,7 @@ export class MP3Utils {
                 playbackRate,
                 format,
                 quality,
+                normalizeVolume,
                 filtersApplied: filters // 🔧 **DEBUG**: Include applied filters in result
               }
             });
@@ -538,6 +549,7 @@ export class MP3Utils {
       format = 'mp3',
       quality = 'medium',
       playbackRate = 1,
+      normalizeVolume = false,
       sessionId = null
     } = options;
 
@@ -556,7 +568,8 @@ export class MP3Utils {
     if (totalActiveRegionDuration < 0.1) {
       throw new Error('Please select a cut length greater than 0.1 seconds.');
     }
-      // 🎯 **INDIVIDUAL SEGMENT CHECK**: For processing logic
+      
+    // 🎯 **INDIVIDUAL SEGMENT CHECK**: For processing logic
     const hasActive1 = active1Duration > 0;
     const hasActive2 = active2Duration > 0;
 
@@ -582,7 +595,9 @@ export class MP3Utils {
         });
 
         let command = ffmpeg(inputPath);
-        const filters = [];        // 🎯 **CASE 1: Only Segment 1** (startTime > 0, endTime = duration)
+        const filters = [];
+
+        // 🎯 **CASE 1: Only Segment 1** (startTime > 0, endTime = duration)
         if (hasActive1 && !hasActive2) {
           const trimFilter = `[0:a]atrim=start=0:end=${startTime}[seg1]`;
           filters.push(trimFilter);
@@ -590,12 +605,26 @@ export class MP3Utils {
           // Apply speed if needed
           if (playbackRate !== 1) {
             const atempoChain = this.buildAtempoChain(playbackRate);
-            const speedFilter = `[seg1]${atempoChain}[out]`;
+            const speedFilter = `[seg1]${atempoChain}[seg1_speed]`;
             filters.push(speedFilter);
+            
+            // Apply volume normalization if needed
+            if (normalizeVolume) {
+              const normFilter = `[seg1_speed]loudnorm=I=-16:TP=-1.5:LRA=11:print_format=none[out]`;
+              filters.push(normFilter);
+            } else {
+              const renameFilter = `[seg1_speed]anull[out]`;
+              filters.push(renameFilter);
+            }
           } else {
-            // Just rename the output
-            const renameFilter = `[seg1]anull[out]`;
-            filters.push(renameFilter);
+            // Apply volume normalization if needed
+            if (normalizeVolume) {
+              const normFilter = `[seg1]loudnorm=I=-16:TP=-1.5:LRA=11:print_format=none[out]`;
+              filters.push(normFilter);
+            } else {
+              const renameFilter = `[seg1]anull[out]`;
+              filters.push(renameFilter);
+            }
           }
         }
         // 🎯 **CASE 2: Only Segment 2** (startTime = 0, endTime < duration)  
@@ -606,12 +635,26 @@ export class MP3Utils {
           // Apply speed if needed
           if (playbackRate !== 1) {
             const atempoChain = this.buildAtempoChain(playbackRate);
-            const speedFilter = `[seg2]${atempoChain}[out]`;
+            const speedFilter = `[seg2]${atempoChain}[seg2_speed]`;
             filters.push(speedFilter);
+            
+            // Apply volume normalization if needed
+            if (normalizeVolume) {
+              const normFilter = `[seg2_speed]loudnorm=I=-16:TP=-1.5:LRA=11:print_format=none[out]`;
+              filters.push(normFilter);
+            } else {
+              const renameFilter = `[seg2_speed]anull[out]`;
+              filters.push(renameFilter);
+            }
           } else {
-            // Just rename the output
-            const renameFilter = `[seg2]anull[out]`;
-            filters.push(renameFilter);
+            // Apply volume normalization if needed
+            if (normalizeVolume) {
+              const normFilter = `[seg2]loudnorm=I=-16:TP=-1.5:LRA=11:print_format=none[out]`;
+              filters.push(normFilter);
+            } else {
+              const renameFilter = `[seg2]anull[out]`;
+              filters.push(renameFilter);
+            }
           }
         }
         // 🎯 **CASE 3: Both Segments** (startTime > 0, endTime < duration)
@@ -631,12 +674,30 @@ export class MP3Utils {
             filters.push(seg2SpeedFilter);
             
             // Concatenate speed-adjusted segments
-            const concatFilter = `[seg1_speed][seg2_speed]concat=n=2:v=0:a=1[out]`;
+            const concatFilter = `[seg1_speed][seg2_speed]concat=n=2:v=0:a=1[concat_out]`;
             filters.push(concatFilter);
+            
+            // Apply volume normalization if needed
+            if (normalizeVolume) {
+              const normFilter = `[concat_out]loudnorm=I=-16:TP=-1.5:LRA=11:print_format=none[out]`;
+              filters.push(normFilter);
+            } else {
+              const renameFilter = `[concat_out]anull[out]`;
+              filters.push(renameFilter);
+            }
           } else {
             // Concatenate original segments
-            const concatFilter = `[seg1][seg2]concat=n=2:v=0:a=1[out]`;
+            const concatFilter = `[seg1][seg2]concat=n=2:v=0:a=1[concat_out]`;
             filters.push(concatFilter);
+            
+            // Apply volume normalization if needed
+            if (normalizeVolume) {
+              const normFilter = `[concat_out]loudnorm=I=-16:TP=-1.5:LRA=11:print_format=none[out]`;
+              filters.push(normFilter);
+            } else {
+              const renameFilter = `[concat_out]anull[out]`;
+              filters.push(renameFilter);
+            }
           }
         }
 
@@ -654,9 +715,10 @@ export class MP3Utils {
             const fadeFilter = `[out]${fadeFilters.join(',')}[final]`;
             filters.push(fadeFilter);
           }
-        }        // Apply complex filter
+        }
+
+        // Apply complex filter
         const complexFilter = filters.join(';');
-        
         command = command.complexFilter(complexFilter);
         
         // Map output
@@ -664,7 +726,9 @@ export class MP3Utils {
         command = command.outputOptions([`-map`, outputLabel]);
 
         // Set output quality
-        command = this.setOutputQuality(command, format, quality);        command
+        command = this.setOutputQuality(command, format, quality);
+
+        command
           .output(outputPath)
           .on('start', (commandLine) => {
             emitProgress({
@@ -691,8 +755,7 @@ export class MP3Utils {
             const finalDuration = hasActive1 && hasActive2 ? 
               active1Duration + active2Duration : 
               hasActive1 ? active1Duration : active2Duration;
-            
-            resolve({
+              resolve({
               success: true,
               settings: {
                 startTime,
@@ -702,6 +765,7 @@ export class MP3Utils {
                 playbackRate,
                 format,
                 quality,
+                normalizeVolume,
                 isInverted: true,
                 duration: finalDuration,
                 segmentsProcessed: hasActive1 && hasActive2 ? 'both' : hasActive1 ? 'segment1' : 'segment2'

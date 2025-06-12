@@ -159,11 +159,11 @@ const MP3CutterMain = React.memo(() => {
     addToCache: addComponentToCache,
     // getFromCache: getComponentFromCache, // Currently not used
   } = useAdvancedComponentCache();
-
   // 🔥 **MINIMAL STATE**
   const [fadeIn, setFadeIn] = useState(0);
   const [fadeOut, setFadeOut] = useState(0);
   const [outputFormat, setOutputFormat] = useState('mp3');
+  const [normalizeVolume, setNormalizeVolume] = useState(false); // 🔊 **VOLUME NORMALIZATION**: State for volume normalization
   const [isConnected, setIsConnected] = useState(null);
   const [connectionError, setConnectionError] = useState(null);
   const [audioError, setAudioError] = useState(null);
@@ -1218,9 +1218,7 @@ const MP3CutterMain = React.memo(() => {
                   onPresetApply={handlePresetApply}
                   disabled={!audioFile}
                 />
-              </div>
-
-              <div className="export-controls">
+              </div>              <div className="export-controls">
                 <ExportPanelLazy
                   outputFormat={outputFormat}
                   onFormatChange={setOutputFormat}
@@ -1231,6 +1229,8 @@ const MP3CutterMain = React.memo(() => {
                   fadeOut={fadeOut}
                   playbackRate={playbackRate}
                   isInverted={isInverted}
+                  normalizeVolume={normalizeVolume}
+                  onNormalizeVolumeChange={setNormalizeVolume}
                   disabled={!audioFile}
                 />
               </div>

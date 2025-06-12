@@ -15,6 +15,8 @@ const CutDownload = ({
   fadeOut,
   playbackRate = 1,
   isInverted = false,
+  normalizeVolume = false,
+  onNormalizeVolumeChange,
   onFormatChange,
   disabled = false 
 }) => {
@@ -107,8 +109,7 @@ const CutDownload = ({
       if (!sessionStarted) {
         console.warn('⚠️ [CutDownload] WebSocket session failed to start, continuing without real-time progress');
       }
-      
-      // 🔧 **CRITICAL**: Đảm bảo playbackRate được truyền đúng và thêm invert mode
+        // 🔧 **CRITICAL**: Đảm bảo playbackRate được truyền đúng và thêm invert mode
       const cutParams = {
         fileId: audioFile.filename,
         startTime,
@@ -118,6 +119,7 @@ const CutDownload = ({
         fadeOut: fadeOut || 0,
         playbackRate: playbackRate, // 🚨 **KEY FIX**: Truyền đúng speed setting
         isInverted: isInverted, // 🆕 **INVERT MODE**: Pass invert mode to backend
+        normalizeVolume: normalizeVolume, // 🔊 **VOLUME NORMALIZATION**: Pass volume normalization setting
         quality: 'high',
         sessionId // 🆕 **WEBSOCKET SESSION**: Include sessionId for progress tracking
       };
@@ -316,15 +318,47 @@ const CutDownload = ({
   const cutButtonState = getCutButtonState();
   const downloadButtonState = getDownloadButtonState();
 
-  return (
-    <div className="space-y-4">
+  return (    <div className="space-y-4">
       {/* 🎛️ **FORMAT SELECTOR**: Format selection */}
       <FormatPresets 
         selectedFormat={outputFormat}
         onFormatChange={onFormatChange}
-      />
-
-      {/* 🎯 **PROCESSING INFO**: Hiển thị thông tin processing */}
+      />      {/* 🔊 **VOLUME NORMALIZATION**: Compact volume normalization checkbox */}
+      <div className="bg-white/70 backdrop-blur-sm rounded-lg p-3 border border-slate-200/50">
+        <label className="flex items-center gap-2 cursor-pointer group">
+          <div className="relative">
+            <input
+              type="checkbox"
+              checked={normalizeVolume}
+              onChange={(e) => onNormalizeVolumeChange?.(e.target.checked)}
+              disabled={disabled}
+              className="sr-only"
+            />
+            <div className={`
+              w-8 h-4 rounded-full transition-all duration-200 ease-in-out
+              ${normalizeVolume 
+                ? 'bg-green-500' 
+                : 'bg-slate-300 hover:bg-slate-400'
+              }
+              ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+            `}>
+              <div className={`
+                w-3 h-3 bg-white rounded-full shadow-sm transition-all duration-200 ease-in-out transform
+                absolute top-0.5
+                ${normalizeVolume ? 'translate-x-4' : 'translate-x-0.5'}
+              `}></div>
+            </div>
+          </div>
+          <span className="text-sm text-slate-700">
+            Volume Normalization
+          </span>
+          {normalizeVolume && (
+            <span className="px-1.5 py-0.5 text-xs font-medium bg-green-100 text-green-700 rounded">
+              On
+            </span>
+          )}
+        </label>
+      </div>{/* 🎯 **PROCESSING INFO**: Hiển thị thông tin processing */}
       {audioFile && (
         <div className="bg-gray-50 p-3 rounded-lg text-sm">
           <div className="grid grid-cols-2 gap-2">
@@ -342,6 +376,7 @@ const CutDownload = ({
             <div>Speed: {playbackRate !== 1 ? `${playbackRate}x` : 'Normal'}</div>
             <div>Format: {outputFormat?.toUpperCase() || 'MP3'}</div>
             <div>Mode: {isInverted ? 'Invert (Remove)' : 'Normal (Keep)'}</div>
+            <div>Volume: {normalizeVolume ? 'Normalized' : 'Original'}</div>
           </div>
         </div>
       )}
@@ -424,11 +459,11 @@ const CutDownload = ({
             <Save className="w-4 h-4" />
             <span className="font-medium">Ready to Download</span>
           </div>
-          
-          <div className="text-green-600 text-sm space-y-1 mb-3">
+            <div className="text-green-600 text-sm space-y-1 mb-3">
             <div>✅ Duration: {formatTimeUnified(processedFile.duration)}</div>
             <div>✅ Speed: {processedFile.playbackRate !== 1 ? `${processedFile.playbackRate}x` : 'Normal'}</div>
             <div>✅ Format: {processedFile.outputFormat?.toUpperCase()}</div>
+            <div>✅ Volume: {normalizeVolume ? 'Normalized' : 'Original'}</div>
             {processedFile.fileSize && (
               <div>✅ Size: {(processedFile.fileSize / 1024 / 1024).toFixed(2)} MB</div>
             )}

@@ -174,8 +174,7 @@ export const validateFileId = (req, res, next) => {
       error: `Invalid quality. Supported qualities: ${supportedQualities.join(', ')}` 
     });
   }
-  
-  // 🆕 **SET REQUEST DATA**: Set validated data to request với đầy đủ params bao gồm format và invert mode
+    // 🆕 **SET REQUEST DATA**: Set validated data to request với đầy đủ params bao gồm format và invert mode
   req.fileId = fileId;
   req.cutParams = {
     startTime: start,
@@ -185,7 +184,8 @@ export const validateFileId = (req, res, next) => {
     playbackRate: rate,
     outputFormat: outputFormat.toLowerCase(),
     quality: quality.toLowerCase(),
-    isInverted: Boolean(isInverted) // 🆕 **INVERT MODE**: Include invert mode in cut params
+    isInverted: Boolean(isInverted), // 🆕 **INVERT MODE**: Include invert mode in cut params
+    normalizeVolume: Boolean(req.body.normalizeVolume) // 🔊 **VOLUME NORMALIZATION**: Include volume normalization setting
   };
   
   next();
