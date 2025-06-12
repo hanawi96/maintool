@@ -1,6 +1,77 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { VolumeX, Loader2, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { VolumeX, Loader2, ChevronDown, X } from 'lucide-react';
 import { audioApi } from '../services/audioApi';
+
+// 🎨 **INJECT OPTIMIZED CSS**: Single injection for ultra-smooth panel animations
+if (typeof document !== 'undefined' && !document.getElementById('silence-panel-styles')) {
+  const style = document.createElement('style');
+  style.id = 'silence-panel-styles';
+  style.textContent = `
+    /* 🚀 **WRAPPER**: Eliminate all default spacing */
+    .silence-detection-wrapper {
+      width: 100%;
+      margin: 0;
+      padding: 0;
+      transition: margin 250ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .silence-detection-wrapper.is-closed {
+      margin-bottom: 0 !important;
+      margin-top: 0 !important;
+    }
+    
+    /* 🚀 **PANEL CONTAINER**: Optimized height-based animations */
+    .silence-panel-container {
+      overflow: hidden;
+      transition: max-height 250ms cubic-bezier(0.4, 0, 0.2, 1), 
+                  opacity 200ms ease-out,
+                  margin 250ms cubic-bezier(0.4, 0, 0.2, 1),
+                  padding 250ms cubic-bezier(0.4, 0, 0.2, 1);
+      will-change: max-height, opacity, margin, padding;
+    }
+    .silence-panel-container.is-open {
+      max-height: 800px; /* Generous max-height for content */
+      opacity: 1;
+      margin: 0;
+      padding: 0;
+      pointer-events: auto;
+    }
+    .silence-panel-container.is-closed {
+      max-height: 0 !important;
+      opacity: 0;
+      margin: 0 !important;
+      padding: 0 !important;
+      pointer-events: none;
+    }
+    
+    /* 🎯 **PANEL CONTENT**: Content layer optimization */
+    .silence-panel-content {
+      contain: layout style paint;
+      will-change: auto;
+      transition: transform 200ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    /* 🚀 **SMOOTH CONTENT ENTRY**: Content slides in/out */
+    .silence-panel-container.is-open .silence-panel-content {
+      transform: translateY(0);
+    }
+    .silence-panel-container.is-closed .silence-panel-content {
+      transform: translateY(-10px);
+    }
+    
+    /* 🚀 **BUTTON HOVER OPTIMIZATION** */
+    .silence-toggle-button {
+      transform: translateZ(0);
+      will-change: transform, background-color;
+    }
+    .silence-toggle-button:hover:not(:disabled) {
+      transform: translateY(-1px) translateZ(0);
+    }
+    .silence-toggle-button:active:not(:disabled) {
+      transform: translateY(0) scale(0.98) translateZ(0);
+    }
+  `;
+  document.head.appendChild(style);
+}
 
 /**
  * 🚀 **PHƯƠNG ÁN BALANCED**: MICRO-DEBOUNCE + SMART CACHE
@@ -167,6 +238,18 @@ const SilenceDetection = ({
     };
   }, [updatePreview]);
 
+  // 🧹 **CLEANUP EFFECT**: Force reset spacing when component unmounts or panel closes
+  useEffect(() => {
+    return () => {
+      // Force remove any lingering margins/paddings when component unmounts
+      const wrappers = document.querySelectorAll('.silence-detection-wrapper');
+      wrappers.forEach(wrapper => {
+        wrapper.style.margin = '0';
+        wrapper.style.padding = '0';
+      });
+    };
+  }, []);
+
   // 🚀 **CACHE WARMING**: Pre-calculate popular threshold values for instant response
   useEffect(() => {
     if (!isOpen || !waveformData.length || !duration) return;
@@ -261,32 +344,32 @@ const SilenceDetection = ({
   // 🚀 **UNIFIED COMPONENT**: Support both inline and panel modes
   const isInlineMode = externalIsOpen === null;
   const isPanelMode = !isInlineMode;
-
   return (
-    <div className="w-full">
+    <div className={`silence-detection-wrapper ${isOpen ? 'is-open' : 'is-closed'}`}>
       {/* 🔇 **TOGGLE BUTTON**: Show only in inline mode */}
       {isInlineMode && (
-        <div className="flex justify-center mb-2">
-          <button
-            onClick={togglePanel}            disabled={isDetecting}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg text-red-700 font-medium transition-all duration-200 hover:shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <VolumeX className="w-4 h-4" />
+        <div className={`flex justify-center transition-all duration-250 ${isOpen ? 'mb-2' : 'mb-0'}`}><button
+            onClick={togglePanel}
+            disabled={isDetecting}            className={`silence-toggle-button inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 hover:shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${
+              isOpen 
+                ? 'bg-red-100 hover:bg-red-150 border border-red-300 text-red-800' 
+                : 'bg-red-50 hover:bg-red-100 border border-red-200 text-red-700'
+            }`}
+          ><VolumeX className="w-4 h-4" />
             <span>Find silence regions</span>
-            {isOpen ? (
-              <ChevronUp className="w-4 h-4" />
-            ) : (
+            <div 
+              className="w-4 h-4 transition-transform duration-200 ease-out"
+              style={{
+                transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)'
+              }}
+            >
               <ChevronDown className="w-4 h-4" />
-            )}
+            </div>
           </button>
         </div>
-      )}
-
-      {/* 🎛️ **MAIN PANEL**: Ultra-smooth animation with smart content */}
-      <div className={`overflow-hidden transition-all duration-300 ease-in-out ${
-        isOpen ? 'max-h-[600px] opacity-100' : 'max-h-0 opacity-0'
-      }`}>
-        <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-slate-200/50 shadow-sm">
+      )}      {/* 🎛️ **MAIN PANEL**: Ultra-smooth animation with optimized transforms */}
+      <div className={`silence-panel-container ${isOpen ? 'is-open' : 'is-closed'}`}>
+        <div className="silence-panel-content bg-white/90 rounded-xl p-4 border border-slate-200/50 shadow-sm">
           {/* 📋 **PANEL HEADER**: Show only in panel mode with close button */}
           {isPanelMode && (
             <div className="flex items-center justify-between mb-4">
