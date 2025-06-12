@@ -239,11 +239,10 @@ export class OffscreenWaveformRenderer {
         
         // 🎨 **BAR HEIGHT CALCULATION**
         const effectiveBarHeight = absoluteBarHeightPx * value;
-        const x = i * barWidth;
-        
+        const x = i * barWidth;        
         // 🎯 **SELECTION LOGIC**
         const isInSelection = barTime >= startTime && barTime <= endTime;
-        ctx.fillStyle = isInSelection ? '#7c3aed' : '#cbd5e1';
+        ctx.fillStyle = isInSelection ? '#7c3aed' : '#e2e8f0'; // Màu xám nhạt hơn từ #cbd5e1 thành #e2e8f0
         
         // 🎨 **DRAW BAR**
         ctx.fillRect(Math.floor(x), centerY - effectiveBarHeight, Math.max(0.4, barWidth), effectiveBarHeight * 2);

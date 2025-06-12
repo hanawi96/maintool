@@ -932,7 +932,6 @@ export class MP3Utils {
     
     return atempoFilters.join(',');
   }
-
   /**
    * 🔇 **DETECT AND REMOVE SILENCE**: Detect and remove silent parts from audio using FFmpeg
    */
@@ -953,19 +952,21 @@ export class MP3Utils {
 
     return new Promise((resolve, reject) => {
       try {
-        // 🔇 **SILENCE DETECTION FILTER**: Use FFmpeg silencedetect and silenceremove filters
+        // 🔇 **SILENCE DETECTION & REMOVAL**: Combined approach for better results
+        // Use silencedetect to log segments AND silenceremove to process audio
         const silenceDetectFilter = `silencedetect=noise=${threshold}dB:d=${minDuration}`;
         const silenceRemoveFilter = `silenceremove=window=0:detection=peak:stop_mode=all:start_threshold=${threshold}dB:stop_threshold=${threshold}dB:start_silence=${minDuration}:stop_silence=${minDuration}`;
         
         let command = ffmpeg(inputPath);
         
-        // Apply silence removal filter
-        command = command.audioFilters([silenceRemoveFilter]);
+        // Apply both filters: detect for logging, remove for processing
+        command = command.audioFilters([silenceDetectFilter, silenceRemoveFilter]);
         
         // Set output quality
         command = this.setOutputQuality(command, format, quality);
 
         let silentSegments = [];
+        let currentSilenceStart = null;
 
         command
           .output(outputPath)
@@ -973,18 +974,34 @@ export class MP3Utils {
             console.log('🔇 [detectAndRemoveSilence] FFmpeg command starting:', commandLine);
           })
           .on('stderr', (stderrLine) => {
-            // Parse silence detection output
+            // Parse silence detection output from silencedetect filter
             if (stderrLine.includes('silencedetect')) {
-              console.log('🔇 [detectAndRemoveSilence] Silence detected:', stderrLine);
+              console.log('🔇 [detectAndRemoveSilence] Silence log:', stderrLine);
               
-              // Extract silence start/end times from stderr
+              // Extract silence start times
               const silenceStartMatch = stderrLine.match(/silence_start: ([\d.]+)/);
-              const silenceEndMatch = stderrLine.match(/silence_end: ([\d.]+)/);
+              if (silenceStartMatch) {
+                currentSilenceStart = parseFloat(silenceStartMatch[1]);
+                console.log('🔇 [detectAndRemoveSilence] Silence start detected:', currentSilenceStart);
+              }
               
-              if (silenceStartMatch && silenceEndMatch) {
-                const start = parseFloat(silenceStartMatch[1]);
+              // Extract silence end times and calculate duration
+              const silenceEndMatch = stderrLine.match(/silence_end: ([\d.]+) \| silence_duration: ([\d.]+)/);
+              if (silenceEndMatch && currentSilenceStart !== null) {
                 const end = parseFloat(silenceEndMatch[1]);
-                silentSegments.push({ start, end, duration: end - start });
+                const duration = parseFloat(silenceEndMatch[2]);
+                
+                silentSegments.push({ 
+                  start: currentSilenceStart, 
+                  end: end, 
+                  duration: duration 
+                });
+                console.log('🔇 [detectAndRemoveSilence] Silence segment added:', { 
+                  start: currentSilenceStart, 
+                  end: end, 
+                  duration: duration 
+                });
+                currentSilenceStart = null;
               }
             }
           })

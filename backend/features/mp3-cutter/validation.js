@@ -94,8 +94,26 @@ export const validateWaveformParams = (req, res, next) => {
 
 // 🆕 **VALIDATE FILE ID**: Validate fileId cho cut-by-fileid endpoint
 export const validateFileId = (req, res, next) => {
+  // 🔍 **GET FILE ID**: Get fileId from URL params or body
+  let fileId = req.params?.fileId || req.body?.fileId;
+  
+  // 🔍 **VALIDATE FILE ID**: Kiểm tra fileId có tồn tại
+  if (!fileId || typeof fileId !== 'string') {
+    return res.status(400).json({ 
+      success: false,
+      error: 'fileId is required and must be a string' 
+    });
+  }
+
+  // For silence detection, we only need fileId
+  if (req.path.includes('detect-silence')) {
+    req.fileId = fileId;
+    console.log('✅ [validateFileId] Silence detection fileId validated:', { fileId });
+    return next();
+  }
+
+  // For cut operations, validate all parameters
   const { 
-    fileId, 
     startTime, 
     endTime, 
     fadeIn = 0, 
@@ -105,14 +123,6 @@ export const validateFileId = (req, res, next) => {
     quality = 'high',
     isInverted = false
   } = req.body;
-  
-  // 🔍 **VALIDATE FILE ID**: Kiểm tra fileId có tồn tại
-  if (!fileId || typeof fileId !== 'string') {
-    return res.status(400).json({ 
-      success: false,
-      error: 'fileId is required and must be a string' 
-    });
-  }
   
   // 🔍 **VALIDATE CUT PARAMS**: Validate các parameters như validateCutParams
   const start = parseFloat(startTime);

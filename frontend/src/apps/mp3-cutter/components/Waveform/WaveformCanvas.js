@@ -2,6 +2,7 @@
 import React, { useEffect, useCallback, useMemo, useRef } from 'react';
 import { WAVEFORM_CONFIG } from '../../utils/constants';
 import { WaveformUI } from './WaveformUI';
+import SilenceOverlay from './SilenceOverlay'; // 🆕 **SILENCE OVERLAY**: Import silence overlay component
 import { useOptimizedTooltip } from '../../hooks/useOptimizedTooltip';
 import { useWaveformCursor } from '../../hooks/useWaveformCursor';
 import { useWaveformRender } from '../../hooks/useWaveformRender';
@@ -27,6 +28,10 @@ const WaveformCanvas = React.memo(({
   
   // 🚀 **REALTIME AUDIO ACCESS**: Direct audio element access cho ultra-smooth tooltips
   audioRef,
+  
+  // 🆕 **SILENCE DETECTION PROPS**: Real-time silence overlay
+  silenceRegions = [], // Array of silence regions from SilenceDetection component
+  showSilenceOverlay = false, // Toggle silence overlay visibility
   
   onMouseDown,
   onMouseMove,
@@ -294,20 +299,18 @@ const WaveformCanvas = React.memo(({
     gradient.addColorStop(0, 'rgba(99, 102, 241, 0.04)');
     gradient.addColorStop(1, 'rgba(168, 85, 247, 0.04)');
     bgCtx.fillStyle = gradient;
-    bgCtx.fillRect(waveformStartX, 0, availableWaveformWidth, height);
-    
+    bgCtx.fillRect(waveformStartX, 0, availableWaveformWidth, height);    
     // 🔧 **BORDER**: Match main canvas
-    bgCtx.strokeStyle = '#cbd5e1';
+    bgCtx.strokeStyle = '#e2e8f0'; // Border màu xám nhạt hơn từ #cbd5e1 thành #e2e8f0
     bgCtx.lineWidth = 1;
     bgCtx.strokeRect(waveformStartX, 0, availableWaveformWidth, height);
-    
     // 2. **GRAY WAVEFORM BARS ONLY**: Render all bars in gray (background)
     const centerY = height / 2;
     const FLAT_BAR_HEIGHT_PX = 1;
     const MAX_SCALING_PX = 65;
     const adjustedBarWidth = availableWaveformWidth / waveformData.length;
     
-    bgCtx.fillStyle = '#cbd5e1'; // 🔧 **STATIC GRAY**: All background bars are gray
+    bgCtx.fillStyle = '#e2e8f0'; // 🔧 **STATIC GRAY**: All background bars are gray (nhạt hơn từ #cbd5e1 thành #e2e8f0)
     
     for (let i = 0; i < waveformData.length; i++) {
       const value = waveformData[i];
@@ -355,8 +358,8 @@ const WaveformCanvas = React.memo(({
     
     // 1. **DRAW CACHED BACKGROUND**: Ultra-fast single drawImage call with volume opacity sync
     if (backgroundCacheRef.current) {
-      // 🆕 **BACKGROUND OPACITY SYNC**: Sync background opacity with volume (minimum 0.05 for visibility)
-      ctx.globalAlpha = Math.max(0.05, currentVolume);
+      // 🆕 **BACKGROUND OPACITY SYNC**: Sync background opacity with volume (minimum 30% for visibility)
+      ctx.globalAlpha = Math.max(0.30, currentVolume);
       ctx.drawImage(backgroundCacheRef.current, 0, 0);
       ctx.globalAlpha = 1.0; // Reset alpha for subsequent drawings
     }
@@ -678,7 +681,18 @@ const WaveformCanvas = React.memo(({
         style={{ 
           height: WAVEFORM_CONFIG.HEIGHT,
           touchAction: 'none', // 🚀 **IMPORTANT**: Prevent default touch actions for better pointer control
+          zIndex: 1 // Base layer - below everything else
         }}
+      />
+
+      {/* 🆕 **SILENCE OVERLAY**: Render FIRST to stay BELOW handles and cursors */}
+      <SilenceOverlay 
+        silenceRegions={silenceRegions}
+        duration={duration}
+        containerWidth={containerWidth}
+        canvasHeight={WAVEFORM_CONFIG.HEIGHT}
+        isVisible={showSilenceOverlay}
+        opacity={0.6}
       />
 
       <WaveformUI 

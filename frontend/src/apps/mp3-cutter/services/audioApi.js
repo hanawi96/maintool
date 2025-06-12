@@ -398,7 +398,6 @@ export const audioApi = {
       throw new Error(`Speed change response parsing failed: ${parseError.message}`);
     }
   },
-
   // 🔇 **SILENCE DETECTION**: Detect and remove silent parts from audio
   async detectSilence(params) {
     console.log('🔇 [detectSilence] Starting silence detection:', params);
@@ -416,7 +415,7 @@ export const audioApi = {
       throw new Error('minDuration must be between 0.1s and 10s');
     }
 
-    const silenceUrl = `${API_BASE_URL}${API_ENDPOINTS.DETECT_SILENCE}`;
+    const silenceUrl = `${API_BASE_URL}${API_ENDPOINTS.DETECT_SILENCE}/${params.fileId}`;
     console.log('🔇 [detectSilence] Silence detection URL:', silenceUrl);
     
     let response;
@@ -426,7 +425,11 @@ export const audioApi = {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(params)
+        body: JSON.stringify({
+          threshold: params.threshold,
+          minDuration: params.minDuration,
+          duration: params.duration
+        })
       });
       
       console.log('📡 [detectSilence] Response received:', {

@@ -66,11 +66,10 @@ export const WAVEFORM_CONFIG = {
       }
     }
   },
-
   // 🆕 **COLORS**: Màu sắc cho waveform components
   COLORS: {
     SELECTED: '#7c3aed',              // Màu purple đậm cho bars được chọn
-    UNSELECTED: '#cbd5e1',            // Màu xám nhạt cho bars chưa chọn
+    UNSELECTED: '#e2e8f0',            // Màu xám nhạt hơn cho bars chưa chọn (từ #cbd5e1 thành #e2e8f0)
     CURSOR_PLAYING: '#3b82f6',        // Màu xanh dương cho cursor khi đang play
     CURSOR_PAUSED: '#2563eb',         // Màu xanh dương đậm cho cursor khi pause
     HOVER_LINE: 'rgba(59, 130, 246, 0.7)',  // Màu hover line với opacity

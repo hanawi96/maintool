@@ -545,15 +545,21 @@ export class MP3Service {
         console.log('📁 [detectSilenceByFileId] Auto cleanup completed for:', outputFilename);
       });
     }, 24 * 60 * 60 * 1000);
-    
-    console.log('✅ [detectSilenceByFileId] Silence detection completed successfully:', {
+      console.log('✅ [detectSilenceByFileId] Silence detection completed successfully:', {
       outputFilename,
       outputPath,
       outputSize: outputStats.size,
       threshold,
-      minDuration
+      minDuration,
+      silentSegments: silenceResult.silentSegments?.length || 0
     });
-      // 🎯 **RETURN STANDARDIZED RESULT**: Return result with standard format
+
+    // 🧮 **CALCULATE SILENCE STATS**: Calculate total silence duration and count
+    const silentSegments = silenceResult.silentSegments || [];
+    const totalSilence = silentSegments.reduce((sum, segment) => sum + (segment.duration || 0), 0);
+    const count = silentSegments.length;
+
+    // 🎯 **RETURN STANDARDIZED RESULT**: Return result with standard format matching frontend expectations
     return {
       input: {
         filename: fileId,
@@ -569,9 +575,12 @@ export class MP3Service {
       processing: { 
         threshold,
         minDuration,
-        duration,
-        silentSegments: silenceResult.silentSegments || []
+        duration
       },
+      // 🎯 **FRONTEND COMPATIBLE FORMAT**: Add fields expected by frontend
+      silenceRegions: silentSegments,
+      count: count,
+      totalSilence: totalSilence,
       urls: {
         download: `/api/mp3-cutter/download/${outputFilename}`
       },

@@ -34,7 +34,7 @@ const HANDLE_STYLES = {
   base: {
     position: 'absolute',
     pointerEvents: 'auto',
-    zIndex: 35,
+    zIndex: 40,
     cursor: 'ew-resize',
     display: 'flex',
     flexDirection: 'column',
@@ -236,7 +236,7 @@ export const WaveformUI = memo(({
     width: `${cursorPositions?.mainCursor?.width || 0}px`,
     height: `${cursorPositions?.mainCursor?.height || 0}px`,
     backgroundColor: cursorPositions?.mainCursor?.color || '#3b82f6',
-    zIndex: 30
+    zIndex: 30 // Above silence overlay(15) but below handles(40)
   }), [
     cursorPositions?.mainCursor?.x,
     cursorPositions?.mainCursor?.y,
@@ -252,7 +252,7 @@ export const WaveformUI = memo(({
     width: `${cursorPositions?.hoverLine?.width || 0}px`,
     height: `${cursorPositions?.hoverLine?.height || 0}px`,
     backgroundColor: cursorPositions?.hoverLine?.color || 'rgba(156, 163, 175, 0.6)',
-    zIndex: 20
+    zIndex: 25 // Above silence overlay(15) but below main cursor(30) and handles(40)
   }), [
     cursorPositions?.hoverLine?.x,
     cursorPositions?.hoverLine?.y,
@@ -301,7 +301,7 @@ export const WaveformUI = memo(({
       {/* 🤚 **START HANDLE** - Always functional */}
       {shouldRenderStartHandle && (
         <div
-          className="absolute z-40"
+          className="absolute"
           style={startHandleStyle}
           onPointerDown={startHandlePointerDown}
           onPointerMove={startHandlePointerMove}
@@ -316,7 +316,7 @@ export const WaveformUI = memo(({
       {/* 🤚 **END HANDLE** - Always functional */}
       {shouldRenderEndHandle && (
         <div
-          className="absolute z-40"
+          className="absolute"
           style={endHandleStyle}
           onPointerDown={endHandlePointerDown}
           onPointerMove={endHandlePointerMove}
@@ -330,12 +330,12 @@ export const WaveformUI = memo(({
 
       {/* 🔵 **MAIN CURSOR** - Always visible for playback feedback */}
       {shouldRenderMainCursor && (
-        <div className="absolute z-30" style={mainCursorStyle} />
+        <div className="absolute" style={mainCursorStyle} />
       )}
 
       {/* 🖱️ **HOVER LINE** - Disabled during playback for performance */}
       {shouldRenderHoverLine && (
-        <div className="absolute z-20" style={hoverLineStyle} />
+        <div className="absolute" style={hoverLineStyle} />
       )}
     </>
   );

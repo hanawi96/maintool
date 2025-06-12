@@ -45,7 +45,7 @@ import {
 } from '../../../components/LazyComponents';
 
 // 🚀 Additional lazy components for Phase 2
-const SilenceDetectionPanel = lazy(() => import('./UnifiedControlBar/SilenceDetectionPanel'));
+const SilenceDetection = lazy(() => import('./SilenceDetection'));
 
 // 🔥 **ULTRA-LIGHT AUDIO COMPONENT**: Minimized for best performance
 const SafeAudioElement = React.memo(({ 
@@ -171,6 +171,8 @@ const MP3CutterMain = React.memo(() => {
   const [isInverted, setIsInverted] = useState(false);
   // 🆕 **SILENCE PANEL STATE**: Track silence detection panel visibility
   const [isSilencePanelOpen, setIsSilencePanelOpen] = useState(false);
+  // 🆕 **SILENCE REGIONS STATE**: Track real-time silence regions for overlay
+  const [silenceRegions, setSilenceRegions] = useState([]);
 
   // 🔥 **PERFORMANCE REFS**
   const animationStateRef = useRef({ isPlaying: false, startTime: 0, endTime: 0 });
@@ -1010,10 +1012,16 @@ const MP3CutterMain = React.memo(() => {
       console.log(`🔙 [InvertSelection] DISABLING invert mode - returning to normal playback`);
       jumpToTime(startTime);
     }  }, [duration, startTime, endTime, isInverted, saveState, fadeIn, fadeOut, jumpToTime, updateFadeConfig]);
-  
-  // 🆕 **SILENCE PANEL TOGGLE HANDLER**: Handler to toggle silence detection panel
+    // 🆕 **SILENCE PANEL TOGGLE HANDLER**: Handler to toggle silence detection panel
   const handleToggleSilencePanel = useCallback(() => {
-    setIsSilencePanelOpen(prev => !prev);
+    setIsSilencePanelOpen(prev => {
+      const newIsOpen = !prev;
+      // Clear silence regions when closing panel
+      if (!newIsOpen) {
+        setSilenceRegions([]);
+      }
+      return newIsOpen;
+    });
     console.log(`🔇 [SilencePanel] Toggle: ${isSilencePanelOpen ? 'OPEN' : 'CLOSED'} → ${!isSilencePanelOpen ? 'OPEN' : 'CLOSED'}`);
     
     // 🔍 **DEBUG**: Log audioFile structure for silence detection debugging
@@ -1028,6 +1036,12 @@ const MP3CutterMain = React.memo(() => {
       keys: audioFile ? Object.keys(audioFile) : 'No audioFile'
     });
   }, [isSilencePanelOpen, audioFile]);
+
+  // 🆕 **SILENCE PREVIEW HANDLER**: Handler for real-time silence preview updates
+  const handleSilencePreviewUpdate = useCallback((regions) => {
+    setSilenceRegions(regions || []);
+    console.log(`🔇 [SilencePreview] Updated regions: ${regions?.length || 0} regions`);
+  }, []);
   // 🚀 **PHASE 2: ADVANCED PRELOADING HOOKS** - Smart preloading system
   const { triggerPreload } = useProgressivePreloader();
   const { shouldPreload: networkShouldPreload } = useNetworkAwarePreloader();
@@ -1199,8 +1213,7 @@ const MP3CutterMain = React.memo(() => {
                 currentTime={currentTime}
                 isPlaying={isPlaying}
               />
-            </div>            {/* Smart Waveform with Hybrid System */}
-            <SmartWaveformLazy
+            </div>            {/* Smart Waveform with Hybrid System */}            <SmartWaveformLazy
               canvasRef={canvasRef}
               waveformData={waveformData}
               currentTime={currentTime}
@@ -1223,22 +1236,37 @@ const MP3CutterMain = React.memo(() => {
               
               // 🚀 **REALTIME AUDIO ACCESS**: Direct audio element access cho ultra-smooth tooltips
               audioRef={audioRef}
-                onMouseDown={handleCanvasMouseDown}
-              onMouseMove={handleCanvasMouseMove}
+              
+              // 🆕 **SILENCE DETECTION**: Real-time silence overlay
+              silenceRegions={silenceRegions}
+              showSilenceOverlay={isSilencePanelOpen}
+              
+              onMouseDown={handleCanvasMouseDown}
+                            onMouseMove={handleCanvasMouseMove}
               onMouseUp={handleCanvasMouseUp}
               onMouseLeave={handleCanvasMouseLeave}
-            />            {/* 🔇 SILENCE DETECTION PANEL - Inline panel below waveform */}            <SilenceDetectionPanel
+            />
+
+            {/* 🔇 SILENCE DETECTION - Advanced component with real-time preview */}
+            <SilenceDetection
               fileId={audioFile?.filename || audioFile?.name}
               duration={duration}
               waveformData={waveformData}
+              audioRef={audioRef}
               onSilenceDetected={(data) => {
                 if (data) {
                   console.log('🔇 [SilenceDetection] Data received:', data);
                 }
               }}
-              disabled={!audioFile}
+              onSilenceRemoved={(data) => {
+                if (data) {
+                  console.log('🔇 [SilenceRemoval] Data received:', data);
+                }
+              }}
+              onPreviewSilenceUpdate={handleSilencePreviewUpdate}
               isOpen={isSilencePanelOpen}
-              onToggle={handleToggleSilencePanel}
+              onToggleOpen={handleToggleSilencePanel}
+              disabled={!audioFile}
             />
 
             {/* 🎯 UNIFIED CONTROLS - Single row layout with all controls */}

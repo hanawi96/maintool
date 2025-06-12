@@ -72,10 +72,10 @@ router.post('/waveform',
 );
 
 /**
- * @route POST /api/mp3-cutter/detect-silence
+ * @route POST /api/mp3-cutter/detect-silence/:fileId
  * @desc Detect and remove silent parts from audio file by fileId
  */
-router.post('/detect-silence',
+router.post('/detect-silence/:fileId',
   validateFileId,
   validateSilenceParams,
   MP3Controller.detectSilence

@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { VolumeX, Trash2, Search, Loader2, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { VolumeX, Loader2, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { audioApi } from '../services/audioApi';
 
 /**
  * 🚀 **PHƯƠNG ÁN BALANCED**: MICRO-DEBOUNCE + SMART CACHE
@@ -18,13 +19,11 @@ const SilenceDetection = ({
   // 🆕 **EXTERNAL PANEL CONTROL**: Allow parent to control panel visibility
   isOpen: externalIsOpen = null,
   onToggleOpen = null
-}) => {
-  // 🎛️ **MINIMAL STATE**: Reduced state for better performance
+}) => {  // 🎛️ **MINIMAL STATE**: Reduced state for better performance
   const [threshold, setThreshold] = useState(-30);
   const [minDuration, setMinDuration] = useState(0.5);
   const [internalIsOpen, setInternalIsOpen] = useState(false);
   const [isDetecting, setIsDetecting] = useState(false);
-  const [isRemoving, setIsRemoving] = useState(false);
   const [silenceData, setSilenceData] = useState(null);
   
   // 🆕 **CONTROLLED VS UNCONTROLLED**: Use external control if provided, otherwise internal
@@ -189,8 +188,7 @@ const SilenceDetection = ({
         console.log('🚀 [SilenceDetection-CACHE] Warmed cache with popular values');
       });
     }
-  }, [isOpen, waveformData.length, duration, calculateSilenceRegions]);
-  // 🔍 **OPTIMIZED SILENCE DETECTION**: Full server-side analysis with smart loading
+  }, [isOpen, waveformData.length, duration, calculateSilenceRegions]);  // 🔍 **OPTIMIZED SILENCE DETECTION**: Full server-side analysis with smart loading
   const detectSilence = useCallback(async () => {
     if (!fileId || isDetecting) return;
     
@@ -198,25 +196,22 @@ const SilenceDetection = ({
     setIsDetecting(true);
     
     try {
-      const response = await fetch(`/api/mp3-cutter/detect-silence/${fileId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ threshold, minDuration })
+      const result = await audioApi.detectSilence({
+        fileId,
+        threshold,
+        minDuration,
+        duration
       });
       
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-      
-      const result = await response.json();
       console.log('🔇 [SilenceDetection-BALANCED] Analysis complete:', result);
-      
-      if (result.success) {
+        if (result.success) {
         setSilenceData(result.data);
         onSilenceDetected?.(result.data);
-        console.log('✅ [SilenceDetection-BALANCED] Success:', {
+        // Since the backend already processed and removed silence, trigger the removed callback too
+        onSilenceRemoved?.(result.data);
+        console.log('✅ [SilenceDetection-BALANCED] Success - silence detected and removed:', {
           regions: result.data.count,
-          totalSilence: result.data.totalSilence.toFixed(2) + 's'
+          totalSilence: result.data.totalSilence?.toFixed(2) + 's'
         });
       } else {
         throw new Error(result.error || 'Detection failed');
@@ -226,44 +221,9 @@ const SilenceDetection = ({
       alert('Detection failed: ' + error.message);
     } finally {
       setIsDetecting(false);
-    }
-  }, [fileId, threshold, minDuration, isDetecting, onSilenceDetected]);
+    }  }, [fileId, threshold, minDuration, duration, isDetecting, onSilenceDetected, onSilenceRemoved]);
 
-  // 🗑️ **OPTIMIZED REMOVE SILENCE**: Smart processing with cleanup
-  const removeSilence = useCallback(async () => {
-    if (!silenceData?.silenceRegions?.length || isRemoving) return;
-
-    setIsRemoving(true);
-    try {
-      const response = await fetch(`/api/mp3-cutter/remove-silence/${fileId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          silenceRegions: silenceData.silenceRegions,
-          outputFormat: 'mp3',
-          quality: 'high'
-        })
-      });
-      
-      const result = await response.json();
-      if (result.success) {
-        onSilenceRemoved?.(result.data);
-        // 🧹 **SMART CLEANUP**: Clear all states and cache
-        setSilenceData(null);
-        setPreviewRegions([]);
-        onPreviewSilenceUpdate?.([]);
-        cacheRef.current.clear(); // Clear cache after successful removal
-        console.log('🗑️ [SilenceRemoval-BALANCED] Success:', result.data);
-      } else {
-        throw new Error(result.error);
-      }
-    } catch (error) {
-      console.error('❌ [SilenceRemoval-BALANCED] Failed:', error);
-      alert('Removal failed: ' + error.message);
-    } finally {
-      setIsRemoving(false);
-    }
-  }, [fileId, silenceData, isRemoving, onSilenceRemoved, onPreviewSilenceUpdate]);  // 🎯 **SMART TOGGLE PANEL**: Optimized with cleanup
+  // 🎯 **SMART TOGGLE PANEL**: Optimized with cleanup
   const togglePanel = useCallback(() => {
     const newIsOpen = !isOpen;
     setIsOpen(newIsOpen);
@@ -308,8 +268,7 @@ const SilenceDetection = ({
       {isInlineMode && (
         <div className="flex justify-center mb-2">
           <button
-            onClick={togglePanel}
-            disabled={isDetecting || isRemoving}
+            onClick={togglePanel}            disabled={isDetecting}
             className="inline-flex items-center gap-2 px-4 py-2 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg text-red-700 font-medium transition-all duration-200 hover:shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <VolumeX className="w-4 h-4" />
@@ -373,9 +332,8 @@ const SilenceDetection = ({
                       type="range"
                       min="-60"
                       max="-10"
-                      value={threshold}
-                      onChange={handleThresholdChange}
-                      disabled={isDetecting || isRemoving}
+                      value={threshold}                      onChange={handleThresholdChange}
+                      disabled={isDetecting}
                       className="silence-threshold-slider w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer disabled:opacity-50"
                       style={{
                         background: `linear-gradient(to right, #f59e0b 0%, #f59e0b ${((threshold + 60) / 50) * 100}%, #e2e8f0 ${((threshold + 60) / 50) * 100}%, #e2e8f0 100%)`
@@ -404,9 +362,8 @@ const SilenceDetection = ({
                       min="0.1"
                       max="3.0"
                       step="0.1"
-                      value={minDuration}
-                      onChange={handleDurationChange}
-                      disabled={isDetecting || isRemoving}
+                      value={minDuration}                      onChange={handleDurationChange}
+                      disabled={isDetecting}
                       className="silence-duration-slider w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer disabled:opacity-50"
                       style={{
                         background: `linear-gradient(to right, #06b6d4 0%, #06b6d4 ${((minDuration - 0.1) / 2.9) * 100}%, #e2e8f0 ${((minDuration - 0.1) / 2.9) * 100}%, #e2e8f0 100%)`
@@ -423,45 +380,24 @@ const SilenceDetection = ({
                 </div>
               </div>
             </div>
-          </div>          {/* 🎯 **OPTIMIZED ACTION BUTTONS**: Smart detect and remove */}
-          <div className="flex gap-3">
-            <button
+          </div>          {/* 🎯 **SIMPLIFIED ACTION**: Single button for detect & remove */}
+          <div className="flex gap-3">            <button
               onClick={detectSilence}
-              disabled={isDetecting || isRemoving}
-              className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+              disabled={isDetecting}
+              className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
             >
               {isDetecting ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Detecting...
+                  Processing...
                 </>
               ) : (
                 <>
-                  <Search className="w-4 h-4" />
-                  Find silence
+                  <VolumeX className="w-4 h-4" />
+                  Remove Silent Parts
                 </>
               )}
             </button>
-
-            {hasRegions && (
-              <button
-                onClick={removeSilence}
-                disabled={isRemoving || isDetecting}
-                className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
-              >
-                {isRemoving ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Removing...
-                  </>
-                ) : (
-                  <>
-                    <Trash2 className="w-4 h-4" />
-                    Remove silence ({silenceData.count})
-                  </>
-                )}
-              </button>
-            )}
           </div>
 
           {/* 📊 **OPTIMIZED RESULTS DISPLAY**: Show after official detection */}

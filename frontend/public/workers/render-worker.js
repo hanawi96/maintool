@@ -86,13 +86,12 @@ class RenderWorker {
       
       // 🎨 **BAR HEIGHT CALCULATION**
       const rawHeight = baseHeight + (value * maxHeight * volumeMultiplier);
-      const barHeight = Math.max(1, rawHeight);
-      
+      const barHeight = Math.max(1, rawHeight);      
       // 🆕 **INVERT SELECTION LOGIC**
       const isInSelection = barTime >= startTime && barTime <= endTime;
       const shouldBeActive = isInverted ? !isInSelection : isInSelection;
       
-      ctx.fillStyle = shouldBeActive ? '#7c3aed' : '#cbd5e1';
+      ctx.fillStyle = shouldBeActive ? '#7c3aed' : '#e2e8f0'; // Màu xám nhạt hơn từ #cbd5e1 thành #e2e8f0
       
       const x = i * barWidth;
       ctx.fillRect(Math.floor(x), centerY - barHeight/2, Math.max(1, barWidth - 0.5), barHeight);

@@ -96,6 +96,10 @@ const EnhancedWaveform = ({
   onMouseUp,
   onMouseLeave,
   
+  // 🆕 **SILENCE DETECTION PROPS**: Real-time silence overlay
+  silenceRegions = [],
+  showSilenceOverlay = false,
+  
   // 🆕 **ENHANCED PROPS**: New hybrid-specific props
   enhancedFeatures = null,
   showPerformanceBadge = true,
@@ -216,6 +220,8 @@ const EnhancedWaveform = ({
             onMouseMove={onMouseMove}
             onMouseUp={onMouseUp}
             onMouseLeave={onMouseLeave}
+            silenceRegions={silenceRegions}
+            showSilenceOverlay={showSilenceOverlay}
           />
         </div>
       </div>
