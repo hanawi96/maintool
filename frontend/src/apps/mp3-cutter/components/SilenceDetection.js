@@ -5,13 +5,18 @@ import { audioApi } from '../services/audioApi';
 // 🎨 **INJECT OPTIMIZED CSS**: Single injection for ultra-smooth panel animations
 if (typeof document !== 'undefined' && !document.getElementById('silence-panel-styles')) {
   const style = document.createElement('style');
-  style.id = 'silence-panel-styles';
-  style.textContent = `
+  style.id = 'silence-panel-styles';  style.textContent = `
     /* 🚀 **WRAPPER**: Eliminate all default spacing */
     .silence-detection-wrapper {
       width: 100%;
       margin: 0;
       padding: 0;
+      transition: margin 250ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .silence-detection-wrapper.is-closed {
+      margin-bottom: 0 !important;
+      margin-top: 0 !important;
+    }
       transition: margin 250ms cubic-bezier(0.4, 0, 0.2, 1);
     }
     .silence-detection-wrapper.is-closed {
@@ -602,8 +607,7 @@ const SilenceDetection = ({
                 </h5>
               </div>
               
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                <div className="space-y-1">
+              <div className="grid grid-cols-2 gap-3 text-xs">                <div className="space-y-1">
                   <div className="flex justify-between">
                     <span className="text-slate-600">Original Duration:</span>
                     <span className="font-mono">{verificationData.original?.duration?.toFixed(3)}s</span>
@@ -630,19 +634,25 @@ const SilenceDetection = ({
                   <div className="flex justify-between">
                     <span className="text-slate-600">Accuracy:</span>
                     <span className={`font-mono ${
-                      (verificationData.calculations?.durationAccuracy || 0) < 0.1 
+                      (verificationData.calculations?.durationAccuracy || 0) < 0.01 
                         ? 'text-green-600' 
+                        : (verificationData.calculations?.durationAccuracy || 0) < 0.1
+                        ? 'text-yellow-600'
                         : 'text-red-600'
                     }`}>
-                      ±{verificationData.calculations?.durationAccuracy?.toFixed(3)}s
+                      ±{verificationData.calculations?.durationAccuracy?.toFixed(6)}s
                     </span>
                   </div>
                 </div>
               </div>
-              
-              {verificationData.validation?.status === 'FAIL' && (
+                {verificationData.validation?.status === 'FAIL' && (
                 <div className="mt-2 p-2 bg-red-50 rounded text-xs text-red-700">
-                  ⚠️ Verification failed - output duration may not match expected calculations
+                  ⚠️ Verification failed - accuracy outside ultra-tight tolerance (±0.010s)
+                  {verificationData.calculations?.durationAccuracy > 0.01 && (
+                    <div className="mt-1">
+                      Duration mismatch: ±{verificationData.calculations.durationAccuracy.toFixed(6)}s exceeds ±0.010s tolerance
+                    </div>
+                  )}
                 </div>
               )}
             </div>
