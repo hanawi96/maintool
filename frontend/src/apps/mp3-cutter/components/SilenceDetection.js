@@ -1,6 +1,7 @@
-import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { BarChart, Loader2, ChevronDown, X } from 'lucide-react';
 import { audioApi } from '../services/audioApi';
+import { formatTimeUnified } from '../utils/timeFormatter';
 
 // 🎨 **INJECT OPTIMIZED CSS**: Simple panel animations with proper spacing
 if (typeof document !== 'undefined' && !document.getElementById('silence-panel-styles')) {
@@ -15,10 +16,10 @@ if (typeof document !== 'undefined' && !document.getElementById('silence-panel-s
       transition: margin-top 250ms ease;
     }
     .silence-detection-wrapper.is-open {
-      margin-top: 16px;
+      margin-top: 32px; /* 🎯 Add more spacing between waveform and panel */
     }
     .silence-detection-wrapper.is-closed {
-      margin-top: 0;
+      margin-top: 0; /* 🎯 No spacing when closed */
     }
     
     /* 🚀 **PANEL CONTAINER**: Simple height animations */
@@ -29,10 +30,14 @@ if (typeof document !== 'undefined' && !document.getElementById('silence-panel-s
     .silence-panel-container.is-open {
       max-height: 800px;
       opacity: 1;
+      margin: 0;
     }
     .silence-panel-container.is-closed {
       max-height: 0;
       opacity: 0;
+      margin: 0;
+      padding: 0;
+      border: none;
     }
     
     /* 🚀 **BUTTON HOVER**: Simple hover effect */
@@ -72,6 +77,7 @@ const SilenceDetection = ({
   endTime = null,
   selectedRegions = [],
   onRegionClick = null,
+  onSelectedRegionsChange = null,
   onRemoveSelected = null,
 }) => {  // 🎛️ **STATE MANAGEMENT**: Minimal state for optimal performance
   const [isOpen, setIsOpen] = useState(externalIsOpen || false);
@@ -382,28 +388,7 @@ const SilenceDetection = ({
   
   const regionDuration = Math.max(0, effectiveEndTime - startTime);
   const baseDuration = hasRegionSelection && silenceData?.regionBased ? regionDuration : duration;
-  const silencePercent = baseDuration > 0 ? (totalSilence / baseDuration * 100) : 0;  // 📊 **PREVIEW STATS**: Memoized for performance
-  const previewStats = useMemo(() => {
-    const count = previewRegions.length;
-    const total = previewRegions.reduce((sum, region) => sum + region.duration, 0);
-    const baseDuration = hasRegionSelection ? regionDuration : duration;
-    const percent = baseDuration > 0 ? (total / baseDuration) * 100 : 0;
-    
-    return { count, total, baseDuration, percent };
-  }, [previewRegions, hasRegionSelection, regionDuration, duration]);
-  
-  // 🆕 **SELECT ALL HANDLER**: Handle select all checkbox
-  const handleSelectAll = useCallback(() => {
-    if (selectedRegions?.length === previewRegions.length) {
-      // Deselect all regions
-      onRemoveSelected?.([]);
-      console.log('🔇 [SilenceDetection] Deselected all regions');
-    } else {
-      // Select all regions
-      onRemoveSelected?.(previewRegions);
-      console.log('🔇 [SilenceDetection] Selected all regions:', previewRegions.length);
-    }
-  }, [previewRegions, onRemoveSelected, selectedRegions]);
+  const silencePercent = baseDuration > 0 ? (totalSilence / baseDuration * 100) : 0;
 
   // 🎨 **RENDER**: Conditional rendering for performance
   if (!fileId || disabled) return null;
@@ -411,11 +396,17 @@ const SilenceDetection = ({
   const isInlineMode = externalIsOpen === null;
   const isPanelMode = !isInlineMode;
 
+  // 🎯 **EARLY RETURN**: If panel is closed, return null to take no space
+  if (!isPanelOpen) {
+    return null;
+  }
+
   return (
     <div className={`silence-detection-wrapper ${isPanelOpen ? 'is-open' : 'is-closed'}`}>
       {/* 🔇 **TOGGLE BUTTON**: Show only in inline mode */}
       {isInlineMode && (
-        <div className={`flex justify-center transition-all duration-250 ${isPanelOpen ? 'mb-2' : 'mb-0'}`}><button
+        <div className="flex justify-center mb-6">
+          <button
             onClick={togglePanel}
             disabled={isDetecting}            className={`silence-toggle-button inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 hover:shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${
               isPanelOpen
@@ -435,7 +426,7 @@ const SilenceDetection = ({
         </div>
       )}      {/* 🎛️ **MAIN PANEL**: Ultra-smooth animation with optimized transforms */}
       <div className={`silence-panel-container ${isPanelOpen ? 'is-open' : 'is-closed'}`}>
-        <div className="silence-panel-content bg-white/90 rounded-xl border border-slate-200/50 shadow-sm border-t-2 border-t-red-200/60">
+        <div className="silence-panel-content bg-white/90 rounded-xl border border-slate-200/50 shadow-sm">
           {/* 📋 **PANEL HEADER**: Show only in panel mode with close button */}
           {isPanelMode && (
             <div className="flex items-center justify-between p-4 pb-3 border-b border-slate-200/50">
@@ -452,64 +443,7 @@ const SilenceDetection = ({
               </button>
             </div>
           )}          {/* 🎛️ **MAIN CONTENT**: Full content without scroll */}
-          <div className="p-4 space-y-4">          {/* 📊 **COMPACT STATISTICS BAR**: Single row layout like in the image */}
-          {isPanelOpen && previewStats.count > 0 && (
-            <div className="mb-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
-              <div className="flex items-center justify-between gap-4">
-                {/* Select All Toggle Button */}
-                <button
-                  onClick={handleSelectAll}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${
-                    selectedRegions?.length === previewRegions.length
-                      ? 'bg-blue-500 text-white hover:bg-blue-600'
-                      : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
-                  }`}
-                  title={selectedRegions?.length === previewRegions.length ? 'Deselect all regions' : 'Select all regions'}
-                >
-                  <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all ${
-                    selectedRegions?.length === previewRegions.length
-                      ? 'border-white bg-white'
-                      : 'border-slate-400 bg-transparent'
-                  }`}>
-                    {selectedRegions?.length === previewRegions.length && (
-                      <svg className="w-3 h-3 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                      </svg>
-                    )}
-                  </div>
-                  <span>Select All</span>
-                </button>
-
-                {/* Compact Statistics */}
-                <div className="flex items-center gap-4 text-sm">
-                  {/* Found Count */}
-                  <span className="text-slate-600">
-                    <span className="font-semibold text-slate-800">{previewStats.count}</span> found
-                  </span>
-                  
-                  {/* Selected Count */}
-                  <span className="text-slate-600">
-                    <span className="font-semibold text-blue-600">{selectedRegions?.length || 0}</span> selected
-                  </span>
-                  
-                  {/* Total Duration */}
-                  <span className="text-slate-600">
-                    <span className="font-semibold text-green-600">
-                      {(selectedRegions?.reduce((sum, r) => sum + r.duration, 0) || 0).toFixed(2)}s
-                    </span> duration
-                  </span>
-                </div>
-
-                {/* Preview Button */}
-                <button
-                  className="px-3 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-medium rounded-lg transition-colors"
-                  title="Preview selected regions"
-                >
-                  PREVIEW
-                </button>
-              </div>
-            </div>
-          )}
+          <div className="p-4 space-y-4">
 
           {/* 🎛️ **OPTIMIZED CONTROLS**: Ultra-responsive sliders */}
           <div className="mb-6">
@@ -573,7 +507,100 @@ const SilenceDetection = ({
                 </div>
               </div>
             </div>
-          </div>          {/* 📊 **PROCESSING STATISTICS**: Concise results after detection */}
+          </div>          {/* 📋 **SILENCE REGIONS TABLE**: Detailed list of all found regions */}
+          {isPanelOpen && previewRegions.length > 0 && (
+            <div className="mt-4 bg-white/90 rounded-lg border border-slate-200/50 overflow-hidden">
+              <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
+                <h4 className="text-sm font-semibold text-slate-800 flex items-center gap-2">
+                  📋 Danh sách chi tiết vùng khoảng lặng
+                  <span className="text-xs text-slate-500 font-normal">
+                    ({previewRegions.length} vùng)
+                  </span>
+                </h4>
+              </div>
+              
+              <div className="max-h-64 overflow-y-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50 sticky top-0">
+                    <tr className="border-b border-slate-200">
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 w-12">#</th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">Start</th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">End</th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">Duration</th>
+                      <th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 w-16">Select</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {previewRegions.map((region, index) => {
+                      const isSelected = selectedRegions?.some(selected => 
+                        Math.abs(selected.start - region.start) < 0.001 && 
+                        Math.abs(selected.end - region.end) < 0.001
+                      );
+                      
+                      return (
+                        <tr 
+                          key={`${region.start}-${region.end}-${index}`}
+                          className={`border-b border-slate-100 hover:bg-blue-50 cursor-pointer transition-colors ${
+                            isSelected ? 'bg-blue-50 ring-1 ring-blue-200' : 'hover:bg-slate-50'
+                          }`}
+                          onClick={() => {
+                            // 🎯 **CLICK TO FOCUS**: Click row to focus this region on waveform
+                            onRegionClick?.(region);
+                          }}
+                          title="Click to focus this region on waveform"
+                        >
+                          <td className="px-3 py-2 text-slate-600 font-mono">{index + 1}</td>
+                          <td className="px-3 py-2 text-slate-800 font-mono">{formatTimeUnified(region.start)}</td>
+                          <td className="px-3 py-2 text-slate-800 font-mono">{formatTimeUnified(region.end)}</td>
+                          <td className="px-3 py-2 text-slate-800 font-mono">{region.duration.toFixed(2)}s</td>
+                          <td className="px-3 py-2 text-center">
+                            <div className="flex items-center justify-center">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation(); // Prevent row click
+                                  // 🎯 **TOGGLE SELECTION**: Toggle individual region selection
+                                  onSelectedRegionsChange?.(isSelected ? selectedRegions.filter(selected => 
+                                    !(Math.abs(selected.start - region.start) < 0.001 && 
+                                      Math.abs(selected.end - region.end) < 0.001)
+                                  ) : [...(selectedRegions || []), region]);
+                                }}
+                                className={`w-4 h-4 rounded border-2 transition-all duration-200 flex items-center justify-center ${
+                                  isSelected
+                                    ? 'border-blue-500 bg-blue-500 hover:bg-blue-600'
+                                    : 'border-slate-300 bg-white hover:border-blue-400'
+                                }`}
+                                title={isSelected ? 'Deselect this region' : 'Select this region'}
+                              >
+                                {isSelected && (
+                                  <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                  </svg>
+                                )}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              
+              {/* 🎯 **TABLE FOOTER**: Quick stats for the table */}
+              <div className="px-4 py-2 bg-slate-50 border-t border-slate-200 text-xs text-slate-600">
+                <div className="flex items-center justify-between">
+                  <span>
+                    Total: {previewRegions.length} regions, {previewRegions.reduce((sum, r) => sum + r.duration, 0).toFixed(2)}s duration
+                  </span>
+                  <span className="text-blue-600">
+                    Click rows to focus on waveform
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 📊 **PROCESSING STATISTICS**: Concise results after detection */}
           {hasRegions && (
             <div className="mt-4 p-3 bg-green-50 rounded-lg border border-green-200">
               <div className="flex items-center justify-between mb-2">

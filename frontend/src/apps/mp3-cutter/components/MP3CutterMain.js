@@ -960,17 +960,16 @@ const MP3CutterMain = React.memo(() => {
       jumpToTime(startTime);
     }}, [duration, startTime, endTime, isInverted, saveState, fadeIn, fadeOut, jumpToTime, updateFadeConfig]);  // 🆕 **SILENCE PANEL TOGGLE HANDLER**: Handler to toggle silence detection panel
   const handleToggleSilencePanel = useCallback(() => {
-    console.log('🔇 [Debug] handleToggleSilencePanel called, current state:', isSilencePanelOpen);
     setIsSilencePanelOpen(prev => {
       const newIsOpen = !prev;
-      console.log('🔇 [Debug] Panel state changing from', prev, 'to', newIsOpen);
       // Clear silence regions when closing panel
       if (!newIsOpen) {
         setSilenceRegions([]);
       }
       return newIsOpen;
     });
-  }, [isSilencePanelOpen]);// 🆕 **SILENCE PREVIEW HANDLER**: Handler for real-time silence preview updates
+  }, []);
+  // 🆕 **SILENCE PREVIEW HANDLER**: Handler for real-time silence preview updates
   const handleSilencePreviewUpdate = useCallback((regions) => {
     setSilenceRegions(regions || []);
   }, []);
@@ -1120,6 +1119,12 @@ const MP3CutterMain = React.memo(() => {
     });
   }, [regionsEqual]);
 
+  // 🆕 **SELECTED REGIONS CHANGE HANDLER**: Update selected silence regions from SilenceDetection
+  const handleSelectedRegionsChange = useCallback((newSelectedRegions) => {
+    console.log('🔍 [MP3CutterMain] Selected regions changed:', newSelectedRegions);
+    setSelectedSilenceRegions(newSelectedRegions);
+  }, []);
+
   // 🆕 **SILENCE REGION REMOVAL HANDLER**: Remove selected silence regions
   const handleRemoveSelectedSilence = useCallback(async () => {
     if (!selectedSilenceRegions.length || !audioFile?.filename) {
@@ -1232,33 +1237,36 @@ const MP3CutterMain = React.memo(() => {
               onMouseMove={handleCanvasMouseMove}
               onMouseUp={handleCanvasMouseUp}
               onMouseLeave={handleCanvasMouseLeave}
-            />            {/* 🔇 SILENCE DETECTION - Advanced component with real-time preview */}            <SilenceDetection
-              fileId={audioFile?.filename || audioFile?.name}
-              duration={duration}
-              waveformData={waveformData}
-              audioRef={audioRef}
-              onSilenceDetected={(data) => {
-                if (data) {
-                  console.log('🔇 [SilenceDetection] Data received:', data);
-                }
-              }}
-              onSilenceRemoved={(data) => {
-                if (data) {
-                  console.log('🔇 [SilenceRemoval] Data received:', data);
-                }
-              }}
-              onPreviewSilenceUpdate={handleSilencePreviewUpdate}
-              onSkipSilenceChange={handleSkipSilenceChange}
-              isOpen={isSilencePanelOpen}
-              onToggleOpen={handleToggleSilencePanel}
-              disabled={!audioFile}
-              // 🎯 **REGION-BASED PROPS**: Auto-detect region processing
-              startTime={startTime}
-              endTime={endTime}
-              selectedRegions={selectedSilenceRegions}
-              onRegionClick={handleSilenceRegionClick}
-              onRemoveSelected={handleRemoveSelectedSilence}
-            />
+            />            {/* 🔇 SILENCE DETECTION - Advanced component with real-time preview */}            {audioFile && (
+              <SilenceDetection
+                fileId={audioFile?.filename || audioFile?.name}
+                duration={duration}
+                waveformData={waveformData}
+                audioRef={audioRef}
+                onSilenceDetected={(data) => {
+                  if (data) {
+                    console.log('🔇 [SilenceDetection] Data received:', data);
+                  }
+                }}
+                onSilenceRemoved={(data) => {
+                  if (data) {
+                    console.log('🔇 [SilenceRemoval] Data received:', data);
+                  }
+                }}
+                onPreviewSilenceUpdate={handleSilencePreviewUpdate}
+                onSkipSilenceChange={handleSkipSilenceChange}
+                isOpen={isSilencePanelOpen}
+                onToggleOpen={handleToggleSilencePanel}
+                disabled={!audioFile}
+                // 🎯 **REGION-BASED PROPS**: Auto-detect region processing
+                startTime={startTime}
+                endTime={endTime}
+                selectedRegions={selectedSilenceRegions}
+                onRegionClick={handleSilenceRegionClick}
+                onSelectedRegionsChange={handleSelectedRegionsChange}
+                onRemoveSelected={handleRemoveSelectedSilence}
+              />
+            )}
 
             {/* 🎯 UNIFIED CONTROLS - Single row layout with all controls */}
             <UnifiedControlBarLazy
