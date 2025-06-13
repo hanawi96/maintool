@@ -431,8 +431,7 @@ export class MP3Service {
         filename: outputFilename,
         path: outputPath,
         size: outputStats.size
-      },
-      processing: { 
+      },      processing: { 
         threshold,
         minDuration,
         duration
@@ -441,6 +440,7 @@ export class MP3Service {
       silenceRegions: silentSegments,
       count: count,
       totalSilence: totalSilence,
+      verification: silenceResult.verification || null, // Include verification results
       urls: {
         download: `/api/mp3-cutter/download/${outputFilename}`
       },
@@ -589,8 +589,7 @@ export class MP3Service {
         filename: outputFilename,
         path: outputPath,
         size: outputStats.size
-      },
-      processing: { 
+      },      processing: { 
         threshold,
         minDuration,
         duration
@@ -599,6 +598,7 @@ export class MP3Service {
       silenceRegions: silentSegments,
       count: count,
       totalSilence: totalSilence,
+      verification: silenceResult.verification || null, // Include verification results
       urls: {
         download: `/api/mp3-cutter/download/${outputFilename}`
       },

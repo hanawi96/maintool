@@ -857,20 +857,32 @@ export class MP3Utils {
       ffmpeg(inputPath)
         .audioFilters(`silencedetect=noise=${threshold}dB:d=${minDuration}`)
         .format('null')
-        .output('-')
-        .on('stderr', (line) => {
+        .output('-')        .on('stderr', (line) => {
           const startMatch = line.match(/silence_start: ([\d.]+)/);
           if (startMatch) {
+            // 🎯 **HIGH PRECISION**: Keep 6 decimal places initially, round to 3 for output
             currentSilenceStart = parseFloat(startMatch[1]);
-            console.log(`🔇 [Detect] Silence start: ${currentSilenceStart}s`);
+            console.log(`🔇 [Detect] Silence start: ${currentSilenceStart.toFixed(3)}s`);
           }
           
           const endMatch = line.match(/silence_end: ([\d.]+) \| silence_duration: ([\d.]+)/);
           if (endMatch && currentSilenceStart !== null) {
+            // 🎯 **HIGH PRECISION**: Use full precision for calculations
             const end = parseFloat(endMatch[1]);
-            const duration = parseFloat(endMatch[2]);
-            silentSegments.push({ start: currentSilenceStart, end, duration });
-            console.log(`🔇 [Detect] Silence end: ${end}s, duration: ${duration}s`);
+            const reportedDuration = parseFloat(endMatch[2]);
+            
+            // 🔧 **CALCULATE PRECISE DURATION**: Use end - start for consistency
+            const calculatedDuration = end - currentSilenceStart;
+            
+            // 🎯 **MILLISECOND PRECISION**: Round final values to 3 decimals
+            const silenceSegment = {
+              start: Math.round(currentSilenceStart * 1000) / 1000, 
+              end: Math.round(end * 1000) / 1000, 
+              duration: Math.round(calculatedDuration * 1000) / 1000 
+            };
+            
+            silentSegments.push(silenceSegment);
+            console.log(`🔇 [Detect] Silence end: ${end.toFixed(3)}s, calculated duration: ${calculatedDuration.toFixed(3)}s, reported: ${reportedDuration.toFixed(3)}s`);
             currentSilenceStart = null;
           }
         })
@@ -879,9 +891,9 @@ export class MP3Utils {
         .run();
     });
   }
-
   /**
    * 🎯 **BUILD KEEP SEGMENTS**: Calculate non-silence segments to keep
+   * 🔧 FIX: Remove 0.1s threshold to preserve all audio segments for accuracy
    */
   static buildKeepSegments(silentSegments, totalDuration) {
     const keepSegments = [];
@@ -890,19 +902,52 @@ export class MP3Utils {
     // Sort silence segments by start time
     const sortedSilence = silentSegments.sort((a, b) => a.start - b.start);
     
-    sortedSilence.forEach(silence => {
-      // Add segment before this silence (if exists and > 0.1s)
-      if (currentTime < silence.start && (silence.start - currentTime) > 0.1) {
-        keepSegments.push({ start: currentTime, end: silence.start });
+    // 🔧 **MERGE OVERLAPPING SILENCE**: Merge overlapping/adjacent silence regions first
+    const mergedSilence = [];
+    for (const silence of sortedSilence) {
+      if (mergedSilence.length === 0) {
+        mergedSilence.push({ ...silence });
+      } else {
+        const lastSilence = mergedSilence[mergedSilence.length - 1];
+        // Merge if overlapping or very close (within 0.01s)
+        if (silence.start <= lastSilence.end + 0.01) {
+          lastSilence.end = Math.max(lastSilence.end, silence.end);
+          lastSilence.duration = lastSilence.end - lastSilence.start;
+        } else {
+          mergedSilence.push({ ...silence });
+        }
+      }
+    }
+    
+    // Build keep segments from merged silence regions
+    mergedSilence.forEach(silence => {
+      // Add segment before this silence (remove 0.1s minimum threshold)
+      if (currentTime < silence.start) {
+        const segmentDuration = silence.start - currentTime;
+        // Only skip segments < 0.001s (1ms) to avoid tiny artifacts
+        if (segmentDuration >= 0.001) {
+          keepSegments.push({ 
+            start: Math.round(currentTime * 1000) / 1000, 
+            end: Math.round(silence.start * 1000) / 1000 
+          });
+        }
       }
       currentTime = Math.max(currentTime, silence.end);
     });
 
-    // Add final segment after last silence (if exists and > 0.1s)
-    if (currentTime < totalDuration && (totalDuration - currentTime) > 0.1) {
-      keepSegments.push({ start: currentTime, end: totalDuration });
+    // Add final segment after last silence (remove 0.1s minimum threshold)
+    if (currentTime < totalDuration) {
+      const segmentDuration = totalDuration - currentTime;
+      // Only skip segments < 0.001s (1ms) to avoid tiny artifacts  
+      if (segmentDuration >= 0.001) {
+        keepSegments.push({ 
+          start: Math.round(currentTime * 1000) / 1000, 
+          end: Math.round(totalDuration * 1000) / 1000 
+        });
+      }
     }
 
+    console.log(`🎯 [buildKeepSegments] Built ${keepSegments.length} segments from ${mergedSilence.length} silence regions`);
     return keepSegments;
   }
 
@@ -918,30 +963,46 @@ export class MP3Utils {
         return;
       }
 
-      console.log(`🔇 [Concat] Processing ${keepSegments.length} segments`);
-
-      if (keepSegments.length === 1) {
-        // Single segment - just extract it
+      console.log(`🔇 [Concat] Processing ${keepSegments.length} segments`);      if (keepSegments.length === 1) {
+        // Single segment - just extract it with millisecond precision
         const segment = keepSegments[0];
+        const startTime = segment.start.toFixed(3);
+        const duration = (segment.end - segment.start).toFixed(3);
+        
         let command = ffmpeg(inputPath)
-          .seekInput(segment.start)
-          .duration(segment.end - segment.start);
+          .seekInput(startTime)  // Millisecond precision
+          .duration(duration);   // Millisecond precision
         
         command = this.setOutputQuality(command, format, quality);
-        
-        command
+          command
           .output(outputPath)
-          .on('start', () => console.log(`🔇 [Single] Extracting ${segment.start}s to ${segment.end}s`))
+          .on('start', () => console.log(`🔇 [Single] Extracting ${startTime}s to ${(segment.start + parseFloat(duration)).toFixed(3)}s (duration: ${duration}s)`))
           .on('error', reject)
-          .on('end', () => {
-            console.log(`✅ [Single] Extracted single segment, removed ${silentSegments.length} silence regions`);
-            resolve({
-              success: true,
-              outputPath,
-              inputPath,
-              silentSegments,
-              settings: { format, quality, segmentsRemoved: silentSegments.length }
-            });
+          .on('end', () => {            console.log(`✅ [Single] Extracted single segment with millisecond precision, removed ${silentSegments.length} silence regions`);
+            
+            // 🔍 **VERIFICATION**: Validate single segment extraction
+            this.verifySilenceRemoval(inputPath, outputPath, silentSegments, keepSegments)
+              .then(verification => {
+                resolve({
+                  success: true,
+                  outputPath,
+                  inputPath,
+                  silentSegments,
+                  verification, // Include verification results
+                  settings: { format, quality, segmentsRemoved: silentSegments.length }
+                });
+              })
+              .catch(error => {
+                console.warn('⚠️ [Verification] Failed, but processing succeeded:', error.message);
+                resolve({
+                  success: true,
+                  outputPath,
+                  inputPath,
+                  silentSegments,
+                  verification: { status: 'ERROR', error: error.message },
+                  settings: { format, quality, segmentsRemoved: silentSegments.length }
+                });
+              });
           })
           .run();
       } else {
@@ -954,20 +1015,27 @@ export class MP3Utils {
           for (let i = 0; i < keepSegments.length; i++) {
             const segment = keepSegments[i];
             const tempFile = path.join(tempDir, `temp_segment_${i}_${Date.now()}.mp3`);
-            tempFiles.push(tempFile);
-            
-            await new Promise((resolveSegment, rejectSegment) => {
+            tempFiles.push(tempFile);            await new Promise((resolveSegment, rejectSegment) => {
+              // 🎯 **MILLISECOND PRECISION**: Use 3-decimal format for FFmpeg (SS.mmm)
+              const startTime = segment.start.toFixed(3);
+              const duration = (segment.end - segment.start).toFixed(3);
+              
               ffmpeg(inputPath)
-                .seekInput(segment.start)
-                .duration(segment.end - segment.start)
+                .seekInput(startTime) // Millisecond precision timing
+                .duration(duration)   // Millisecond precision duration
                 .audioCodec('libmp3lame')
                 .audioBitrate('192k')
                 .output(tempFile)
-                .on('end', resolveSegment)
+                .on('start', (cmd) => {
+                  console.log(`🔇 [Segment ${i+1}] FFmpeg command:`, cmd);
+                })
+                .on('end', () => {
+                  console.log(`🔇 [Segment ${i+1}] Extracted ${startTime}s to ${(segment.start + parseFloat(duration)).toFixed(3)}s`);
+                  resolveSegment();
+                })
                 .on('error', rejectSegment)
                 .run();
             });
-            console.log(`🔇 [Segment ${i+1}] Extracted ${segment.start}s to ${segment.end}s`);
           }
 
           // Concatenate all temp files
@@ -981,29 +1049,45 @@ export class MP3Utils {
           );
           
           command = this.setOutputQuality(command, format, quality);
-          
-          command
+            command
             .output(outputPath)
-            .on('start', () => console.log(`🔇 [Concat] Joining ${tempFiles.length} segments`))            .on('error', (error) => {
+            .on('start', () => console.log(`🔇 [Concat] Joining ${tempFiles.length} segments`))
+            .on('error', (error) => {
               // Cleanup temp files on error
               tempFiles.forEach(file => {
                 fs.unlink(file).catch(() => {}); // Use import fs, not require
               });
               reject(error);
             })
-            .on('end', () => {
-              // Cleanup temp files on success
+            .on('end', () => {              // Cleanup temp files on success
               tempFiles.forEach(file => {
                 fs.unlink(file).catch(() => {}); // Use import fs, not require
               });
               console.log(`✅ [Concat] Joined ${tempFiles.length} segments, removed ${silentSegments.length} silence regions`);
-              resolve({
-                success: true,
-                outputPath,
-                inputPath,
-                silentSegments,
-                settings: { format, quality, segmentsRemoved: silentSegments.length }
-              });
+              
+              // 🔍 **VERIFICATION**: Validate multiple segments concatenation
+              this.verifySilenceRemoval(inputPath, outputPath, silentSegments, keepSegments)
+                .then(verification => {
+                  resolve({
+                    success: true,
+                    outputPath,
+                    inputPath,
+                    silentSegments,
+                    verification, // Include verification results
+                    settings: { format, quality, segmentsRemoved: silentSegments.length }
+                  });
+                })
+                .catch(error => {
+                  console.warn('⚠️ [Verification] Failed, but processing succeeded:', error.message);
+                  resolve({
+                    success: true,
+                    outputPath,
+                    inputPath,
+                    silentSegments,
+                    verification: { status: 'ERROR', error: error.message },
+                    settings: { format, quality, segmentsRemoved: silentSegments.length }
+                  });
+                });
             })
             .run();        } catch (error) {
           // Cleanup temp files on error
@@ -1073,6 +1157,125 @@ export class MP3Utils {
       console.error('❌ [Progress] Error:', error);
       onProgress?.({ progress: 0, stage: 'error', message: `Error: ${error.message}` });
       throw error;
+    }
+  }
+
+  /**
+   * 🔍 **VERIFY SILENCE REMOVAL**: Validate that output matches expected calculations
+   */
+  static async verifySilenceRemoval(inputPath, outputPath, silentSegments, keepSegments) {
+    try {
+      // 🎯 **GET DURATIONS**
+      const originalDuration = await this.getAudioDuration(inputPath);
+      const outputDuration = await this.getAudioDuration(outputPath);
+      
+      // 🧮 **CALCULATE EXPECTED VALUES**
+      const totalSilenceRemoved = silentSegments.reduce((sum, seg) => sum + seg.duration, 0);
+      const expectedDuration = originalDuration - totalSilenceRemoved;
+      const keepSegmentsDuration = keepSegments.reduce((sum, seg) => sum + (seg.end - seg.start), 0);
+      
+      // 📊 **ACCURACY CALCULATIONS**
+      const durationAccuracy = Math.abs(expectedDuration - outputDuration);
+      const keepSegmentsAccuracy = Math.abs(keepSegmentsDuration - outputDuration);
+        // 🔍 **VALIDATION CHECKS** - Enhanced tolerance and logging
+      const isAccurate = durationAccuracy < 0.1; // Within 100ms tolerance
+      const segmentsMatch = keepSegmentsAccuracy < 0.1;
+      
+      // 🔍 **DETAILED LOGGING FOR DEBUGGING**
+      console.log(`🔍 [Verification] Duration Analysis:`);
+      console.log(`   Original: ${originalDuration.toFixed(3)}s`);
+      console.log(`   Output: ${outputDuration.toFixed(3)}s`);
+      console.log(`   Expected: ${expectedDuration.toFixed(3)}s`);
+      console.log(`   Silence Removed: ${totalSilenceRemoved.toFixed(3)}s`);
+      console.log(`   Keep Segments: ${keepSegmentsDuration.toFixed(3)}s`);
+      console.log(`   Duration Accuracy: ±${durationAccuracy.toFixed(3)}s`);
+      console.log(`   Keep Segments Accuracy: ±${keepSegmentsAccuracy.toFixed(3)}s`);
+      console.log(`   Status: ${isAccurate && segmentsMatch ? 'PASS' : 'FAIL'}`);
+      
+      // 🔍 **SEGMENT CONTINUITY CHECK** - Check for gaps between segments
+      let totalGaps = 0;
+      for (let i = 1; i < keepSegments.length; i++) {
+        const gap = keepSegments[i].start - keepSegments[i-1].end;
+        if (gap > 0.001) { // Gap > 1ms
+          totalGaps += gap;
+          console.log(`   Gap detected: ${gap.toFixed(3)}s between segments ${i-1} and ${i}`);
+        }
+      }
+      if (totalGaps > 0) {
+        console.log(`   Total gaps: ${totalGaps.toFixed(3)}s`);
+      }
+      
+      // 📋 **VERIFICATION REPORT**
+      const verification = {
+        original: {
+          duration: Math.round(originalDuration * 1000) / 1000,
+          path: inputPath
+        },
+        output: {
+          duration: Math.round(outputDuration * 1000) / 1000,
+          path: outputPath
+        },
+        silence: {
+          regions: silentSegments.length,
+          totalDuration: Math.round(totalSilenceRemoved * 1000) / 1000,
+          details: silentSegments.map(seg => ({
+            start: Math.round(seg.start * 1000) / 1000,
+            end: Math.round(seg.end * 1000) / 1000,
+            duration: Math.round(seg.duration * 1000) / 1000
+          }))
+        },
+        keepSegments: {
+          count: keepSegments.length,
+          totalDuration: Math.round(keepSegmentsDuration * 1000) / 1000,
+          details: keepSegments.map(seg => ({
+            start: Math.round(seg.start * 1000) / 1000,
+            end: Math.round(seg.end * 1000) / 1000,
+            duration: Math.round((seg.end - seg.start) * 1000) / 1000
+          }))
+        },
+        calculations: {
+          expectedDuration: Math.round(expectedDuration * 1000) / 1000,
+          actualDuration: Math.round(outputDuration * 1000) / 1000,
+          durationAccuracy: Math.round(durationAccuracy * 1000) / 1000,
+          keepSegmentsAccuracy: Math.round(keepSegmentsAccuracy * 1000) / 1000
+        },
+        validation: {
+          isAccurate,
+          segmentsMatch,
+          status: isAccurate && segmentsMatch ? 'PASS' : 'FAIL',
+          tolerance: '0.100s'
+        }
+      };
+      
+      // 🎯 **LOG VERIFICATION RESULTS**
+      console.log('🔍 [Verification] Silence Removal Validation:');
+      console.log(`📁 Original: ${originalDuration.toFixed(3)}s`);
+      console.log(`📁 Output: ${outputDuration.toFixed(3)}s`);
+      console.log(`🔇 Silence Removed: ${totalSilenceRemoved.toFixed(3)}s (${silentSegments.length} regions)`);
+      console.log(`✂️ Keep Segments: ${keepSegmentsDuration.toFixed(3)}s (${keepSegments.length} segments)`);
+      console.log(`🎯 Expected Duration: ${expectedDuration.toFixed(3)}s`);
+      console.log(`📊 Duration Accuracy: ${durationAccuracy.toFixed(3)}s`);
+      console.log(`📊 Segments Accuracy: ${keepSegmentsAccuracy.toFixed(3)}s`);
+      console.log(`✅ Validation Status: ${verification.validation.status}`);
+      
+      if (!isAccurate || !segmentsMatch) {
+        console.warn('⚠️ [Verification] Accuracy issues detected:');
+        if (!isAccurate) console.warn(`  - Duration mismatch: ${durationAccuracy.toFixed(3)}s > 0.100s`);
+        if (!segmentsMatch) console.warn(`  - Segments mismatch: ${keepSegmentsAccuracy.toFixed(3)}s > 0.100s`);
+      }
+      
+      return verification;
+      
+    } catch (error) {
+      console.error('❌ [Verification] Failed:', error);
+      return {
+        validation: { status: 'ERROR', error: error.message },
+        calculations: {},
+        original: {},
+        output: {},
+        silence: {},
+        keepSegments: {}
+      };
     }
   }
 }
