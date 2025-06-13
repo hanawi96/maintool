@@ -452,15 +452,61 @@ const SilenceDetection = ({
               </button>
             </div>
           )}          {/* 🎛️ **MAIN CONTENT**: Full content without scroll */}
-          <div className="p-4 space-y-4">{isPanelOpen && previewStats.count > 0 && (
-            <div className="mb-4 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-yellow-800 font-medium">
-                  Preview: {previewStats.count} regions ({previewStats.total.toFixed(3)}s)
-                </span>
-                <span className="text-yellow-700">
-                  {previewStats.percent.toFixed(2)}% of {hasRegionSelection ? 'region' : 'audio'}
-                </span>
+          <div className="p-4 space-y-4">          {/* 📊 **COMPACT STATISTICS BAR**: Single row layout like in the image */}
+          {isPanelOpen && previewStats.count > 0 && (
+            <div className="mb-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
+              <div className="flex items-center justify-between gap-4">
+                {/* Select All Toggle Button */}
+                <button
+                  onClick={handleSelectAll}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                    selectedRegions?.length === previewRegions.length
+                      ? 'bg-blue-500 text-white hover:bg-blue-600'
+                      : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                  }`}
+                  title={selectedRegions?.length === previewRegions.length ? 'Deselect all regions' : 'Select all regions'}
+                >
+                  <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all ${
+                    selectedRegions?.length === previewRegions.length
+                      ? 'border-white bg-white'
+                      : 'border-slate-400 bg-transparent'
+                  }`}>
+                    {selectedRegions?.length === previewRegions.length && (
+                      <svg className="w-3 h-3 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                  </div>
+                  <span>Select All</span>
+                </button>
+
+                {/* Compact Statistics */}
+                <div className="flex items-center gap-4 text-sm">
+                  {/* Found Count */}
+                  <span className="text-slate-600">
+                    <span className="font-semibold text-slate-800">{previewStats.count}</span> found
+                  </span>
+                  
+                  {/* Selected Count */}
+                  <span className="text-slate-600">
+                    <span className="font-semibold text-blue-600">{selectedRegions?.length || 0}</span> selected
+                  </span>
+                  
+                  {/* Total Duration */}
+                  <span className="text-slate-600">
+                    <span className="font-semibold text-green-600">
+                      {(selectedRegions?.reduce((sum, r) => sum + r.duration, 0) || 0).toFixed(2)}s
+                    </span> duration
+                  </span>
+                </div>
+
+                {/* Preview Button */}
+                <button
+                  className="px-3 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-medium rounded-lg transition-colors"
+                  title="Preview selected regions"
+                >
+                  PREVIEW
+                </button>
               </div>
             </div>
           )}
@@ -670,41 +716,6 @@ const SilenceDetection = ({
               </div>
             )}
           </div>
-
-          {/* 🆕 **SELECTED REGIONS ACTIONS**: Show when regions are selected */}
-          {selectedRegions.length > 0 && (
-            <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-blue-800">
-                    {selectedRegions.length} region{selectedRegions.length !== 1 ? 's' : ''} selected
-                  </span>
-                </div>
-                <button
-                  onClick={onRemoveSelected}
-                  className="px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-sm font-medium transition-colors"
-                >
-                  Remove Selected
-                </button>
-              </div>
-              <div className="text-xs text-blue-700">
-                Total duration: {selectedRegions.reduce((sum, r) => sum + r.duration, 0).toFixed(2)}s
-              </div>
-            </div>
-          )}
-
-          {/* 🆕 **SELECT ALL CHECKBOX**: Add select all checkbox */}
-          {isPanelOpen && previewRegions.length > 0 && (
-            <label className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 cursor-pointer hover:bg-slate-50 rounded-lg transition-colors">
-              <input
-                type="checkbox"
-                checked={selectedRegions?.length === previewRegions.length}
-                onChange={handleSelectAll}
-                className="w-4 h-4 text-red-600 border-slate-300 rounded focus:ring-red-500"
-              />
-              <span>Select All</span>
-            </label>
-          )}
           </div>
         </div>
       </div>

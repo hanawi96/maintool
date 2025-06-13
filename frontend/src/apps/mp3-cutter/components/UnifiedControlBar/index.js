@@ -417,32 +417,12 @@ const UnifiedControlBar = React.memo(({
               ? 'text-red-700 group-hover:text-red-800' 
               : 'text-slate-700 group-hover:text-slate-900'
           } group-disabled:text-slate-400`} />
-          
-          {/* 🎯 **ACTIVE INDICATOR** - Visual dot when panel is open */}
+              {/* 🎯 **ACTIVE INDICATOR** - Visual dot when panel is open */}
           {isSilencePanelOpen && (
             <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full shadow-sm"></div>
           )}
         </button>
-
-        {/* 🆕 **SELECTED REGIONS INDICATOR** - Show when regions are selected */}
-        {selectedSilenceRegions.length > 0 && (
-          <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-white text-xs flex items-center justify-center">
-            {selectedSilenceRegions.length}
-          </div>
-        )}
       </div>
-
-      {/* 🆕 **REMOVE SELECTED BUTTON** - Show when regions are selected */}
-      {selectedSilenceRegions.length > 0 && (
-        <button
-          onClick={onRemoveSelectedSilence}
-          disabled={disabled || !fileId}
-          className="px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          title={`Remove ${selectedSilenceRegions.length} selected region${selectedSilenceRegions.length !== 1 ? 's' : ''}`}
-        >
-          Remove Selected
-        </button>
-      )}
     </div>
   ), [
     disabled,
