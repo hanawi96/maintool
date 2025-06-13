@@ -2,94 +2,47 @@ import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { BarChart, Loader2, ChevronDown, X } from 'lucide-react';
 import { audioApi } from '../services/audioApi';
 
-// 🎨 **INJECT OPTIMIZED CSS**: Single injection for ultra-smooth panel animations
+// 🎨 **INJECT OPTIMIZED CSS**: Simple panel animations with proper spacing
 if (typeof document !== 'undefined' && !document.getElementById('silence-panel-styles')) {
   const style = document.createElement('style');
-  style.id = 'silence-panel-styles';  style.textContent = `
-    /* 🚀 **WRAPPER**: Eliminate all default spacing */
+  style.id = 'silence-panel-styles';
+  style.textContent = `
+    /* 🚀 **WRAPPER**: Smart spacing control */
     .silence-detection-wrapper {
       width: 100%;
       margin: 0;
       padding: 0;
-      transition: margin 250ms cubic-bezier(0.4, 0, 0.2, 1);
+      transition: margin-top 250ms ease;
+    }
+    .silence-detection-wrapper.is-open {
+      margin-top: 16px;
     }
     .silence-detection-wrapper.is-closed {
-      margin-bottom: 0 !important;
-      margin-top: 0 !important;
+      margin-top: 0;
     }
-      transition: margin 250ms cubic-bezier(0.4, 0, 0.2, 1);
-    }
-    .silence-detection-wrapper.is-closed {
-      margin-bottom: 0 !important;
-      margin-top: 0 !important;
-    }
-      /* 🚀 **PANEL CONTAINER**: Optimized height-based animations */
+    
+    /* 🚀 **PANEL CONTAINER**: Simple height animations */
     .silence-panel-container {
       overflow: hidden;
-      transition: max-height 250ms cubic-bezier(0.4, 0, 0.2, 1), 
-                  opacity 200ms ease-out,
-                  margin 250ms cubic-bezier(0.4, 0, 0.2, 1),
-                  padding 250ms cubic-bezier(0.4, 0, 0.2, 1);
-      will-change: max-height, opacity, margin, padding;
-    }    .silence-panel-container.is-open {
+      transition: max-height 250ms ease, opacity 200ms ease;
+    }
+    .silence-panel-container.is-open {
       max-height: 800px;
       opacity: 1;
-      margin: 0;
-      padding: 0;
-      pointer-events: auto;
     }
     .silence-panel-container.is-closed {
-      max-height: 0 !important;
+      max-height: 0;
       opacity: 0;
-      margin: 0 !important;
-      padding: 0 !important;
-      pointer-events: none;
     }
     
-    /* 🎯 **PANEL CONTENT**: Content layer optimization */
-    .silence-panel-content {
-      contain: layout style paint;
-      will-change: auto;
-      transition: transform 200ms cubic-bezier(0.4, 0, 0.2, 1);
-    }
-    
-    /* 🚀 **SMOOTH CONTENT ENTRY**: Content slides in/out */
-    .silence-panel-container.is-open .silence-panel-content {
-      transform: translateY(0);
-    }
-    .silence-panel-container.is-closed .silence-panel-content {
-      transform: translateY(-10px);
-    }
-    
-    /* 🚀 **BUTTON HOVER OPTIMIZATION** */
+    /* 🚀 **BUTTON HOVER**: Simple hover effect */
     .silence-toggle-button {
-      transform: translateZ(0);
-      will-change: transform, background-color;
-    }
+          }
     .silence-toggle-button:hover:not(:disabled) {
-      transform: translateY(-1px) translateZ(0);
-    }    .silence-toggle-button:active:not(:disabled) {
-      transform: translateY(0) scale(0.98) translateZ(0);
+      transform: translateY(-1px);
     }
-    
-    /* 🎯 **SCROLLABLE CONTENT**: Custom scrollbar styling */
-    .silence-scrollable-content {
-      scrollbar-width: thin;
-      scrollbar-color: #cbd5e1 #f1f5f9;
-    }
-    .silence-scrollable-content::-webkit-scrollbar {
-      width: 6px;
-    }
-    .silence-scrollable-content::-webkit-scrollbar-track {
-      background: #f1f5f9;
-      border-radius: 3px;
-    }
-    .silence-scrollable-content::-webkit-scrollbar-thumb {
-      background: #cbd5e1;
-      border-radius: 3px;
-    }
-    .silence-scrollable-content::-webkit-scrollbar-thumb:hover {
-      background: #94a3b8;
+    .silence-toggle-button:active:not(:disabled) {
+      transform: scale(0.98);
     }
   `;
   document.head.appendChild(style);
@@ -263,8 +216,7 @@ const SilenceDetection = ({
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [updatePreview]);
-  // 🧹 **CLEANUP**: Reset spacing on unmount
+  }, [updatePreview]);  // 🧹 **CLEANUP**: Reset spacing on unmount (simplified from scrollable version)
   useEffect(() => {
     return () => {
       document.querySelectorAll('.silence-detection-wrapper').forEach(wrapper => {
@@ -481,9 +433,8 @@ const SilenceDetection = ({
                 <X className="w-4 h-4 text-slate-600" />
               </button>
             </div>
-          )}
-            {/* 🎯 **SCROLLABLE CONTENT**: Main content area with scroll */}
-          <div className="p-4 max-h-80 overflow-y-auto space-y-4 silence-scrollable-content">          {isPanelOpen && previewStats.count > 0 && (
+          )}          {/* 🎛️ **MAIN CONTENT**: Full content without scroll */}
+          <div className="p-4 space-y-4">{isPanelOpen && previewStats.count > 0 && (
             <div className="mb-4 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-yellow-800 font-medium">
@@ -584,38 +535,27 @@ const SilenceDetection = ({
                 </span>
                 <span className="font-semibold text-blue-600">{(baseDuration - totalSilence).toFixed(2)}s</span>
               </div>
-            </div>
-          )}
-
-          {/* 🎯 **SIMPLIFIED ACTION**: Single button for detect & remove */}
-          <div className="flex gap-3">
-            <button
-              onClick={detectSilence}
-              disabled={isDetecting}
-              className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
-            >
-              {isDetecting ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Processing...
-                </>
-              ) : (
-                <>
-                  <BarChart className="w-4 h-4" />
-                  Remove Silent Parts
-                </>
-              )}
-            </button>
-          </div>
-
-          {/* 📊 **PROGRESS INDICATOR**: Show during processing */}
+            </div>          )}          {/* 📊 **PROGRESS INDICATOR**: Show during processing - moved above button */}
           {(isDetecting || progressStage !== 'idle') && (
-            <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-blue-800">
-                  {progressMessage || 'Processing...'}
-                </span>
-                <span className="text-xs text-blue-600">
+                <div className="flex items-center gap-2">
+                  {isDetecting ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                  ) : progressStage === 'complete' ? (
+                    <div className="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center">
+                      <div className="w-2 h-2 bg-white rounded-full"></div>
+                    </div>
+                  ) : progressStage === 'error' ? (
+                    <div className="w-4 h-4 rounded-full bg-red-500 flex items-center justify-center">
+                      <div className="w-2 h-2 bg-white rounded-full"></div>
+                    </div>
+                  ) : null}
+                  <span className="text-sm font-medium text-blue-800">
+                    {progressMessage || 'Processing...'}
+                  </span>
+                </div>
+                <span className="text-xs text-blue-600 font-mono">
                   {progress}%
                 </span>
               </div>
@@ -639,10 +579,32 @@ const SilenceDetection = ({
                   'bg-blue-500 animate-pulse'
                 }`} />
                 <span className="text-xs text-slate-600 capitalize">
-                  {progressStage}
+                  {progressStage === 'starting' ? 'initializing' : progressStage}
                 </span>
               </div>
-            </div>          )}
+            </div>
+          )}
+
+          {/* 🎯 **SIMPLIFIED ACTION**: Single button for detect & remove */}
+          <div className="flex gap-3">
+            <button
+              onClick={detectSilence}
+              disabled={isDetecting}
+              className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+            >
+              {isDetecting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <BarChart className="w-4 h-4" />
+                  Remove Silent Parts
+                </>
+              )}
+            </button>
+          </div>
 
           {/* 🆕 **SKIP SILENCE CONTROL**: Checkbox to enable/disable silence skipping */}
           <div>
