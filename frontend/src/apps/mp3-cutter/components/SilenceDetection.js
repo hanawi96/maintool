@@ -69,7 +69,10 @@ const SilenceDetection = ({
   onSkipSilenceChange = null,
   // 🎯 **REGION-BASED PROPS**: Auto-detect region processing
   startTime = 0,
-  endTime = null
+  endTime = null,
+  selectedRegions = [],
+  onRegionClick = null,
+  onRemoveSelected = null,
 }) => {  // 🎛️ **STATE MANAGEMENT**: Minimal state for optimal performance
   const [isOpen, setIsOpen] = useState(externalIsOpen || false);
   const [isDetecting, setIsDetecting] = useState(false);
@@ -389,11 +392,26 @@ const SilenceDetection = ({
     return { count, total, baseDuration, percent };
   }, [previewRegions, hasRegionSelection, regionDuration, duration]);
   
+  // 🆕 **SELECT ALL HANDLER**: Handle select all checkbox
+  const handleSelectAll = useCallback(() => {
+    if (selectedRegions?.length === previewRegions.length) {
+      // Deselect all regions
+      onRemoveSelected?.([]);
+      console.log('🔇 [SilenceDetection] Deselected all regions');
+    } else {
+      // Select all regions
+      onRemoveSelected?.(previewRegions);
+      console.log('🔇 [SilenceDetection] Selected all regions:', previewRegions.length);
+    }
+  }, [previewRegions, onRemoveSelected, selectedRegions]);
+
   // 🎨 **RENDER**: Conditional rendering for performance
   if (!fileId || disabled) return null;
 
   const isInlineMode = externalIsOpen === null;
-  const isPanelMode = !isInlineMode;return (
+  const isPanelMode = !isInlineMode;
+
+  return (
     <div className={`silence-detection-wrapper ${isPanelOpen ? 'is-open' : 'is-closed'}`}>
       {/* 🔇 **TOGGLE BUTTON**: Show only in inline mode */}
       {isInlineMode && (
@@ -606,21 +624,87 @@ const SilenceDetection = ({
             </button>
           </div>
 
-          {/* 🆕 **SKIP SILENCE CONTROL**: Checkbox to enable/disable silence skipping */}
-          <div>
-            <label className="flex items-center gap-2 text-sm">
+          {/* 🆕 **SKIP SILENCE CONTROL**: Beautiful toggle to enable/disable silence skipping */}
+          <div className="bg-white/70 backdrop-blur-sm rounded-lg p-3 border border-slate-200/50">
+            <label className="flex items-center gap-2 cursor-pointer group">
+              <div className="relative">
+                <input
+                  type="checkbox"
+                  checked={skipSilenceEnabled}
+                  onChange={handleSkipSilenceChange}
+                  disabled={isDetecting}
+                  className="sr-only"
+                />
+                <div className={`
+                  w-8 h-4 rounded-full transition-all duration-200 ease-in-out
+                  ${skipSilenceEnabled 
+                    ? 'bg-blue-500' 
+                    : 'bg-slate-300 hover:bg-slate-400'
+                  }
+                  ${isDetecting ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+                `}>
+                  <div className={`
+                    w-3 h-3 bg-white rounded-full shadow-sm transition-all duration-200 ease-in-out transform
+                    absolute top-0.5
+                    ${skipSilenceEnabled ? 'translate-x-4' : 'translate-x-0.5'}
+                  `}></div>
+                </div>
+              </div>
+              <span className="text-sm text-slate-700">
+                Skip selected regions during playback
+              </span>
+              {skipSilenceEnabled && (
+                <span className="px-1.5 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 rounded">
+                  On
+                </span>
+              )}
+            </label>
+            {skipSilenceEnabled && selectedRegions.length > 0 && (
+              <div className="mt-2 text-xs text-blue-600">
+                Will skip {selectedRegions.length} selected region{selectedRegions.length !== 1 ? 's' : ''} ({selectedRegions.reduce((sum, r) => sum + r.duration, 0).toFixed(2)}s total)
+              </div>
+            )}
+            {skipSilenceEnabled && selectedRegions.length === 0 && (
+              <div className="mt-2 text-xs text-amber-600">
+                No regions selected. Select regions by clicking on them first.
+              </div>
+            )}
+          </div>
+
+          {/* 🆕 **SELECTED REGIONS ACTIONS**: Show when regions are selected */}
+          {selectedRegions.length > 0 && (
+            <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-blue-800">
+                    {selectedRegions.length} region{selectedRegions.length !== 1 ? 's' : ''} selected
+                  </span>
+                </div>
+                <button
+                  onClick={onRemoveSelected}
+                  className="px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-sm font-medium transition-colors"
+                >
+                  Remove Selected
+                </button>
+              </div>
+              <div className="text-xs text-blue-700">
+                Total duration: {selectedRegions.reduce((sum, r) => sum + r.duration, 0).toFixed(2)}s
+              </div>
+            </div>
+          )}
+
+          {/* 🆕 **SELECT ALL CHECKBOX**: Add select all checkbox */}
+          {isPanelOpen && previewRegions.length > 0 && (
+            <label className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 cursor-pointer hover:bg-slate-50 rounded-lg transition-colors">
               <input
                 type="checkbox"
-                checked={skipSilenceEnabled}
-                onChange={handleSkipSilenceChange}
-                className="w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-500"
-                disabled={isDetecting}
+                checked={selectedRegions?.length === previewRegions.length}
+                onChange={handleSelectAll}
+                className="w-4 h-4 text-red-600 border-slate-300 rounded focus:ring-red-500"
               />
-              <span className="text-slate-700">
-                Skip silence during playback
-              </span>
+              <span>Select All</span>
             </label>
-          </div>
+          )}
           </div>
         </div>
       </div>

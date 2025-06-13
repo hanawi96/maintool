@@ -1,50 +1,54 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useCallback, useMemo } from 'react';
+import { cn } from '../../utils/cn';
 import { WAVEFORM_CONFIG } from '../../utils/constants';
 
 const SilenceOverlay = React.memo(({
   silenceRegions = [],
-  duration = 100,
-  containerWidth = 800,
-  canvasHeight = WAVEFORM_CONFIG.HEIGHT,
-  isVisible = true,
-  opacity = 0.6
+  duration = 0,
+  containerWidth = 0,
+  canvasHeight = 0,
+  isVisible = false,
+  onRegionClick = null,
+  selectedRegions = []
 }) => {
-  // 🚀 **DEBOUNCED RENDER**: Prevent rapid re-renders during slider drag
-  const [debouncedRegions, setDebouncedRegions] = React.useState([]);
-  const debounceRef = useRef(null);
+  // Handle region click
+  const handleRegionClick = useCallback((region) => {
+    console.log('🔍 [SilenceOverlay] Region clicked (should not interfere with handles):', region);
+    if (!onRegionClick) return;
+    onRegionClick(region);
+  }, [onRegionClick]);
 
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    
-    debounceRef.current = setTimeout(() => {
-      setDebouncedRegions(silenceRegions);
-    }, 32); // 32ms debounce for smooth 30fps updates
-
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
+  // Handle tooltip positioning
+  const handleRegionMouseMove = useCallback((e, region) => {
+    if (!e.target) return;
+    const rect = e.target.getBoundingClientRect();
+    const tooltip = {
+      visible: true,
+      x: e.clientX,
+      y: rect.top - 30,
+      text: `Start: ${region.start.toFixed(2)}s\nEnd: ${region.end.toFixed(2)}s\nDuration: ${(region.end - region.start).toFixed(2)}s`
     };
-  }, [silenceRegions]);
-  // 🎨 **INJECT CSS ONCE**: Single CSS injection for all animations
-  useEffect(() => {
-    if (document.getElementById('silence-overlay-styles')) return;
-    
-    const style = document.createElement('style');
-    style.id = 'silence-overlay-styles';
-    style.textContent = `
-      .silence-region {
-        will-change: auto;
-      }
-      .silence-region:hover {
-        background: rgba(34, 197, 94, 0.6) !important;
-      }
-    `;
-    document.head.appendChild(style);
+    e.target.setAttribute('data-tooltip', JSON.stringify(tooltip));
   }, []);
 
-  // 🔑 **PRE-CALCULATED POSITIONS**: Compute all positions once in useMemo
-  const regionElements = useMemo(() => {
-    if (!isVisible || !debouncedRegions.length || duration <= 0) return [];
+  const handleRegionMouseLeave = useCallback((e) => {
+    if (!e.target) return;
+    e.target.removeAttribute('data-tooltip');
+  }, []);
 
+  // Helper function to compare regions with floating point tolerance
+  const regionsEqual = useCallback((r1, r2) => {
+    const tolerance = 0.001; // 1ms tolerance
+    return Math.abs(r1.start - r2.start) < tolerance && Math.abs(r1.end - r2.end) < tolerance;
+  }, []);
+
+  // Calculate waveform positioning - MATCH WaveformCanvas logic exactly
+  const waveformPositioning = useMemo(() => {
+    if (!containerWidth || duration <= 0) {
+      return { waveformStartX: 0, availableWaveformWidth: containerWidth };
+    }
+
+    // 🔧 **HANDLE SPACE ADJUSTMENT**: Same logic as WaveformCanvas
     const { MODERN_HANDLE_WIDTH } = WAVEFORM_CONFIG;
     const responsiveHandleWidth = containerWidth < WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT ? 
       Math.max(3, MODERN_HANDLE_WIDTH * 0.75) : MODERN_HANDLE_WIDTH;
@@ -54,54 +58,66 @@ const SilenceOverlay = React.memo(({
     const waveformStartX = leftHandleWidth;
     const waveformEndX = containerWidth - rightHandleWidth;
     const availableWaveformWidth = waveformEndX - waveformStartX;
-    const hasHighRegionCount = debouncedRegions.length > 15;
 
-    return debouncedRegions.map((region, i) => {
-      const startPercent = Math.max(0, Math.min(1, region.start / duration));
-      const endPercent = Math.max(0, Math.min(1, region.end / duration));
-      const startX = waveformStartX + (startPercent * availableWaveformWidth);
-      const endX = waveformStartX + (endPercent * availableWaveformWidth);
-      const width = Math.max(1, endX - startX);
+    return { waveformStartX, availableWaveformWidth };
+  }, [containerWidth, duration]);
 
-      return {
-        key: `${region.start.toFixed(2)}-${region.end.toFixed(2)}-${i}`,
-        style: {
-          left: `${startX}px`,
-          top: '0px',
-          width: `${width}px`,
-          height: `${canvasHeight}px`,
-          position: 'absolute',
-          pointerEvents: 'none',          background: hasHighRegionCount 
-            ? 'rgba(34, 197, 94, 0.4)'
-            : 'linear-gradient(180deg, rgba(34, 197, 94, 0.45) 0%, rgba(34, 197, 94, 0.35) 50%, rgba(34, 197, 94, 0.45) 100%)',
-          transform: 'translateZ(0)'
-        },
-        title: `Silence: ${region.start.toFixed(2)}s - ${region.end.toFixed(2)}s (${region.duration.toFixed(2)}s)`
-      };
+  // Memoized region elements with corrected positioning
+  const regionElements = useMemo(() => {
+    if (!isVisible || !silenceRegions.length || duration <= 0 || !containerWidth) return null;
+
+    const { waveformStartX, availableWaveformWidth } = waveformPositioning;
+
+    return silenceRegions.map((region, index) => {
+      const isSelected = selectedRegions.some(r => regionsEqual(r, region));
+      
+      // 🚀 **CORRECTED POSITIONING**: Match WaveformCanvas exactly
+      const regionStartPercent = region.start / duration;
+      const regionEndPercent = region.end / duration;
+      const regionStartX = waveformStartX + (regionStartPercent * availableWaveformWidth);
+      const regionEndX = waveformStartX + (regionEndPercent * availableWaveformWidth);
+      const regionWidth = regionEndX - regionStartX;
+      
+      // Convert to percentage for CSS
+      const leftPercent = (regionStartX / containerWidth) * 100;
+      const widthPercent = (regionWidth / containerWidth) * 100;
+      
+      return (
+        <div
+          key={`${region.start}-${region.end}-${index}`}
+          className={cn(
+            'absolute h-full cursor-pointer transition-colors duration-200',
+            // Base styles
+            isSelected ? 'bg-red-500/50' : 'bg-green-500/30',
+            // Hover state
+            isSelected ? 'hover:bg-red-500/70' : 'hover:bg-green-500/60'
+          )}
+          style={{
+            left: `${leftPercent}%`,
+            width: `${widthPercent}%`,
+            zIndex: 15, // Below handles (z-index 40) but above canvas (z-index 1)
+            pointerEvents: 'auto'
+          }}
+          onClick={() => handleRegionClick(region)}
+          onMouseMove={(e) => handleRegionMouseMove(e, region)}
+          onMouseLeave={handleRegionMouseLeave}
+        />
+      );
     });
-  }, [debouncedRegions, duration, containerWidth, canvasHeight, isVisible]);  // 🚫 **EARLY RETURN**: No regions or not visible
-  if (!regionElements.length) {
-    return null;
-  }
+  }, [silenceRegions, duration, selectedRegions, handleRegionClick, handleRegionMouseMove, handleRegionMouseLeave, isVisible, regionsEqual, containerWidth, waveformPositioning]);
+
+  if (!isVisible || !regionElements) return null;
 
   return (
     <div 
-      className="absolute inset-0 pointer-events-none"
+      className="absolute inset-0"
       style={{ 
-        zIndex: 15, // Above waveform(1) but below cursors(25) and handles(40)
-        opacity: opacity,
-        contain: 'layout style paint',
-        willChange: 'opacity'
+        height: canvasHeight,
+        zIndex: 15, // Below handles (z-index 40) but above canvas (z-index 1)
+        pointerEvents: 'none' // Allow events to pass through container
       }}
     >
-      {regionElements.map((element) => (
-        <div
-          key={element.key}
-          className="absolute silence-region"
-          style={element.style}
-          title={element.title}
-        />
-      ))}
+      {regionElements}
     </div>
   );
 });

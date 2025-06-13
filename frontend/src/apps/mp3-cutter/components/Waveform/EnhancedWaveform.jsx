@@ -99,6 +99,8 @@ const EnhancedWaveform = ({
   // 🆕 **SILENCE DETECTION PROPS**: Real-time silence overlay
   silenceRegions = [],
   showSilenceOverlay = false,
+  onSilenceRegionClick = null,
+  selectedSilenceRegions = [],
   
   // 🆕 **ENHANCED PROPS**: New hybrid-specific props
   enhancedFeatures = null,
@@ -107,6 +109,23 @@ const EnhancedWaveform = ({
 }) => {
   const setupCompleteRef = useRef(false);
   const lastLogKeyRef = useRef('');
+  const containerRef = useRef(null);
+  const [containerWidth, setContainerWidth] = useState(0);
+
+  // Track container width for proper positioning calculations
+  useEffect(() => {
+    const updateContainerWidth = () => {
+      if (containerRef.current) {
+        const width = containerRef.current.offsetWidth;
+        setContainerWidth(width);
+      }
+    };
+
+    updateContainerWidth();
+    window.addEventListener('resize', updateContainerWidth);
+    
+    return () => window.removeEventListener('resize', updateContainerWidth);
+  }, []);
 
   // Setup completion tracking (production optimized)
   useEffect(() => {
@@ -166,6 +185,7 @@ const EnhancedWaveform = ({
         }}
       >
         <div 
+          ref={containerRef}
           style={{ 
             minWidth: `${minWidth}px`,
             WebkitScrollbar: 'none',
@@ -191,12 +211,15 @@ const EnhancedWaveform = ({
             fadeOut={fadeOut}
             isInverted={isInverted}
             audioRef={audioRef}
+            containerWidth={containerWidth}
             onMouseDown={onMouseDown}
             onMouseMove={onMouseMove}
             onMouseUp={onMouseUp}
             onMouseLeave={onMouseLeave}
             silenceRegions={silenceRegions}
             showSilenceOverlay={showSilenceOverlay}
+            onSilenceRegionClick={onSilenceRegionClick}
+            selectedSilenceRegions={selectedSilenceRegions}
           />
         </div>
       </div>

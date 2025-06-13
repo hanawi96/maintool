@@ -32,6 +32,8 @@ const WaveformCanvas = React.memo(({
   // 🆕 **SILENCE DETECTION PROPS**: Real-time silence overlay
   silenceRegions = [], // Array of silence regions from SilenceDetection component
   showSilenceOverlay = false, // Toggle silence overlay visibility
+  onSilenceRegionClick = null, // Handler for silence region clicks
+  selectedSilenceRegions = [], // Selected silence regions for deletion
   
   onMouseDown,
   onMouseMove,
@@ -686,14 +688,17 @@ const WaveformCanvas = React.memo(({
       />
 
       {/* 🆕 **SILENCE OVERLAY**: Render FIRST to stay BELOW handles and cursors */}
-      <SilenceOverlay 
-        silenceRegions={silenceRegions}
-        duration={duration}
-        containerWidth={containerWidth}
-        canvasHeight={WAVEFORM_CONFIG.HEIGHT}
-        isVisible={showSilenceOverlay}
-        opacity={0.6}
-      />
+      {showSilenceOverlay && (
+        <SilenceOverlay
+          silenceRegions={silenceRegions}
+          duration={duration}
+          containerWidth={containerWidth}
+          canvasHeight={WAVEFORM_CONFIG.HEIGHT}
+          isVisible={showSilenceOverlay}
+          onRegionClick={onSilenceRegionClick}
+          selectedRegions={selectedSilenceRegions}
+        />
+      )}
 
       <WaveformUI 
         hoverTooltip={hoverTooltip}

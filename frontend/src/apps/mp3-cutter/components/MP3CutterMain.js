@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo, lazy } from '
 import { validateAudioFile, getAudioErrorMessage, getFormatDisplayName, generateCompatibilityReport, createSafeAudioURL, validateAudioURL } from '../utils/audioUtils';
 import { createInteractionManager } from '../utils/interactionUtils';
 import { getAutoReturnSetting } from '../utils/safeStorage';
+import { audioApi } from '../services/audioApi'; // 🆕 **AUDIO API**: Import for silence removal
 
 // Import hooks
 import { useAudioPlayer } from '../hooks/useAudioPlayer';
@@ -133,7 +134,7 @@ const MP3CutterMain = React.memo(() => {
 
   const { saveState, undo, redo, canUndo, canRedo, historyIndex, historyLength } = useHistory();
 
-  // 🆕 **REAL-TIME FADE EFFECTS**: Hook để apply fade effects real-time khi nhạc đang phát
+  // 🎯 **REAL-TIME FADE EFFECTS**: Hook để apply fade effects real-time khi nhạc đang phát
   const {
     connectAudioElement,
     updateFadeConfig,
@@ -174,6 +175,8 @@ const MP3CutterMain = React.memo(() => {
   const [silenceRegions, setSilenceRegions] = useState([]);
   // 🆕 **SKIP SILENCE STATE**: Track whether to skip silence during playback
   const [skipSilenceEnabled, setSkipSilenceEnabled] = useState(false);
+  // 🆕 **SELECTED SILENCE REGIONS**: Track selected silence regions for deletion
+  const [selectedSilenceRegions, setSelectedSilenceRegions] = useState([]);
 
   // 🔥 **PERFORMANCE REFS**
   const animationStateRef = useRef({ isPlaying: false, startTime: 0, endTime: 0 });
@@ -744,16 +747,16 @@ const MP3CutterMain = React.memo(() => {
         // 🔥 **INSTANT CURRENTTIME UPDATE** - Cập nhật ngay lập tức cho tooltip sync
         setCurrentTime(audioCurrentTime);
 
-        // 🆕 **SKIP SILENCE LOGIC**: Skip silence regions when enabled
-        if (skipSilenceEnabled && silenceRegions.length > 0) {
-          // Check if current time is within any silence region
-          for (const region of silenceRegions) {
+        // 🆕 **SKIP SILENCE LOGIC**: Skip only selected silence regions when enabled
+        if (skipSilenceEnabled && selectedSilenceRegions.length > 0) {
+          // Check if current time is within any selected silence region
+          for (const region of selectedSilenceRegions) {
             if (audioCurrentTime >= region.start && audioCurrentTime < region.end) {
-              // Skip to the end of the silence region
+              // Skip to the end of the selected silence region
               const skipToTime = Math.min(region.end, audioRef.current.duration);
               audioRef.current.currentTime = skipToTime;
               setCurrentTime(skipToTime);
-              console.log(`🔇 [SkipSilence] Skipped from ${audioCurrentTime.toFixed(2)}s to ${skipToTime.toFixed(2)}s (${(skipToTime - audioCurrentTime).toFixed(2)}s skipped)`);
+              console.log(`🔇 [SkipSilence] Skipped selected region from ${audioCurrentTime.toFixed(2)}s to ${skipToTime.toFixed(2)}s (${(skipToTime - audioCurrentTime).toFixed(2)}s skipped)`);
               break; // Only skip one region per frame
             }
           }
@@ -841,7 +844,7 @@ const MP3CutterMain = React.memo(() => {
         cancelAnimationFrame(animationId);
       }
     };
-  }, [isPlaying, startTime, endTime, audioRef, setCurrentTime, setIsPlaying, isInverted, skipSilenceEnabled, silenceRegions]);
+  }, [isPlaying, startTime, endTime, audioRef, setCurrentTime, setIsPlaying, isInverted, skipSilenceEnabled, selectedSilenceRegions]);
 
   // 🆕 **INITIAL CONFIG SYNC**: Only sync on startup and when selection changes (not fade values)
   const fadeConfigSyncedRef = useRef(false); // 🆕 **PREVENT MULTIPLE SYNCS**: Track if initial sync done
@@ -1084,6 +1087,75 @@ const MP3CutterMain = React.memo(() => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workerMetrics.totalPreloaded, isWorkerReady]); // Remove addComponentToCache from deps to prevent loop
 
+  // Helper function to compare regions with floating point tolerance
+  const regionsEqual = useCallback((r1, r2) => {
+    const tolerance = 0.001; // 1ms tolerance
+    return Math.abs(r1.start - r2.start) < tolerance && Math.abs(r1.end - r2.end) < tolerance;
+  }, []);
+
+  // 🆕 **SILENCE REGION CLICK HANDLER**: Handle silence region selection
+  const handleSilenceRegionClick = useCallback((region) => {
+    console.log('🔍 [MP3CutterMain] Silence region clicked:', region);
+    
+    // Validate region
+    if (!region || typeof region.start !== 'number' || typeof region.end !== 'number') {
+      console.error('❌ [MP3CutterMain] Invalid region:', region);
+      return;
+    }
+    
+    setSelectedSilenceRegions(prev => {
+      const isSelected = prev.some(r => regionsEqual(r, region));
+      const newSelected = isSelected
+        ? prev.filter(r => !regionsEqual(r, region))
+        : [...prev, region];
+      
+      console.log('🔍 [MP3CutterMain] Updated selected regions:', {
+        action: isSelected ? 'deselected' : 'selected',
+        region,
+        totalSelected: newSelected.length,
+        newSelectedList: newSelected.map(r => `${r.start.toFixed(3)}-${r.end.toFixed(3)}`)
+      });
+      
+      return newSelected;
+    });
+  }, [regionsEqual]);
+
+  // 🆕 **SILENCE REGION REMOVAL HANDLER**: Remove selected silence regions
+  const handleRemoveSelectedSilence = useCallback(async () => {
+    if (!selectedSilenceRegions.length || !audioFile?.filename) {
+      console.log('🔍 [MP3CutterMain] No regions to remove or no audio file');
+      return;
+    }
+
+    console.log('🔍 [MP3CutterMain] Removing selected regions:', selectedSilenceRegions);
+
+    try {
+      const result = await audioApi.removeSilenceRegions({
+        fileId: audioFile.filename,
+        regions: selectedSilenceRegions
+      });
+
+      if (result.success) {
+        // Update silence regions after removal
+        setSilenceRegions(prev => {
+          const newRegions = prev.filter(region => 
+            !selectedSilenceRegions.some(selected => regionsEqual(selected, region))
+          );
+          console.log('🔍 [MP3CutterMain] Updated silence regions after removal:', newRegions);
+          return newRegions;
+        });
+        setSelectedSilenceRegions([]); // Clear selection
+        // Refresh audio file
+        if (result.data?.newFileId) {
+          // Handle file refresh logic here
+          console.log('🔇 [SilenceRemoval] Successfully removed selected regions');
+        }
+      }
+    } catch (error) {
+      console.error('❌ [SilenceRemoval] Failed to remove silence regions:', error);
+    }
+  }, [selectedSilenceRegions, audioFile?.filename, regionsEqual]);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-pink-50">
       <div className="container mx-auto px-6 py-6">
@@ -1145,7 +1217,7 @@ const MP3CutterMain = React.memo(() => {
               fadeOut={fadeOut} // Fade out duration - bars sẽ hiển thị cao → thấp dần trong khoảng này
               
               // 🆕 **INVERT SELECTION**: Visual invert selection mode
-              isInverted={isInverted} // Invert selection mode - đảo ngược vùng active/inactive
+              isInverted={isInverted}
               
               // 🚀 **REALTIME AUDIO ACCESS**: Direct audio element access cho ultra-smooth tooltips
               audioRef={audioRef}
@@ -1153,9 +1225,11 @@ const MP3CutterMain = React.memo(() => {
               // 🆕 **SILENCE DETECTION**: Real-time silence overlay
               silenceRegions={silenceRegions}
               showSilenceOverlay={isSilencePanelOpen}
+              onSilenceRegionClick={handleSilenceRegionClick}
+              selectedSilenceRegions={selectedSilenceRegions}
               
               onMouseDown={handleCanvasMouseDown}
-                            onMouseMove={handleCanvasMouseMove}
+              onMouseMove={handleCanvasMouseMove}
               onMouseUp={handleCanvasMouseUp}
               onMouseLeave={handleCanvasMouseLeave}
             />            {/* 🔇 SILENCE DETECTION - Advanced component with real-time preview */}            <SilenceDetection
@@ -1181,6 +1255,9 @@ const MP3CutterMain = React.memo(() => {
               // 🎯 **REGION-BASED PROPS**: Auto-detect region processing
               startTime={startTime}
               endTime={endTime}
+              selectedRegions={selectedSilenceRegions}
+              onRegionClick={handleSilenceRegionClick}
+              onRemoveSelected={handleRemoveSelectedSilence}
             />
 
             {/* 🎯 UNIFIED CONTROLS - Single row layout with all controls */}
@@ -1213,6 +1290,9 @@ const MP3CutterMain = React.memo(() => {
               }}
               isSilencePanelOpen={isSilencePanelOpen}
               onToggleSilencePanel={handleToggleSilencePanel}
+              selectedSilenceRegions={selectedSilenceRegions}
+              onSilenceRegionClick={handleSilenceRegionClick}
+              onRemoveSelectedSilence={handleRemoveSelectedSilence}
               
               // History props
               canUndo={canUndo}
