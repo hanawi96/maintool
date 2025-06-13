@@ -837,3 +837,21 @@ html body div.bg-white\/70.backdrop-blur-sm {
   font-variant: normal !important;
   font-stretch: normal !important;
 }
+
+/* 🔇 **SILENCE REGION TOOLTIP**: Simple tooltip for silence regions */
+[data-tooltip]:hover::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  background: rgba(0, 0, 0, 0.9);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: monospace;
+  white-space: nowrap;
+  z-index: 9999;
+  pointer-events: none;
+  top: -30px;
+  left: 50%;
+  transform: translateX(-50%);
+}

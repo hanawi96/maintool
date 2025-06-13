@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo } from 'react';
 import { cn } from '../../utils/cn';
 import { WAVEFORM_CONFIG } from '../../utils/constants';
+import { formatTimeUnified } from '../../utils/timeFormatter';
 
 const SilenceOverlay = React.memo(({
   silenceRegions = [],
@@ -18,17 +19,14 @@ const SilenceOverlay = React.memo(({
     onRegionClick(region);
   }, [onRegionClick]);
 
-  // Handle tooltip positioning
+  // Handle tooltip positioning with improved format
   const handleRegionMouseMove = useCallback((e, region) => {
     if (!e.target) return;
-    const rect = e.target.getBoundingClientRect();
-    const tooltip = {
-      visible: true,
-      x: e.clientX,
-      y: rect.top - 30,
-      text: `Start: ${region.start.toFixed(2)}s\nEnd: ${region.end.toFixed(2)}s\nDuration: ${(region.end - region.start).toFixed(2)}s`
-    };
-    e.target.setAttribute('data-tooltip', JSON.stringify(tooltip));
+    const startTime = formatTimeUnified(region.start, 'display');
+    const endTime = formatTimeUnified(region.end, 'display');
+    const duration = (region.end - region.start).toFixed(2);
+    
+    e.target.setAttribute('data-tooltip', `${startTime} → ${endTime} (${duration}s)`);
   }, []);
 
   const handleRegionMouseLeave = useCallback((e) => {
