@@ -977,7 +977,22 @@ const MP3CutterMain = React.memo(() => {
   // 🆕 **SKIP SILENCE HANDLER**: Handler for skip silence setting changes
   const handleSkipSilenceChange = useCallback((enabled) => {
     setSkipSilenceEnabled(enabled);
-  }, []);
+    
+    // 🎯 **SMART PLAYBACK CONTROL**: Play from start when enabled, pause when disabled
+    if (enabled) {
+      // Jump to start point and play
+      jumpToTime(startTime);
+      if (!isPlaying) {
+        togglePlayPause();
+      }
+    } else {
+      // Pause playback when disabled
+      if (isPlaying) {
+        togglePlayPause();
+      }
+    }
+  }, [startTime, isPlaying, jumpToTime, togglePlayPause]);
+
   // 🚀 **PHASE 2: ADVANCED PRELOADING HOOKS** - Smart preloading system
   const { triggerPreload } = useProgressivePreloader();
   const { shouldPreload: networkShouldPreload } = useNetworkAwarePreloader();
