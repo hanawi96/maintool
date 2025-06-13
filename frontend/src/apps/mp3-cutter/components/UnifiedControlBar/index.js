@@ -397,42 +397,6 @@ const UnifiedControlBar = React.memo(({
     </div>
   ), [canUndo, canRedo, onUndo, onRedo, historyIndex, historyLength, disabled]);
 
-  // 🆕 **SILENCE DETECTION SECTION**: Enhanced with selection controls
-  const SilenceDetectionSection = useMemo(() => (
-    <div className="flex items-center gap-2 px-3 border-r border-slate-300/50">
-      {/* 🆕 **SILENCE DETECTION BUTTON** - Enhanced with selection state */}
-      <div className="relative">
-        <button
-          onClick={onToggleSilencePanel}
-          disabled={disabled || !fileId}
-          className={`relative p-2 rounded-lg transition-all duration-200 group ${
-            isSilencePanelOpen 
-              ? 'bg-red-100 hover:bg-red-200 border border-red-300' 
-              : 'bg-slate-100 hover:bg-slate-200 border border-slate-300'
-          } disabled:opacity-50 disabled:cursor-not-allowed`}
-          title="Silence Detection - Remove silent parts"
-        >
-          <BarChart className={`w-4 h-4 transition-colors ${
-            isSilencePanelOpen 
-              ? 'text-red-700 group-hover:text-red-800' 
-              : 'text-slate-700 group-hover:text-slate-900'
-          } group-disabled:text-slate-400`} />
-              {/* 🎯 **ACTIVE INDICATOR** - Visual dot when panel is open */}
-          {isSilencePanelOpen && (
-            <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full shadow-sm"></div>
-          )}
-        </button>
-      </div>
-    </div>
-  ), [
-    disabled,
-    fileId,
-    isSilencePanelOpen,
-    onToggleSilencePanel,
-    selectedSilenceRegions,
-    onRemoveSelectedSilence
-  ]);
-
   return (
     <div className="unified-control-bar bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
       {/* 🎯 **MAIN CONTROL ROW** - Updated layout theo yêu cầu user mới */}
@@ -471,11 +435,6 @@ const UnifiedControlBar = React.memo(({
             onStartTimeChange={onStartTimeChange}
             onEndTimeChange={onEndTimeChange}
           />
-        </div>
-        
-        {/* 8. ✅ Silence Detection - New section */}
-        <div className="hidden md:flex">
-          {SilenceDetectionSection}
         </div>
       </div>
         {/* 🎯 **MOBILE RESPONSIVE** - Tối ưu responsive với border ngăn cách */}

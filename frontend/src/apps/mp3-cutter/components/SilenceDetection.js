@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { BarChart, Loader2, ChevronDown, X } from 'lucide-react';
+import { BarChart, Loader2, ChevronDown, X, List, Target } from 'lucide-react';
 import { audioApi } from '../services/audioApi';
 import { formatTimeUnified } from '../utils/timeFormatter';
 
@@ -586,15 +586,19 @@ const SilenceDetection = ({
                 </table>
               </div>
               
-              {/* 🎯 **TABLE FOOTER**: Quick stats for the table */}
+              {/* 🎯 **TABLE FOOTER**: Enhanced stats showing total and selected regions */}
               <div className="px-4 py-2 bg-slate-50 border-t border-slate-200 text-xs text-slate-600">
                 <div className="flex items-center justify-between">
-                  <span>
-                    Total: {previewRegions.length} regions, {previewRegions.reduce((sum, r) => sum + r.duration, 0).toFixed(2)}s duration
-                  </span>
-                  <span className="text-blue-600">
-                    Click rows to focus on waveform
-                  </span>
+                  <div className="flex flex-col gap-1">
+                    <span className="flex items-center gap-1">
+                      <List className="w-3 h-3" />
+                      Total: {previewRegions.length} regions, {previewRegions.reduce((sum, r) => sum + r.duration, 0).toFixed(2)}s duration
+                    </span>
+                    <span className="text-blue-600 flex items-center gap-1">
+                      <Target className="w-3 h-3" />
+                      Selected: {selectedRegions?.length || 0} regions, {(selectedRegions?.reduce((sum, r) => sum + r.duration, 0) || 0).toFixed(2)}s duration
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -724,7 +728,7 @@ const SilenceDetection = ({
                 </div>
               </div>
               <span className="text-sm text-slate-700">
-                Skip selected regions during playback
+              Audio playback will skip selected silence regions in real time.
               </span>
               {skipSilenceEnabled && (
                 <span className="px-1.5 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 rounded">
