@@ -820,89 +820,259 @@ export class MP3Utils {
     
     return atempoFilters.join(',');
   }  /**
-   * 🔇 **DETECT AND REMOVE SILENCE**: Detect and remove silent parts from audio using FFmpeg
+   * 🔇 **DETECT AND REMOVE SILENCE**: Detect silence regions and remove them precisely
    */
   static async detectAndRemoveSilence(inputPath, outputPath, options = {}) {
-    const {
-      threshold = -40, // dB
-      minDuration = 0.5, // seconds
-      format = 'mp3',
-      quality = 'medium'
-    } = options;
+    const { threshold = -40, minDuration = 0.5, format = 'mp3', quality = 'medium' } = options;
 
+    // 🔍 **STEP 1: DETECT SILENCE REGIONS**
+    const silentSegments = await this.detectSilenceOnly(inputPath, { threshold, minDuration });
+    console.log(`🔇 [Silence] Detected ${silentSegments.length} silence regions:`, silentSegments);
+    
+    if (silentSegments.length === 0) {
+      console.log('🔇 [Silence] No silence found, copying original file');
+      await this.copyFile(inputPath, outputPath);
+      return { success: true, outputPath, inputPath, silentSegments: [], settings: { threshold, minDuration, format, quality, segmentsRemoved: 0 } };
+    }
+
+    // 🎯 **STEP 2: BUILD KEEP SEGMENTS** (non-silence parts)
+    const totalDuration = await this.getAudioDuration(inputPath);
+    const keepSegments = this.buildKeepSegments(silentSegments, totalDuration);
+    console.log(`🔇 [Silence] Total duration: ${totalDuration}s, Keep segments:`, keepSegments);
+    
+    // 🚀 **STEP 3: CONCATENATE KEEP SEGMENTS**
+    return this.concatenateSegments(inputPath, outputPath, keepSegments, { format, quality, silentSegments });
+  }
+
+  /**
+   * 🔍 **DETECT SILENCE ONLY**: Just detect silence regions without processing
+   */
+  static async detectSilenceOnly(inputPath, options = {}) {
+    const { threshold = -40, minDuration = 0.5 } = options;
+    
     return new Promise((resolve, reject) => {
-      try {
-        // 🔇 **SILENCE DETECTION & REMOVAL**: Combined approach for better results
-        // Use silencedetect to log segments AND silenceremove to process audio
-        const silenceDetectFilter = `silencedetect=noise=${threshold}dB:d=${minDuration}`;
-        const silenceRemoveFilter = `silenceremove=window=0:detection=peak:stop_mode=all:start_threshold=${threshold}dB:stop_threshold=${threshold}dB:start_silence=${minDuration}:stop_silence=${minDuration}`;
+      const silentSegments = [];
+      let currentSilenceStart = null;
+
+      ffmpeg(inputPath)
+        .audioFilters(`silencedetect=noise=${threshold}dB:d=${minDuration}`)
+        .format('null')
+        .output('-')
+        .on('stderr', (line) => {
+          const startMatch = line.match(/silence_start: ([\d.]+)/);
+          if (startMatch) {
+            currentSilenceStart = parseFloat(startMatch[1]);
+            console.log(`🔇 [Detect] Silence start: ${currentSilenceStart}s`);
+          }
+          
+          const endMatch = line.match(/silence_end: ([\d.]+) \| silence_duration: ([\d.]+)/);
+          if (endMatch && currentSilenceStart !== null) {
+            const end = parseFloat(endMatch[1]);
+            const duration = parseFloat(endMatch[2]);
+            silentSegments.push({ start: currentSilenceStart, end, duration });
+            console.log(`🔇 [Detect] Silence end: ${end}s, duration: ${duration}s`);
+            currentSilenceStart = null;
+          }
+        })
+        .on('error', reject)
+        .on('end', () => resolve(silentSegments))
+        .run();
+    });
+  }
+
+  /**
+   * 🎯 **BUILD KEEP SEGMENTS**: Calculate non-silence segments to keep
+   */
+  static buildKeepSegments(silentSegments, totalDuration) {
+    const keepSegments = [];
+    let currentTime = 0;
+
+    // Sort silence segments by start time
+    const sortedSilence = silentSegments.sort((a, b) => a.start - b.start);
+    
+    sortedSilence.forEach(silence => {
+      // Add segment before this silence (if exists and > 0.1s)
+      if (currentTime < silence.start && (silence.start - currentTime) > 0.1) {
+        keepSegments.push({ start: currentTime, end: silence.start });
+      }
+      currentTime = Math.max(currentTime, silence.end);
+    });
+
+    // Add final segment after last silence (if exists and > 0.1s)
+    if (currentTime < totalDuration && (totalDuration - currentTime) > 0.1) {
+      keepSegments.push({ start: currentTime, end: totalDuration });
+    }
+
+    return keepSegments;
+  }
+
+  /**
+   * 🚀 **CONCATENATE SEGMENTS**: Join non-silence segments using concat demuxer (faster)
+   */
+  static async concatenateSegments(inputPath, outputPath, keepSegments, options = {}) {
+    const { format = 'mp3', quality = 'medium', silentSegments = [] } = options;
+
+    return new Promise(async (resolve, reject) => {
+      if (keepSegments.length === 0) {
+        reject(new Error('No audio segments to keep'));
+        return;
+      }
+
+      console.log(`🔇 [Concat] Processing ${keepSegments.length} segments`);
+
+      if (keepSegments.length === 1) {
+        // Single segment - just extract it
+        const segment = keepSegments[0];
+        let command = ffmpeg(inputPath)
+          .seekInput(segment.start)
+          .duration(segment.end - segment.start);
         
-        let command = ffmpeg(inputPath);
-        
-        // Apply both filters: detect for logging, remove for processing
-        command = command.audioFilters([silenceDetectFilter, silenceRemoveFilter]);
-        
-        // Set output quality
         command = this.setOutputQuality(command, format, quality);
-
-        let silentSegments = [];
-        let currentSilenceStart = null;
-
+        
         command
           .output(outputPath)
-          .on('start', (commandLine) => {
-            // Processing started
-          })
-          .on('stderr', (stderrLine) => {
-            // Parse silence detection output from silencedetect filter
-            if (stderrLine.includes('silencedetect')) {
-              // Extract silence start times
-              const silenceStartMatch = stderrLine.match(/silence_start: ([\d.]+)/);
-              if (silenceStartMatch) {
-                currentSilenceStart = parseFloat(silenceStartMatch[1]);
-              }
-              
-              // Extract silence end times and calculate duration
-              const silenceEndMatch = stderrLine.match(/silence_end: ([\d.]+) \| silence_duration: ([\d.]+)/);
-              if (silenceEndMatch && currentSilenceStart !== null) {
-                const end = parseFloat(silenceEndMatch[1]);
-                const duration = parseFloat(silenceEndMatch[2]);
-                
-                silentSegments.push({ 
-                  start: currentSilenceStart, 
-                  end: end, 
-                  duration: duration 
-                });
-                currentSilenceStart = null;
-              }
-            }
-          })
-          .on('progress', (progress) => {
-            // Processing progress
-          })
-          .on('error', (error) => {
-            reject(new Error(`Silence detection failed: ${error.message}`));
-          })
+          .on('start', () => console.log(`🔇 [Single] Extracting ${segment.start}s to ${segment.end}s`))
+          .on('error', reject)
           .on('end', () => {
+            console.log(`✅ [Single] Extracted single segment, removed ${silentSegments.length} silence regions`);
             resolve({
               success: true,
               outputPath,
               inputPath,
               silentSegments,
-              settings: {
-                threshold,
-                minDuration,
-                format,
-                quality,
-                segmentsRemoved: silentSegments.length
-              }
+              settings: { format, quality, segmentsRemoved: silentSegments.length }
             });
           })
           .run();
+      } else {
+        // Multiple segments - create temp files and concat
+        const tempFiles = [];
+        const tempDir = path.dirname(outputPath);
+        
+        try {
+          // Extract each segment to temp file
+          for (let i = 0; i < keepSegments.length; i++) {
+            const segment = keepSegments[i];
+            const tempFile = path.join(tempDir, `temp_segment_${i}_${Date.now()}.mp3`);
+            tempFiles.push(tempFile);
+            
+            await new Promise((resolveSegment, rejectSegment) => {
+              ffmpeg(inputPath)
+                .seekInput(segment.start)
+                .duration(segment.end - segment.start)
+                .audioCodec('libmp3lame')
+                .audioBitrate('192k')
+                .output(tempFile)
+                .on('end', resolveSegment)
+                .on('error', rejectSegment)
+                .run();
+            });
+            console.log(`🔇 [Segment ${i+1}] Extracted ${segment.start}s to ${segment.end}s`);
+          }
 
-      } catch (error) {
-        reject(new Error(`Failed to setup silence detection: ${error.message}`));
+          // Concatenate all temp files
+          let command = ffmpeg();
+          tempFiles.forEach(file => command = command.input(file));
+          
+          command = command.complexFilter(
+            tempFiles.map((_, i) => `[${i}:a]`).join('') + 
+            `concat=n=${tempFiles.length}:v=0:a=1[out]`,
+            'out'
+          );
+          
+          command = this.setOutputQuality(command, format, quality);
+          
+          command
+            .output(outputPath)
+            .on('start', () => console.log(`🔇 [Concat] Joining ${tempFiles.length} segments`))            .on('error', (error) => {
+              // Cleanup temp files on error
+              tempFiles.forEach(file => {
+                fs.unlink(file).catch(() => {}); // Use import fs, not require
+              });
+              reject(error);
+            })
+            .on('end', () => {
+              // Cleanup temp files on success
+              tempFiles.forEach(file => {
+                fs.unlink(file).catch(() => {}); // Use import fs, not require
+              });
+              console.log(`✅ [Concat] Joined ${tempFiles.length} segments, removed ${silentSegments.length} silence regions`);
+              resolve({
+                success: true,
+                outputPath,
+                inputPath,
+                silentSegments,
+                settings: { format, quality, segmentsRemoved: silentSegments.length }
+              });
+            })
+            .run();        } catch (error) {
+          // Cleanup temp files on error
+          tempFiles.forEach(file => {
+            fs.unlink(file).catch(() => {}); // Use import fs, not require
+          });
+          reject(error);
+        }
       }
     });
+  }
+
+  /**
+   * 📏 **GET AUDIO DURATION**: Get total duration of audio file
+   */
+  static async getAudioDuration(inputPath) {
+    const metadata = await this.getAudioInfo(inputPath);
+    return metadata.duration;
+  }
+
+  /**
+   * 📋 **COPY FILE**: Simple file copy for when no silence is found
+   */
+  static async copyFile(inputPath, outputPath) {
+    return new Promise((resolve, reject) => {
+      ffmpeg(inputPath)
+        .output(outputPath)
+        .on('error', reject)
+        .on('end', resolve)
+        .run();
+    });
+  }  /**
+   * 🔇 **DETECT AND REMOVE SILENCE WITH PROGRESS**: Enhanced version with progress callbacks
+   */
+  static async detectAndRemoveSilenceWithProgress(inputPath, outputPath, options = {}, onProgress = null) {
+    const { threshold = -40, minDuration = 0.5, format = 'mp3', quality = 'medium' } = options;
+
+    try {
+      onProgress?.({ progress: 10, stage: 'detection', message: 'Detecting silence regions...' });
+      
+      // 🔍 **STEP 1: DETECT SILENCE**
+      const silentSegments = await this.detectSilenceOnly(inputPath, { threshold, minDuration });
+      console.log(`🔇 [Progress] Detected ${silentSegments.length} silence regions`);
+      
+      onProgress?.({ progress: 30, stage: 'analysis', message: `Found ${silentSegments.length} silence regions` });
+      
+      if (silentSegments.length === 0) {
+        onProgress?.({ progress: 90, stage: 'copying', message: 'No silence found, copying file...' });
+        await this.copyFile(inputPath, outputPath);
+        onProgress?.({ progress: 100, stage: 'complete', message: 'Processing complete!' });
+        return { success: true, outputPath, inputPath, silentSegments: [], settings: { threshold, minDuration, format, quality, segmentsRemoved: 0 } };
+      }
+
+      // 🎯 **STEP 2: BUILD SEGMENTS**
+      onProgress?.({ progress: 50, stage: 'processing', message: 'Building audio segments...' });
+      const totalDuration = await this.getAudioDuration(inputPath);
+      const keepSegments = this.buildKeepSegments(silentSegments, totalDuration);
+      console.log(`🔇 [Progress] Will keep ${keepSegments.length} segments`);
+      
+      // 🚀 **STEP 3: CONCATENATE**
+      onProgress?.({ progress: 70, stage: 'concatenating', message: `Joining ${keepSegments.length} segments...` });
+      const result = await this.concatenateSegments(inputPath, outputPath, keepSegments, { format, quality, silentSegments });
+      
+      onProgress?.({ progress: 100, stage: 'complete', message: 'Silence removal completed!' });
+      return result;
+    } catch (error) {
+      console.error('❌ [Progress] Error:', error);
+      onProgress?.({ progress: 0, stage: 'error', message: `Error: ${error.message}` });
+      throw error;
+    }
   }
 }

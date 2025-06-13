@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { BarChart, Loader2, ChevronDown, X } from 'lucide-react';
+import { BarChart, Loader2, ChevronDown, X, StopCircle } from 'lucide-react';
 import { audioApi } from '../services/audioApi';
+import { silenceDetectionService } from '../services/silenceDetectionService';
 
 // 🎨 **INJECT OPTIMIZED CSS**: Single injection for ultra-smooth panel animations
 if (typeof document !== 'undefined' && !document.getElementById('silence-panel-styles')) {
@@ -89,20 +90,26 @@ const SilenceDetection = ({
   onPreviewSilenceUpdate = null, // 🆕 **PREVIEW CALLBACK**: Called when preview regions change
   // 🆕 **EXTERNAL PANEL CONTROL**: Allow parent to control panel visibility
   isOpen: externalIsOpen = null,
-  onToggleOpen = null
-}) => {  // 🎛️ **MINIMAL STATE**: Reduced state for better performance
-  const [threshold, setThreshold] = useState(-30);
-  const [minDuration, setMinDuration] = useState(0.5);
-  const [internalIsOpen, setInternalIsOpen] = useState(false);
+  onToggleOpen = null,
+  // 🆕 **SKIP SILENCE CALLBACK**: Called when skip silence setting changes
+  onSkipSilenceChange = null
+}) => {// 🎛️ **MINIMAL STATE**: Reduced state for better performance
+  const [isOpen, setIsOpen] = useState(externalIsOpen || false);
   const [isDetecting, setIsDetecting] = useState(false);
   const [silenceData, setSilenceData] = useState(null);
-  
-  // 🆕 **CONTROLLED VS UNCONTROLLED**: Use external control if provided, otherwise internal
-  const isOpen = externalIsOpen !== null ? externalIsOpen : internalIsOpen;
-  const setIsOpen = externalIsOpen !== null ? onToggleOpen : setInternalIsOpen;
-  
-  // 🚀 **OPTIMIZED PREVIEW STATE**: Single state for all preview data
+  const [threshold, setThreshold] = useState(-30);
+  const [minDuration, setMinDuration] = useState(0.5);
   const [previewRegions, setPreviewRegions] = useState([]);
+  
+  // 🆕 **SKIP SILENCE STATE**: Control silence skipping during playback
+  const [skipSilenceEnabled, setSkipSilenceEnabled] = useState(false);
+  // 📊 **PROGRESS TRACKING STATE**
+  const [progress, setProgress] = useState(0);
+  const [progressStage, setProgressStage] = useState('idle');
+  const [progressMessage, setProgressMessage] = useState('');
+    // 🆕 **CONTROLLED VS UNCONTROLLED**: Use external control if provided, otherwise internal
+  const isPanelOpen = externalIsOpen !== null ? externalIsOpen : isOpen;
+  const setIsPanelOpen = externalIsOpen !== null ? onToggleOpen : setIsOpen;
   // 🆕 **ENHANCED SMART CACHE**: LRU cache with compression & memory optimization
   const cacheRef = useRef(new Map());
   const debounceTimerRef = useRef(null);
@@ -179,7 +186,7 @@ const SilenceDetection = ({
   }, [waveformData, duration]);
   // ⚡ **ULTRA-SMOOTH UPDATE**: Instant visual + debounced callback
   const updatePreview = useCallback((instantUpdate = false) => {
-    if (!isOpen || !waveformData.length) {
+    if (!isPanelOpen || !waveformData.length) {
       setPreviewRegions([]);
       onPreviewSilenceUpdate?.([]);
       return;
@@ -209,7 +216,7 @@ const SilenceDetection = ({
         }
       }, MICRO_DEBOUNCE_MS);
     }
-  }, [isOpen, threshold, minDuration, calculateSilenceRegions, onPreviewSilenceUpdate, waveformData.length]);
+  }, [isPanelOpen, threshold, minDuration, calculateSilenceRegions, onPreviewSilenceUpdate, waveformData.length]);
 
   // 📊 **RAF-OPTIMIZED SLIDER UPDATES**: Ultra-smooth slider response
   const rafRef = useRef(null);
@@ -252,7 +259,7 @@ const SilenceDetection = ({
 
   // 🚀 **CACHE WARMING**: Pre-calculate popular threshold values for instant response
   useEffect(() => {
-    if (!isOpen || !waveformData.length || !duration) return;
+    if (!isPanelOpen || !waveformData.length || !duration) return;
     
     // Pre-calculate common threshold values when panel opens
     const popularThresholds = [-20, -25, -30, -35, -40, -45, -50];
@@ -270,11 +277,14 @@ const SilenceDetection = ({
         });
       });
     }
-  }, [isOpen, waveformData.length, duration, calculateSilenceRegions]);  // 🔍 **OPTIMIZED SILENCE DETECTION**: Full server-side analysis with smart loading
+  }, [isPanelOpen, waveformData.length, duration, calculateSilenceRegions]);  // 🔍 **ENHANCED SILENCE DETECTION**: Full server-side analysis with progress tracking
   const detectSilence = useCallback(async () => {
     if (!fileId || isDetecting) return;
     
     setIsDetecting(true);
+    setProgress(0);
+    setProgressStage('starting');
+    setProgressMessage('Preparing to detect silence...');
     
     try {
       const result = await audioApi.detectSilence({
@@ -284,30 +294,47 @@ const SilenceDetection = ({
         duration
       });
       
-      console.log('🔇 [SilenceDetection-BALANCED] Analysis complete:', result);
-        if (result.success) {
+      console.log('🔇 [SilenceDetection] Analysis complete:', {
+        success: result.success,
+        regionsFound: result.data?.silenceRegions?.length || 0,
+        totalSilence: result.data?.totalSilence || 0
+      });
+      
+      if (result.success && result.data) {
+        setProgress(100);
+        setProgressStage('complete');
+        setProgressMessage(`Removed ${result.data.silenceRegions?.length || 0} silence regions!`);
         setSilenceData(result.data);
         onSilenceDetected?.(result.data);
-        // Since the backend already processed and removed silence, trigger the removed callback too
         onSilenceRemoved?.(result.data);
-        console.log('✅ [SilenceDetection-BALANCED] Success - silence detected and removed:', {
-          regions: result.data.count,
-          totalSilence: result.data.totalSilence?.toFixed(2) + 's'
-        });
+        
+        // 🎯 **SYNC WITH PREVIEW**: Update preview to match detected regions
+        if (result.data.silenceRegions) {
+          setPreviewRegions(result.data.silenceRegions);
+          onPreviewSilenceUpdate?.(result.data.silenceRegions);
+        }
       } else {
         throw new Error(result.error || 'Detection failed');
       }
     } catch (error) {
-      console.error('❌ [SilenceDetection-BALANCED] Failed:', error);
-      alert('Detection failed: ' + error.message);
+      console.error('❌ [SilenceDetection] Failed:', error);
+      setProgressStage('error');
+      setProgressMessage(`Error: ${error.message}`);
     } finally {
       setIsDetecting(false);
-    }  }, [fileId, threshold, minDuration, duration, isDetecting, onSilenceDetected, onSilenceRemoved]);
-
+      setTimeout(() => {
+        setProgress(0);
+        setProgressStage('idle');
+        setProgressMessage('');
+      }, 3000);
+    }
+  }, [fileId, threshold, minDuration, duration, isDetecting, onSilenceDetected, onSilenceRemoved, onPreviewSilenceUpdate]);
   // 🎯 **SMART TOGGLE PANEL**: Optimized with cleanup
   const togglePanel = useCallback(() => {
-    const newIsOpen = !isOpen;
-    setIsOpen(newIsOpen);
+    console.log('🔇 [Debug] togglePanel called, current isPanelOpen:', isPanelOpen);
+    const newIsOpen = !isPanelOpen;
+    console.log('🔇 [Debug] Setting panel to:', newIsOpen);
+    setIsPanelOpen(newIsOpen);
     
     // 🧹 **SMART CLEANUP**: Clear preview when closing
     if (!newIsOpen) {
@@ -317,8 +344,7 @@ const SilenceDetection = ({
         clearTimeout(debounceTimerRef.current);
       }
     }
-  }, [isOpen, setIsOpen, onPreviewSilenceUpdate]);
-  // 🚀 **ULTRA-SMOOTH SLIDER HANDLERS**: RAF-optimized for instant response
+  }, [isPanelOpen, setIsPanelOpen, onPreviewSilenceUpdate]);// 🚀 **ULTRA-SMOOTH SLIDER HANDLERS**: RAF-optimized for instant response
   const handleThresholdChange = useCallback((e) => {
     const value = parseInt(e.target.value);
     setThreshold(value);
@@ -329,7 +355,16 @@ const SilenceDetection = ({
     const value = parseFloat(e.target.value);
     setMinDuration(value);
     requestSmoothUpdate(); // Instant visual update
-  }, [requestSmoothUpdate]);// 📊 **OPTIMIZED COMPUTED VALUES**: Memoized for performance
+  }, [requestSmoothUpdate]);
+
+  // 🆕 **SKIP SILENCE HANDLER**: Handle skip silence toggle and notify parent
+  const handleSkipSilenceChange = useCallback((e) => {
+    const enabled = e.target.checked;
+    setSkipSilenceEnabled(enabled);
+    onSkipSilenceChange?.(enabled);
+  }, [onSkipSilenceChange]);
+
+  // 📊 **OPTIMIZED COMPUTED VALUES**: Memoized for performance
   const hasRegions = silenceData?.silenceRegions?.length > 0;
   const totalSilence = silenceData?.totalSilence || 0;
   const silencePercent = duration > 0 ? (totalSilence / duration * 100) : 0;
@@ -341,24 +376,22 @@ const SilenceDetection = ({
 
   // 🚀 **UNIFIED COMPONENT**: Support both inline and panel modes
   const isInlineMode = externalIsOpen === null;
-  const isPanelMode = !isInlineMode;
-  return (
-    <div className={`silence-detection-wrapper ${isOpen ? 'is-open' : 'is-closed'}`}>
+  const isPanelMode = !isInlineMode;  return (
+    <div className={`silence-detection-wrapper ${isPanelOpen ? 'is-open' : 'is-closed'}`}>
       {/* 🔇 **TOGGLE BUTTON**: Show only in inline mode */}
       {isInlineMode && (
-        <div className={`flex justify-center transition-all duration-250 ${isOpen ? 'mb-2' : 'mb-0'}`}><button
+        <div className={`flex justify-center transition-all duration-250 ${isPanelOpen ? 'mb-2' : 'mb-0'}`}><button
             onClick={togglePanel}
             disabled={isDetecting}            className={`silence-toggle-button inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 hover:shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${
-              isOpen 
+              isPanelOpen
                 ? 'bg-red-100 hover:bg-red-150 border border-red-300 text-red-800' 
                 : 'bg-red-50 hover:bg-red-100 border border-red-200 text-red-700'
             }`}
           >            <BarChart className="w-4 h-4" />
-            <span>Find silence regions</span>
-            <div 
+            <span>Find silence regions</span>            <div 
               className="w-4 h-4 transition-transform duration-200 ease-out"
               style={{
-                transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)'
+                transform: isPanelOpen ? 'rotate(180deg)' : 'rotate(0deg)'
               }}
             >
               <ChevronDown className="w-4 h-4" />
@@ -366,7 +399,7 @@ const SilenceDetection = ({
           </button>
         </div>
       )}      {/* 🎛️ **MAIN PANEL**: Ultra-smooth animation with optimized transforms */}
-      <div className={`silence-panel-container ${isOpen ? 'is-open' : 'is-closed'}`}>
+      <div className={`silence-panel-container ${isPanelOpen ? 'is-open' : 'is-closed'}`}>
         <div className="silence-panel-content bg-white/90 rounded-xl p-4 border border-slate-200/50 shadow-sm border-t-2 border-t-red-200/60">
           {/* 📋 **PANEL HEADER**: Show only in panel mode with close button */}
           {isPanelMode && (
@@ -382,10 +415,8 @@ const SilenceDetection = ({
                 <X className="w-4 h-4 text-slate-600" />
               </button>
             </div>
-          )}
-
-          {/* 📊 **SMART PREVIEW STATS**: Show when panel is open and has preview data */}
-          {isOpen && previewCount > 0 && (
+          )}          {/* 📊 **SMART PREVIEW STATS**: Show when panel is open and has preview data */}
+          {isPanelOpen && previewCount > 0 && (
             <div className="mb-4 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-yellow-800 font-medium">
@@ -461,7 +492,8 @@ const SilenceDetection = ({
               </div>
             </div>
           </div>          {/* 🎯 **SIMPLIFIED ACTION**: Single button for detect & remove */}
-          <div className="flex gap-3">            <button
+          <div className="flex gap-3">
+            <button
               onClick={detectSilence}
               disabled={isDetecting}
               className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
@@ -470,7 +502,8 @@ const SilenceDetection = ({
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
                   Processing...
-                </>              ) : (
+                </>
+              ) : (
                 <>
                   <BarChart className="w-4 h-4" />
                   Remove Silent Parts
@@ -478,6 +511,43 @@ const SilenceDetection = ({
               )}
             </button>
           </div>
+
+          {/* 📊 **PROGRESS INDICATOR**: Show during processing */}
+          {(isDetecting || progressStage !== 'idle') && (
+            <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium text-blue-800">
+                  {progressMessage || 'Processing...'}
+                </span>
+                <span className="text-xs text-blue-600">
+                  {progress}%
+                </span>
+              </div>
+              
+              {/* Progress Bar */}
+              <div className="w-full bg-blue-200 rounded-full h-2 mb-2">
+                <div 
+                  className={`h-2 rounded-full transition-all duration-300 ${
+                    progressStage === 'error' ? 'bg-red-500' :
+                    progressStage === 'complete' ? 'bg-green-500' : 'bg-blue-500'
+                  }`}
+                  style={{ width: `${Math.max(0, Math.min(100, progress))}%` }}
+                />
+              </div>
+              
+              {/* Status indicator */}
+              <div className="flex items-center gap-2">
+                <div className={`w-2 h-2 rounded-full ${
+                  progressStage === 'error' ? 'bg-red-500' :
+                  progressStage === 'complete' ? 'bg-green-500' : 
+                  'bg-blue-500 animate-pulse'
+                }`} />
+                <span className="text-xs text-slate-600 capitalize">
+                  {progressStage}
+                </span>
+              </div>
+            </div>
+          )}
 
           {/* 📊 **OPTIMIZED RESULTS DISPLAY**: Show after official detection */}
           {hasRegions && (
@@ -512,7 +582,21 @@ const SilenceDetection = ({
                 </div>
               </div>
             </div>
-          )}
+          )}          {/* 🆕 **SKIP SILENCE CONTROL**: Checkbox to enable/disable silence skipping */}
+          <div className="mt-4">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={skipSilenceEnabled}
+                onChange={handleSkipSilenceChange}
+                className="w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-500"
+                disabled={isDetecting}
+              />
+              <span className="text-slate-700">
+                Skip silence during playback
+              </span>
+            </label>
+          </div>
         </div>
       </div>
     </div>

@@ -447,4 +447,169 @@ export class MP3Service {
       processedAt: new Date().toISOString()
     };
   }
+
+  /**
+   * 🔇 **DETECT SILENCE WITH PROGRESS**: Enhanced silence detection with WebSocket progress updates
+   */
+  static async detectSilenceWithProgress(fileId, silenceParams, silenceSocket = null, jobId = null) {
+    const { threshold = -40, minDuration = 0.5, duration } = silenceParams;
+    
+    // Emit initial progress
+    if (silenceSocket && jobId) {
+      silenceSocket.emitProgress(jobId, {
+        progress: 5,
+        stage: 'validation',
+        message: 'Validating input file...'
+      });
+    }
+    
+    // 🔍 **FIND INPUT FILE**: Find uploaded file by fileId
+    const inputPath = path.resolve(MP3_CONFIG.PATHS.UPLOADS, fileId);
+    
+    try {
+      // 🔍 **CHECK FILE EXISTS**: Verify file exists
+      await fs.access(inputPath);
+      
+      if (silenceSocket && jobId) {
+        silenceSocket.emitProgress(jobId, {
+          progress: 10,
+          stage: 'preparation',
+          message: 'Preparing output file...'
+        });
+      }
+    } catch (error) {
+      if (silenceSocket && jobId) {
+        silenceSocket.emitError(jobId, error, 'validation');
+      }
+      console.error('❌ [detectSilenceWithProgress] Input file not found:', {
+        fileId,
+        inputPath,
+        error: error.message
+      });
+      throw new Error(`File not found: ${fileId}. Please upload the file again.`);
+    }
+    
+    // 🔍 **GET FILE STATS**: Get file information
+    const inputStats = await fs.stat(inputPath);
+    
+    // 🆕 **GENERATE OUTPUT FILENAME**: Create filename for processed file
+    const timestamp = Date.now();
+    const random = Math.random().toString(36).substring(2, 6);
+    const originalName = path.parse(fileId).name;
+    const outputFilename = `silence_removed_${originalName}_${timestamp}_${random}.mp3`;
+    const outputPath = path.resolve(MP3_CONFIG.PATHS.PROCESSED, outputFilename);
+    
+    // 🔧 **ENSURE OUTPUT DIR**: Ensure output directory exists
+    const outputDir = path.resolve(MP3_CONFIG.PATHS.PROCESSED);
+    await fs.mkdir(outputDir, { recursive: true });
+    
+    if (silenceSocket && jobId) {
+      silenceSocket.emitProgress(jobId, {
+        progress: 20,
+        stage: 'processing',
+        message: 'Starting silence detection and removal...'
+      });
+    }
+    
+    // 🚀 **DETECT AND REMOVE SILENCE**: Use enhanced FFmpeg processing with progress
+    const silenceResult = await MP3Utils.detectAndRemoveSilenceWithProgress(inputPath, outputPath, {
+      threshold,
+      minDuration,
+      format: 'mp3',
+      quality: 'high'
+    }, (progressData) => {
+      // Forward FFmpeg progress to WebSocket
+      if (silenceSocket && jobId) {
+        const scaledProgress = 20 + (progressData.progress * 0.7); // Scale to 20-90%
+        silenceSocket.emitProgress(jobId, {
+          progress: Math.min(90, scaledProgress),
+          stage: 'processing',
+          message: progressData.message || `Processing audio... ${Math.round(scaledProgress)}%`,
+          timeRemaining: progressData.timeRemaining
+        });
+      }
+    });
+    
+    // Check for cancellation
+    if (silenceSocket && jobId && silenceSocket.isJobCancelled(jobId)) {
+      // Clean up output file if it exists
+      try {
+        await fs.unlink(outputPath);
+      } catch (e) {
+        // Ignore cleanup errors
+      }
+      throw new Error('Processing cancelled by user');
+    }
+    
+    // 🔍 **VERIFY OUTPUT FILE**: Check if output file was created
+    try {
+      await fs.access(outputPath);
+      
+      if (silenceSocket && jobId) {
+        silenceSocket.emitProgress(jobId, {
+          progress: 95,
+          stage: 'finalizing',
+          message: 'Finalizing results...'
+        });
+      }
+    } catch (error) {
+      if (silenceSocket && jobId) {
+        silenceSocket.emitError(jobId, error, 'output_verification');
+      }
+      console.error('❌ [detectSilenceWithProgress] Output file not created:', {
+        outputPath,
+        error: error.message
+      });
+      throw new Error(`Silence detection failed: Output file not created`);
+    }
+    
+    // 🔍 **GET OUTPUT STATS**: Get output file information
+    const outputStats = await fs.stat(outputPath);
+    
+    // 🧹 **AUTO CLEANUP**: Auto cleanup after 24 hours
+    setTimeout(() => {
+      fs.unlink(outputPath).catch(() => {
+        // Ignore cleanup errors
+      });
+    }, 24 * 60 * 60 * 1000);
+
+    // 🧮 **CALCULATE SILENCE STATS**: Calculate total silence duration and count
+    const silentSegments = silenceResult.silentSegments || [];
+    const totalSilence = silentSegments.reduce((sum, segment) => sum + (segment.duration || 0), 0);
+    const count = silentSegments.length;
+
+    const result = {
+      input: {
+        filename: fileId,
+        originalName: originalName,
+        path: inputPath,
+        size: inputStats.size
+      },
+      output: {
+        filename: outputFilename,
+        path: outputPath,
+        size: outputStats.size
+      },
+      processing: { 
+        threshold,
+        minDuration,
+        duration
+      },
+      // 🎯 **FRONTEND COMPATIBLE FORMAT**: Add fields expected by frontend
+      silenceRegions: silentSegments,
+      count: count,
+      totalSilence: totalSilence,
+      urls: {
+        download: `/api/mp3-cutter/download/${outputFilename}`
+      },
+      processedAt: new Date().toISOString()
+    };
+
+    // 🎯 **EMIT COMPLETION**: Send final result via WebSocket
+    if (silenceSocket && jobId) {
+      silenceSocket.emitComplete(jobId, result);
+    }
+
+    return result;
+  }
 }
