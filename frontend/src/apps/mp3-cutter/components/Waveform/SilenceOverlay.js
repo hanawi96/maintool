@@ -24,7 +24,6 @@ const SilenceOverlay = React.memo(({
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, [silenceRegions]);
-
   // 🎨 **INJECT CSS ONCE**: Single CSS injection for all animations
   useEffect(() => {
     if (document.getElementById('silence-overlay-styles')) return;
@@ -36,7 +35,7 @@ const SilenceOverlay = React.memo(({
         will-change: auto;
       }
       .silence-region:hover {
-        background: rgba(239, 68, 68, 0.6) !important;
+        background: rgba(34, 197, 94, 0.6) !important;
       }
     `;
     document.head.appendChild(style);
@@ -72,10 +71,9 @@ const SilenceOverlay = React.memo(({
           width: `${width}px`,
           height: `${canvasHeight}px`,
           position: 'absolute',
-          pointerEvents: 'none',
-          background: hasHighRegionCount 
-            ? 'rgba(239, 68, 68, 0.4)'
-            : 'linear-gradient(180deg, rgba(239, 68, 68, 0.45) 0%, rgba(239, 68, 68, 0.35) 50%, rgba(239, 68, 68, 0.45) 100%)',
+          pointerEvents: 'none',          background: hasHighRegionCount 
+            ? 'rgba(34, 197, 94, 0.4)'
+            : 'linear-gradient(180deg, rgba(34, 197, 94, 0.45) 0%, rgba(34, 197, 94, 0.35) 50%, rgba(34, 197, 94, 0.45) 100%)',
           transform: 'translateZ(0)'
         },
         title: `Silence: ${region.start.toFixed(2)}s - ${region.end.toFixed(2)}s (${region.duration.toFixed(2)}s)`
