@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { BarChart, Loader2, ChevronDown, X } from 'lucide-react';
 import { audioApi } from '../services/audioApi';
 
@@ -23,8 +23,7 @@ if (typeof document !== 'undefined' && !document.getElementById('silence-panel-s
       margin-bottom: 0 !important;
       margin-top: 0 !important;
     }
-    
-    /* 🚀 **PANEL CONTAINER**: Optimized height-based animations */
+      /* 🚀 **PANEL CONTAINER**: Optimized height-based animations */
     .silence-panel-container {
       overflow: hidden;
       transition: max-height 250ms cubic-bezier(0.4, 0, 0.2, 1), 
@@ -32,9 +31,8 @@ if (typeof document !== 'undefined' && !document.getElementById('silence-panel-s
                   margin 250ms cubic-bezier(0.4, 0, 0.2, 1),
                   padding 250ms cubic-bezier(0.4, 0, 0.2, 1);
       will-change: max-height, opacity, margin, padding;
-    }
-    .silence-panel-container.is-open {
-      max-height: 800px; /* Generous max-height for content */
+    }    .silence-panel-container.is-open {
+      max-height: 800px;
       opacity: 1;
       margin: 0;
       padding: 0;
@@ -70,9 +68,28 @@ if (typeof document !== 'undefined' && !document.getElementById('silence-panel-s
     }
     .silence-toggle-button:hover:not(:disabled) {
       transform: translateY(-1px) translateZ(0);
-    }
-    .silence-toggle-button:active:not(:disabled) {
+    }    .silence-toggle-button:active:not(:disabled) {
       transform: translateY(0) scale(0.98) translateZ(0);
+    }
+    
+    /* 🎯 **SCROLLABLE CONTENT**: Custom scrollbar styling */
+    .silence-scrollable-content {
+      scrollbar-width: thin;
+      scrollbar-color: #cbd5e1 #f1f5f9;
+    }
+    .silence-scrollable-content::-webkit-scrollbar {
+      width: 6px;
+    }
+    .silence-scrollable-content::-webkit-scrollbar-track {
+      background: #f1f5f9;
+      border-radius: 3px;
+    }
+    .silence-scrollable-content::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 3px;
+    }
+    .silence-scrollable-content::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
     }
   `;
   document.head.appendChild(style);
@@ -88,106 +105,114 @@ const SilenceDetection = ({
   onSilenceDetected, 
   onSilenceRemoved,
   disabled = false,
-  // 🆕 **NEW PROPS**: For real-time preview integration
+  // 🆕 **REAL-TIME PREVIEW PROPS**
   audioRef = null,
   waveformData = [],
-  onPreviewSilenceUpdate = null, // 🆕 **PREVIEW CALLBACK**: Called when preview regions change
-  // 🆕 **EXTERNAL PANEL CONTROL**: Allow parent to control panel visibility
+  onPreviewSilenceUpdate = null,
+  // 🆕 **EXTERNAL PANEL CONTROL**
   isOpen: externalIsOpen = null,
   onToggleOpen = null,
-  // 🆕 **SKIP SILENCE CALLBACK**: Called when skip silence setting changes
-  onSkipSilenceChange = null
-}) => {// 🎛️ **MINIMAL STATE**: Reduced state for better performance
+  // 🆕 **ADDITIONAL CALLBACKS**
+  onSkipSilenceChange = null,
+  // 🎯 **REGION-BASED PROPS**: Auto-detect region processing
+  startTime = 0,
+  endTime = null
+}) => {  // 🎛️ **STATE MANAGEMENT**: Minimal state for optimal performance
   const [isOpen, setIsOpen] = useState(externalIsOpen || false);
   const [isDetecting, setIsDetecting] = useState(false);
   const [silenceData, setSilenceData] = useState(null);
   const [threshold, setThreshold] = useState(-30);
   const [minDuration, setMinDuration] = useState(0.5);
   const [previewRegions, setPreviewRegions] = useState([]);
-    // 🆕 **SKIP SILENCE STATE**: Control silence skipping during playback
-  const [skipSilenceEnabled, setSkipSilenceEnabled] = useState(false);
-  // 📊 **PROGRESS TRACKING STATE**
-  const [progress, setProgress] = useState(0);
+  const [skipSilenceEnabled, setSkipSilenceEnabled] = useState(false);  const [progress, setProgress] = useState(0);
   const [progressStage, setProgressStage] = useState('idle');
   const [progressMessage, setProgressMessage] = useState('');
-  // 🔍 **VERIFICATION STATE**: Store verification results
-  const [verificationData, setVerificationData] = useState(null);
-    // 🆕 **CONTROLLED VS UNCONTROLLED**: Use external control if provided, otherwise internal
+  // 🎯 **CONSTANTS & REFS**: Optimized for performance
   const isPanelOpen = externalIsOpen !== null ? externalIsOpen : isOpen;
   const setIsPanelOpen = externalIsOpen !== null ? onToggleOpen : setIsOpen;
-  // 🆕 **ENHANCED SMART CACHE**: LRU cache with compression & memory optimization
   const cacheRef = useRef(new Map());
   const debounceTimerRef = useRef(null);
   const lastUpdateRef = useRef(0);
-  const MAX_CACHE_SIZE = 25; // Increased cache size for more responsive experience
-  const MICRO_DEBOUNCE_MS = 16; // 🔥 ULTRA-MICRO-DEBOUNCE: 16ms (60fps) for maximum smoothness  // 🔧 **ULTRA-FAST SILENCE CALCULATION**: Hyper-optimized algorithm with smart caching
-  // 🎯 **PRECISION IMPROVEMENTS**: Enhanced to reduce frontend/backend discrepancy
-  // - Adaptive sampling: 40 samples/second for better temporal resolution
-  // - Precision rounding: Match FFmpeg's 0.01s precision
-  // - Expected accuracy: <0.1s difference with backend results
+  const rafRef = useRef(null);
+  const pendingUpdateRef = useRef(false);
+  const MAX_CACHE_SIZE = 25;
+  const MICRO_DEBOUNCE_MS = 16;// 🔧 **ULTRA-FAST SILENCE CALCULATION**: Hyper-optimized algorithm with smart caching
+  // 🎯 **REGION-AWARE CALCULATION**: Calculate silence within region bounds
   const calculateSilenceRegions = useCallback((threshold, minDuration) => {
     if (!waveformData.length || !duration) return [];
     
-    // 🎯 **SMART CACHE CHECK**: Check cache first for instant response
-    const cacheKey = `${threshold}_${minDuration}_${waveformData.length}`;
+    // 🎯 **SMART CACHE CHECK**: Include region bounds in cache key
+    const cacheKey = `${threshold}_${minDuration}_${waveformData.length}_${startTime}_${endTime}`;
     if (cacheRef.current.has(cacheKey)) {
       const cached = cacheRef.current.get(cacheKey);
-      // Move to end for LRU
       cacheRef.current.delete(cacheKey);
       cacheRef.current.set(cacheKey, cached);
       return cached;
     }
     
-    // 🚀 **HYPER-OPTIMIZED CALCULATION**: Ultra-fast single-pass algorithm with optimizations
+    // 🎯 **REGION BOUNDS**: Calculate effective processing bounds
+    const regionStart = Math.max(0, startTime);
+    const regionEnd = endTime ? Math.min(endTime, duration) : duration;
+    
+    // 🚀 **HYPER-OPTIMIZED CALCULATION**: Ultra-fast single-pass algorithm
     const sampleThreshold = Math.pow(10, threshold / 20);
     const regions = [];
     let silenceStart = null;
-      // 🔥 **ADAPTIVE SAMPLING**: Smart sampling based on duration for better accuracy
-    const adaptiveSamples = Math.min(5000, Math.max(3000, Math.floor(duration * 40))); // Adaptive: 40 samples per second
-    const sampleStep = Math.max(1, Math.floor(waveformData.length / adaptiveSamples));
-    const timeStep = duration / waveformData.length; // Pre-calculate time step
     
-    // 🚀 **OPTIMIZED LOOP**: Minimize calculations inside loop
-    for (let i = 0; i < waveformData.length; i += sampleStep) {
+    // 🔥 **REGION-AWARE SAMPLING**: Process only within region bounds
+    const totalSamples = waveformData.length;
+    const startSample = Math.floor((regionStart / duration) * totalSamples);
+    const endSample = Math.floor((regionEnd / duration) * totalSamples);
+    
+    const adaptiveSamples = Math.min(5000, Math.max(3000, Math.floor((regionEnd - regionStart) * 40)));
+    const sampleStep = Math.max(1, Math.floor((endSample - startSample) / adaptiveSamples));
+    const timeStep = duration / totalSamples;
+    
+    // 🚀 **OPTIMIZED REGION LOOP**: Process only region samples
+    for (let i = startSample; i < endSample; i += sampleStep) {
       const amplitude = waveformData[i];
+      const currentTime = i * timeStep;
       
       if (amplitude < sampleThreshold) {
         if (silenceStart === null) {
-          silenceStart = i * timeStep; // Use pre-calculated time step
+          silenceStart = currentTime;
         }
       } else if (silenceStart !== null) {
-        const silenceEnd = i * timeStep;
-        const silenceDuration = silenceEnd - silenceStart;        if (silenceDuration >= minDuration) {
+        const silenceEnd = currentTime;
+        const silenceDuration = silenceEnd - silenceStart;
+        
+        if (silenceDuration >= minDuration) {
           regions.push({
-            start: Math.max(0, Math.round(silenceStart * 1000) / 1000), // Precision to milliseconds (0.001s)
-            end: Math.min(duration, Math.round(silenceEnd * 1000) / 1000),
-            duration: Math.round(silenceDuration * 1000) / 1000 // Millisecond precision for accurate cutting
+            start: Math.max(regionStart, Math.round(silenceStart * 1000) / 1000),
+            end: Math.min(regionEnd, Math.round(silenceEnd * 1000) / 1000),
+            duration: Math.round(silenceDuration * 1000) / 1000
           });
         }
         silenceStart = null;
       }
-    }      // 🔧 **HANDLE SILENCE AT END**: Optimized end handling with millisecond precision
+    }
+    
+    // 🔧 **HANDLE SILENCE AT REGION END**
     if (silenceStart !== null) {
-      const silenceDuration = duration - silenceStart;
+      const silenceDuration = regionEnd - silenceStart;
       if (silenceDuration >= minDuration) {
         regions.push({
-          start: Math.max(0, Math.round(silenceStart * 1000) / 1000), // Millisecond precision
-          end: duration,
-          duration: Math.round(silenceDuration * 1000) / 1000 // Millisecond precision for accurate cutting
+          start: Math.max(regionStart, Math.round(silenceStart * 1000) / 1000),
+          end: regionEnd,
+          duration: Math.round(silenceDuration * 1000) / 1000
         });
       }
     }
     
-    // 🗃️ **ENHANCED CACHE UPDATE**: LRU with size limit and cleanup
+    // 🗃️ **ENHANCED CACHE UPDATE**
     if (cacheRef.current.size >= MAX_CACHE_SIZE) {
-      // Remove oldest 5 entries instead of just 1 for better performance
       const keysToRemove = Array.from(cacheRef.current.keys()).slice(0, 5);
       keysToRemove.forEach(key => cacheRef.current.delete(key));
     }
     cacheRef.current.set(cacheKey, regions);
     
     return regions;
-  }, [waveformData, duration]);
+  }, [waveformData, duration, startTime, endTime]);
   // ⚡ **ULTRA-SMOOTH UPDATE**: Instant visual + debounced callback
   const updatePreview = useCallback((instantUpdate = false) => {
     if (!isPanelOpen || !waveformData.length) {
@@ -219,117 +244,140 @@ const SilenceDetection = ({
           onPreviewSilenceUpdate?.(regions);
         }
       }, MICRO_DEBOUNCE_MS);
-    }
-  }, [isPanelOpen, threshold, minDuration, calculateSilenceRegions, onPreviewSilenceUpdate, waveformData.length]);
+    }  }, [isPanelOpen, threshold, minDuration, calculateSilenceRegions, onPreviewSilenceUpdate, waveformData.length]);
 
-  // 📊 **RAF-OPTIMIZED SLIDER UPDATES**: Ultra-smooth slider response
-  const rafRef = useRef(null);
-  const pendingUpdateRef = useRef(false);
-  
+  // 🚀 **SMOOTH SLIDER UPDATES**: RAF-optimized for instant response
   const requestSmoothUpdate = useCallback(() => {
-    if (pendingUpdateRef.current) return; // Prevent multiple RAF requests
+    if (pendingUpdateRef.current) return;
     
     pendingUpdateRef.current = true;
     rafRef.current = requestAnimationFrame(() => {
-      updatePreview(true); // Instant update for sliders
+      updatePreview(true);
       pendingUpdateRef.current = false;
     });
-  }, [updatePreview]);  // 🎯 **EFFECT: Real-time preview updates with ultra-smooth response**
+  }, [updatePreview]);  // 🎯 **EFFECT**: Real-time preview updates with cleanup
   useEffect(() => {
-    updatePreview(false); // Use debounced callback for effect triggers
+    updatePreview(false);
     
-    // Cleanup on unmount
     return () => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
-      if (rafRef.current) {
-        cancelAnimationFrame(rafRef.current);
-      }
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
   }, [updatePreview]);
-
-  // 🧹 **CLEANUP EFFECT**: Force reset spacing when component unmounts or panel closes
+  // 🧹 **CLEANUP**: Reset spacing on unmount
   useEffect(() => {
     return () => {
-      // Force remove any lingering margins/paddings when component unmounts
-      const wrappers = document.querySelectorAll('.silence-detection-wrapper');
-      wrappers.forEach(wrapper => {
+      document.querySelectorAll('.silence-detection-wrapper').forEach(wrapper => {
         wrapper.style.margin = '0';
         wrapper.style.padding = '0';
       });
     };
   }, []);
-
-  // 🚀 **CACHE WARMING**: Pre-calculate popular threshold values for instant response
+  // 🚀 **CACHE WARMING**: Pre-calculate common values for instant response
   useEffect(() => {
     if (!isPanelOpen || !waveformData.length || !duration) return;
     
-    // Pre-calculate common threshold values when panel opens
-    const popularThresholds = [-20, -25, -30, -35, -40, -45, -50];
-    const popularDurations = [0.3, 0.5, 0.8, 1.0, 1.5, 2.0];
-    
-    // Use requestIdleCallback to avoid blocking UI
     if (window.requestIdleCallback) {
       window.requestIdleCallback(() => {
+        const popularThresholds = [-20, -25, -30, -35, -40, -45, -50];
+        const popularDurations = [0.3, 0.5, 0.8, 1.0, 1.5, 2.0];
+        
         popularThresholds.forEach(thresh => {
           popularDurations.forEach(dur => {
             if (cacheRef.current.size < MAX_CACHE_SIZE) {
-              calculateSilenceRegions(thresh, dur); // This will cache the result
+              calculateSilenceRegions(thresh, dur);
             }
           });
         });
       });
-    }
-  }, [isPanelOpen, waveformData.length, duration, calculateSilenceRegions]);  // 🔍 **ENHANCED SILENCE DETECTION**: Full server-side analysis with progress tracking
+    }  }, [isPanelOpen, waveformData.length, duration, calculateSilenceRegions]);
+
+  // 🔍 **SILENCE DETECTION**: Auto-detect region-based processing
   const detectSilence = useCallback(async () => {
     if (!fileId || isDetecting) return;
     
     setIsDetecting(true);
     setProgress(0);
     setProgressStage('starting');
-    setProgressMessage('Preparing to detect silence...');
+      const hasRegionSelection = startTime > 0 || endTime !== null;
     
-    try {
-      const result = await audioApi.detectSilence({
-        fileId,
-        threshold,
-        minDuration,
-        duration
-      });
+    // Validation
+    if (!duration || duration <= 0) {
+      setProgressStage('error');
+      setProgressMessage('Error: Invalid audio duration');
+      setIsDetecting(false);
+      return;
+    }
+    
+    if (startTime < 0 || startTime >= duration) {
+      setProgressStage('error');
+      setProgressMessage('Error: Invalid start time');
+      setIsDetecting(false);
+      return;
+    }
+      let effectiveEndTime;
+    if (endTime !== null && endTime !== undefined) {
+      if (endTime <= startTime) {
+        setProgressStage('error');
+        setProgressMessage('Error: End time must be greater than start time');
+        setIsDetecting(false);
+        return;
+      }
+      effectiveEndTime = Math.min(Math.max(endTime, startTime + 0.1), duration);
+    } else {
+      effectiveEndTime = duration;
+    }
+    
+    const regionDuration = effectiveEndTime - startTime;
+    
+    if (regionDuration <= 0.1) {
+      setProgressStage('error');
+      setProgressMessage('Error: Selected region is too short (minimum 0.1s)');
+      setIsDetecting(false);
+      return;
+    }
+    
+    const processingRange = hasRegionSelection 
+      ? `region ${startTime.toFixed(3)}s → ${effectiveEndTime.toFixed(3)}s (${regionDuration.toFixed(3)}s)`
+      : `entire file (${duration.toFixed(3)}s)`;
+    
+    setProgressMessage(`Detecting silence in ${processingRange}...`);
+      try {
+      let result;
       
-      console.log('🔇 [SilenceDetection] Analysis complete:', {
-        success: result.success,
-        regionsFound: result.data?.silenceRegions?.length || 0,
-        totalSilence: result.data?.totalSilence || 0
-      });
+      if (hasRegionSelection) {
+        result = await audioApi.detectSilenceInRegion({
+          fileId,
+          threshold,
+          minDuration,
+          startTime,
+          endTime: effectiveEndTime,
+          duration
+        });
+      } else {
+        result = await audioApi.detectSilence({
+          fileId,
+          threshold,
+          minDuration,
+          duration
+        });      }
       
       if (result.success && result.data) {
         setProgress(100);
         setProgressStage('complete');
         setProgressMessage(`Removed ${result.data.silenceRegions?.length || 0} silence regions!`);        setSilenceData(result.data);
-        setVerificationData(result.data.verification || null); // Store verification results
         onSilenceDetected?.(result.data);
         onSilenceRemoved?.(result.data);
         
-        // 🎯 **SYNC WITH PREVIEW**: Update preview to match detected regions
         if (result.data.silenceRegions) {
           setPreviewRegions(result.data.silenceRegions);
           onPreviewSilenceUpdate?.(result.data.silenceRegions);
         }
-        
-        // 🔍 **LOG VERIFICATION**: Display verification results
-        if (result.data.verification) {
-          console.log('🔍 [Verification] Results:', result.data.verification);
-        }
       } else {
         throw new Error(result.error || 'Detection failed');
-      }
-    } catch (error) {
-      console.error('❌ [SilenceDetection] Failed:', error);
+      }} catch (error) {
       setProgressStage('error');
-      setProgressMessage(`Error: ${error.message}`);
-    } finally {
+      setProgressMessage(`Error: ${error.message}`);    } finally {
       setIsDetecting(false);
       setTimeout(() => {
         setProgress(0);
@@ -337,54 +385,63 @@ const SilenceDetection = ({
         setProgressMessage('');
       }, 3000);
     }
-  }, [fileId, threshold, minDuration, duration, isDetecting, onSilenceDetected, onSilenceRemoved, onPreviewSilenceUpdate]);  // 🎯 **SMART TOGGLE PANEL**: Optimized with cleanup
+  }, [fileId, threshold, minDuration, duration, isDetecting, onSilenceDetected, onSilenceRemoved, onPreviewSilenceUpdate, startTime, endTime]);  // 🎯 **HANDLERS**: Simple and optimized
   const togglePanel = useCallback(() => {
-    console.log('🔇 [Debug] togglePanel called, current isPanelOpen:', isPanelOpen);
     const newIsOpen = !isPanelOpen;
-    console.log('🔇 [Debug] Setting panel to:', newIsOpen);
     setIsPanelOpen(newIsOpen);
     
-    // 🧹 **SMART CLEANUP**: Clear preview when closing
     if (!newIsOpen) {
       setPreviewRegions([]);
       onPreviewSilenceUpdate?.([]);
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     }
-  }, [isPanelOpen, setIsPanelOpen, onPreviewSilenceUpdate]);// 🚀 **ULTRA-SMOOTH SLIDER HANDLERS**: RAF-optimized for instant response
+  }, [isPanelOpen, setIsPanelOpen, onPreviewSilenceUpdate]);
+
   const handleThresholdChange = useCallback((e) => {
-    const value = parseInt(e.target.value);
-    setThreshold(value);
-    requestSmoothUpdate(); // Instant visual update
+    setThreshold(parseInt(e.target.value));
+    requestSmoothUpdate();
   }, [requestSmoothUpdate]);
 
   const handleDurationChange = useCallback((e) => {
-    const value = parseFloat(e.target.value);
-    setMinDuration(value);
-    requestSmoothUpdate(); // Instant visual update
+    setMinDuration(parseFloat(e.target.value));
+    requestSmoothUpdate();
   }, [requestSmoothUpdate]);
 
-  // 🆕 **SKIP SILENCE HANDLER**: Handle skip silence toggle and notify parent
   const handleSkipSilenceChange = useCallback((e) => {
     const enabled = e.target.checked;
     setSkipSilenceEnabled(enabled);
     onSkipSilenceChange?.(enabled);
-  }, [onSkipSilenceChange]);
-
-  // 📊 **OPTIMIZED COMPUTED VALUES**: Memoized for performance
+  }, [onSkipSilenceChange]);  // 📊 **COMPUTED VALUES**: Optimized calculations
   const hasRegions = silenceData?.silenceRegions?.length > 0;
   const totalSilence = silenceData?.totalSilence || 0;
-  const silencePercent = duration > 0 ? (totalSilence / duration * 100) : 0;
-  const previewCount = previewRegions.length;
-  const previewTotal = previewRegions.reduce((sum, region) => sum + region.duration, 0);
+  const hasRegionSelection = startTime > 0 || endTime !== null;
   
-  // 🎨 **RENDER**: Ultra-light component with smart conditional rendering
+  let effectiveEndTime;
+  if (endTime !== null && endTime !== undefined && duration && duration > 0) {
+    effectiveEndTime = Math.min(Math.max(endTime, startTime + 0.1), duration);
+  } else if (duration && duration > 0) {
+    effectiveEndTime = duration;
+  } else {
+    effectiveEndTime = startTime + 0.1;
+  }
+  
+  const regionDuration = Math.max(0, effectiveEndTime - startTime);
+  const baseDuration = hasRegionSelection && silenceData?.regionBased ? regionDuration : duration;
+  const silencePercent = baseDuration > 0 ? (totalSilence / baseDuration * 100) : 0;  // 📊 **PREVIEW STATS**: Memoized for performance
+  const previewStats = useMemo(() => {
+    const count = previewRegions.length;
+    const total = previewRegions.reduce((sum, region) => sum + region.duration, 0);
+    const baseDuration = hasRegionSelection ? regionDuration : duration;
+    const percent = baseDuration > 0 ? (total / baseDuration) * 100 : 0;
+    
+    return { count, total, baseDuration, percent };
+  }, [previewRegions, hasRegionSelection, regionDuration, duration]);
+  
+  // 🎨 **RENDER**: Conditional rendering for performance
   if (!fileId || disabled) return null;
 
-  // 🚀 **UNIFIED COMPONENT**: Support both inline and panel modes
   const isInlineMode = externalIsOpen === null;
-  const isPanelMode = !isInlineMode;  return (
+  const isPanelMode = !isInlineMode;return (
     <div className={`silence-detection-wrapper ${isPanelOpen ? 'is-open' : 'is-closed'}`}>
       {/* 🔇 **TOGGLE BUTTON**: Show only in inline mode */}
       {isInlineMode && (
@@ -408,10 +465,11 @@ const SilenceDetection = ({
         </div>
       )}      {/* 🎛️ **MAIN PANEL**: Ultra-smooth animation with optimized transforms */}
       <div className={`silence-panel-container ${isPanelOpen ? 'is-open' : 'is-closed'}`}>
-        <div className="silence-panel-content bg-white/90 rounded-xl p-4 border border-slate-200/50 shadow-sm border-t-2 border-t-red-200/60">
+        <div className="silence-panel-content bg-white/90 rounded-xl border border-slate-200/50 shadow-sm border-t-2 border-t-red-200/60">
           {/* 📋 **PANEL HEADER**: Show only in panel mode with close button */}
           {isPanelMode && (
-            <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-200/50">              <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between p-4 pb-3 border-b border-slate-200/50">
+              <div className="flex items-center gap-2">
                 <BarChart className="w-4 h-4 text-red-600" />
                 <span className="text-sm font-semibold text-slate-800">Silence Detection</span>
               </div>
@@ -423,14 +481,16 @@ const SilenceDetection = ({
                 <X className="w-4 h-4 text-slate-600" />
               </button>
             </div>
-          )}          {/* 📊 **SMART PREVIEW STATS**: Show when panel is open and has preview data */}
-          {isPanelOpen && previewCount > 0 && (
+          )}
+            {/* 🎯 **SCROLLABLE CONTENT**: Main content area with scroll */}
+          <div className="p-4 max-h-80 overflow-y-auto space-y-4 silence-scrollable-content">          {isPanelOpen && previewStats.count > 0 && (
             <div className="mb-4 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-              <div className="flex items-center justify-between text-sm">                <span className="text-yellow-800 font-medium">
-                  Preview: {previewCount} regions ({previewTotal.toFixed(3)}s)
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-yellow-800 font-medium">
+                  Preview: {previewStats.count} regions ({previewStats.total.toFixed(3)}s)
                 </span>
                 <span className="text-yellow-700">
-                  {((previewTotal / duration) * 100).toFixed(2)}% of audio
+                  {previewStats.percent.toFixed(2)}% of {hasRegionSelection ? 'region' : 'audio'}
                 </span>
               </div>
             </div>
@@ -498,7 +558,36 @@ const SilenceDetection = ({
                 </div>
               </div>
             </div>
-          </div>          {/* 🎯 **SIMPLIFIED ACTION**: Single button for detect & remove */}
+          </div>          {/* 📊 **PROCESSING STATISTICS**: Concise results after detection */}
+          {hasRegions && (
+            <div className="mt-4 p-3 bg-green-50 rounded-lg border border-green-200">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-green-800">📊 Processing Results</span>
+                  {silenceData.regionBased && (
+                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">Region Mode</span>
+                  )}
+                </div>
+                <div className="text-xs text-green-600 font-medium">
+                  {silencePercent.toFixed(1)}% silence removed
+                </div>
+              </div>
+              
+              <div className="flex items-center justify-between text-xs text-green-700 bg-white/60 rounded px-3 py-2">
+                <span>
+                  <span className="font-semibold text-green-800">{baseDuration.toFixed(2)}s</span>
+                  <span className="text-slate-500 ml-1">→</span>
+                </span>
+                <span>
+                  <span className="font-semibold text-red-600">-{totalSilence.toFixed(2)}s</span>
+                  <span className="text-slate-500 ml-1">→</span>
+                </span>
+                <span className="font-semibold text-blue-600">{(baseDuration - totalSilence).toFixed(2)}s</span>
+              </div>
+            </div>
+          )}
+
+          {/* 🎯 **SIMPLIFIED ACTION**: Single button for detect & remove */}
           <div className="flex gap-3">
             <button
               onClick={detectSilence}
@@ -553,113 +642,10 @@ const SilenceDetection = ({
                   {progressStage}
                 </span>
               </div>
-            </div>
-          )}
-
-          {/* 📊 **OPTIMIZED RESULTS DISPLAY**: Show after official detection */}
-          {hasRegions && (
-            <div className="mt-6 bg-slate-50 rounded-lg p-4">
-              <div className="text-center mb-3">
-                <h4 className="text-lg font-semibold text-slate-800 mb-1">
-                  Found {silenceData.count} silence regions
-                </h4>                <p className="text-sm text-slate-600">
-                  Total duration: {totalSilence.toFixed(3)}s ({silencePercent.toFixed(2)}% of audio)
-                </p>
-              </div>
-              
-              <div className="grid grid-cols-3 gap-4 text-center text-sm">
-                <div className="bg-white rounded-lg p-3 border border-slate-200">
-                  <div className="text-lg font-semibold text-slate-800">
-                    {silenceData.count}
-                  </div>
-                  <div className="text-slate-600">Regions</div>
-                </div>                <div className="bg-white rounded-lg p-3 border border-slate-200">
-                  <div className="text-lg font-semibold text-slate-800">
-                    {totalSilence.toFixed(3)}s
-                  </div>
-                  <div className="text-slate-600">Total duration</div>
-                </div>
-                <div className="bg-white rounded-lg p-3 border border-slate-200">
-                  <div className="text-lg font-semibold text-red-600">
-                    {silencePercent.toFixed(2)}%
-                  </div>
-                  <div className="text-slate-600">Of audio</div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* 🔍 **VERIFICATION DISPLAY**: Show validation results when available */}
-          {verificationData && (
-            <div className="mt-4 bg-blue-50 rounded-lg p-4 border border-blue-200">
-              <div className="flex items-center justify-between mb-3">
-                <h5 className="text-sm font-semibold text-blue-800 flex items-center gap-2">
-                  🔍 Verification Results
-                  <span className={`px-2 py-1 text-xs rounded-full ${
-                    verificationData.validation?.status === 'PASS' 
-                      ? 'bg-green-100 text-green-800' 
-                      : verificationData.validation?.status === 'FAIL'
-                      ? 'bg-red-100 text-red-800'
-                      : 'bg-gray-100 text-gray-800'
-                  }`}>
-                    {verificationData.validation?.status || 'UNKNOWN'}
-                  </span>
-                </h5>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-3 text-xs">                <div className="space-y-1">
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">Original Duration:</span>
-                    <span className="font-mono">{verificationData.original?.duration?.toFixed(3)}s</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">Output Duration:</span>
-                    <span className="font-mono">{verificationData.output?.duration?.toFixed(3)}s</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">Expected Duration:</span>
-                    <span className="font-mono">{verificationData.calculations?.expectedDuration?.toFixed(3)}s</span>
-                  </div>
-                </div>
-                
-                <div className="space-y-1">
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">Silence Removed:</span>
-                    <span className="font-mono">{verificationData.silence?.totalDuration?.toFixed(3)}s</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">Keep Segments:</span>
-                    <span className="font-mono">{verificationData.keepSegments?.totalDuration?.toFixed(3)}s</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">Accuracy:</span>
-                    <span className={`font-mono ${
-                      (verificationData.calculations?.durationAccuracy || 0) < 0.01 
-                        ? 'text-green-600' 
-                        : (verificationData.calculations?.durationAccuracy || 0) < 0.1
-                        ? 'text-yellow-600'
-                        : 'text-red-600'
-                    }`}>
-                      ±{verificationData.calculations?.durationAccuracy?.toFixed(6)}s
-                    </span>
-                  </div>
-                </div>
-              </div>
-                {verificationData.validation?.status === 'FAIL' && (
-                <div className="mt-2 p-2 bg-red-50 rounded text-xs text-red-700">
-                  ⚠️ Verification failed - accuracy outside ultra-tight tolerance (±0.010s)
-                  {verificationData.calculations?.durationAccuracy > 0.01 && (
-                    <div className="mt-1">
-                      Duration mismatch: ±{verificationData.calculations.durationAccuracy.toFixed(6)}s exceeds ±0.010s tolerance
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
+            </div>          )}
 
           {/* 🆕 **SKIP SILENCE CONTROL**: Checkbox to enable/disable silence skipping */}
-          <div className="mt-4">
+          <div>
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
@@ -672,6 +658,7 @@ const SilenceDetection = ({
                 Skip silence during playback
               </span>
             </label>
+          </div>
           </div>
         </div>
       </div>

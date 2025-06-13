@@ -982,9 +982,12 @@ export class MP3Utils {
           .on('start', () => console.log(`🔇 [Single] Extracting ${startTime}s to ${(segment.start + parseFloat(duration)).toFixed(6)}s (duration: ${duration}s)`))
           .on('error', reject)
           .on('end', () => {            console.log(`✅ [Single] Extracted single segment with ultra-high precision, removed ${silentSegments.length} silence regions`);
-            
-            // 🔍 **VERIFICATION**: Validate single segment extraction
-            this.verifySilenceRemoval(inputPath, outputPath, silentSegments, keepSegments)
+              // 🔍 **VERIFICATION**: Validate single segment extraction
+            this.verifySilenceRemoval(inputPath, outputPath, silentSegments, keepSegments, {
+              regionBased: options.regionBased || false,
+              regionStart: options.regionStart || 0,
+              regionEnd: options.regionEnd || null
+            })
               .then(verification => {
                 resolve({
                   success: true,
@@ -1067,9 +1070,12 @@ export class MP3Utils {
                 fs.unlink(file).catch(() => {}); // Use import fs, not require
               });
               console.log(`✅ [Concat] Joined ${tempFiles.length} segments, removed ${silentSegments.length} silence regions`);
-              
-              // 🔍 **VERIFICATION**: Validate multiple segments concatenation
-              this.verifySilenceRemoval(inputPath, outputPath, silentSegments, keepSegments)
+                // 🔍 **VERIFICATION**: Validate multiple segments concatenation
+              this.verifySilenceRemoval(inputPath, outputPath, silentSegments, keepSegments, {
+                regionBased: options.regionBased || false,
+                regionStart: options.regionStart || 0,
+                regionEnd: options.regionEnd || null
+              })
                 .then(verification => {
                   resolve({
                     success: true,
@@ -1162,29 +1168,45 @@ export class MP3Utils {
       throw error;
     }
   }
-
   /**
    * 🔍 **VERIFY SILENCE REMOVAL**: Validate that output matches expected calculations
    */
-  static async verifySilenceRemoval(inputPath, outputPath, silentSegments, keepSegments) {
+  static async verifySilenceRemoval(inputPath, outputPath, silentSegments, keepSegments, options = {}) {
     try {
+      const { regionBased = false, regionStart = 0, regionEnd = null } = options;
+      
       // 🎯 **GET DURATIONS**
       const originalDuration = await this.getAudioDuration(inputPath);
       const outputDuration = await this.getAudioDuration(outputPath);
       
-      // 🧮 **CALCULATE EXPECTED VALUES**
+      // 🧮 **CALCULATE EXPECTED VALUES BASED ON PROCESSING TYPE**
       const totalSilenceRemoved = silentSegments.reduce((sum, seg) => sum + seg.duration, 0);
-      const expectedDuration = originalDuration - totalSilenceRemoved;
+      
+      let expectedDuration, baseDuration;
+      if (regionBased && regionEnd) {
+        // 🎯 **REGION-BASED CALCULATION**: Expected = regionDuration - silenceRemoved
+        baseDuration = regionEnd - regionStart;
+        expectedDuration = baseDuration - totalSilenceRemoved;
+        console.log(`🎯 [RegionVerification] Base duration (region): ${baseDuration.toFixed(6)}s`);
+      } else {
+        // 🎯 **FULL-FILE CALCULATION**: Expected = originalDuration - silenceRemoved
+        baseDuration = originalDuration;
+        expectedDuration = originalDuration - totalSilenceRemoved;
+        console.log(`🎯 [FullVerification] Base duration (full): ${baseDuration.toFixed(6)}s`);
+      }
+      
       const keepSegmentsDuration = keepSegments.reduce((sum, seg) => sum + (seg.end - seg.start), 0);
       
       // 📊 **ACCURACY CALCULATIONS**
       const durationAccuracy = Math.abs(expectedDuration - outputDuration);
       const keepSegmentsAccuracy = Math.abs(keepSegmentsDuration - outputDuration);      // 🔍 **VALIDATION CHECKS** - Ultra-tight tolerance for sub-millisecond accuracy
       const isAccurate = durationAccuracy < 0.01; // Within 10ms tolerance (ultra-tight)
-      const segmentsMatch = keepSegmentsAccuracy < 0.01;
-        // 🔍 **DETAILED LOGGING FOR DEBUGGING**
-      console.log(`🔍 [Verification] Duration Analysis:`);
+      const segmentsMatch = keepSegmentsAccuracy < 0.01;        // 🔍 **DETAILED LOGGING FOR DEBUGGING**
+      console.log(`🔍 [Verification] Duration Analysis (${regionBased ? 'Region-Based' : 'Full-File'}):`);
       console.log(`   Original: ${originalDuration.toFixed(6)}s`);
+      if (regionBased) {
+        console.log(`   Region: ${regionStart.toFixed(6)}s → ${regionEnd.toFixed(6)}s (${baseDuration.toFixed(6)}s)`);
+      }
       console.log(`   Output: ${outputDuration.toFixed(6)}s`);
       console.log(`   Expected: ${expectedDuration.toFixed(6)}s`);
       console.log(`   Silence Removed: ${totalSilenceRemoved.toFixed(6)}s`);
@@ -1203,8 +1225,7 @@ export class MP3Utils {
       }
       if (totalGaps > 0) {
         console.log(`   Total gaps: ${totalGaps.toFixed(6)}s`);
-      }
-        // 📋 **VERIFICATION REPORT**
+      }        // 📋 **VERIFICATION REPORT**
       const verification = {
         original: {
           duration: Math.round(originalDuration * 1000000) / 1000000, // 6-decimal precision
@@ -1214,6 +1235,15 @@ export class MP3Utils {
           duration: Math.round(outputDuration * 1000000) / 1000000,
           path: outputPath
         },
+        // 🎯 **REGION INFO**: Include region information if applicable
+        ...(regionBased && {
+          region: {
+            start: Math.round(regionStart * 1000000) / 1000000,
+            end: Math.round(regionEnd * 1000000) / 1000000,
+            duration: Math.round(baseDuration * 1000000) / 1000000,
+            isRegionBased: true
+          }
+        }),
         silence: {
           regions: silentSegments.length,
           totalDuration: Math.round(totalSilenceRemoved * 1000000) / 1000000,
@@ -1243,10 +1273,12 @@ export class MP3Utils {
           status: isAccurate && segmentsMatch ? 'PASS' : 'FAIL',
           tolerance: '0.010s' // Ultra-tight 10ms tolerance
         }
-      };
-        // 🎯 **LOG VERIFICATION RESULTS**
-      console.log('🔍 [Verification] Silence Removal Validation:');
+      };        // 🎯 **LOG VERIFICATION RESULTS**
+      console.log(`🔍 [Verification] Silence Removal Validation (${regionBased ? 'Region-Based' : 'Full-File'}):`);
       console.log(`📁 Original: ${originalDuration.toFixed(6)}s`);
+      if (regionBased) {
+        console.log(`🎯 Region: ${regionStart.toFixed(6)}s → ${regionEnd.toFixed(6)}s (${baseDuration.toFixed(6)}s)`);
+      }
       console.log(`📁 Output: ${outputDuration.toFixed(6)}s`);
       console.log(`🔇 Silence Removed: ${totalSilenceRemoved.toFixed(6)}s (${silentSegments.length} regions)`);
       console.log(`✂️ Keep Segments: ${keepSegmentsDuration.toFixed(6)}s (${keepSegments.length} segments)`);
@@ -1256,7 +1288,7 @@ export class MP3Utils {
       console.log(`✅ Validation Status: ${verification.validation.status}`);
       
       if (!isAccurate || !segmentsMatch) {
-        console.warn('⚠️ [Verification] Accuracy issues detected:');
+        console.warn(`⚠️ [Verification] Accuracy issues detected (${regionBased ? 'Region-Based' : 'Full-File'}):`);
         if (!isAccurate) console.warn(`  - Duration mismatch: ${durationAccuracy.toFixed(6)}s > 0.010s`);
         if (!segmentsMatch) console.warn(`  - Segments mismatch: ${keepSegmentsAccuracy.toFixed(6)}s > 0.010s`);
       }
@@ -1274,5 +1306,221 @@ export class MP3Utils {
         keepSegments: {}
       };
     }
+  }
+
+  /**
+   * 🎯 **REGION-BASED SILENCE DETECTION**: Detect silence only within specified region
+   * This is more intelligent than processing the entire file - only analyzes startTime → endTime
+   */
+  static async detectSilenceInRegion(inputPath, options = {}) {
+    const { 
+      threshold = -40, 
+      minDuration = 0.5, 
+      startTime = 0, 
+      endTime = null 
+    } = options;
+    
+    // Get total duration if endTime not specified
+    const totalDuration = endTime || await this.getAudioDuration(inputPath);
+    
+    console.log(`🎯 [RegionSilence] Detecting silence in region: ${startTime.toFixed(6)}s → ${totalDuration.toFixed(6)}s`);
+    
+    return new Promise((resolve, reject) => {
+      const silentSegments = [];
+      let currentSilenceStart = null;
+
+      ffmpeg(inputPath)        // 🎯 **REGION FILTER**: Only analyze the specified time range
+        .seekInput(startTime)
+        .duration(totalDuration - startTime)
+        .audioFilters(`silencedetect=noise=${threshold}dB:d=${minDuration}`)
+        .format('null')
+        .output('-')
+        .on('stderr', (line) => {
+          const startMatch = line.match(/silence_start: ([\d.]+)/);
+          if (startMatch) {
+            // 🎯 **ADJUST TO ABSOLUTE TIME**: Convert relative time to absolute time in file
+            const relativeStart = parseFloat(startMatch[1]);
+            currentSilenceStart = startTime + relativeStart;
+            console.log(`🎯 [RegionSilence] Silence start: ${currentSilenceStart.toFixed(6)}s (relative: ${relativeStart.toFixed(6)}s)`);
+          }
+          
+          const endMatch = line.match(/silence_end: ([\d.]+) \| silence_duration: ([\d.]+)/);
+          if (endMatch && currentSilenceStart !== null) {
+            const relativeEnd = parseFloat(endMatch[1]);
+            const reportedDuration = parseFloat(endMatch[2]);
+            
+            // 🎯 **ADJUST TO ABSOLUTE TIME**: Convert relative time to absolute time in file
+            const absoluteEnd = startTime + relativeEnd;
+            const calculatedDuration = absoluteEnd - currentSilenceStart;
+            
+            // 🔍 **REGION BOUNDARY CHECK**: Ensure silence is within the specified region
+            if (currentSilenceStart >= startTime && absoluteEnd <= totalDuration) {
+              const silenceSegment = {
+                start: Math.round(currentSilenceStart * 1000000) / 1000000,
+                end: Math.round(absoluteEnd * 1000000) / 1000000,
+                duration: Math.round(calculatedDuration * 1000000) / 1000000,
+                displayStart: Math.round(currentSilenceStart * 1000) / 1000,
+                displayEnd: Math.round(absoluteEnd * 1000) / 1000,
+                displayDuration: Math.round(calculatedDuration * 1000) / 1000,
+                // 🎯 **REGION METADATA**: Mark this as region-based detection
+                isRegionBased: true,
+                regionStart: startTime,
+                regionEnd: totalDuration
+              };
+              
+              silentSegments.push(silenceSegment);
+              console.log(`🎯 [RegionSilence] Found silence: ${currentSilenceStart.toFixed(6)}s → ${absoluteEnd.toFixed(6)}s (${calculatedDuration.toFixed(6)}s)`);
+            }
+            
+            currentSilenceStart = null;
+          }
+        })
+        .on('error', reject)
+        .on('end', () => {
+          console.log(`🎯 [RegionSilence] Detected ${silentSegments.length} silence regions in specified range`);
+          resolve(silentSegments);
+        })
+        .run();
+    });
+  }
+
+  /**
+   * 🎯 **REGION-BASED SILENCE REMOVAL**: Remove silence only within specified region
+   * Smart approach: Only processes the selected region, keeps everything else intact
+   */
+  static async detectAndRemoveSilenceInRegion(inputPath, outputPath, options = {}) {
+    const {
+      threshold = -40,
+      minDuration = 0.5,
+      startTime = 0,
+      endTime = null,
+      format = 'mp3',
+      quality = 'medium'
+    } = options;
+
+    try {
+      console.log(`🎯 [RegionSilence] Starting region-based silence removal: ${startTime.toFixed(6)}s → ${endTime ? endTime.toFixed(6) : 'end'}s`);
+      
+      // 🔍 **STEP 1: DETECT SILENCE IN REGION**
+      const silentSegments = await this.detectSilenceInRegion(inputPath, { 
+        threshold, 
+        minDuration, 
+        startTime, 
+        endTime 
+      });
+
+      if (silentSegments.length === 0) {
+        console.log('🎯 [RegionSilence] No silence found in region, copying original file');
+        await this.copyFile(inputPath, outputPath);
+        return { 
+          success: true, 
+          outputPath, 
+          inputPath, 
+          silentSegments: [], 
+          settings: { threshold, minDuration, format, quality, segmentsRemoved: 0 },
+          regionBased: true,
+          regionStart: startTime,
+          regionEnd: endTime
+        };
+      }      // 🎯 **STEP 2: BUILD REGION-ONLY SEGMENTS** (only processed region, no pre/post)
+      const totalDuration = endTime || await this.getAudioDuration(inputPath);
+      const segments = await this.buildRegionOnlySegments(inputPath, silentSegments, startTime, totalDuration);
+      
+      console.log(`🎯 [RegionSilence] Built ${segments.length} segments for region-only processing`);
+      
+      // 🚀 **STEP 3: CONCATENATE SEGMENTS**
+      return this.concatenateSegments(inputPath, outputPath, segments, { 
+        format, 
+        quality, 
+        silentSegments,
+        regionBased: true,
+        regionStart: startTime,
+        regionEnd: totalDuration 
+      });
+      
+    } catch (error) {
+      console.error('❌ [RegionSilence] Error:', error);
+      throw error;
+    }
+  }
+  /**
+   * 🎯 **BUILD REGION-ONLY SEGMENTS**: Build segments only within specified region (no pre/post region)
+   * Strategy: Only process [startTime → endTime] and return just that processed region
+   */
+  static async buildRegionOnlySegments(inputPath, silentSegments, regionStart, regionEnd) {
+    const segments = [];
+    
+    console.log(`🎯 [RegionOnlySegments] Building segments ONLY within region: ${regionStart.toFixed(6)}s → ${regionEnd.toFixed(6)}s`);
+    
+    // 🔧 **REGION PROCESSING**: Only process silence removal within the specified region
+    const regionKeepSegments = this.buildKeepSegments(silentSegments, regionEnd);
+    // Filter keep segments to only those within the region
+    const filteredKeepSegments = regionKeepSegments.filter(segment => 
+      segment.start >= regionStart && segment.end <= regionEnd
+    );
+    
+    console.log(`🎯 [RegionOnlySegments] Found ${filteredKeepSegments.length} keep segments within region`);
+    
+    filteredKeepSegments.forEach(segment => {
+      segments.push({
+        start: Math.round(segment.start * 1000000) / 1000000,
+        end: Math.round(segment.end * 1000000) / 1000000,
+        isWithinRegion: true
+      });
+      console.log(`🎯 [RegionOnlySegments] Keep: ${segment.start.toFixed(6)}s → ${segment.end.toFixed(6)}s`);
+    });
+    
+    console.log(`🎯 [RegionOnlySegments] Total segments (region-only): ${segments.length}`);
+    return segments;
+  }
+
+  /**
+   * 🎯 **BUILD REGION-BASED SEGMENTS**: Build segments that preserve pre/post region audio
+   * Strategy: Keep [0 → startTime] + process [startTime → endTime] + keep [endTime → end]
+   */
+  static async buildRegionBasedSegments(inputPath, silentSegments, regionStart, regionEnd) {
+    const segments = [];
+    const totalDuration = await this.getAudioDuration(inputPath);
+    
+    console.log(`🎯 [RegionSegments] Building segments: total=${totalDuration.toFixed(6)}s, region=${regionStart.toFixed(6)}s → ${regionEnd.toFixed(6)}s`);
+    
+    // 🔧 **PART 1: PRE-REGION** (0 → regionStart) - Keep intact
+    if (regionStart > 0.0001) { // Only add if significant duration
+      segments.push({
+        start: 0,
+        end: Math.round(regionStart * 1000000) / 1000000,
+        isPreRegion: true
+      });
+      console.log(`🎯 [RegionSegments] Pre-region: 0s → ${regionStart.toFixed(6)}s`);
+    }
+    
+    // 🔧 **PART 2: WITHIN-REGION** (regionStart → regionEnd) - Process silence removal
+    const regionKeepSegments = this.buildKeepSegments(silentSegments, regionEnd);
+    // Filter keep segments to only those within the region
+    const filteredKeepSegments = regionKeepSegments.filter(segment => 
+      segment.start >= regionStart && segment.end <= regionEnd
+    );
+    
+    filteredKeepSegments.forEach(segment => {
+      segments.push({
+        start: Math.round(segment.start * 1000000) / 1000000,
+        end: Math.round(segment.end * 1000000) / 1000000,
+        isWithinRegion: true
+      });
+      console.log(`🎯 [RegionSegments] Within-region keep: ${segment.start.toFixed(6)}s → ${segment.end.toFixed(6)}s`);
+    });
+    
+    // 🔧 **PART 3: POST-REGION** (regionEnd → total) - Keep intact
+    if (regionEnd < totalDuration - 0.0001) { // Only add if significant duration
+      segments.push({
+        start: Math.round(regionEnd * 1000000) / 1000000,
+        end: Math.round(totalDuration * 1000000) / 1000000,
+        isPostRegion: true
+      });
+      console.log(`🎯 [RegionSegments] Post-region: ${regionEnd.toFixed(6)}s → ${totalDuration.toFixed(6)}s`);
+    }
+    
+    console.log(`🎯 [RegionSegments] Total segments: ${segments.length}`);
+    return segments;
   }
 }

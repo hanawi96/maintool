@@ -82,6 +82,16 @@ router.post('/detect-silence/:fileId',
 );
 
 /**
+ * @route POST /api/mp3-cutter/detect-silence-region/:fileId
+ * @desc 🎯 Region-based silence detection - only process selected time range
+ */
+router.post('/detect-silence-region/:fileId',
+  validateFileId,
+  validateSilenceParams,
+  MP3Controller.detectSilenceInRegion
+);
+
+/**
  * @route GET /api/mp3-cutter/download/:filename
  * @desc Download processed or uploaded audio file
  */

@@ -412,8 +412,7 @@ export class MP3Service {
       fs.unlink(outputPath).catch(() => {
       });
     }, 24 * 60 * 60 * 1000);
-
-
+    
     // 🧮 **CALCULATE SILENCE STATS**: Calculate total silence duration and count
     const silentSegments = silenceResult.silentSegments || [];
     const totalSilence = silentSegments.reduce((sum, segment) => sum + (segment.duration || 0), 0);
@@ -541,7 +540,7 @@ export class MP3Service {
       throw new Error('Processing cancelled by user');
     }
     
-    // 🔍 **VERIFY OUTPUT FILE**: Check if output file was created
+    // 🔍 **VERIFY OUTPUT FILE**: Kiểm tra file output đã được tạo
     try {
       await fs.access(outputPath);
       
@@ -563,7 +562,7 @@ export class MP3Service {
       throw new Error(`Silence detection failed: Output file not created`);
     }
     
-    // 🔍 **GET OUTPUT STATS**: Get output file information
+    // 🔍 **GET OUTPUT STATS**: Lấy thông tin file output
     const outputStats = await fs.stat(outputPath);
     
     // 🧹 **AUTO CLEANUP**: Auto cleanup after 24 hours
@@ -611,5 +610,116 @@ export class MP3Service {
     }
 
     return result;
+  }
+
+  /**
+   * 🎯 **REGION-BASED SILENCE DETECTION**: Detect and remove silence only within selected region
+   * Smart implementation: startTime → endTime processing, more efficient than full file processing
+   */
+  static async detectSilenceInRegionByFileId(fileId, silenceParams) {
+    const { 
+      threshold = -40, 
+      minDuration = 0.5, 
+      startTime = 0, 
+      endTime = null,
+      duration 
+    } = silenceParams;
+    
+    console.log('🎯 [RegionSilence] Starting region-based detection:', {
+      fileId,
+      threshold,
+      minDuration,
+      startTime,
+      endTime,
+      duration
+    });
+    
+    // 🔍 **FIND INPUT FILE**: Find uploaded file by fileId
+    const inputPath = path.resolve(MP3_CONFIG.PATHS.UPLOADS, fileId);
+    
+    try {
+      // 🔍 **CHECK FILE EXISTS**: Verify file exists
+      await fs.access(inputPath);
+    } catch (error) {
+      console.error('❌ [RegionSilence] Input file not found:', {
+        fileId,
+        inputPath,
+        error: error.message
+      });
+      throw new Error(`File not found: ${fileId}. Please upload the file again.`);
+    }
+    
+    // 🔍 **GET FILE STATS**: Get file information
+    const inputStats = await fs.stat(inputPath);
+    
+    // 🆕 **GENERATE OUTPUT FILENAME**: Create filename for processed file
+    const timestamp = Date.now();
+    const random = Math.random().toString(36).substring(2, 6);
+    const originalName = path.parse(fileId).name;
+    const outputFilename = `region_silence_removed_${originalName}_${startTime.toFixed(3)}-${endTime ? endTime.toFixed(3) : 'end'}_${timestamp}_${random}.mp3`;
+    const outputPath = path.resolve(MP3_CONFIG.PATHS.PROCESSED, outputFilename);
+    
+    // 🎯 **PROCESS REGION-BASED SILENCE REMOVAL**: Use new region-based method
+    const silenceResult = await MP3Utils.detectAndRemoveSilenceInRegion(inputPath, outputPath, {
+      threshold,
+      minDuration,
+      startTime,
+      endTime,
+      format: 'mp3',
+      quality: 'high'
+    });
+    
+    // 🔍 **GET OUTPUT STATS**: Get output file information
+    const outputStats = await fs.stat(outputPath);
+    
+    // 🧹 **AUTO CLEANUP**: Auto cleanup after 24 hours
+    setTimeout(() => {
+      fs.unlink(outputPath).catch(() => {
+        // Silent cleanup
+      });
+    }, 24 * 60 * 60 * 1000);
+
+    // 🧮 **CALCULATE SILENCE STATS**: Calculate total silence duration and count
+    const silentSegments = silenceResult.silentSegments || [];
+    const totalSilence = silentSegments.reduce((sum, segment) => sum + (segment.duration || 0), 0);
+    const count = silentSegments.length;
+    
+    // 🎯 **RETURN REGION-BASED RESULT**: Return result with region-specific information
+    return {
+      input: {
+        filename: fileId,
+        originalName: originalName,
+        path: inputPath,
+        size: inputStats.size
+      },
+      output: {
+        filename: outputFilename,
+        path: outputPath,
+        size: outputStats.size
+      },      processing: { 
+        threshold,
+        minDuration,
+        // 🎯 **REGION-BASED DURATION**: Use region duration for calculations
+        duration: (endTime || duration) - startTime,
+        // 🎯 **REGION INFO**: Include region-based processing details
+        regionBased: true,
+        regionStart: startTime,
+        regionEnd: endTime || duration,
+        regionDuration: (endTime || duration) - startTime
+      },
+      // 🎯 **FRONTEND COMPATIBLE FORMAT**: Add fields expected by frontend
+      silenceRegions: silentSegments,
+      count: count,
+      totalSilence: totalSilence,
+      verification: silenceResult.verification || null,
+      // 🎯 **REGION METADATA**: Additional region-based information
+      regionBased: true,
+      regionStart: startTime,
+      regionEnd: endTime || duration,
+      urls: {
+        download: `/api/mp3-cutter/download/${outputFilename}`
+      },
+      processedAt: new Date().toISOString()
+    };
   }
 }

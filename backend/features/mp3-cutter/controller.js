@@ -508,4 +508,141 @@ export class MP3Controller {
       });
     }
   }
+
+  /**
+   * 🎯 **REGION-BASED SILENCE DETECTION**: Detect and remove silence only within selected region
+   * POST /api/mp3-cutter/detect-silence-region/:fileId
+   */
+  static async detectSilenceInRegion(req, res) {
+    try {
+      console.log('🎯 [RegionSilence] Starting region-based silence detection:', {
+        fileId: req.params.fileId,
+        body: req.body
+      });
+
+      // 🔍 **EXTRACT PARAMETERS**: Get region-based silence parameters
+      const {
+        threshold = -40,
+        minDuration = 0.5,
+        startTime = 0,
+        endTime = null,
+        duration
+      } = req.body;
+
+      // 🔍 **VALIDATE PARAMETERS**: Validate region-based parameters
+      if (typeof threshold !== 'number' || threshold < -60 || threshold > -10) {
+        return res.status(400).json({
+          success: false,
+          error: 'Threshold must be a number between -60 and -10 dB',
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      if (typeof minDuration !== 'number' || minDuration < 0.1 || minDuration > 10) {
+        return res.status(400).json({
+          success: false,
+          error: 'Minimum duration must be a number between 0.1 and 10 seconds',
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      if (typeof startTime !== 'number' || startTime < 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'Start time must be a non-negative number',
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      if (endTime !== null && (typeof endTime !== 'number' || endTime <= startTime)) {
+        return res.status(400).json({
+          success: false,
+          error: 'End time must be greater than start time',
+          timestamp: new Date().toISOString()
+        });
+      }      // 🔍 **VALIDATE REGION**: Ensure region is within file duration
+      console.log('🎯 [RegionSilence] Validation check:', { 
+        startTime, 
+        endTime, 
+        duration,
+        startTimeType: typeof startTime,
+        endTimeType: typeof endTime,
+        durationType: typeof duration,
+        endTimeValid: endTime !== null ? (endTime <= duration) : 'null',
+        startTimeValid: startTime < duration
+      });
+      
+      if (duration && startTime >= duration) {
+        console.log('❌ [RegionSilence] Start time validation failed:', { startTime, duration, comparison: startTime >= duration });
+        return res.status(400).json({
+          success: false,
+          error: 'Start time cannot be greater than or equal to file duration',
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      if (duration && endTime && endTime > duration) {
+        console.log('❌ [RegionSilence] End time validation failed:', { 
+          endTime, 
+          duration, 
+          comparison: endTime > duration,
+          difference: endTime - duration 
+        });
+        return res.status(400).json({
+          success: false,
+          error: 'End time cannot be greater than file duration',
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      // 🎯 **PROCESS REGION-BASED SILENCE**: Use new region-based service method
+      const result = await MP3Service.detectSilenceInRegionByFileId(req.params.fileId, {
+        threshold,
+        minDuration,
+        startTime,
+        endTime,
+        duration
+      });
+
+      console.log('✅ [RegionSilence] Region-based detection successful:', {
+        outputFilename: result.output.filename,
+        regionsFound: result.count,
+        totalSilence: result.totalSilence,
+        regionStart: result.regionStart,
+        regionEnd: result.regionEnd
+      });
+
+      res.json({
+        success: true,
+        message: `Region-based silence detection completed! Found ${result.count} silence regions (${result.totalSilence.toFixed(3)}s total) in specified region`,
+        data: result,
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      console.error('❌ [RegionSilence] Region-based detection failed:', error);
+      
+      // 🎯 **DETAILED ERROR RESPONSE**: Provide more specific error info
+      let statusCode = 500;
+      let errorMessage = error.message;
+      
+      if (error.message.includes('File not found') || error.message.includes('ENOENT')) {
+        statusCode = 404;
+        errorMessage = 'Original audio file not found. Please upload the file again.';
+      } else if (error.message.includes('Invalid threshold') || error.message.includes('Invalid duration')) {
+        statusCode = 400;
+        errorMessage = 'Invalid region-based silence detection parameters.';
+      } else if (error.message.includes('FFmpeg')) {
+        statusCode = 500;
+        errorMessage = 'Region-based audio processing failed. Please try again.';
+      }
+      
+      res.status(statusCode).json({
+        success: false,
+        error: errorMessage,
+        originalError: error.message,
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
 }

@@ -390,4 +390,90 @@ export const audioApi = {
       throw new Error(`Silence detection response parsing failed: ${parseError.message}`);
     }
   },
+
+  // 🎯 **REGION-BASED SILENCE DETECTION**: Smart silence removal within selected region only
+  async detectSilenceInRegion(params) {
+    // 🔍 **VALIDATE PARAMS**: Check required parameters for region-based detection
+    if (!params.fileId) {
+      throw new Error('fileId is required for region-based silence detection');
+    }
+
+    if (!params.threshold || params.threshold < -60 || params.threshold > -10) {
+      throw new Error('threshold must be between -60dB and -10dB');
+    }
+
+    if (!params.minDuration || params.minDuration < 0.1 || params.minDuration > 10) {
+      throw new Error('minDuration must be between 0.1s and 10s');
+    }
+
+    if (typeof params.startTime !== 'number' || params.startTime < 0) {
+      throw new Error('startTime must be a non-negative number');
+    }    if (params.endTime !== null && params.endTime !== undefined && params.endTime <= params.startTime) {
+      throw new Error('endTime must be greater than startTime');
+    }
+
+    // 🔍 **ENHANCED VALIDATION**: Check duration bounds
+    if (params.duration && typeof params.duration === 'number') {
+      if (params.startTime >= params.duration) {
+        throw new Error(`startTime (${params.startTime}) cannot be >= duration (${params.duration})`);
+      }
+      
+      if (params.endTime !== null && params.endTime !== undefined && params.endTime > params.duration) {
+        throw new Error(`endTime (${params.endTime}) cannot be > duration (${params.duration})`);
+      }
+    }
+
+    console.log('🎯 [detectSilenceInRegion] Sending parameters:', {
+      fileId: params.fileId,
+      threshold: params.threshold,
+      minDuration: params.minDuration,
+      startTime: params.startTime,
+      endTime: params.endTime,
+      duration: params.duration,
+      validEndTime: params.endTime === null || params.endTime === undefined || params.endTime <= params.duration
+    });
+
+    const regionSilenceUrl = `${API_BASE_URL}${API_ENDPOINTS.DETECT_SILENCE}-region/${params.fileId}`;
+    
+    let response;
+    try {
+      response = await fetch(regionSilenceUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          threshold: params.threshold,
+          minDuration: params.minDuration,
+          startTime: params.startTime,
+          endTime: params.endTime,
+          duration: params.duration
+        })
+      });
+      
+    } catch (networkError) {
+      console.error('🌐 [detectSilenceInRegion] Network error:', networkError);
+      throw new Error(`Network error: ${networkError.message}. Please check if backend is running on ${API_BASE_URL}`);
+    }
+
+    if (!response.ok) {
+      await handleApiError(response, 'Region-based Silence Detection');
+    }
+    
+    // 🎯 Safe JSON parsing
+    try {
+      const result = await safeJsonParse(response);
+      console.log('🎯 [detectSilenceInRegion] Success:', {
+        fileId: params.fileId,
+        regionStart: params.startTime,
+        regionEnd: params.endTime,
+        regionsFound: result.data?.count || 0,
+        totalSilence: result.data?.totalSilence || 0
+      });
+      return result;
+    } catch (parseError) {
+      console.error('❌ [detectSilenceInRegion] Response parsing failed:', parseError);
+      throw new Error(`Region-based silence detection response parsing failed: ${parseError.message}`);
+    }
+  },
 };

@@ -1158,9 +1158,7 @@ const MP3CutterMain = React.memo(() => {
                             onMouseMove={handleCanvasMouseMove}
               onMouseUp={handleCanvasMouseUp}
               onMouseLeave={handleCanvasMouseLeave}
-            />
-
-            {/* 🔇 SILENCE DETECTION - Advanced component with real-time preview */}            <SilenceDetection
+            />            {/* 🔇 SILENCE DETECTION - Advanced component with real-time preview */}            <SilenceDetection
               fileId={audioFile?.filename || audioFile?.name}
               duration={duration}
               waveformData={waveformData}
@@ -1180,6 +1178,9 @@ const MP3CutterMain = React.memo(() => {
               isOpen={isSilencePanelOpen}
               onToggleOpen={handleToggleSilencePanel}
               disabled={!audioFile}
+              // 🎯 **REGION-BASED PROPS**: Auto-detect region processing
+              startTime={startTime}
+              endTime={endTime}
             />
 
             {/* 🎯 UNIFIED CONTROLS - Single row layout with all controls */}
