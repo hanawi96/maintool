@@ -540,9 +540,6 @@ const WaveformCanvas = React.memo(({
             purpleWaveformCacheRef.current.close?.();
           }
           
-          // 🔍 **DEBUG FADE CACHE UPDATE**: Log when cache is updated due to fade/handle changes
-          console.log(`🎨 [WaveformCache] Purple cache update - fadeIn: ${renderData.fadeIn}s, fadeOut: ${renderData.fadeOut}s, region: [${renderData.startTime?.toFixed(2)}s - ${renderData.endTime?.toFixed(2)}s]`);
-          
           purpleWaveformCacheRef.current = await createPurpleWaveformCache(
             renderData.waveformData, 
             canvas.width, 
