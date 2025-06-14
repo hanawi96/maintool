@@ -1,6 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { BarChart, Loader2, ChevronDown, X, List, Target } from 'lucide-react';
-import { audioApi } from '../services/audioApi';
 import { formatTimeUnified } from '../utils/timeFormatter';
 
 // 🎨 **INJECT OPTIMIZED CSS**: Simple panel animations with proper spacing
@@ -57,11 +56,10 @@ if (typeof document !== 'undefined' && !document.getElementById('silence-panel-s
  * 🚀 **PHƯƠNG ÁN BALANCED**: MICRO-DEBOUNCE + SMART CACHE
  * Ultra-light, ultra-smooth, ultra-fast silence detection
  */
-const SilenceDetection = ({ 
+const SilenceDetection = React.forwardRef(({ 
   fileId, 
   duration, 
   onSilenceDetected, 
-  onSilenceRemoved,
   disabled = false,
   // 🆕 **REAL-TIME PREVIEW PROPS**
   audioRef = null,
@@ -80,7 +78,7 @@ const SilenceDetection = ({
   onRegionClick = null,
   onSelectedRegionsChange = null,
   onRemoveSelected = null,
-}) => {  // 🎛️ **STATE MANAGEMENT**: Minimal state for optimal performance
+}, ref) => {  // 🎛️ **STATE MANAGEMENT**: Minimal state for optimal performance
   const [isOpen, setIsOpen] = useState(externalIsOpen || false);
   const [isDetecting, setIsDetecting] = useState(false);
   const [silenceData, setSilenceData] = useState(null);  const [threshold, setThreshold] = useState(-10);
@@ -111,18 +109,21 @@ const SilenceDetection = ({
       return [];
     }
     
-    console.log('🎯 [SilenceCache] Using cache to filter regions:', {
+    console.log('🎯 [SilenceCache] Filtering cache for compatible threshold:', {
       totalRegions: silenceCacheRef.current.regions.length,
-      filterThreshold,
-      filterMinDuration,
+      filterThreshold: filterThreshold + 'dB',
+      filterMinDuration: filterMinDuration + 's',
       startTime,
       endTime
     });
     
-    // Filter cached regions based on new parameters and current region bounds
+    // 🚀 **SIMPLE CACHE FILTERING**: Filter cache regions by duration and region bounds only
+    // Note: Threshold compatibility is already checked by caller
     const filteredRegions = silenceCacheRef.current.regions.filter(region => {
       // Apply duration filter
-      if (region.duration < filterMinDuration) return false;
+      if (region.duration < filterMinDuration) {
+        return false;
+      }
       
       // Apply region bounds if user has selected a region
       const hasRegionSelection = startTime > 0 || endTime !== null;
@@ -157,7 +158,9 @@ const SilenceDetection = ({
     console.log('✅ [SilenceCache] Cache filtered successfully:', {
       originalCount: silenceCacheRef.current.regions.length,
       filteredCount: filteredRegions.length,
-      firstFiltered: filteredRegions[0] ? `${filteredRegions[0].start}s-${filteredRegions[0].end}s` : 'none'
+      filterThreshold: filterThreshold + 'dB',
+      filterMinDuration: filterMinDuration + 's',
+      sampleRegion: filteredRegions[0] ? `${filteredRegions[0].start}s-${filteredRegions[0].end}s` : 'none'
     });
     
     return filteredRegions;
@@ -168,19 +171,52 @@ const SilenceDetection = ({
   const calculateSilenceRegions = useCallback((filterThreshold, filterMinDuration) => {
     if (!duration) return [];
     
-    // 🚀 **PRIORITIZE CACHE**: Always use cache if available
+    console.log('🔄 [SilenceCalculation] Starting:', {
+      filterThreshold: filterThreshold + 'dB',
+      filterMinDuration: filterMinDuration + 's',
+      hasCacheData: !silenceCacheRef.current.isStale && silenceCacheRef.current.regions.length > 0,
+      hasWaveformData: waveformData.length > 0
+    });
+    
+    // 🚀 **SMART CACHE USAGE**: Check if threshold is compatible with cache
     if (!silenceCacheRef.current.isStale && silenceCacheRef.current.regions.length > 0) {
-      return filterSilenceFromCache(filterThreshold, filterMinDuration);
+      // 🎯 **THRESHOLD COMPATIBILITY CHECK**: Cache was created with Web Worker (very low threshold ~-60dB)
+      // If user threshold is significantly higher, we need waveform calculation for accuracy
+      const cacheThreshold = -60; // Web Worker uses very low threshold to catch all silence
+      const thresholdDiff = Math.abs(filterThreshold - cacheThreshold);
+      
+      if (thresholdDiff <= 10) {
+        // Threshold is close to cache threshold, safe to use cache
+        console.log('⚡ [SilenceCalculation] Using cache - threshold compatible:', {
+          cacheThreshold: cacheThreshold + 'dB',
+          requestedThreshold: filterThreshold + 'dB',
+          difference: thresholdDiff + 'dB'
+        });
+        return filterSilenceFromCache(filterThreshold, filterMinDuration);
+      } else {
+        // Threshold too different, need waveform calculation for accuracy
+        console.log('🔄 [SilenceCalculation] Cache threshold incompatible, using waveform:', {
+          cacheThreshold: cacheThreshold + 'dB',
+          requestedThreshold: filterThreshold + 'dB',
+          difference: thresholdDiff + 'dB'
+        });
+      }
     }
     
-    // 🎯 **FALLBACK TO WAVEFORM**: Only if cache is empty/stale and waveform data available
-    if (!waveformData.length) return [];
+    // 🎯 **FALLBACK TO WAVEFORM**: When cache is empty/stale or threshold incompatible
+    if (!waveformData.length) {
+      console.log('❌ [SilenceCalculation] No waveform data available for threshold filtering');
+      return [];
+    }
+    
+    console.log('🔄 [SilenceCalculation] Using waveform calculation for accurate threshold filtering');
     
     const cacheKey = `${filterThreshold}_${filterMinDuration}_${waveformData.length}_${startTime}_${endTime}`;
     if (cacheRef.current.has(cacheKey)) {
       const cached = cacheRef.current.get(cacheKey);
       cacheRef.current.delete(cacheKey);
       cacheRef.current.set(cacheKey, cached);
+      console.log('✅ [SilenceCalculation] Using waveform cache:', cached.length, 'regions');
       return cached;
     }
     
@@ -245,33 +281,59 @@ const SilenceDetection = ({
     }
     cacheRef.current.set(cacheKey, regions);
     
+    console.log('✅ [SilenceCalculation] Waveform calculation completed:', regions.length, 'regions');
     return regions;
   }, [waveformData, duration, startTime, endTime, filterSilenceFromCache]);
   // ⚡ **ULTRA-SMOOTH UPDATE**: Instant visual + debounced callback
   const updatePreview = useCallback((instantUpdate = false) => {
-    if (!isPanelOpen || !waveformData.length) {
+    if (!isPanelOpen) {
+      console.log('⏭️ [Preview] Panel closed, clearing regions');
       setPreviewRegions([]);
       if (onPreviewSilenceUpdate) {
-        console.log('🔄 [Preview] Clearing silence regions - panel closed or no data');
+        onPreviewSilenceUpdate([]);
+      }
+      return;
+    }
+
+    if (!waveformData.length && (silenceCacheRef.current.isStale || !silenceCacheRef.current.regions.length)) {
+      console.log('⏭️ [Preview] No data available for preview');
+      setPreviewRegions([]);
+      if (onPreviewSilenceUpdate) {
         onPreviewSilenceUpdate([]);
       }
       return;
     }
     
+    console.log('🔄 [Preview] Updating preview:', {
+      threshold: threshold + 'dB',
+      minDuration: minDuration + 's',
+      instantUpdate,
+      isPanelOpen
+    });
+    
     const regions = calculateSilenceRegions(threshold, minDuration);
     
     // 🚀 **INSTANT VISUAL UPDATE**: Update UI immediately for smooth interaction
     setPreviewRegions(regions);
+    console.log('📋 [Table] Updated previewRegions for table:', {
+      regionsCount: regions.length,
+      threshold: threshold + 'dB',
+      minDuration: minDuration + 's',
+      sampleRegion: regions[0] ? `${regions[0].start}s-${regions[0].end}s (${regions[0].duration}s)` : 'none'
+    });
     
-    // 🎯 **DEBOUNCED CALLBACK**: Only debounce the parent callback to prevent spam
-    if (instantUpdate) {
-      // For slider drag: instant visual, no callback delay
-      if (onPreviewSilenceUpdate) {
-        console.log('🔄 [Preview] Instant update - sending', regions.length, 'regions');
-        onPreviewSilenceUpdate(regions);
-      }
-    } else {
-      // For other updates: use micro-debounce for callback
+    // 🎯 **ALWAYS UPDATE OVERLAY**: Send to overlay for real-time display
+    if (onPreviewSilenceUpdate) {
+      console.log('📡 [Preview] Sending to overlay:', {
+        regionsCount: regions.length,
+        instantUpdate,
+        sampleRegion: regions[0] ? `${regions[0].start}s-${regions[0].end}s (${regions[0].duration}s)` : 'none'
+      });
+      onPreviewSilenceUpdate(regions);
+    }
+    
+    // 🎯 **DEBOUNCED CALLBACK**: Only debounce non-critical callbacks
+    if (!instantUpdate) {
       const now = Date.now();
       lastUpdateRef.current = now;
       
@@ -280,9 +342,8 @@ const SilenceDetection = ({
       }
       
       debounceTimerRef.current = setTimeout(() => {
-        if (lastUpdateRef.current === now && onPreviewSilenceUpdate) {
-          console.log('🔄 [Preview] Debounced update - sending', regions.length, 'regions');
-          onPreviewSilenceUpdate(regions);
+        if (lastUpdateRef.current === now) {
+          console.log('⏰ [Preview] Debounced update completed');
         }
       }, MICRO_DEBOUNCE_MS);
     }
@@ -311,21 +372,44 @@ const SilenceDetection = ({
     };
   }, [updatePreview]);
 
-  // 🧹 **CLEANUP**: Reset spacing on unmount (simplified from scrollable version)
+  // 🚀 **CACHE LOADER**: Load từ cache khi panel mở để slider hoạt động ngay
   useEffect(() => {
-    return () => {
-      document.querySelectorAll('.silence-detection-wrapper').forEach(wrapper => {
-        wrapper.style.margin = '0';
-        wrapper.style.padding = '0';  
-      });
+    if (isPanelOpen && !silenceCacheRef.current.isStale && silenceCacheRef.current.regions.length > 0) {
+      // 🎯 **THRESHOLD COMPATIBILITY CHECK**: Only use cache if threshold is compatible
+      const cacheThreshold = -60; // Web Worker uses very low threshold to catch all silence
+      const thresholdDiff = Math.abs(threshold - cacheThreshold);
       
-      // Cleanup Web Worker
-      if (workerRef.current) {
-        workerRef.current.terminate();
-        workerRef.current = null;
+      if (thresholdDiff <= 10) {
+        // Threshold compatible with cache
+        console.log('🔄 [Cache] Loading existing cache for immediate slider response:', {
+          cacheSize: silenceCacheRef.current.regions.length,
+          isStale: silenceCacheRef.current.isStale,
+          thresholdCompatible: true,
+          thresholdDiff: thresholdDiff + 'dB'
+        });
+        
+        // 🚀 **INSTANT CACHE LOAD**: Load cache data immediately for slider
+        const cachedRegions = filterSilenceFromCache(threshold, minDuration);
+        setPreviewRegions(cachedRegions);
+        
+        if (onPreviewSilenceUpdate && cachedRegions.length > 0) {
+          console.log('✅ [Cache] Sending cached regions to overlay:', {
+            regionsCount: cachedRegions.length,
+            firstRegion: cachedRegions[0] ? `${cachedRegions[0].start}s-${cachedRegions[0].end}s` : 'none'
+          });
+          onPreviewSilenceUpdate(cachedRegions);
+        }
+      } else {
+        // Threshold incompatible - let waveform calculation handle it
+        console.log('⏭️ [Cache] Skipping cache load - threshold incompatible:', {
+          cacheThreshold: cacheThreshold + 'dB',
+          requestedThreshold: threshold + 'dB',
+          thresholdDiff: thresholdDiff + 'dB',
+          note: 'Waveform calculation will handle this'
+        });
       }
-    };
-  }, []);
+    }
+  }, [isPanelOpen, threshold, minDuration, filterSilenceFromCache, onPreviewSilenceUpdate]);
 
   // 🚀 **CACHE WARMING**: Pre-calculate common values for instant response
   useEffect(() => {
@@ -350,21 +434,39 @@ const SilenceDetection = ({
     onDetectingStateChange?.(isDetecting);
   }, [isDetecting, onDetectingStateChange]);
 
-  // 🎯 **AUDIOBUFFER CREATION**: Create AudioBuffer from file for Web Worker
+  // 🎯 **AUDIOBUFFER CREATION**: Tạo AudioBuffer từ file thật - IMPROVED
   const createAudioBufferFromFile = useCallback(async (file) => {
-    if (!file) return null;
+    if (!file) {
+      console.log('❌ [AudioBuffer] No file provided');
+      return null;
+    }
+    
+    console.log('🔧 [AudioBuffer] Creating AudioBuffer from file:', {
+      name: file.name || 'unknown',
+      type: file.type || 'unknown',
+      size: file.size ? `${(file.size / 1024 / 1024).toFixed(2)}MB` : 'unknown'
+    });
     
     try {
       const arrayBuffer = await file.arrayBuffer();
+      console.log('✅ [AudioBuffer] File.arrayBuffer() success, size:', arrayBuffer.byteLength);
+      
       const audioContext = new (window.AudioContext || window.webkitAudioContext)();
       const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+      
+      console.log('✅ [AudioBuffer] AudioContext.decodeAudioData() success:', {
+        duration: audioBuffer.duration.toFixed(2) + 's',
+        sampleRate: audioBuffer.sampleRate,
+        channels: audioBuffer.numberOfChannels,
+        length: audioBuffer.length
+      });
       
       // Close context to free resources
       await audioContext.close();
       
       return audioBuffer;
     } catch (error) {
-      console.warn('🔧 [SilenceDetection] Failed to create AudioBuffer:', error.message);
+      console.error('❌ [AudioBuffer] Creation failed:', error.message);
       return null;
     }
   }, []);
@@ -373,14 +475,23 @@ const SilenceDetection = ({
   const audioFileRef = useRef(null);
   const audioBufferCreatedRef = useRef(false);
   
-  // 🚀 **AUDIO BUFFER CREATOR**: Create and attach AudioBuffer when file is loaded
+  // 🚀 **AUDIO BUFFER CREATOR**: SIMPLIFIED - Always try to create AudioBuffer
   const setupAudioBufferForWorker = useCallback(async () => {
     // 🎯 **GET FILE FROM GLOBAL STATE**: Get current audio file from MP3CutterMain
-    const currentFile = window.currentAudioFile || audioFileRef.current;
+    const currentFile = window.currentAudioFile;
     
-    if (!currentFile || audioBufferCreatedRef.current) return;
+    console.log('🔧 [AudioBuffer] Setup attempt:', {
+      hasFile: !!currentFile,
+      alreadyCreated: audioBufferCreatedRef.current,
+      fileName: currentFile?.name || 'unknown'
+    });
     
-    console.log('🔧 [SilenceDetection] Creating AudioBuffer for Web Worker...');
+    if (!currentFile || audioBufferCreatedRef.current) {
+      console.log('⏭️ [AudioBuffer] Skipping setup - no file or already created');
+      return;
+    }
+    
+    console.log('🚀 [AudioBuffer] Creating AudioBuffer for Web Worker...');
     
     try {
       const audioBuffer = await createAudioBufferFromFile(currentFile);
@@ -390,14 +501,16 @@ const SilenceDetection = ({
         audioRef.current.audioBuffer = audioBuffer;
         audioBufferCreatedRef.current = true;
         
-        console.log('✅ [SilenceDetection] AudioBuffer created and attached:', {
+        console.log('✅ [AudioBuffer] Successfully attached to audioRef:', {
           duration: audioBuffer.duration.toFixed(2) + 's',
           sampleRate: audioBuffer.sampleRate,
           channels: audioBuffer.numberOfChannels
         });
+      } else {
+        console.log('❌ [AudioBuffer] Failed to attach - missing audioBuffer or audioRef');
       }
     } catch (error) {
-      console.warn('❌ [SilenceDetection] AudioBuffer creation failed:', error.message);
+      console.error('❌ [AudioBuffer] Setup failed:', error.message);
     }
   }, [createAudioBufferFromFile, audioRef]);
   
@@ -405,6 +518,11 @@ const SilenceDetection = ({
   useEffect(() => {
     // 🚀 **RESET FOR NEW FILE**: Reset buffer creation flag for new files
     if (fileId && fileId !== audioFileRef.current?.filename) {
+      console.log('🔄 [AudioBuffer] New file detected, resetting:', { 
+        newFileId: fileId, 
+        oldFileId: audioFileRef.current?.filename 
+      });
+      
       audioBufferCreatedRef.current = false;
       audioFileRef.current = { filename: fileId };
       
@@ -497,26 +615,80 @@ const SilenceDetection = ({
         isStale: false
       };
       
-      // Start worker processing
-      worker.postMessage({
+      // 🔧 **EXTRACT AUDIOBUFFER DATA**: Convert AudioBuffer to transferable format
+      console.log('🔧 [Web Worker] Extracting AudioBuffer data for transfer:', {
+        channels: audioBuffer.numberOfChannels,
+        sampleRate: audioBuffer.sampleRate,
+        length: audioBuffer.length,
+        duration: audioBuffer.duration.toFixed(2) + 's'
+      });
+      
+      // Extract channel data as Float32Arrays (transferable)
+      const channelData = [];
+      for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+        const data = audioBuffer.getChannelData(channel);
+        // Create a copy since getChannelData returns a view
+        const channelArray = new Float32Array(data);
+        channelData.push(channelArray);
+      }
+      
+      console.log('✅ [Web Worker] Channel data extracted successfully:', {
+        channelsExtracted: channelData.length,
+        firstChannelLength: channelData[0]?.length || 0,
+        totalSamples: channelData.reduce((sum, ch) => sum + ch.length, 0)
+      });
+      
+      // Start worker processing with transferable data
+      const transferableData = {
         cmd: 'analyze',
         data: {
-          buffer: audioBuffer,
+          // 🚀 **TRANSFERABLE AUDIOBUFFER DATA**: Send metadata + channel data separately
+          audioBufferData: {
+            sampleRate: audioBuffer.sampleRate,
+            numberOfChannels: audioBuffer.numberOfChannels,
+            length: audioBuffer.length,
+            duration: audioBuffer.duration,
+            channelData: channelData // Array of Float32Arrays
+          },
           params: {
             threshold,
             minDuration
           }
         }
+      };
+      
+      // 🚀 **TRANSFER OWNERSHIP**: Transfer ArrayBuffers for better performance
+      const transferList = channelData.map(ch => ch.buffer);
+      
+      console.log('🚀 [Web Worker] Sending data to worker:', {
+        transferListSize: transferList.length,
+        totalTransferredBytes: transferList.reduce((sum, buf) => sum + buf.byteLength, 0)
       });
+      
+      worker.postMessage(transferableData, transferList);
     });
   }, [threshold, minDuration, onPreviewSilenceUpdate]);
 
-  // 🔍 **SILENCE DETECTION**: Optimized with Web Worker chunked processing + backend fallback
+  // 🔍 **SILENCE DETECTION**: SIMPLIFIED - Chỉ dùng Web Worker
   const detectSilence = useCallback(async () => {
     console.log('🚀 [SilenceDetection] Starting detection process');
     
     if (!fileId || isDetecting) {
       console.log('❌ [SilenceDetection] Detection skipped:', { noFileId: !fileId, alreadyDetecting: isDetecting });
+      return;
+    }
+    
+    // 🚀 **ENSURE AUDIOBUFFER**: Try to create AudioBuffer if not available
+    if (!audioRef?.current?.audioBuffer) {
+      console.log('🔧 [SilenceDetection] AudioBuffer not available, creating...');
+      await setupAudioBufferForWorker();
+    }
+    
+    // 🚨 **REQUIRE AUDIOBUFFER**: Web Worker cần AudioBuffer
+    if (!audioRef?.current?.audioBuffer) {
+      console.error('❌ [SilenceDetection] AudioBuffer required for Web Worker detection');
+      setProgressStage('error');
+      setProgressMessage('Error: Could not create AudioBuffer for processing');
       return;
     }
     
@@ -532,111 +704,50 @@ const SilenceDetection = ({
       return;
     }
     
-    setProgressMessage(`Analyzing entire audio file (${duration.toFixed(3)}s)...`);
+    console.log('✅ [SilenceDetection] Starting Web Worker processing:', {
+      audioDuration: duration.toFixed(3) + 's',
+      audioBufferDuration: audioRef.current.audioBuffer.duration.toFixed(3) + 's',
+      threshold: threshold + 'dB',
+      minDuration: minDuration + 's'
+    });
+    
+    setProgressMessage(`Processing with Web Worker (${duration.toFixed(3)}s)...`);
       
     try {
-      // 🚀 **ALWAYS USE WEB WORKER**: Always detect full file for consistent behavior
-      if (audioRef?.current?.audioBuffer) {
-        console.log('🚀 [SilenceDetection] Web Worker path - AudioBuffer available:', {
-          audioBufferDuration: audioRef.current.audioBuffer.duration,
-          sampleRate: audioRef.current.audioBuffer.sampleRate,
-          channels: audioRef.current.audioBuffer.numberOfChannels
-        });
-        
-        setProgressStage('processing');
-        setProgressMessage('Processing with optimized chunked analysis...');
-        
-        try {
-          const regions = await detectSilenceWithWorker(audioRef.current.audioBuffer);
-          
-          if (regions && regions.length >= 0) {
-            // Success with Web Worker - update cache and UI
-            setProgress(100);
-            setProgressStage('complete');
-            setProgressMessage(`Found ${regions.length} silence regions with Web Worker!`);
-        
-            const silenceData = {
-              silenceRegions: regions,
-              totalSilence: regions.reduce((sum, r) => sum + r.duration, 0),
-              originalDuration: duration,
-              regionBased: false
-            };
-        
-            setSilenceData(silenceData);
-            onSilenceDetected?.(silenceData);
-        
-            // Final filtered regions already sent via real-time updates
-            console.log('🔄 [SilenceCache] Detection completed with real-time updates');
-        
-            return; // Success, exit early
-          }
-        } catch (workerError) {
-          console.warn('🔧 [SilenceDetection] Web Worker failed, falling back to backend:', workerError.message);
-          setProgressMessage('Web Worker failed, using backend processing...');
-        }
-      } else {
-        // 🔧 **DEBUG**: Log why Web Worker path is not taken
-        console.log('🔧 [SilenceDetection] Web Worker path NOT taken:', {
-          hasAudioRef: !!audioRef?.current,
-          hasAudioBuffer: !!audioRef?.current?.audioBuffer,
-          audioBufferDuration: audioRef?.current?.audioBuffer?.duration || 'N/A'
-        });
-      }
-      
-      // 🚀 **FALLBACK TO BACKEND**: Use backend for full file when Web Worker fails
       setProgressStage('processing');
-      setProgressMessage('Using backend processing for full file...');
+      setProgressMessage('Analyzing audio with optimized Web Worker...');
       
-      const result = await audioApi.detectSilence({
-        fileId,
-        threshold,
-        minDuration,
-        duration
-      });
+      const regions = await detectSilenceWithWorker(audioRef.current.audioBuffer);
       
-      if (result.success && result.data) {
-        // Update silence cache with backend results
-        if (result.data.silenceRegions) {
-          console.log('💾 [SilenceCache] Backend API completed, updating cache:', {
-            regionsFound: result.data.silenceRegions.length,
-            firstRegion: result.data.silenceRegions[0] ? `${result.data.silenceRegions[0].start}s-${result.data.silenceRegions[0].end}s` : 'none',
-            totalDuration: result.data.silenceRegions.reduce((sum, r) => sum + r.duration, 0).toFixed(2) + 's'
-          });
-          
-          silenceCacheRef.current = {
-            regions: result.data.silenceRegions,
-            isStale: false
-          };
-          
-          console.log('✅ [SilenceCache] Cache updated successfully from Backend:', {
-            cacheSize: silenceCacheRef.current.regions.length,
-            isStale: silenceCacheRef.current.isStale
-          });
-        }
-        
+      if (regions && regions.length >= 0) {
+        // Success with Web Worker
         setProgress(100);
         setProgressStage('complete');
-        setProgressMessage(`Found ${result.data.silenceRegions?.length || 0} silence regions!`);
-        
-        setSilenceData(result.data);
-        onSilenceDetected?.(result.data);
-        onSilenceRemoved?.(result.data);
-        
-        if (result.data.silenceRegions) {
-          setPreviewRegions(result.data.silenceRegions);
-          console.log('🔄 [SilenceCache] Sending regions to WaveformCanvas:', {
-            regionsCount: result.data.silenceRegions.length,
-            firstRegion: result.data.silenceRegions[0] ? `${result.data.silenceRegions[0].start}s-${result.data.silenceRegions[0].end}s` : 'none'
-          });
-          onPreviewSilenceUpdate?.(result.data.silenceRegions);
-        }
-      } else {
-        throw new Error(result.error || 'Detection failed');
+        setProgressMessage(`✅ Found ${regions.length} silence regions!`);
+    
+        const silenceData = {
+          silenceRegions: regions,
+          totalSilence: regions.reduce((sum, r) => sum + r.duration, 0),
+          originalDuration: duration,
+          regionBased: false
+        };
+    
+        console.log('✅ [SilenceDetection] Web Worker completed successfully:', {
+          regionsFound: regions.length,
+          totalSilence: silenceData.totalSilence.toFixed(2) + 's',
+          processingTime: 'Web Worker chunked'
+        });
+    
+        setSilenceData(silenceData);
+        onSilenceDetected?.(silenceData);
+    
+        return;
       }
       
     } catch (error) {
+      console.error('❌ [SilenceDetection] Web Worker failed:', error.message);
       setProgressStage('error');
-      setProgressMessage(`Error: ${error.message}`);    
+      setProgressMessage(`Error: Web Worker processing failed - ${error.message}`);    
     } finally {
       setIsDetecting(false);
       setTimeout(() => {
@@ -645,7 +756,12 @@ const SilenceDetection = ({
         setProgressMessage('');
       }, 3000);
     }
-  }, [fileId, threshold, minDuration, duration, isDetecting, onSilenceDetected, onSilenceRemoved, onPreviewSilenceUpdate, audioRef, detectSilenceWithWorker]);
+  }, [fileId, threshold, minDuration, duration, isDetecting, onSilenceDetected, audioRef, detectSilenceWithWorker, setupAudioBufferForWorker]);
+
+  // 🚀 **ASSIGN TO REF**: Assign detectSilence function to ref for useImperativeHandle
+  React.useEffect(() => {
+    detectSilenceRef.current = detectSilence;
+  }, [detectSilence]);
 
   // 🎯 **HANDLERS**: Simple and optimized
   const togglePanel = useCallback(() => {
@@ -656,24 +772,76 @@ const SilenceDetection = ({
       setPreviewRegions([]);
       onPreviewSilenceUpdate?.([]);
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    } else {
+      // ✅ **AUTO-TRIGGER**: Gọi detectSilence() ngay khi panel mở
+      console.log('🚀 [Panel] Panel opened - checking for auto-trigger');
+      
+      // 🎯 **SMART AUTO-TRIGGER**: Chỉ trigger nếu chưa có cache hoặc cache stale
+      setTimeout(() => {
+        if (fileId && !isDetecting) {
+          const hasFreshCache = !silenceCacheRef.current.isStale && silenceCacheRef.current.regions.length > 0;
+          
+          if (hasFreshCache) {
+            console.log('⚡ [Panel] Cache available - skipping auto-trigger, using cache');
+          } else {
+            console.log('🔥 [Panel] No cache available - auto-triggering detectSilence()');
+            if (detectSilenceRef.current) {
+              detectSilenceRef.current();
+            }
+          }
+        }
+      }, 100);
     }
-  }, [isPanelOpen, setIsPanelOpen, onPreviewSilenceUpdate]);
+  }, [isPanelOpen, setIsPanelOpen, onPreviewSilenceUpdate, fileId, isDetecting]); // 🔧 **REMOVED detectSilence**: Use ref instead
 
   const handleThresholdChange = useCallback((e) => {
-    setThreshold(parseInt(e.target.value));
+    const newThreshold = parseInt(e.target.value);
+    console.log('🎚️ [ThresholdSlider] Threshold changed:', {
+      oldThreshold: threshold + 'dB',
+      newThreshold: newThreshold + 'dB',
+      willTriggerUpdate: true
+    });
+    setThreshold(newThreshold);
     requestSmoothUpdate();
-  }, [requestSmoothUpdate]);
+  }, [requestSmoothUpdate, threshold]);
 
   const handleDurationChange = useCallback((e) => {
-    setMinDuration(parseFloat(e.target.value));
+    const newDuration = parseFloat(e.target.value);
+    console.log('🎚️ [DurationSlider] Duration changed:', {
+      oldDuration: minDuration + 's',
+      newDuration: newDuration + 's',
+      willTriggerUpdate: true
+    });
+    setMinDuration(newDuration);
     requestSmoothUpdate();
-  }, [requestSmoothUpdate]);
+  }, [requestSmoothUpdate, minDuration]);
 
   const handleSkipSilenceChange = useCallback((e) => {
     const enabled = e.target.checked;
     setSkipSilenceEnabled(enabled);
     onSkipSilenceChange?.(enabled);
-  }, [onSkipSilenceChange]);  // 📊 **COMPUTED VALUES**: Optimized calculations
+  }, [onSkipSilenceChange]);
+
+  // 🚀 **DETECT SILENCE REF**: Tạo ref để lưu detectSilence function
+  const detectSilenceRef = useRef(null);
+
+  // 🚀 **EXPOSE detectSilence VIA REF**: Cho phép parent component gọi detectSilence - FIXED
+  React.useImperativeHandle(ref, () => ({
+    detectSilence: () => {
+      console.log('🎯 [Ref] detectSilence called via ref');
+      if (detectSilenceRef.current) {
+        detectSilenceRef.current();
+      } else {
+        console.warn('❌ [Ref] detectSilence function not ready yet');
+      }
+    },
+    getCacheInfo: () => ({
+      isStale: silenceCacheRef.current.isStale,
+      regionsCount: silenceCacheRef.current.regions.length
+    })
+  }), []); // 🔧 **EMPTY DEPS**: Không có dependencies để tránh circular reference
+
+  // 📊 **COMPUTED VALUES**: Optimized calculations
   const hasRegions = silenceData?.silenceRegions?.length > 0;
   const totalSilence = silenceData?.totalSilence || 0;
   const hasRegionSelection = startTime > 0 || endTime !== null;
@@ -690,6 +858,22 @@ const SilenceDetection = ({
   const regionDuration = Math.max(0, effectiveEndTime - startTime);
   const baseDuration = hasRegionSelection && silenceData?.regionBased ? regionDuration : duration;
   const silencePercent = baseDuration > 0 ? (totalSilence / baseDuration * 100) : 0;
+
+  // 🧹 **CLEANUP**: Reset spacing on unmount and cleanup Web Worker
+  useEffect(() => {
+    return () => {
+      document.querySelectorAll('.silence-detection-wrapper').forEach(wrapper => {
+        wrapper.style.margin = '0';
+        wrapper.style.padding = '0';  
+      });
+      
+      // Cleanup Web Worker
+      if (workerRef.current) {
+        workerRef.current.terminate();
+        workerRef.current = null;
+      }
+    };
+  }, []);
 
   // 🎨 **RENDER**: Conditional rendering for performance
   if (!fileId || disabled) {
@@ -716,8 +900,22 @@ const SilenceDetection = ({
                 ? 'bg-red-100 hover:bg-red-150 border border-red-300 text-red-800' 
                 : 'bg-red-50 hover:bg-red-100 border border-red-200 text-red-700'
             }`}
-          >            <BarChart className="w-4 h-4" />
-            <span>Find silence regions</span>            <div 
+          >            
+            {/* ✅ **DOT INDICATOR**: Active state với animated dot */}
+            <div className="relative">
+              <BarChart className="w-4 h-4" />
+              {isPanelOpen && (
+                <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+              )}
+              {isDetecting && (
+                <div className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full animate-spin">
+                  <div className="w-1 h-1 bg-white rounded-full m-0.5"></div>
+                </div>
+              )}
+            </div>
+            
+            <span>Find silence regions</span>            
+            <div 
               className="w-4 h-4 transition-transform duration-200 ease-out"
               style={{
                 transform: isPanelOpen ? 'rotate(180deg)' : 'rotate(0deg)'
@@ -933,7 +1131,10 @@ const SilenceDetection = ({
                 </span>
                 <span className="font-semibold text-blue-600">{(baseDuration - totalSilence).toFixed(2)}s</span>
               </div>
-            </div>          )}          {/* 📊 **PROGRESS INDICATOR**: Show during processing - moved above button */}
+            </div>
+          )}
+
+          {/* 📊 **PROGRESS INDICATOR**: Show during processing - moved above button */}
           {(isDetecting || progressStage !== 'idle') && (
             <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
               <div className="flex items-center justify-between mb-2">
@@ -983,27 +1184,43 @@ const SilenceDetection = ({
             </div>
           )}
 
-          {/* 🎯 **SIMPLIFIED ACTION**: Single button for detect & remove */}
+          {/* 🎯 **SIMPLIFIED ACTION**: Single button for detect with Web Worker */}
           <div className="flex gap-3">
             <button
               onClick={() => {
-                console.log('🔴 [BUTTON] Find Silence button clicked!');
+                console.log('🔴 [BUTTON] Manual Web Worker Silence Detection clicked!');
                 console.log('🔴 [BUTTON] Button state:', { isDetecting, fileId, disabled: isDetecting });
                 detectSilence();
               }}
               disabled={isDetecting}
-              className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+              className={`flex-1 px-4 py-3 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 ${
+                isDetecting 
+                  ? 'bg-blue-500 text-white cursor-not-allowed' 
+                  : hasRegions 
+                    ? 'bg-green-600 hover:bg-green-700 text-white' 
+                    : 'bg-red-600 hover:bg-red-700 text-white'
+              }`}
             >
-              {isDetecting ? (
-                <>
+              {/* ✅ **BUTTON STATE INDICATOR**: Visual feedback với dot indicator */}
+              <div className="relative">
+                {isDetecting ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Processing...
-                </>
-              ) : (
-                <>
+                ) : hasRegions ? (
+                  <>
+                    <BarChart className="w-4 h-4" />
+                    <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-300 rounded-full"></div>
+                  </>
+                ) : (
                   <BarChart className="w-4 h-4" />
-                  Remove Silent Parts
-                </>
+                )}
+              </div>
+              
+              {isDetecting ? (
+                <span>Processing with Web Worker...</span>
+              ) : hasRegions ? (
+                <span>Re-analyze with Web Worker</span>
+              ) : (
+                <span>Find Silent Parts (Web Worker)</span>
               )}
             </button>
           </div>
@@ -1059,6 +1276,6 @@ const SilenceDetection = ({
       </div>
     </div>
   );
-};
+});
 
 export default SilenceDetection;

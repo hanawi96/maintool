@@ -962,17 +962,38 @@ const MP3CutterMain = React.memo(() => {
     } else {
       // 🔙 **DISABLING INVERT MODE**: Return to normal
       jumpToTime(startTime);
-    }}, [duration, startTime, endTime, isInverted, saveState, fadeIn, fadeOut, jumpToTime, updateFadeConfig]);  // 🆕 **SILENCE PANEL TOGGLE HANDLER**: Handler to toggle silence detection panel
+    }}, [duration, startTime, endTime, isInverted, saveState, fadeIn, fadeOut, jumpToTime, updateFadeConfig]);  // 🆕 **SILENCE PANEL TOGGLE HANDLER**: Handler to toggle silence detection panel với auto-trigger
   const handleToggleSilencePanel = useCallback(() => {
     setIsSilencePanelOpen(prev => {
       const newIsOpen = !prev;
-      // Clear silence regions when closing panel
+      
       if (!newIsOpen) {
+        // Clear silence regions when closing panel
         setSilenceRegions([]);
+        console.log('🚀 [Panel] Silence panel closed - clearing regions');
+      } else {
+        // ✅ **AUTO-TRIGGER**: Auto-trigger silence detection khi panel mở
+        console.log('🚀 [Panel] Silence panel opened - checking for auto-trigger');
+        
+        // 🎯 **SMART AUTO-TRIGGER**: Use ref to call detectSilence directly
+        setTimeout(() => {
+          if (silenceDetectionRef.current && audioFile?.filename) {
+            const cacheInfo = silenceDetectionRef.current.getCacheInfo();
+            console.log('🔧 [Panel] Cache info:', cacheInfo);
+            
+            if (cacheInfo.isStale || cacheInfo.regionsCount === 0) {
+              console.log('🔥 [Panel] No cache available - triggering detectSilence via ref');
+              silenceDetectionRef.current.detectSilence();
+            } else {
+              console.log('⚡ [Panel] Cache available - skipping auto-trigger');
+            }
+          }
+        }, 150);
       }
+      
       return newIsOpen;
     });
-  }, []);
+  }, [audioFile?.filename]);
   // 🆕 **SILENCE PREVIEW HANDLER**: Handler for real-time silence preview updates
   const handleSilencePreviewUpdate = useCallback((regions) => {
     setSilenceRegions(regions || []);
@@ -1180,6 +1201,9 @@ const MP3CutterMain = React.memo(() => {
     }
   }, [selectedSilenceRegions, audioFile?.filename, regionsEqual]);
 
+  // 🚀 **SILENCE DETECTION REF**: Ref to control SilenceDetection component
+  const silenceDetectionRef = useRef(null);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-pink-50">
       <div className="container mx-auto px-6 py-6">
@@ -1258,6 +1282,7 @@ const MP3CutterMain = React.memo(() => {
               onMouseLeave={handleCanvasMouseLeave}
             />            {/* 🔇 SILENCE DETECTION - Advanced component with real-time preview */}            {audioFile && (
               <SilenceDetection
+                ref={silenceDetectionRef}
                 fileId={audioFile?.filename || audioFile?.name}
                 duration={duration}
                 waveformData={waveformData}
@@ -1267,11 +1292,7 @@ const MP3CutterMain = React.memo(() => {
                     console.log('🔇 [SilenceDetection] Data received:', data);
                   }
                 }}
-                onSilenceRemoved={(data) => {
-                  if (data) {
-                    console.log('🔇 [SilenceRemoval] Data received:', data);
-                  }
-                }}                onPreviewSilenceUpdate={handleSilencePreviewUpdate}
+                onPreviewSilenceUpdate={handleSilencePreviewUpdate}
                 onSkipSilenceChange={handleSkipSilenceChange}
                 onDetectingStateChange={setIsDetectingSilence}
                 isOpen={isSilencePanelOpen}
