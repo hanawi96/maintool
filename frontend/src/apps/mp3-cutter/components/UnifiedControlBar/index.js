@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useEffect, useRef } from 'react';
-import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Zap, RotateCcw, RotateCw, Repeat, Shuffle } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Zap, RotateCcw, RotateCw, Repeat, Shuffle, Loader2 } from 'lucide-react';
 import CompactTimeSelector from './CompactTimeSelector';
 import { getAutoReturnSetting, setAutoReturnSetting } from '../../utils/safeStorage';
 import '../../styles/UnifiedControlBar.css';
@@ -29,13 +29,13 @@ const UnifiedControlBar = React.memo(({
   onInvertSelection,
     // 🆕 **INVERT STATE**: Prop to track if invert mode is active
   isInverted = false,
-  
-  // 🆕 **SILENCE DETECTION**: Props for silence detection
+    // 🆕 **SILENCE DETECTION**: Props for silence detection
   fileId,
   waveformData = [],
   onSilenceDetected,
   isSilencePanelOpen = false,
   onToggleSilencePanel,
+  isDetectingSilence = false, // 🆕 **PROCESSING STATE**: Track if silence detection is running
   selectedSilenceRegions = [], // 🆕 **SELECTED REGIONS**: Track selected regions
   onSilenceRegionClick = null, // 🆕 **REGION CLICK**: Handler for region clicks
   onRemoveSelectedSilence = null, // 🆕 **REMOVE SELECTED**: Handler for removing selected regions
@@ -337,8 +337,7 @@ const UnifiedControlBar = React.memo(({
           <div className="absolute -top-1 -right-1 w-2 h-2 bg-indigo-500 rounded-full shadow-sm"></div>
         )}
       </button>
-        {/* 🆕 **SILENCE DETECTION BUTTON** - Text button */}
-      <button
+        {/* 🆕 **SILENCE DETECTION BUTTON** - Text button */}      <button
         onClick={onToggleSilencePanel}
         disabled={disabled || !fileId}
         className={`relative px-3 py-2 rounded-lg transition-all duration-200 group ${
@@ -348,21 +347,33 @@ const UnifiedControlBar = React.memo(({
         } disabled:opacity-50 disabled:cursor-not-allowed`}
         title="Silence Detection - Remove silent parts"
       >
-        <span className={`text-sm font-medium transition-colors ${
-          isSilencePanelOpen 
-            ? 'text-red-700 group-hover:text-red-800' 
-            : 'text-slate-700 group-hover:text-slate-900'
-        } group-disabled:text-slate-400`}>
-          Find Silence
-        </span>
+        <div className="flex items-center gap-2">
+          {/* 🆕 **SPINNER**: Show when processing */}
+          {isDetectingSilence ? (
+            <Loader2 className="w-4 h-4 animate-spin text-red-600" />
+          ) : (
+            <span className={`text-sm font-medium transition-colors ${
+              isSilencePanelOpen 
+                ? 'text-red-700 group-hover:text-red-800' 
+                : 'text-slate-700 group-hover:text-slate-900'
+            } group-disabled:text-slate-400`}>
+              Find Silence
+            </span>
+          )}
+        </div>
         
         {/* 🎯 **ACTIVE INDICATOR** - Visual dot when panel is open */}
-        {isSilencePanelOpen && (
+        {isSilencePanelOpen && !isDetectingSilence && (
           <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full shadow-sm"></div>
+        )}
+        
+        {/* 🆕 **PROCESSING INDICATOR** - Different color when processing */}
+        {isDetectingSilence && (
+          <div className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full shadow-sm animate-pulse"></div>
         )}
       </button>
     </div>
-  ), [handleInvertSelection, disabled, duration, startTime, endTime, isInverted, fileId, isSilencePanelOpen, onToggleSilencePanel]);
+  ), [handleInvertSelection, disabled, duration, startTime, endTime, isInverted, fileId, isSilencePanelOpen, onToggleSilencePanel, isDetectingSilence]);
 
   // 🎯 **HISTORY CONTROLS SECTION** - Memoized with badge counters, updated borders
   const HistoryControlsSection = useMemo(() => (

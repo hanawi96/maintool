@@ -2,42 +2,82 @@
 class SilenceDetector {
   constructor() {
     this.cancel = false;
-  }
-
-  async analyze(buffer, { threshold = -40, minDuration = 0.5 }, onProgress, onRegion) {
+  }  async analyze(buffer, { threshold = -10, minDuration = 0.2 }, onProgress, onRegion) {
     this.cancel = false;
     const data = buffer.getChannelData(0);
     const sampleRate = buffer.sampleRate;
-    const chunkSize = Math.floor(sampleRate * 0.5); // 0.5s chunks
+    
+    // 🎯 **OPTIMIZED CHUNKING**: Use 5-10 second chunks for better performance
+    const audioLength = data.length / sampleRate;
+    let chunkSizeSeconds;
+    
+    if (audioLength <= 30) {
+      chunkSizeSeconds = 5; // 5 seconds for short audio
+    } else if (audioLength <= 300) {
+      chunkSizeSeconds = 7; // 7 seconds for medium audio  
+    } else {
+      chunkSizeSeconds = 10; // 10 seconds for long audio
+    }
+    
+    const chunkSize = Math.floor(sampleRate * chunkSizeSeconds);
     const silenceLevel = Math.pow(10, threshold / 20);
     
     const regions = [];
-    let silenceStart = null;
     let processed = 0;
+    let globalSilenceStart = null; // Track silence across chunks
 
     for (let i = 0; i < data.length; i += chunkSize) {
       if (this.cancel) break;
       
-      const chunk = data.slice(i, i + chunkSize);
-      const isSilent = chunk.every(sample => Math.abs(sample) < silenceLevel);
-      const time = i / sampleRate;
+      const chunk = data.slice(i, Math.min(i + chunkSize, data.length));
       
-      if (isSilent && silenceStart === null) {
-        silenceStart = time;
-      } else if (!isSilent && silenceStart !== null) {
-        const duration = time - silenceStart;
-        if (duration >= minDuration) {
-          const region = { start: silenceStart, end: time, duration };
-          regions.push(region);
-          onRegion(region);
+      // 🔍 **SAMPLE-LEVEL ANALYSIS**: Analyze each sample in chunk
+      for (let j = 0; j < chunk.length; j++) {
+        const sampleTime = (i + j) / sampleRate;
+        const amplitude = Math.abs(chunk[j]);
+        
+        if (amplitude < silenceLevel) {
+          if (globalSilenceStart === null) {
+            globalSilenceStart = sampleTime;
+          }
+        } else {
+          if (globalSilenceStart !== null) {
+            const duration = sampleTime - globalSilenceStart;
+            if (duration >= minDuration) {
+              const region = { 
+                start: Math.round(globalSilenceStart * 1000) / 1000, 
+                end: Math.round(sampleTime * 1000) / 1000, 
+                duration: Math.round(duration * 1000) / 1000
+              };
+              regions.push(region);
+              onRegion(region);
+            }
+            globalSilenceStart = null;
+          }
         }
-        silenceStart = null;
       }
       
-      processed += chunkSize;
-      if (processed % (chunkSize * 4) === 0) {
-        onProgress(Math.min(100, (processed / data.length) * 100));
-        await new Promise(r => setTimeout(r, 0)); // Yield
+      processed += chunk.length;
+      
+      // Report progress every chunk
+      const progressPercent = Math.min(100, (processed / data.length) * 100);
+      onProgress(Math.round(progressPercent));
+      
+      // Yield control to prevent blocking
+      await new Promise(r => setTimeout(r, 1));
+    }
+    
+    // Handle silence at end of audio
+    if (globalSilenceStart !== null) {
+      const duration = (data.length / sampleRate) - globalSilenceStart;
+      if (duration >= minDuration) {
+        const region = { 
+          start: Math.round(globalSilenceStart * 1000) / 1000, 
+          end: Math.round((data.length / sampleRate) * 1000) / 1000, 
+          duration: Math.round(duration * 1000) / 1000
+        };
+        regions.push(region);
+        onRegion(region);
       }
     }
     

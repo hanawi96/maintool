@@ -69,9 +69,10 @@ const SilenceDetection = ({
   onPreviewSilenceUpdate = null,
   // 🆕 **EXTERNAL PANEL CONTROL**
   isOpen: externalIsOpen = null,
-  onToggleOpen = null,
-  // 🆕 **ADDITIONAL CALLBACKS**
+  onToggleOpen = null,  // 🆕 **ADDITIONAL CALLBACKS**
   onSkipSilenceChange = null,
+  // 🆕 **DETECTING STATE CALLBACK**: Notify parent about detection state
+  onDetectingStateChange = null,
   // 🎯 **REGION-BASED PROPS**: Auto-detect region processing
   startTime = 0,
   endTime = null,
@@ -82,29 +83,100 @@ const SilenceDetection = ({
 }) => {  // 🎛️ **STATE MANAGEMENT**: Minimal state for optimal performance
   const [isOpen, setIsOpen] = useState(externalIsOpen || false);
   const [isDetecting, setIsDetecting] = useState(false);
-  const [silenceData, setSilenceData] = useState(null);
-  const [threshold, setThreshold] = useState(-30);
-  const [minDuration, setMinDuration] = useState(0.5);
+  const [silenceData, setSilenceData] = useState(null);  const [threshold, setThreshold] = useState(-10);
+  const [minDuration, setMinDuration] = useState(0.2);
   const [previewRegions, setPreviewRegions] = useState([]);
   const [skipSilenceEnabled, setSkipSilenceEnabled] = useState(false);  const [progress, setProgress] = useState(0);
   const [progressStage, setProgressStage] = useState('idle');
-  const [progressMessage, setProgressMessage] = useState('');
-  // 🎯 **CONSTANTS & REFS**: Optimized for performance
+  const [progressMessage, setProgressMessage] = useState('');  // 🎯 **CONSTANTS & REFS**: Optimized for performance + silence cache
   const isPanelOpen = externalIsOpen !== null ? externalIsOpen : isOpen;
   const setIsPanelOpen = externalIsOpen !== null ? onToggleOpen : setIsOpen;
   const cacheRef = useRef(new Map());
+  const silenceCacheRef = useRef({ regions: [], isStale: true }); // Global cache for all regions
   const debounceTimerRef = useRef(null);
   const lastUpdateRef = useRef(0);
   const rafRef = useRef(null);
   const pendingUpdateRef = useRef(false);
+  const workerRef = useRef(null);
   const MAX_CACHE_SIZE = 25;
-  const MICRO_DEBOUNCE_MS = 16;// 🔧 **ULTRA-FAST SILENCE CALCULATION**: Hyper-optimized algorithm with smart caching
-  // 🎯 **REGION-AWARE CALCULATION**: Calculate silence within region bounds
-  const calculateSilenceRegions = useCallback((threshold, minDuration) => {
-    if (!waveformData.length || !duration) return [];
+  const MICRO_DEBOUNCE_MS = 16;
+
+  // 🎯 **FILTER FROM CACHE**: Only filter from cache, no re-detection
+  const filterSilenceFromCache = useCallback((filterThreshold, filterMinDuration) => {
+    if (silenceCacheRef.current.isStale || !silenceCacheRef.current.regions.length) {
+      console.log('❌ [SilenceCache] Cache miss - cache is stale or empty:', {
+        isStale: silenceCacheRef.current.isStale,
+        regionsCount: silenceCacheRef.current.regions.length
+      });
+      return [];
+    }
     
-    // 🎯 **SMART CACHE CHECK**: Include region bounds in cache key
-    const cacheKey = `${threshold}_${minDuration}_${waveformData.length}_${startTime}_${endTime}`;
+    console.log('🎯 [SilenceCache] Using cache to filter regions:', {
+      totalRegions: silenceCacheRef.current.regions.length,
+      filterThreshold,
+      filterMinDuration,
+      startTime,
+      endTime
+    });
+    
+    // Filter cached regions based on new parameters and current region bounds
+    const filteredRegions = silenceCacheRef.current.regions.filter(region => {
+      // Apply duration filter
+      if (region.duration < filterMinDuration) return false;
+      
+      // Apply region bounds if user has selected a region
+      const hasRegionSelection = startTime > 0 || endTime !== null;
+      if (hasRegionSelection) {
+        const regionStart = Math.max(0, startTime);
+        const regionEnd = endTime ? Math.min(endTime, duration) : duration;
+        
+        // Check if region overlaps with current selection
+        if (region.end <= regionStart || region.start >= regionEnd) {
+          return false;
+        }
+      }
+      
+      return true;
+    }).map(region => {
+      // Clip region to current bounds if needed
+      const hasRegionSelection = startTime > 0 || endTime !== null;
+      if (hasRegionSelection) {
+        const regionStart = Math.max(0, startTime);
+        const regionEnd = endTime ? Math.min(endTime, duration) : duration;
+        
+        return {
+          start: Math.max(regionStart, region.start),
+          end: Math.min(regionEnd, region.end),
+          duration: Math.min(regionEnd, region.end) - Math.max(regionStart, region.start)
+        };
+      }
+      
+      return region;
+    });
+    
+    console.log('✅ [SilenceCache] Cache filtered successfully:', {
+      originalCount: silenceCacheRef.current.regions.length,
+      filteredCount: filteredRegions.length,
+      firstFiltered: filteredRegions[0] ? `${filteredRegions[0].start}s-${filteredRegions[0].end}s` : 'none'
+    });
+    
+    return filteredRegions;
+  }, [startTime, endTime, duration]);
+
+  // 🔧 **ULTRA-FAST SILENCE CALCULATION**: Now uses cache filtering instead of recalculation
+  // 🎯 **REGION-AWARE CALCULATION**: Filter from cache instead of recalculating
+  const calculateSilenceRegions = useCallback((filterThreshold, filterMinDuration) => {
+    if (!duration) return [];
+    
+    // 🚀 **PRIORITIZE CACHE**: Always use cache if available
+    if (!silenceCacheRef.current.isStale && silenceCacheRef.current.regions.length > 0) {
+      return filterSilenceFromCache(filterThreshold, filterMinDuration);
+    }
+    
+    // 🎯 **FALLBACK TO WAVEFORM**: Only if cache is empty/stale and waveform data available
+    if (!waveformData.length) return [];
+    
+    const cacheKey = `${filterThreshold}_${filterMinDuration}_${waveformData.length}_${startTime}_${endTime}`;
     if (cacheRef.current.has(cacheKey)) {
       const cached = cacheRef.current.get(cacheKey);
       cacheRef.current.delete(cacheKey);
@@ -117,7 +189,7 @@ const SilenceDetection = ({
     const regionEnd = endTime ? Math.min(endTime, duration) : duration;
     
     // 🚀 **HYPER-OPTIMIZED CALCULATION**: Ultra-fast single-pass algorithm
-    const sampleThreshold = Math.pow(10, threshold / 20);
+    const sampleThreshold = Math.pow(10, filterThreshold / 20);
     const regions = [];
     let silenceStart = null;
     
@@ -143,7 +215,7 @@ const SilenceDetection = ({
         const silenceEnd = currentTime;
         const silenceDuration = silenceEnd - silenceStart;
         
-        if (silenceDuration >= minDuration) {
+        if (silenceDuration >= filterMinDuration) {
           regions.push({
             start: Math.max(regionStart, Math.round(silenceStart * 1000) / 1000),
             end: Math.min(regionEnd, Math.round(silenceEnd * 1000) / 1000),
@@ -157,7 +229,7 @@ const SilenceDetection = ({
     // 🔧 **HANDLE SILENCE AT REGION END**
     if (silenceStart !== null) {
       const silenceDuration = regionEnd - silenceStart;
-      if (silenceDuration >= minDuration) {
+      if (silenceDuration >= filterMinDuration) {
         regions.push({
           start: Math.max(regionStart, Math.round(silenceStart * 1000) / 1000),
           end: regionEnd,
@@ -174,12 +246,15 @@ const SilenceDetection = ({
     cacheRef.current.set(cacheKey, regions);
     
     return regions;
-  }, [waveformData, duration, startTime, endTime]);
+  }, [waveformData, duration, startTime, endTime, filterSilenceFromCache]);
   // ⚡ **ULTRA-SMOOTH UPDATE**: Instant visual + debounced callback
   const updatePreview = useCallback((instantUpdate = false) => {
     if (!isPanelOpen || !waveformData.length) {
       setPreviewRegions([]);
-      onPreviewSilenceUpdate?.([]);
+      if (onPreviewSilenceUpdate) {
+        console.log('🔄 [Preview] Clearing silence regions - panel closed or no data');
+        onPreviewSilenceUpdate([]);
+      }
       return;
     }
     
@@ -191,7 +266,10 @@ const SilenceDetection = ({
     // 🎯 **DEBOUNCED CALLBACK**: Only debounce the parent callback to prevent spam
     if (instantUpdate) {
       // For slider drag: instant visual, no callback delay
-      onPreviewSilenceUpdate?.(regions);
+      if (onPreviewSilenceUpdate) {
+        console.log('🔄 [Preview] Instant update - sending', regions.length, 'regions');
+        onPreviewSilenceUpdate(regions);
+      }
     } else {
       // For other updates: use micro-debounce for callback
       const now = Date.now();
@@ -202,11 +280,13 @@ const SilenceDetection = ({
       }
       
       debounceTimerRef.current = setTimeout(() => {
-        if (lastUpdateRef.current === now) {
-          onPreviewSilenceUpdate?.(regions);
+        if (lastUpdateRef.current === now && onPreviewSilenceUpdate) {
+          console.log('🔄 [Preview] Debounced update - sending', regions.length, 'regions');
+          onPreviewSilenceUpdate(regions);
         }
       }, MICRO_DEBOUNCE_MS);
-    }  }, [isPanelOpen, threshold, minDuration, calculateSilenceRegions, onPreviewSilenceUpdate, waveformData.length]);
+    }
+  }, [isPanelOpen, threshold, minDuration, calculateSilenceRegions, onPreviewSilenceUpdate, waveformData.length]);
 
   // 🚀 **SMOOTH SLIDER UPDATES**: RAF-optimized for instant response
   const requestSmoothUpdate = useCallback(() => {
@@ -230,8 +310,14 @@ const SilenceDetection = ({
     return () => {
       document.querySelectorAll('.silence-detection-wrapper').forEach(wrapper => {
         wrapper.style.margin = '0';
-        wrapper.style.padding = '0';
+        wrapper.style.padding = '0';  
       });
+      
+      // Cleanup Web Worker
+      if (workerRef.current) {
+        workerRef.current.terminate();
+        workerRef.current = null;
+      }
     };
   }, []);
   // 🚀 **CACHE WARMING**: Pre-calculate common values for instant response
@@ -250,17 +336,183 @@ const SilenceDetection = ({
             }
           });
         });
-      });
-    }  }, [isPanelOpen, waveformData.length, duration, calculateSilenceRegions]);
+      });    }  }, [isPanelOpen, waveformData.length, duration, calculateSilenceRegions]);  // 🆕 **DETECTING STATE CHANGE**: Notify parent when detection state changes
+  useEffect(() => {
+    onDetectingStateChange?.(isDetecting);
+  }, [isDetecting, onDetectingStateChange]);
 
-  // 🔍 **SILENCE DETECTION**: Auto-detect region-based processing
+  // 🎯 **AUDIOBUFFER CREATION**: Create AudioBuffer from file for Web Worker
+  const createAudioBufferFromFile = useCallback(async (file) => {
+    if (!file) return null;
+    
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+      
+      // Close context to free resources
+      await audioContext.close();
+      
+      return audioBuffer;
+    } catch (error) {
+      console.warn('🔧 [SilenceDetection] Failed to create AudioBuffer:', error.message);
+      return null;
+    }
+  }, []);
+
+  // 🎯 **FILE REFERENCE**: Store current audio file for Web Worker processing
+  const audioFileRef = useRef(null);
+  const audioBufferCreatedRef = useRef(false);
+  
+  // 🚀 **AUDIO BUFFER CREATOR**: Create and attach AudioBuffer when file is loaded
+  const setupAudioBufferForWorker = useCallback(async () => {
+    // 🎯 **GET FILE FROM GLOBAL STATE**: Get current audio file from MP3CutterMain
+    const currentFile = window.currentAudioFile || audioFileRef.current;
+    
+    if (!currentFile || audioBufferCreatedRef.current) return;
+    
+    console.log('🔧 [SilenceDetection] Creating AudioBuffer for Web Worker...');
+    
+    try {
+      const audioBuffer = await createAudioBufferFromFile(currentFile);
+      
+      if (audioBuffer && audioRef?.current) {
+        // 🚀 **ATTACH AUDIOBUFFER**: Attach AudioBuffer to audioRef for Web Worker access
+        audioRef.current.audioBuffer = audioBuffer;
+        audioBufferCreatedRef.current = true;
+        
+        console.log('✅ [SilenceDetection] AudioBuffer created and attached:', {
+          duration: audioBuffer.duration.toFixed(2) + 's',
+          sampleRate: audioBuffer.sampleRate,
+          channels: audioBuffer.numberOfChannels
+        });
+      }
+    } catch (error) {
+      console.warn('❌ [SilenceDetection] AudioBuffer creation failed:', error.message);
+    }
+  }, [createAudioBufferFromFile, audioRef]);
+  
+  // 🎯 **SETUP AUDIOBUFFER WHEN FILE CHANGES**: Create AudioBuffer when new file is loaded
+  useEffect(() => {
+    // 🚀 **RESET FOR NEW FILE**: Reset buffer creation flag for new files
+    if (fileId && fileId !== audioFileRef.current?.filename) {
+      audioBufferCreatedRef.current = false;
+      audioFileRef.current = { filename: fileId };
+      
+      // 🚀 **SETUP WITH DELAY**: Give time for file to be ready in global state
+      setTimeout(setupAudioBufferForWorker, 500);
+    }
+  }, [fileId, setupAudioBufferForWorker]);
+
+  // 🎯 **WEB WORKER DETECTION**: Chunked processing with Web Worker
+  const detectSilenceWithWorker = useCallback(async (audioBuffer) => {
+    return new Promise((resolve, reject) => {
+      if (!workerRef.current) {
+        workerRef.current = new Worker('/workers/smart-silence-worker.js');
+      }
+
+      const worker = workerRef.current;
+      
+      const handleMessage = (e) => {
+        const { type, progress, region, regions, error } = e.data;
+        
+        switch (type) {
+          case 'progress':
+            setProgress(Math.round(progress));
+            setProgressMessage(`Processing chunk... ${Math.round(progress)}%`);
+            break;
+            
+          case 'region':
+            // 🚀 **REAL-TIME REGION UPDATES**: Append to cache and update UI immediately
+            if (region && silenceCacheRef.current) {
+              // Append new region to existing cache
+              const updatedRegions = [...silenceCacheRef.current.regions, region];
+              silenceCacheRef.current = {
+                regions: updatedRegions,
+                isStale: false
+              };
+              
+              // Filter and send to UI for real-time overlay
+              const filteredRegions = updatedRegions.filter(r => r.duration >= minDuration);
+              setPreviewRegions(filteredRegions);
+              
+              if (onPreviewSilenceUpdate) {
+                console.log('⚡ [Real-time] Region found, updating UI:', {
+                  newRegion: `${region.start}s-${region.end}s`,
+                  totalRegions: updatedRegions.length,
+                  filteredCount: filteredRegions.length
+                });
+                onPreviewSilenceUpdate(filteredRegions);
+              }
+            }
+            break;
+            
+          case 'complete':
+            // 🎯 **FINAL CACHE UPDATE**: Ensure cache has all regions
+            console.log('💾 [SilenceCache] Web Worker completed, finalizing cache:', {
+              regionsFound: regions?.length || 0,
+              firstRegion: regions?.[0] ? `${regions[0].start}s-${regions[0].end}s` : 'none',
+              totalDuration: regions?.reduce((sum, r) => sum + r.duration, 0).toFixed(2) + 's' || '0s'
+            });
+            
+            silenceCacheRef.current = {
+              regions: regions || [],
+              isStale: false
+            };
+            
+            console.log('✅ [SilenceCache] Cache finalized from Web Worker:', {
+              cacheSize: silenceCacheRef.current.regions.length,
+              isStale: silenceCacheRef.current.isStale
+            });
+            
+            worker.removeEventListener('message', handleMessage);
+            resolve(regions || []);
+            break;
+            
+          case 'error':
+            worker.removeEventListener('message', handleMessage);
+            reject(new Error(error || 'Worker processing failed'));
+            break;
+            
+          default:
+            console.warn('🔧 [Web Worker] Unknown message type:', type);
+            break;
+        }
+      };
+
+      worker.addEventListener('message', handleMessage);
+      
+      // 🚀 **INITIALIZE CACHE**: Reset cache before starting
+      silenceCacheRef.current = {
+        regions: [],
+        isStale: false
+      };
+      
+      // Start worker processing
+      worker.postMessage({
+        cmd: 'analyze',
+        data: {
+          buffer: audioBuffer,
+          params: {
+            threshold,
+            minDuration
+          }
+        }
+      });
+    });
+  }, [threshold, minDuration, onPreviewSilenceUpdate]);
+  // 🔍 **SILENCE DETECTION**: Optimized with Web Worker chunked processing + backend fallback
   const detectSilence = useCallback(async () => {
-    if (!fileId || isDetecting) return;
+    console.log('🚀 [SilenceDetection] Starting detection process');
+    
+    if (!fileId || isDetecting) {
+      console.log('❌ [SilenceDetection] Detection skipped:', { noFileId: !fileId, alreadyDetecting: isDetecting });
+      return;
+    }
     
     setIsDetecting(true);
     setProgress(0);
     setProgressStage('starting');
-      const hasRegionSelection = startTime > 0 || endTime !== null;
     
     // Validation
     if (!duration || duration <= 0) {
@@ -270,75 +522,112 @@ const SilenceDetection = ({
       return;
     }
     
-    if (startTime < 0 || startTime >= duration) {
-      setProgressStage('error');
-      setProgressMessage('Error: Invalid start time');
-      setIsDetecting(false);
-      return;
-    }
-      let effectiveEndTime;
-    if (endTime !== null && endTime !== undefined) {
-      if (endTime <= startTime) {
-        setProgressStage('error');
-        setProgressMessage('Error: End time must be greater than start time');
-        setIsDetecting(false);
-        return;
-      }
-      effectiveEndTime = Math.min(Math.max(endTime, startTime + 0.1), duration);
-    } else {
-      effectiveEndTime = duration;
-    }
-    
-    const regionDuration = effectiveEndTime - startTime;
-    
-    if (regionDuration <= 0.1) {
-      setProgressStage('error');
-      setProgressMessage('Error: Selected region is too short (minimum 0.1s)');
-      setIsDetecting(false);
-      return;
-    }
-    
-    const processingRange = hasRegionSelection 
-      ? `region ${startTime.toFixed(3)}s → ${effectiveEndTime.toFixed(3)}s (${regionDuration.toFixed(3)}s)`
-      : `entire file (${duration.toFixed(3)}s)`;
-    
-    setProgressMessage(`Detecting silence in ${processingRange}...`);
-      try {
-      let result;
+    setProgressMessage(`Analyzing entire audio file (${duration.toFixed(3)}s)...`);
       
-      if (hasRegionSelection) {
-        result = await audioApi.detectSilenceInRegion({
-          fileId,
-          threshold,
-          minDuration,
-          startTime,
-          endTime: effectiveEndTime,
-          duration
+    try {
+      // 🚀 **ALWAYS USE WEB WORKER**: Always detect full file for consistent behavior
+      if (audioRef?.current?.audioBuffer) {
+        console.log('🚀 [SilenceDetection] Web Worker path - AudioBuffer available:', {
+          audioBufferDuration: audioRef.current.audioBuffer.duration,
+          sampleRate: audioRef.current.audioBuffer.sampleRate,
+          channels: audioRef.current.audioBuffer.numberOfChannels
         });
+        
+        setProgressStage('processing');
+        setProgressMessage('Processing with optimized chunked analysis...');
+        
+        try {
+          const regions = await detectSilenceWithWorker(audioRef.current.audioBuffer);
+          
+          if (regions && regions.length >= 0) {
+            // Success with Web Worker - update cache and UI
+            setProgress(100);
+            setProgressStage('complete');
+            setProgressMessage(`Found ${regions.length} silence regions with Web Worker!`);
+        
+            const silenceData = {
+              silenceRegions: regions,
+              totalSilence: regions.reduce((sum, r) => sum + r.duration, 0),
+              originalDuration: duration,
+              regionBased: false
+            };
+        
+            setSilenceData(silenceData);
+            onSilenceDetected?.(silenceData);
+        
+            // Final filtered regions already sent via real-time updates
+            console.log('🔄 [SilenceCache] Detection completed with real-time updates');
+        
+            return; // Success, exit early
+          }
+        } catch (workerError) {
+          console.warn('🔧 [SilenceDetection] Web Worker failed, falling back to backend:', workerError.message);
+          setProgressMessage('Web Worker failed, using backend processing...');
+        }
       } else {
-        result = await audioApi.detectSilence({
-          fileId,
-          threshold,
-          minDuration,
-          duration
-        });      }
+        // 🔧 **DEBUG**: Log why Web Worker path is not taken
+        console.log('🔧 [SilenceDetection] Web Worker path NOT taken:', {
+          hasAudioRef: !!audioRef?.current,
+          hasAudioBuffer: !!audioRef?.current?.audioBuffer,
+          audioBufferDuration: audioRef?.current?.audioBuffer?.duration || 'N/A'
+        });
+      }
+      
+      // 🚀 **FALLBACK TO BACKEND**: Use backend for full file when Web Worker fails
+      setProgressStage('processing');
+      setProgressMessage('Using backend processing for full file...');
+      
+      const result = await audioApi.detectSilence({
+        fileId,
+        threshold,
+        minDuration,
+        duration
+      });
       
       if (result.success && result.data) {
+        // Update silence cache with backend results
+        if (result.data.silenceRegions) {
+          console.log('💾 [SilenceCache] Backend API completed, updating cache:', {
+            regionsFound: result.data.silenceRegions.length,
+            firstRegion: result.data.silenceRegions[0] ? `${result.data.silenceRegions[0].start}s-${result.data.silenceRegions[0].end}s` : 'none',
+            totalDuration: result.data.silenceRegions.reduce((sum, r) => sum + r.duration, 0).toFixed(2) + 's'
+          });
+          
+          silenceCacheRef.current = {
+            regions: result.data.silenceRegions,
+            isStale: false
+          };
+          
+          console.log('✅ [SilenceCache] Cache updated successfully from Backend:', {
+            cacheSize: silenceCacheRef.current.regions.length,
+            isStale: silenceCacheRef.current.isStale
+          });
+        }
+        
         setProgress(100);
         setProgressStage('complete');
-        setProgressMessage(`Removed ${result.data.silenceRegions?.length || 0} silence regions!`);        setSilenceData(result.data);
+        setProgressMessage(`Found ${result.data.silenceRegions?.length || 0} silence regions!`);
+        
+        setSilenceData(result.data);
         onSilenceDetected?.(result.data);
         onSilenceRemoved?.(result.data);
         
         if (result.data.silenceRegions) {
           setPreviewRegions(result.data.silenceRegions);
+          console.log('🔄 [SilenceCache] Sending regions to WaveformCanvas:', {
+            regionsCount: result.data.silenceRegions.length,
+            firstRegion: result.data.silenceRegions[0] ? `${result.data.silenceRegions[0].start}s-${result.data.silenceRegions[0].end}s` : 'none'
+          });
           onPreviewSilenceUpdate?.(result.data.silenceRegions);
         }
       } else {
         throw new Error(result.error || 'Detection failed');
-      }} catch (error) {
+      }
+      
+    } catch (error) {
       setProgressStage('error');
-      setProgressMessage(`Error: ${error.message}`);    } finally {
+      setProgressMessage(`Error: ${error.message}`);    
+    } finally {
       setIsDetecting(false);
       setTimeout(() => {
         setProgress(0);
@@ -346,7 +635,9 @@ const SilenceDetection = ({
         setProgressMessage('');
       }, 3000);
     }
-  }, [fileId, threshold, minDuration, duration, isDetecting, onSilenceDetected, onSilenceRemoved, onPreviewSilenceUpdate, startTime, endTime]);  // 🎯 **HANDLERS**: Simple and optimized
+  }, [fileId, threshold, minDuration, duration, isDetecting, onSilenceDetected, onSilenceRemoved, onPreviewSilenceUpdate, audioRef, detectSilenceWithWorker]);
+
+  // 🎯 **HANDLERS**: Simple and optimized
   const togglePanel = useCallback(() => {
     const newIsOpen = !isPanelOpen;
     setIsPanelOpen(newIsOpen);
@@ -391,7 +682,9 @@ const SilenceDetection = ({
   const silencePercent = baseDuration > 0 ? (totalSilence / baseDuration * 100) : 0;
 
   // 🎨 **RENDER**: Conditional rendering for performance
-  if (!fileId || disabled) return null;
+  if (!fileId || disabled) {
+    return null;
+  }
 
   const isInlineMode = externalIsOpen === null;
   const isPanelMode = !isInlineMode;
@@ -683,7 +976,11 @@ const SilenceDetection = ({
           {/* 🎯 **SIMPLIFIED ACTION**: Single button for detect & remove */}
           <div className="flex gap-3">
             <button
-              onClick={detectSilence}
+              onClick={() => {
+                console.log('🔴 [BUTTON] Find Silence button clicked!');
+                console.log('🔴 [BUTTON] Button state:', { isDetecting, fileId, disabled: isDetecting });
+                detectSilence();
+              }}
               disabled={isDetecting}
               className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
             >

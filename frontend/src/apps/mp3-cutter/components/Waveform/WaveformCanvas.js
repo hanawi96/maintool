@@ -707,6 +707,14 @@ const WaveformCanvas = React.memo(({
   useEffect(() => {
     // 🎯 **STORE FULL REGIONS**: Store complete silence regions for cache
     if (silenceRegions?.length > 0) {
+      // 🚀 **THROTTLED LOGGING**: Only log occasionally to prevent spam
+      if (Math.random() < 0.05) { // Only log 5% of updates
+        console.log('📥 [WaveformCanvas] Received silence regions (throttled):', {
+          regionsCount: silenceRegions.length,
+          firstRegion: silenceRegions[0] ? `${silenceRegions[0].start}s-${silenceRegions[0].end}s` : 'none',
+          totalDuration: silenceRegions.reduce((sum, r) => sum + r.duration, 0).toFixed(2) + 's'
+        });
+      }
       fullSilenceRegionsRef.current = silenceRegions;
     }
     

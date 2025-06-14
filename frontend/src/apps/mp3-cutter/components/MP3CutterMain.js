@@ -174,9 +174,10 @@ const MP3CutterMain = React.memo(() => {
   // 🆕 **SILENCE REGIONS STATE**: Track real-time silence regions for overlay
   const [silenceRegions, setSilenceRegions] = useState([]);
   // 🆕 **SKIP SILENCE STATE**: Track whether to skip silence during playback
-  const [skipSilenceEnabled, setSkipSilenceEnabled] = useState(false);
-  // 🆕 **SELECTED SILENCE REGIONS**: Track selected silence regions for deletion
+  const [skipSilenceEnabled, setSkipSilenceEnabled] = useState(false);  // 🆕 **SELECTED SILENCE REGIONS**: Track selected silence regions for deletion
   const [selectedSilenceRegions, setSelectedSilenceRegions] = useState([]);
+  // 🆕 **SILENCE DETECTION PROCESSING**: Track if silence detection is currently running
+  const [isDetectingSilence, setIsDetectingSilence] = useState(false);
 
   // 🔥 **PERFORMANCE REFS**
   const animationStateRef = useRef({ isPlaying: false, startTime: 0, endTime: 0 });
@@ -335,6 +336,9 @@ const MP3CutterMain = React.memo(() => {
     
     // 🆕 **RESET STATES**: Reset tất cả states cho file mới
     setIsInverted(false);
+    
+    // 🚀 **SET GLOBAL FILE REFERENCE**: Make file available to Web Worker
+    window.currentAudioFile = file;
     
     try {
       // 🆕 1. VALIDATE AUDIO FILE FIRST
@@ -1267,9 +1271,9 @@ const MP3CutterMain = React.memo(() => {
                   if (data) {
                     console.log('🔇 [SilenceRemoval] Data received:', data);
                   }
-                }}
-                onPreviewSilenceUpdate={handleSilencePreviewUpdate}
+                }}                onPreviewSilenceUpdate={handleSilencePreviewUpdate}
                 onSkipSilenceChange={handleSkipSilenceChange}
+                onDetectingStateChange={setIsDetectingSilence}
                 isOpen={isSilencePanelOpen}
                 onToggleOpen={handleToggleSilencePanel}
                 disabled={!audioFile}
@@ -1310,9 +1314,9 @@ const MP3CutterMain = React.memo(() => {
                 if (data) {
                   console.log('🔇 [SilenceDetection] Data received:', data);
                 }
-              }}
-              isSilencePanelOpen={isSilencePanelOpen}
+              }}              isSilencePanelOpen={isSilencePanelOpen}
               onToggleSilencePanel={handleToggleSilencePanel}
+              isDetectingSilence={isDetectingSilence}
               selectedSilenceRegions={selectedSilenceRegions}
               onSilenceRegionClick={handleSilenceRegionClick}
               onRemoveSelectedSilence={handleRemoveSelectedSilence}
