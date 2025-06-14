@@ -2,7 +2,6 @@
 import React, { useEffect, useCallback, useMemo, useRef } from 'react';
 import { WAVEFORM_CONFIG } from '../../utils/constants';
 import { WaveformUI } from './WaveformUI';
-import SilenceOverlay from './SilenceOverlay'; // 🆕 **SILENCE OVERLAY**: Import silence overlay component
 import { useOptimizedTooltip } from '../../hooks/useOptimizedTooltip';
 import { useWaveformCursor } from '../../hooks/useWaveformCursor';
 import { useWaveformRender } from '../../hooks/useWaveformRender';
@@ -71,22 +70,63 @@ const WaveformCanvas = React.memo(({
     containerWidth
   } = useWaveformRender(canvasRef, waveformData, volume, isDragging, isPlaying, hoverTooltip);
 
+  // 🎯 **SILENCE REGION CLICK DETECTOR**: Detect clicks on silence regions
+  const detectSilenceRegionClick = useCallback((mouseX) => {
+    if (!showSilenceOverlay || !silenceRegions?.length || !duration || !containerWidth) {
+      return null;
+    }
+    
+    const { MODERN_HANDLE_WIDTH } = WAVEFORM_CONFIG;
+    const responsiveHandleWidth = containerWidth < WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT ? 
+      Math.max(3, MODERN_HANDLE_WIDTH * 0.75) : MODERN_HANDLE_WIDTH;
+    
+    const leftHandleWidth = responsiveHandleWidth;
+    const rightHandleWidth = responsiveHandleWidth;
+    const waveformStartX = leftHandleWidth;
+    const waveformEndX = containerWidth - rightHandleWidth;
+    const availableWaveformWidth = waveformEndX - waveformStartX;
+    
+    if (availableWaveformWidth <= 0) return null;
+    
+    // Check each silence region
+    for (const region of silenceRegions) {
+      const regionStartPercent = region.start / duration;
+      const regionEndPercent = region.end / duration;
+      const regionStartX = waveformStartX + (regionStartPercent * availableWaveformWidth);
+      const regionEndX = waveformStartX + (regionEndPercent * availableWaveformWidth);
+      
+      if (mouseX >= regionStartX && mouseX <= regionEndX) {
+        return region;
+      }
+    }
+    
+    return null;
+  }, [showSilenceOverlay, silenceRegions, duration, containerWidth]);
+
   // 🚀 **ENHANCED MOUSE HANDLERS** - Updated to use Pointer Events for better drag tracking
   const handleEnhancedPointerDown = useCallback((e) => {
-    if (onMouseDown) onMouseDown(e);
-  
     const canvas = canvasRef.current;
     if (canvas) {
-      // 🎯 **POINTER CAPTURE**: Capture pointer để track movement ngay cả khi ra ngoài canvas
-      canvas.setPointerCapture(e.pointerId);
-      
       const rect = canvas.getBoundingClientRect();
       const mouseX = e.clientX - rect.left;
+      
+      // 🎯 **SILENCE REGION CLICK DETECTION**: Check if click is on silence region first
+      const clickedRegion = detectSilenceRegionClick(mouseX);
+      if (clickedRegion && onSilenceRegionClick) {
+        // Handle silence region click and prevent further processing
+        onSilenceRegionClick(clickedRegion);
+        return;
+      }
+      
+      // 🎯 **POINTER CAPTURE**: Capture pointer để track movement ngay cả khi ra ngoài canvas
+      canvas.setPointerCapture(e.pointerId);
       
       updateCursor(mouseX);
       clearHoverTooltip();
     }
-  }, [onMouseDown, canvasRef, updateCursor, clearHoverTooltip]);
+    
+    if (onMouseDown) onMouseDown(e);
+  }, [onMouseDown, canvasRef, updateCursor, clearHoverTooltip, detectSilenceRegionClick, onSilenceRegionClick]);
 
   const handleEnhancedPointerMove = useCallback((e) => {
     if (onMouseMove) onMouseMove(e);
@@ -470,7 +510,40 @@ const WaveformCanvas = React.memo(({
       ctx.fillStyle = 'rgba(139, 92, 246, 0.15)';
       ctx.fillRect(startX, 0, endX - startX, height);
     }
-  }, [canvasRef, renderData, containerWidth]);
+    
+    // 4. **SILENCE OVERLAY**: Render silence regions on canvas (ultra-fast)
+    if (showSilenceOverlay && silenceRegions?.length > 0 && duration > 0) {
+      const { MODERN_HANDLE_WIDTH } = WAVEFORM_CONFIG;
+      const responsiveHandleWidth = containerWidth < WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT ? 
+        Math.max(3, MODERN_HANDLE_WIDTH * 0.75) : MODERN_HANDLE_WIDTH;
+      
+      const leftHandleWidth = responsiveHandleWidth;
+      const rightHandleWidth = responsiveHandleWidth;
+      const waveformStartX = leftHandleWidth;
+      const waveformEndX = width - rightHandleWidth;
+      const availableWaveformWidth = waveformEndX - waveformStartX;
+      
+      if (availableWaveformWidth > 0) {
+        silenceRegions.forEach(region => {
+          const isSelected = selectedSilenceRegions?.some(selected => 
+            Math.abs(selected.start - region.start) < 0.001 && 
+            Math.abs(selected.end - region.end) < 0.001
+          );
+          
+          // Calculate region position
+          const regionStartPercent = region.start / duration;
+          const regionEndPercent = region.end / duration;
+          const regionStartX = waveformStartX + (regionStartPercent * availableWaveformWidth);
+          const regionEndX = waveformStartX + (regionEndPercent * availableWaveformWidth);
+          const regionWidth = regionEndX - regionStartX;
+          
+          // Draw silence region
+          ctx.fillStyle = isSelected ? 'rgba(239, 68, 68, 0.5)' : 'rgba(34, 197, 94, 0.3)'; // red for selected, green for normal
+          ctx.fillRect(regionStartX, 0, regionWidth, height);
+        });
+      }
+    }
+  }, [canvasRef, renderData, containerWidth, showSilenceOverlay, silenceRegions, selectedSilenceRegions]);
 
   // 🚀 **BACKGROUND CACHE MANAGEMENT**: Update cache when needed
   useEffect(() => {
@@ -547,6 +620,13 @@ const WaveformCanvas = React.memo(({
       requestRedraw(drawWaveform);
     }
   }, [renderData, requestRedraw, drawWaveform]);
+
+  // 🚀 **SILENCE OVERLAY REDRAW**: Trigger redraw when silence regions change
+  useEffect(() => {
+    if (showSilenceOverlay && (silenceRegions?.length > 0 || selectedSilenceRegions?.length > 0)) {
+      requestRedraw(drawWaveform);
+    }
+  }, [showSilenceOverlay, silenceRegions, selectedSilenceRegions, requestRedraw, drawWaveform]);
 
   // 🆕 **HANDLE POSITION CALCULATOR**: Calculate handle positions for React rendering
   const handlePositions = useMemo(() => {
@@ -702,19 +782,6 @@ const WaveformCanvas = React.memo(({
           zIndex: 1 // Base layer - below everything else
         }}
       />
-
-      {/* 🆕 **SILENCE OVERLAY**: Render FIRST to stay BELOW handles and cursors */}
-      {showSilenceOverlay && (
-        <SilenceOverlay
-          silenceRegions={silenceRegions}
-          duration={duration}
-          containerWidth={containerWidth}
-          canvasHeight={WAVEFORM_CONFIG.HEIGHT}
-          isVisible={showSilenceOverlay}
-          onRegionClick={onSilenceRegionClick}
-          selectedRegions={selectedSilenceRegions}
-        />
-      )}
 
       <WaveformUI 
         hoverTooltip={hoverTooltip}
