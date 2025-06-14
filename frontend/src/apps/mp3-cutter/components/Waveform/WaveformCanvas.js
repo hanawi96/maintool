@@ -53,6 +53,9 @@ const WaveformCanvas = React.memo(({
   const lastSilenceCacheKey = useRef(null);
   const fullSilenceRegionsRef = useRef(null); // Store full audio silence regions
 
+  // 🔇 **SILENCE REGION HOVER STATE**: Track hovered silence region
+  const [hoveredSilenceRegion, setHoveredSilenceRegion] = React.useState(null);
+
   // 🚀 **OPTIMIZED TOOLTIP HOOK** - Bao gồm main cursor tooltip
   const {
     hoverTooltip,
@@ -74,6 +77,41 @@ const WaveformCanvas = React.memo(({
     requestRedraw,
     containerWidth
   } = useWaveformRender(canvasRef, waveformData, volume, isDragging, isPlaying, hoverTooltip);
+
+  // 🔇 **FORMAT TIME UTILITY**: Simple time formatter for silence tooltips
+  const formatTime = useCallback((seconds) => {
+    if (typeof seconds !== 'number' || isNaN(seconds)) return '0.000s';
+    return `${seconds.toFixed(3)}s`;
+  }, []);
+
+  // 🔇 **SILENCE TOOLTIP CALCULATOR**: Create tooltip for hovered silence region
+  const silenceTooltip = useMemo(() => {
+    if (!hoveredSilenceRegion || !canvasRef.current || !containerWidth) return null;
+    
+    const { MODERN_HANDLE_WIDTH } = WAVEFORM_CONFIG;
+    const responsiveHandleWidth = containerWidth < WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT ? 
+      Math.max(3, MODERN_HANDLE_WIDTH * 0.75) : MODERN_HANDLE_WIDTH;
+    
+    const leftHandleWidth = responsiveHandleWidth;
+    const rightHandleWidth = responsiveHandleWidth;
+    const waveformStartX = leftHandleWidth;
+    const waveformEndX = containerWidth - rightHandleWidth;
+    const availableWaveformWidth = waveformEndX - waveformStartX;
+    
+    // Calculate region position
+    const regionStartPercent = hoveredSilenceRegion.start / duration;
+    const regionEndPercent = hoveredSilenceRegion.end / duration;
+    const regionCenterX = waveformStartX + ((regionStartPercent + regionEndPercent) / 2 * availableWaveformWidth);
+    
+    return {
+      visible: true,
+      x: Math.max(5, Math.min(containerWidth - 5, regionCenterX)),
+      startTime: hoveredSilenceRegion.start,
+      endTime: hoveredSilenceRegion.end,
+      duration: hoveredSilenceRegion.duration || (hoveredSilenceRegion.end - hoveredSilenceRegion.start),
+      formattedText: `${formatTime(hoveredSilenceRegion.start)} → ${formatTime(hoveredSilenceRegion.end)} (${formatTime(hoveredSilenceRegion.duration || (hoveredSilenceRegion.end - hoveredSilenceRegion.start))})`
+    };
+  }, [hoveredSilenceRegion, canvasRef, containerWidth, duration, formatTime]);
 
   // 🎯 **SILENCE REGION CLICK DETECTOR**: Detect clicks on silence regions
   const detectSilenceRegionClick = useCallback((mouseX) => {
@@ -106,6 +144,39 @@ const WaveformCanvas = React.memo(({
     }
     
     return null;
+  }, [showSilenceOverlay, duration, containerWidth]);
+
+  // 🔇 **SILENCE REGION HOVER DETECTOR**: Detect hover on silence regions to hide cursor line
+  const detectSilenceRegionHover = useCallback((mouseX) => {
+    if (!showSilenceOverlay || !fullSilenceRegionsRef.current?.length || !duration || !containerWidth) {
+      return null;
+    }
+    
+    const { MODERN_HANDLE_WIDTH } = WAVEFORM_CONFIG;
+    const responsiveHandleWidth = containerWidth < WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT ? 
+      Math.max(3, MODERN_HANDLE_WIDTH * 0.75) : MODERN_HANDLE_WIDTH;
+    
+    const leftHandleWidth = responsiveHandleWidth;
+    const rightHandleWidth = responsiveHandleWidth;
+    const waveformStartX = leftHandleWidth;
+    const waveformEndX = containerWidth - rightHandleWidth;
+    const availableWaveformWidth = waveformEndX - waveformStartX;
+    
+    if (availableWaveformWidth <= 0) return null;
+    
+    // Check if mouse is over any silence region and return the region
+    for (const region of fullSilenceRegionsRef.current) {
+      const regionStartPercent = region.start / duration;
+      const regionEndPercent = region.end / duration;
+      const regionStartX = waveformStartX + (regionStartPercent * availableWaveformWidth);
+      const regionEndX = waveformStartX + (regionEndPercent * availableWaveformWidth);
+      
+      if (mouseX >= regionStartX && mouseX <= regionEndX) {
+        return region; // Return the hovered region object
+      }
+    }
+    
+    return null; // Mouse is not over any silence region
   }, [showSilenceOverlay, duration, containerWidth]);
 
   // 🚀 **ENHANCED MOUSE HANDLERS** - Updated to use Pointer Events for better drag tracking
@@ -142,9 +213,22 @@ const WaveformCanvas = React.memo(({
       const mouseX = e.clientX - rect.left;
       
       updateCursor(mouseX);
-      updateHoverTooltip(e);
+      
+      // 🔇 **SILENCE REGION HOVER DETECTION**: Check if hovering over silence region
+      const hoveredRegion = detectSilenceRegionHover(mouseX);
+      
+      // 🔇 **UPDATE HOVERED REGION**: Set hovered region state
+      setHoveredSilenceRegion(hoveredRegion);
+      
+      if (hoveredRegion) {
+        // Clear hover tooltip to hide the cursor line when hovering over silence
+        clearHoverTooltip();
+      } else {
+        // Normal hover tooltip update
+        updateHoverTooltip(e);
+      }
     }
-  }, [onMouseMove, canvasRef, updateCursor, updateHoverTooltip]);
+  }, [onMouseMove, canvasRef, updateCursor, updateHoverTooltip, clearHoverTooltip, detectSilenceRegionHover]);
 
   const handleEnhancedPointerUp = useCallback((e) => {
     if (onMouseUp) onMouseUp(e);
@@ -161,6 +245,9 @@ const WaveformCanvas = React.memo(({
     
     // 🚀 **ALWAYS HIDE HOVER LINE**: Hide hover cursor line when leaving waveform
     clearHoverTooltip();
+    
+    // 🔇 **CLEAR HOVERED SILENCE REGION**: Clear hovered region when leaving
+    setHoveredSilenceRegion(null);
   }, [onMouseLeave, clearHoverTooltip]);
 
   // 🆕 **HANDLE EVENT HANDLERS**: Direct handlers cho handles - Updated for Pointer Events
@@ -605,7 +692,6 @@ const WaveformCanvas = React.memo(({
           ctx.restore();
         } else if (fullSilenceRegionsRef.current?.length > 0) {
           // 🎯 **FALLBACK RENDERING**: Direct render when cache not ready
-          ctx.fillStyle = 'rgba(34, 197, 94, 0.3)'; // Green for normal
           fullSilenceRegionsRef.current.forEach(region => {
             // Only render if region intersects with visible area
             if (region.end > startTime && region.start < endTime) {
@@ -615,6 +701,12 @@ const WaveformCanvas = React.memo(({
               const regionEndX = waveformStartX + (regionEndPercent * availableWaveformWidth);
               const regionWidth = regionEndX - regionStartX;
               
+              // 🔇 **HOVER EFFECT**: Use darker color for hovered region
+              const isHovered = hoveredSilenceRegion && 
+                region.start === hoveredSilenceRegion.start && 
+                region.end === hoveredSilenceRegion.end;
+              
+              ctx.fillStyle = isHovered ? 'rgba(34, 197, 94, 0.5)' : 'rgba(34, 197, 94, 0.3)';
               ctx.fillRect(regionStartX, 0, regionWidth, height);
             }
           });
@@ -622,7 +714,6 @@ const WaveformCanvas = React.memo(({
         
         // 🎯 **SELECTED REGIONS OVERLAY**: Only render selected regions on top (within visible area)
         if (selectedSilenceRegions?.length > 0) {
-          ctx.fillStyle = 'rgba(239, 68, 68, 0.5)'; // Red for selected
           selectedSilenceRegions.forEach(region => {
             // Only render if region intersects with visible area
             if (region.end > startTime && region.start < endTime) {
@@ -632,13 +723,19 @@ const WaveformCanvas = React.memo(({
               const regionEndX = waveformStartX + (regionEndPercent * availableWaveformWidth);
               const regionWidth = regionEndX - regionStartX;
               
+              // 🔇 **HOVER EFFECT FOR SELECTED**: Use darker red for hovered selected region
+              const isHovered = hoveredSilenceRegion && 
+                region.start === hoveredSilenceRegion.start && 
+                region.end === hoveredSilenceRegion.end;
+              
+              ctx.fillStyle = isHovered ? 'rgba(239, 68, 68, 0.7)' : 'rgba(239, 68, 68, 0.5)';
               ctx.fillRect(regionStartX, 0, regionWidth, height);
             }
           });
         }
       }
     }
-  }, [canvasRef, renderData, containerWidth, showSilenceOverlay, selectedSilenceRegions]);
+  }, [canvasRef, renderData, containerWidth, showSilenceOverlay, selectedSilenceRegions, hoveredSilenceRegion]);
 
   // 🚀 **BACKGROUND CACHE MANAGEMENT**: Update cache when needed
   useEffect(() => {
@@ -781,6 +878,13 @@ const WaveformCanvas = React.memo(({
       requestRedraw(drawWaveform);
     }
   }, [showSilenceOverlay, isDragging, startTime, endTime, requestRedraw, drawWaveform]);
+
+  // 🔇 **HOVERED SILENCE REGION REDRAW**: Trigger redraw when hovered region changes
+  useEffect(() => {
+    if (showSilenceOverlay && hoveredSilenceRegion !== null) {
+      requestRedraw(drawWaveform);
+    }
+  }, [showSilenceOverlay, hoveredSilenceRegion, requestRedraw, drawWaveform]);
 
   // 🆕 **HANDLE POSITION CALCULATOR**: Calculate handle positions for React rendering
   const handlePositions = useMemo(() => {
@@ -945,6 +1049,7 @@ const WaveformCanvas = React.memo(({
         hoverTooltip={hoverTooltip}
         handleTooltips={handleTooltips}
         mainCursorTooltip={mainCursorTooltip}
+        silenceTooltip={silenceTooltip}
         handlePositions={handlePositions}
         cursorPositions={cursorPositions}
         onHandleMouseDown={handleHandlePointerDown}

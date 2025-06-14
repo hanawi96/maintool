@@ -69,6 +69,7 @@ export const WaveformUI = memo(({
   hoverTooltip, 
   handleTooltips, 
   mainCursorTooltip, 
+  silenceTooltip, // 🔇 **SILENCE TOOLTIP**: Tooltip for hovered silence region
   handlePositions, 
   cursorPositions, 
   onHandleMouseDown, 
@@ -97,6 +98,7 @@ export const WaveformUI = memo(({
   const shouldRenderEndTooltip = enableNonEssentialTooltips && handleTooltips?.end?.visible && handleTooltips.end.x >= 0;
   const shouldRenderDurationTooltip = enableNonEssentialTooltips && handleTooltips?.selectionDuration?.visible && handleTooltips.selectionDuration.x >= 0;
   const shouldRenderMainCursorTooltip = mainCursorTooltip?.visible && mainCursorTooltip.x >= 0;
+  const shouldRenderSilenceTooltip = enableHoverEffects && silenceTooltip?.visible && silenceTooltip.x >= 0;
   const shouldRenderStartHandle = handlePositions?.start?.visible && handlePositions.start.x >= 0;
   const shouldRenderEndHandle = handlePositions?.end?.visible && handlePositions.end.x >= 0;
   const shouldRenderMainCursor = cursorPositions?.mainCursor?.visible && cursorPositions.mainCursor.x >= 0;
@@ -192,6 +194,14 @@ export const WaveformUI = memo(({
     left: `${mainCursorTooltip?.x || 0}px`,
     top: `${TOOLTIP_OFFSETS.MAIN_CURSOR}px`
   }), [mainCursorTooltip?.x]);
+
+  // 🔇 **SILENCE TOOLTIP STYLE**: Style identical to hover tooltip for perfect sync
+  const silenceTooltipStyle = useMemo(() => ({
+    ...TOOLTIP_STYLES.base,
+    ...TOOLTIP_STYLES.tooltip,
+    left: `${silenceTooltip?.x || 0}px`,
+    top: `${TOOLTIP_OFFSETS.HOVER}px` // 🔇 **SYNC POSITION**: Same as hover tooltip for perfect alignment
+  }), [silenceTooltip?.x]);
 
   const startHandleStyle = useMemo(() => ({
     ...HANDLE_STYLES.base,
@@ -293,6 +303,13 @@ export const WaveformUI = memo(({
       {shouldRenderMainCursorTooltip && (
         <div className="absolute pointer-events-none z-50 waveform-tooltip-custom" style={mainCursorTooltipStyle}>
           {mainCursorTooltip.formattedTime}
+        </div>
+      )}
+
+      {/* 🔇 **SILENCE REGION TOOLTIP** - Show when hovering over silence */}
+      {shouldRenderSilenceTooltip && (
+        <div className="absolute pointer-events-none z-50 waveform-tooltip-custom" style={silenceTooltipStyle}>
+          {silenceTooltip.formattedText}
         </div>
       )}
 
