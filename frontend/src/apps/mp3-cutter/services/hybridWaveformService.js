@@ -77,90 +77,57 @@ export class HybridWaveformService {
     return false;
   }
 
-  // 🎯 **MAIN PROCESSING FUNCTION**: Intelligent routing based on file and capabilities
+  // 🎯 **MAIN PROCESSING ORCHESTRATOR**: Route to best available system
   async processFile(file, options = {}) {
+    const fileId = this.generateFileId(file);
     const startTime = performance.now();
-    const fileId = await this.generateFileId(file);
-    const { priority = 'normal', quality = 'standard' } = options;
     
-    try {      // 🏎️ **IMMEDIATE RESPONSE**: Always provide immediate visual feedback
-      this.generateThumbnail(file); // Generate thumbnail but don't block on it
-      
-      // 🧠 **CACHE CHECK**: Check if we already have this file cached
-      const cacheKey = `${fileId}_${quality}`;
-      const cached = await this.intelligentCache.get(cacheKey, { quality });
-      
-      if (cached) {
-        const processingTime = performance.now() - startTime;
-        this.updateMetrics('cache-hit', processingTime, quality);
-
-        
-        return {
-          ...cached,
-          processingTime,
-          fromCache: true,
-          strategy: 'cache-hit'
-        };
-      }
-      
-      // 🚀 **STRATEGY ROUTING**: Route to optimal processing strategy
-      let result;
-      switch (this.capabilities.recommendedStrategy) {
-        case 'hybrid-supreme':
-          result = await this.processWithHybridSupreme(file, fileId, options);
-          break;
-        case 'worker-cached':
-          result = await this.processWithWorkerCached(file, fileId, options);
-          break;
-        case 'offscreen-only':
-          result = await this.processWithOffscreenOnly(file, fileId, options);
-          break;
-        default:
-          result = await this.processWithEnhancedLegacy(file, fileId, options);
-      }
-      
-      // 💾 **CACHE RESULT**: Store result for future use
-      await this.intelligentCache.set(cacheKey, result, {
-        quality,
-        metadata: {
-          fileName: file.name,
-          fileSize: file.size,
-          strategy: this.capabilities.recommendedStrategy,
-          processingTime: result.processingTime
-        }
-      });
-      
-      const totalTime = performance.now() - startTime;
-      this.updateMetrics('cache-miss', totalTime, quality);
-      
-      // 🔄 **BACKGROUND ENHANCEMENT**: Schedule higher quality processing if needed
-      if (quality !== 'premium' && priority !== 'low') {
-        this.scheduleFullProcessing(file, fileId, { ...options, quality: 'premium' });
-      }
-      
+    // 🔧 **UNIFIED LOADING**: Skip thumbnail phase if requested
+    if (options.skipThumbnail || options.unifiedProgress) {
+      return await this.processWithDirectGeneration(file, fileId, options);
+    }
+    
+    // 🧠 **CACHE CHECK**: Check intelligent cache first
+    const cachedResult = await this.intelligentCache.get(fileId, options);
+    if (cachedResult) {
       return {
-        ...result,
-        processingTime: totalTime,
+        ...cachedResult,
+        fromCache: true,
+        processingTime: performance.now() - startTime
+      };
+    }
+    
+    // 🎯 **CAPABILITY-BASED ROUTING**: Choose best processing method
+    if (this.capabilities.hasOffscreenCanvas && this.capabilities.hasWebWorkers) {
+      return await this.processWithFullHybrid(file, fileId, options);
+    } else if (this.capabilities.hasWebWorkers) {
+      return await this.processWithWorkerOnly(file, fileId, options);
+    } else if (this.capabilities.hasOffscreenCanvas) {
+      return await this.processWithOffscreenOnly(file, fileId, options);
+    } else {
+      return await this.processWithEnhancedLegacy(file, fileId, options);
+    }
+  }
+
+  // 🚀 **DIRECT GENERATION**: Skip all hybrid complexity for unified loading
+  async processWithDirectGeneration(file, fileId, options) {
+    try {
+      const waveformData = await WaveformGenerator.generateWaveform(file);
+      
+      const result = {
+        ...waveformData,
+        strategy: 'direct-unified',
         fromCache: false,
-        strategy: this.capabilities.recommendedStrategy
+        processingTime: performance.now()
       };
       
-    } catch (error) {
-      console.error('❌ [HybridWaveformService] Processing failed:', error);
+      // 💾 **CACHE RESULT**: Store for future use
+      await this.intelligentCache.set(fileId, result, options);
       
-      // 🔄 **FALLBACK**: Try with legacy method
-      try {
-        const fallbackResult = await this.processWithEnhancedLegacy(file, fileId, options);
-        return {
-          ...fallbackResult,
-          processingTime: performance.now() - startTime,
-          fromCache: false,
-          strategy: 'fallback-legacy'
-        };
-      } catch (fallbackError) {
-        console.error('❌ [HybridWaveformService] Fallback processing also failed:', fallbackError);
-        throw new Error(`Processing failed: ${error.message}`);
-      }
+      return result;
+    } catch (error) {
+      console.error('❌ [HybridWaveformService] Direct generation failed:', error);
+      throw error;
     }
   }
 

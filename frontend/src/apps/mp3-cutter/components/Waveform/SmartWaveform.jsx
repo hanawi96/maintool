@@ -1,13 +1,12 @@
 // 🔄 **WAVEFORM SYSTEM SWITCHER** - Easy toggle between old and new systems
 import React from 'react';
 
-// 🔄 **IMPORT BOTH SYSTEMS**
+// 🔄 **IMPORT ORIGINAL SYSTEM ONLY**
 import OriginalWaveform from './index'; // Original system
-import EnhancedWaveform from './EnhancedWaveform'; // Hybrid system
 
 // 🎯 **SYSTEM FLAGS** - Easy way to enable/disable features
 const WAVEFORM_FEATURES = {
-  USE_HYBRID_SYSTEM: true, // 🚀 Set to false to use original system
+  USE_HYBRID_SYSTEM: false, // 🔧 **DISABLE HYBRID**: Use original system to prevent double loading
   SHOW_PERFORMANCE_BADGE: true,
   ENABLE_CACHE: true,
   USE_WEB_WORKERS: true,
@@ -51,23 +50,8 @@ const SmartWaveform = (props) => {
     });
   }
 
-  if (useHybridSystem) {
-    // 🚀 **HYBRID SYSTEM**: Enhanced with performance features
-    return (
-      <EnhancedWaveform
-        {...props}
-        showPerformanceBadge={WAVEFORM_FEATURES.SHOW_PERFORMANCE_BADGE}
-        onPerformanceStatsRequest={() => {
-          if (WAVEFORM_FEATURES.DEBUG_MODE) {
-            console.log('📊 [SmartWaveform] Performance stats requested');
-          }
-        }}
-      />
-    );
-  } else {
-    // 🔄 **ORIGINAL SYSTEM**: Backward compatibility
-    return <OriginalWaveform {...props} />;
-  }
+  // 🔧 **FORCE ORIGINAL SYSTEM**: Always use original system to prevent double loading
+  return <OriginalWaveform {...props} />;
 };
 
 // 🔧 **SYSTEM CONTROL FUNCTIONS** - For debugging and testing

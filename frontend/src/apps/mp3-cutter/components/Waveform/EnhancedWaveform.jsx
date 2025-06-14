@@ -148,7 +148,7 @@ const EnhancedWaveform = ({
   const minWidth = WAVEFORM_CONFIG.RESPONSIVE.MIN_WIDTH;
   
   // Enhanced loading state display (production optimized)
-  if (isGenerating) {
+  if (isGenerating && waveformData.length === 0) {
     return (
       <div className="bg-white/70 backdrop-blur-sm rounded-xl p-4 border border-slate-200/50 shadow-sm">
         <div 
@@ -161,9 +161,9 @@ const EnhancedWaveform = ({
           }}
         >
           <EnhancedWaveformLoadingIndicator 
-            processingStrategy={enhancedFeatures?.processingStrategy}
-            fromCache={enhancedFeatures?.fromCache}
-            processingTime={enhancedFeatures?.processingTime}
+            processingStrategy={enhancedFeatures?.processingStrategy || 'unified-direct'}
+            fromCache={enhancedFeatures?.fromCache || false}
+            processingTime={enhancedFeatures?.processingTime || 0}
           />
         </div>
       </div>

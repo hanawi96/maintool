@@ -12,25 +12,23 @@ export class HybridWaveformIntegration {
   }
 
   /**
-   * 🎯 **MAIN PROCESSING METHOD** - Intelligently routes to best system
+   * 🎯 **MAIN PROCESSING METHOD** - Intelligently routes to best system with unified loading
    */
   async generateWaveform(file, options = {}) {
     const startTime = performance.now();
     
-
     try {
       let result;
 
       if (this.useHybridSystem) {
-        // 🚀 **HYBRID SYSTEM**: Use new OffscreenCanvas + Worker + Cache
-        result = await this.processWithHybridSystem(file, options);
+        // 🚀 **UNIFIED HYBRID PROCESSING**: Single loading state for entire process
+        result = await this.processWithUnifiedHybrid(file, options);
       } else {
         // 🔄 **FALLBACK**: Use original system
         result = await this.processWithFallback(file, options);
       }
 
       const processingTime = performance.now() - startTime;
-
 
       return {
         ...result,
@@ -55,26 +53,44 @@ export class HybridWaveformIntegration {
   }
 
   /**
-   * 🚀 **HYBRID SYSTEM PROCESSING**
+   * 🚀 **UNIFIED HYBRID PROCESSING** - Single loading state for entire process
    */
-  async processWithHybridSystem(file, options = {}) {
+  async processWithUnifiedHybrid(file, options = {}) {
+    // 🎯 **SKIP THUMBNAIL PHASE**: Go directly to full processing to avoid double loading
     const hybridOptions = {
       quality: options.quality || 'standard',
-      priority: options.priority || 'normal'
+      priority: options.priority || 'normal',
+      skipThumbnail: true, // 🔧 **KEY FIX**: Skip thumbnail to prevent double loading
+      unifiedProgress: true // 🔧 **UNIFIED PROGRESS**: Single progress bar
     };
 
-    const result = await this.hybridService.processFile(file, hybridOptions);
-    
-    // 🔄 **NORMALIZE RESULT**: Convert to format expected by existing code
-    return {
-      data: result.data,
-      duration: result.duration,
-      sampleRate: result.sampleRate || 44100,
-      numberOfChannels: result.numberOfChannels || 1,
-      strategy: result.strategy,
-      fromCache: result.fromCache,
-      processingTime: result.processingTime
-    };
+    try {
+      // 🚀 **DIRECT FULL PROCESSING**: Skip hybrid service complexity, use direct generator
+      const result = await this.fallbackGenerator.generateWaveform(file);
+      
+      return {
+        data: result.data,
+        duration: result.duration,
+        sampleRate: result.sampleRate || 44100,
+        numberOfChannels: result.numberOfChannels || 1,
+        strategy: 'unified-direct',
+        fromCache: false,
+        processingTime: performance.now()
+      };
+    } catch (error) {
+      // 🔄 **FALLBACK TO HYBRID SERVICE**: If direct fails, try hybrid service
+      const result = await this.hybridService.processFile(file, hybridOptions);
+      
+      return {
+        data: result.data,
+        duration: result.duration,
+        sampleRate: result.sampleRate || 44100,
+        numberOfChannels: result.numberOfChannels || 1,
+        strategy: result.strategy,
+        fromCache: result.fromCache,
+        processingTime: result.processingTime
+      };
+    }
   }
 
   /**

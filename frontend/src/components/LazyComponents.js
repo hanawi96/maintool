@@ -104,7 +104,7 @@ export const LazyWaveformCanvas = lazy(() =>
 
 // 🎯 **LAZY COMPONENT WRAPPERS** - With custom loading states
 export const SmartWaveformLazy = (props) => (
-  <Suspense fallback={<WaveformLoader />}>
+  <Suspense fallback={null}>
     <LazySmartWaveform {...props} />
   </Suspense>
 );

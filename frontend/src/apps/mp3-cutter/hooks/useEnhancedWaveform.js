@@ -20,8 +20,6 @@ export const useEnhancedWaveform = () => {
 
   // 🎯 **ENHANCED WAVEFORM GENERATION**: Uses hybrid system with fallback
   const generateWaveform = useCallback(async (file) => {
-
-
     setIsGenerating(true);
     setFromCache(false);
     setProcessingStrategy(null);
@@ -38,7 +36,12 @@ export const useEnhancedWaveform = () => {
         throw new Error('File is empty');
       }
 
-      const result = await HybridWaveformGenerator.generateWaveform(file);
+      // 🚀 **UNIFIED PROCESSING**: Single call, no duplicate loading states
+      const result = await HybridWaveformGenerator.generateWaveform(file, {
+        unifiedLoading: true, // 🔧 **PREVENT DOUBLE LOADING**: Flag to ensure single loading state
+        quality: 'standard'
+      });
+      
       if (!result.data || result.data.length === 0) {
         throw new Error('Generated waveform data is empty');
       }

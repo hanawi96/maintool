@@ -92,6 +92,12 @@ const Waveform = ({
   // 🚀 **REALTIME AUDIO ACCESS**: Direct audio element access cho ultra-smooth tooltips
   audioRef,
   
+  // 🆕 **SILENCE DETECTION PROPS**: Real-time silence overlay
+  silenceRegions = [],
+  showSilenceOverlay = false,
+  onSilenceRegionClick = null,
+  selectedSilenceRegions = [],
+  
   // Canvas handlers
   onMouseDown,
   onMouseMove,
@@ -116,8 +122,8 @@ const Waveform = ({
   
   const minWidth = WAVEFORM_CONFIG.RESPONSIVE.MIN_WIDTH;
   
-  // Loading state display (production optimized)
-  if (isGenerating) {
+  // 🔧 **SINGLE LOADING STATE**: Only show loading when actually generating
+  if (isGenerating && waveformData.length === 0) {
     return (
       <div className="bg-white/70 backdrop-blur-sm rounded-xl p-4 border border-slate-200/50 shadow-sm">
         <div 
@@ -175,6 +181,10 @@ const Waveform = ({
             fadeOut={fadeOut}
             isInverted={isInverted}
             audioRef={audioRef}
+            silenceRegions={silenceRegions}
+            showSilenceOverlay={showSilenceOverlay}
+            onSilenceRegionClick={onSilenceRegionClick}
+            selectedSilenceRegions={selectedSilenceRegions}
             onMouseDown={onMouseDown}
             onMouseMove={onMouseMove}
             onMouseUp={onMouseUp}
@@ -183,7 +193,7 @@ const Waveform = ({
         </div>
       </div>
       
-      {/* 🚫 **GLOBAL SCROLLBAR HIDE CSS**: Ensure no scrollbars appear */}
+      {/* �� **GLOBAL SCROLLBAR HIDE CSS**: Ensure no scrollbars appear */}
       <style>
         {`
           .waveform-container-no-scrollbar::-webkit-scrollbar {

@@ -2,21 +2,28 @@ import { WAVEFORM_CONFIG } from '../utils/constants';
 
 export class WaveformGenerator {
   static async generateWaveform(file) {
-    console.log('🎵 [WaveformGenerator] Starting audio processing...', {
-      fileName: file.name,
-      fileSize: (file.size / 1024 / 1024).toFixed(2) + 'MB',
-      fileType: file.type
-    });
+    // 🔧 **REDUCED LOGGING**: Only log for files larger than 5MB to reduce spam
+    if (file.size > 5 * 1024 * 1024) {
+      console.log('🎵 [WaveformGenerator] Processing large file...', {
+        fileName: file.name,
+        fileSize: (file.size / 1024 / 1024).toFixed(2) + 'MB',
+        fileType: file.type
+      });
+    }
 
     try {
       const arrayBuffer = await file.arrayBuffer();
       const audioContext = new (window.AudioContext || window.webkitAudioContext)();
       const buffer = await audioContext.decodeAudioData(arrayBuffer);
       const { SAMPLE_COUNT } = WAVEFORM_CONFIG;
-      console.log('📊 [WaveformGenerator] Extracting waveform data...', {
-        targetSamples: SAMPLE_COUNT,
-        bufferLength: buffer.length
-      });
+      
+      // 🔧 **REDUCED LOGGING**: Only log for large files
+      if (file.size > 5 * 1024 * 1024) {
+        console.log('📊 [WaveformGenerator] Extracting waveform data...', {
+          targetSamples: SAMPLE_COUNT,
+          bufferLength: buffer.length
+        });
+      }
 
       const blockSize = Math.floor(buffer.length / SAMPLE_COUNT);
       const channelData = buffer.getChannelData(0); // Use first channel
