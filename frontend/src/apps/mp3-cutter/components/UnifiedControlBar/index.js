@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useEffect, useRef } from 'react';
-import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Zap, RotateCcw, RotateCw, Repeat, Shuffle, BarChart } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Zap, RotateCcw, RotateCw, Repeat, Shuffle } from 'lucide-react';
 import CompactTimeSelector from './CompactTimeSelector';
 import { getAutoReturnSetting, setAutoReturnSetting } from '../../utils/safeStorage';
 import '../../styles/UnifiedControlBar.css';
@@ -337,22 +337,24 @@ const UnifiedControlBar = React.memo(({
           <div className="absolute -top-1 -right-1 w-2 h-2 bg-indigo-500 rounded-full shadow-sm"></div>
         )}
       </button>
-      
-      {/* 🆕 **SILENCE DETECTION BUTTON** - Simple toggle button */}
+        {/* 🆕 **SILENCE DETECTION BUTTON** - Text button */}
       <button
         onClick={onToggleSilencePanel}
         disabled={disabled || !fileId}
-        className={`relative p-2 rounded-lg transition-all duration-200 group ${
+        className={`relative px-3 py-2 rounded-lg transition-all duration-200 group ${
           isSilencePanelOpen 
             ? 'bg-red-100 hover:bg-red-200 border border-red-300' 
             : 'bg-slate-100 hover:bg-slate-200 border border-slate-300'
         } disabled:opacity-50 disabled:cursor-not-allowed`}
         title="Silence Detection - Remove silent parts"
-      >        <BarChart className={`w-4 h-4 transition-colors ${
+      >
+        <span className={`text-sm font-medium transition-colors ${
           isSilencePanelOpen 
             ? 'text-red-700 group-hover:text-red-800' 
             : 'text-slate-700 group-hover:text-slate-900'
-        } group-disabled:text-slate-400`} />
+        } group-disabled:text-slate-400`}>
+          Find Silence
+        </span>
         
         {/* 🎯 **ACTIVE INDICATOR** - Visual dot when panel is open */}
         {isSilencePanelOpen && (
@@ -399,7 +401,7 @@ const UnifiedControlBar = React.memo(({
 
   return (
     <div className="unified-control-bar bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-      {/* 🎯 **MAIN CONTROL ROW** - Updated layout theo yêu cầu user mới */}
+      {/* 🎯 **MAIN CONTROL ROW** - Updated layout theo yêu cầu user: time selector ở cuối, float left */}
       <div className="flex items-center gap-1 flex-wrap xl:flex-nowrap">
         
         {/* 1. ✅ Jump to Start + Play/Pause + Jump to End */}
@@ -423,10 +425,7 @@ const UnifiedControlBar = React.memo(({
           {InvertSelectionSection}
         </div>
         
-        {/* 6. Spacer - Push time selector to right */}
-        <div className="flex-1 hidden xl:block"></div>
-        
-        {/* 7. ✅ Start Time + End Time - Moved to end */}
+        {/* 6. ✅ Start Time + End Time - Moved after Find Silence, float left */}
         <div className="px-4">
           <CompactTimeSelector
             startTime={startTime}
@@ -457,22 +456,22 @@ const UnifiedControlBar = React.memo(({
               }}
             />
             <span className="text-sm text-slate-600 w-8 text-center">{Math.round(volume * 100)}%</span>
-          </div>
-
-          {/* 🆕 **MOBILE SILENCE DETECTION** - Compact button for mobile */}
+          </div>          {/* 🆕 **MOBILE SILENCE DETECTION** - Compact text button for mobile */}
           <button
             onClick={onToggleSilencePanel}
             disabled={disabled || !fileId}
-            className={`relative p-2 rounded-lg transition-all duration-200 ${
+            className={`relative px-2 py-1 rounded-lg transition-all duration-200 ${
               isSilencePanelOpen 
                 ? 'bg-red-100 border border-red-300' 
                 : 'bg-slate-100 border border-slate-300'
             } disabled:opacity-50 disabled:cursor-not-allowed`}
             title="Silence Detection"
           >
-            <BarChart className={`w-4 h-4 ${
+            <span className={`text-xs font-medium ${
               isSilencePanelOpen ? 'text-red-700' : 'text-slate-700'
-            }`} />
+            }`}>
+              Find
+            </span>
             {isSilencePanelOpen && (
               <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full shadow-sm"></div>
             )}
