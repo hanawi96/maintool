@@ -671,6 +671,8 @@ const WaveformCanvas = React.memo(({
       const availableWaveformWidth = waveformEndX - waveformStartX;
       
       if (availableWaveformWidth > 0) {
+        const renderStartTime = performance.now();
+        
         // 🚀 **CACHED RENDERING**: Use cache if available
         if (silenceOverlayCacheRef.current) {
           ctx.save();
@@ -690,30 +692,84 @@ const WaveformCanvas = React.memo(({
           ctx.drawImage(silenceOverlayCacheRef.current, 0, 0);
           
           ctx.restore();
-        } else if (fullSilenceRegionsRef.current?.length > 0) {
-          // 🎯 **FALLBACK RENDERING**: Direct render when cache not ready
-          fullSilenceRegionsRef.current.forEach(region => {
-            // Only render if region intersects with visible area
-            if (region.end > startTime && region.start < endTime) {
-              const regionStartPercent = region.start / duration;
-              const regionEndPercent = region.end / duration;
-              const regionStartX = waveformStartX + (regionStartPercent * availableWaveformWidth);
-              const regionEndX = waveformStartX + (regionEndPercent * availableWaveformWidth);
-              const regionWidth = regionEndX - regionStartX;
-              
-              // 🔇 **HOVER EFFECT**: Use darker color for hovered region
-              const isHovered = hoveredSilenceRegion && 
-                region.start === hoveredSilenceRegion.start && 
-                region.end === hoveredSilenceRegion.end;
-              
-              ctx.fillStyle = isHovered ? 'rgba(34, 197, 94, 0.5)' : 'rgba(34, 197, 94, 0.3)';
-              ctx.fillRect(regionStartX, 0, regionWidth, height);
+          
+          const renderTime = performance.now() - renderStartTime;
+          if (renderTime > 2) { // Only log if render took more than 2ms
+            console.log('🚀 [SilenceOverlay] Cached render:', renderTime.toFixed(2) + 'ms');
+          }
+        } else {
+          // 🚀 **OPTIMIZED FALLBACK RENDERING**: Ultra-fast direct rendering
+          if (fullSilenceRegionsRef.current?.length > 0) {
+            // 🚀 **BATCH RENDERING**: Prepare all regions first, then render in batch
+            const visibleRegions = [];
+            const visibleStartPercent = Math.max(0, startTime / duration);
+            const visibleEndPercent = Math.min(1, endTime / duration);
+            
+            // 🚀 **PRE-FILTER VISIBLE REGIONS**: Only calculate positions for visible regions
+            for (const region of fullSilenceRegionsRef.current) {
+              if (region.end > startTime && region.start < endTime) {
+                const regionStartPercent = region.start / duration;
+                const regionEndPercent = region.end / duration;
+                const regionStartX = waveformStartX + (regionStartPercent * availableWaveformWidth);
+                const regionEndX = waveformStartX + (regionEndPercent * availableWaveformWidth);
+                
+                visibleRegions.push({
+                  x: regionStartX,
+                  width: regionEndX - regionStartX,
+                  isHovered: hoveredSilenceRegion && 
+                    region.start === hoveredSilenceRegion.start && 
+                    region.end === hoveredSilenceRegion.end
+                });
+              }
             }
-          });
+            
+            // 🚀 **BATCH RENDER**: Render all visible regions in one go
+            if (visibleRegions.length > 0) {
+              ctx.save();
+              
+              // 🚀 **CLIPPING MASK**: Only show silence regions in visible area
+              const clipStartX = waveformStartX + (visibleStartPercent * availableWaveformWidth);
+              const clipWidth = (visibleEndPercent - visibleStartPercent) * availableWaveformWidth;
+              
+              ctx.beginPath();
+              ctx.rect(clipStartX, 0, clipWidth, height);
+              ctx.clip();
+              
+              // 🚀 **SINGLE FILL STYLE**: Set once for all normal regions
+              ctx.fillStyle = 'rgba(34, 197, 94, 0.3)';
+              visibleRegions.forEach(region => {
+                if (!region.isHovered) {
+                  ctx.fillRect(region.x, 0, region.width, height);
+                }
+              });
+              
+              // 🚀 **HOVERED REGIONS**: Render separately with different color
+              const hoveredRegions = visibleRegions.filter(r => r.isHovered);
+              if (hoveredRegions.length > 0) {
+                ctx.fillStyle = 'rgba(34, 197, 94, 0.5)';
+                hoveredRegions.forEach(region => {
+                  ctx.fillRect(region.x, 0, region.width, height);
+                });
+              }
+              
+              ctx.restore();
+            }
+            
+            const renderTime = performance.now() - renderStartTime;
+            if (renderTime > 2) { // Only log if render took more than 2ms
+              console.log('🚀 [SilenceOverlay] Fallback render:', {
+                time: renderTime.toFixed(2) + 'ms',
+                regions: visibleRegions.length,
+                total: fullSilenceRegionsRef.current.length
+              });
+            }
+          }
         }
         
         // 🎯 **SELECTED REGIONS OVERLAY**: Only render selected regions on top (within visible area)
         if (selectedSilenceRegions?.length > 0) {
+          const selectedRenderStartTime = performance.now();
+          
           selectedSilenceRegions.forEach(region => {
             // Only render if region intersects with visible area
             if (region.end > startTime && region.start < endTime) {
@@ -732,6 +788,11 @@ const WaveformCanvas = React.memo(({
               ctx.fillRect(regionStartX, 0, regionWidth, height);
             }
           });
+          
+          const selectedRenderTime = performance.now() - selectedRenderStartTime;
+          if (selectedRenderTime > 1) { // Only log if render took more than 1ms
+            console.log('🚀 [SilenceOverlay] Selected render:', selectedRenderTime.toFixed(2) + 'ms');
+          }
         }
       }
     }
@@ -800,19 +861,19 @@ const WaveformCanvas = React.memo(({
     updateCache();
   }, [renderData, containerWidth, generateCacheKey, generatePurpleCacheKey, createBackgroundCache, createPurpleWaveformCache, requestRedraw, drawWaveform, canvasRef]);
 
-  // 🚀 **SILENCE CACHE MANAGEMENT**: Update silence cache when regions change (debounced)
+  // 🚀 **SILENCE REGIONS UPDATE**: Handle silence regions changes with instant overlay update
   useEffect(() => {
-    // 🎯 **STORE FULL REGIONS**: Store complete silence regions for cache
-    if (silenceRegions?.length > 0) {
-      // 🚀 **THROTTLED LOGGING**: Only log occasionally to prevent spam
-      if (Math.random() < 0.05) { // Only log 5% of updates
-        console.log('📥 [WaveformCanvas] Received silence regions (throttled):', {
-          regionsCount: silenceRegions.length,
-          firstRegion: silenceRegions[0] ? `${silenceRegions[0].start}s-${silenceRegions[0].end}s` : 'none',
-          totalDuration: silenceRegions.reduce((sum, r) => sum + r.duration, 0).toFixed(2) + 's'
-        });
-      }
+    if (silenceRegions !== fullSilenceRegionsRef.current) {
+      console.log('🔄 [SilenceOverlay] Regions updated:', { 
+        newCount: silenceRegions?.length || 0, 
+        oldCount: fullSilenceRegionsRef.current?.length || 0 
+      });
       fullSilenceRegionsRef.current = silenceRegions;
+      
+      // 🚀 **INSTANT FALLBACK REDRAW**: Trigger immediate redraw for fallback rendering
+      if (showSilenceOverlay) {
+        requestRedraw(drawWaveform);
+      }
     }
     
     const updateSilenceCache = async () => {
@@ -847,8 +908,17 @@ const WaveformCanvas = React.memo(({
       }
     };
     
-    // 🚀 **DEBOUNCED UPDATE**: Only update cache after 300ms of no changes
-    const timeoutId = setTimeout(updateSilenceCache, 300);
+    // 🛡️ **SMART DEBOUNCE**: No debounce for immediate responsiveness, but batch rapid changes
+    let debounceTime = 0; // 🚀 **INSTANT UPDATE**: No debounce for ultra-fast overlay updates
+    
+    // 🔄 **DETECT RAPID CHANGES**: If cache key is changing rapidly, use minimal debounce
+    const currentCacheKey = generateSilenceCacheKey(fullSilenceRegionsRef.current, containerWidth);
+    if (currentCacheKey && currentCacheKey !== lastSilenceCacheKey.current) {
+      // 🚀 **BATCH RAPID CHANGES**: Only use minimal debounce for very rapid changes
+      debounceTime = 16; // ~1 frame at 60fps for batching only
+    }
+    
+    const timeoutId = setTimeout(updateSilenceCache, debounceTime);
     return () => clearTimeout(timeoutId);
   }, [showSilenceOverlay, silenceRegions, containerWidth, duration, generateSilenceCacheKey, createSilenceOverlayCache, requestRedraw, drawWaveform, canvasRef]);
 
@@ -885,6 +955,14 @@ const WaveformCanvas = React.memo(({
       requestRedraw(drawWaveform);
     }
   }, [showSilenceOverlay, hoveredSilenceRegion, requestRedraw, drawWaveform]);
+
+  // 🚀 **INSTANT SILENCE REGIONS REDRAW**: Trigger immediate redraw when silence regions change
+  useEffect(() => {
+    if (showSilenceOverlay && silenceRegions) {
+      console.log('⚡ [SilenceOverlay] Triggering instant redraw for regions change:', silenceRegions.length);
+      requestRedraw(drawWaveform);
+    }
+  }, [showSilenceOverlay, silenceRegions, requestRedraw, drawWaveform]);
 
   // 🆕 **HANDLE POSITION CALCULATOR**: Calculate handle positions for React rendering
   const handlePositions = useMemo(() => {

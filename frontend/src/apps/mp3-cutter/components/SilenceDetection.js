@@ -292,12 +292,16 @@ const SilenceDetection = ({
   const requestSmoothUpdate = useCallback(() => {
     if (pendingUpdateRef.current) return;
     
+    console.log('🚀 [SilenceSlider] Requesting smooth update for slider change');
+    
     pendingUpdateRef.current = true;
     rafRef.current = requestAnimationFrame(() => {
       updatePreview(true);
       pendingUpdateRef.current = false;
     });
-  }, [updatePreview]);  // 🎯 **EFFECT**: Real-time preview updates with cleanup
+  }, [updatePreview]);
+
+  // 🎯 **EFFECT**: Real-time preview updates with cleanup
   useEffect(() => {
     updatePreview(false);
     
@@ -305,7 +309,9 @@ const SilenceDetection = ({
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [updatePreview]);  // 🧹 **CLEANUP**: Reset spacing on unmount (simplified from scrollable version)
+  }, [updatePreview]);
+
+  // 🧹 **CLEANUP**: Reset spacing on unmount (simplified from scrollable version)
   useEffect(() => {
     return () => {
       document.querySelectorAll('.silence-detection-wrapper').forEach(wrapper => {
@@ -320,6 +326,7 @@ const SilenceDetection = ({
       }
     };
   }, []);
+
   // 🚀 **CACHE WARMING**: Pre-calculate common values for instant response
   useEffect(() => {
     if (!isPanelOpen || !waveformData.length || !duration) return;
@@ -336,7 +343,9 @@ const SilenceDetection = ({
             }
           });
         });
-      });    }  }, [isPanelOpen, waveformData.length, duration, calculateSilenceRegions]);  // 🆕 **DETECTING STATE CHANGE**: Notify parent when detection state changes
+      });    }  }, [isPanelOpen, waveformData.length, duration, calculateSilenceRegions]);
+
+  // 🆕 **DETECTING STATE CHANGE**: Notify parent when detection state changes
   useEffect(() => {
     onDetectingStateChange?.(isDetecting);
   }, [isDetecting, onDetectingStateChange]);
@@ -501,6 +510,7 @@ const SilenceDetection = ({
       });
     });
   }, [threshold, minDuration, onPreviewSilenceUpdate]);
+
   // 🔍 **SILENCE DETECTION**: Optimized with Web Worker chunked processing + backend fallback
   const detectSilence = useCallback(async () => {
     console.log('🚀 [SilenceDetection] Starting detection process');
