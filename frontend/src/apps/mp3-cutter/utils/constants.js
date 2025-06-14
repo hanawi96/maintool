@@ -192,8 +192,12 @@ export const WAVEFORM_CONFIG = {
 export const API_ENDPOINTS = {
   UPLOAD: '/api/mp3-cutter/upload',
   CUT: '/api/mp3-cutter/cut',
-  CUT_BY_FILE_ID: '/api/mp3-cutter/cut-by-fileid',
-  CHANGE_SPEED_BY_FILEID: '/api/mp3-cutter/change-speed-by-fileid',
-  DETECT_SILENCE: '/api/mp3-cutter/detect-silence',
-  DOWNLOAD: '/api/mp3-cutter/download'
+  CUT_BY_FILEID: '/api/mp3-cutter/cut-by-fileid',
+  CHANGE_SPEED: '/api/mp3-cutter/change-speed-by-fileid',
+  WAVEFORM: '/api/mp3-cutter/waveform',
+  DOWNLOAD: '/api/mp3-cutter/download',
+  HEALTH: '/api/mp3-cutter/health',
+  FORMATS: '/api/mp3-cutter/formats',
+  STATS: '/api/mp3-cutter/stats',
+  DEBUG: '/api/mp3-cutter/debug'
 };

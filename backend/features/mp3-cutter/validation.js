@@ -105,12 +105,6 @@ export const validateFileId = (req, res, next) => {
     });
   }
 
-  // For silence detection, we only need fileId
-  if (req.path.includes('detect-silence')) {
-    req.fileId = fileId;
-    return next();
-  }
-
   // For cut operations, validate all parameters
   const { 
     startTime, 
@@ -223,44 +217,6 @@ export const validateSpeedParams = (req, res, next) => {
     outputFormat: outputFormat.toLowerCase(),
     quality: quality.toLowerCase()
   };
-  
-  next();
-};
-
-/**
- * 🔇 **VALIDATE SILENCE PARAMS**: Validation for silence detection requests
- */
-export const validateSilenceParams = (req, res, next) => {
-  const { threshold = -40, minDuration = 0.5, duration } = req.body;
-  
-  const thresholdValue = parseFloat(threshold);
-  const minDurationValue = parseFloat(minDuration);
-  
-  if (isNaN(thresholdValue) || thresholdValue < -60 || thresholdValue > -10) {
-    return res.status(400).json({
-      success: false,
-      error: 'Invalid threshold. Must be between -60dB and -10dB.',
-      received: threshold,
-      expected: 'Number between -60 and -10'
-    });
-  }
-  
-  if (isNaN(minDurationValue) || minDurationValue < 0.1 || minDurationValue > 10) {
-    return res.status(400).json({
-      success: false,
-      error: 'Invalid minimum duration. Must be between 0.1s and 10s.',
-      received: minDuration,
-      expected: 'Number between 0.1 and 10'
-    });
-  }
-  
-  // Set validated params
-  req.silenceParams = {
-    threshold: thresholdValue,
-    minDuration: minDurationValue,
-    duration: duration ? parseFloat(duration) : undefined
-  };
-
   
   next();
 };

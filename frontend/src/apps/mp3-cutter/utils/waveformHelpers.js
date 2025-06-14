@@ -1,75 +1,32 @@
 import { WAVEFORM_CONFIG } from './constants';
 
-// Fade effects calculator
-export const calculateFadeMultiplier = (barTime, selectionStart, selectionEnd, fadeInDuration, fadeOutDuration, isInverted = false, duration = 0) => {
+// 🎯 **CALCULATE FADE MULTIPLIER**: Calculate fade effect multiplier for a bar position
+export const calculateFadeMultiplier = (barIndex, totalBars, startTime, endTime, fadeIn, fadeOut, duration, isInverted = false) => {
+  if (!fadeIn && !fadeOut) return 1;
+  
+  // 🆕 **INVERT MODE**: Different fade logic for inverted selection
   if (isInverted) {
-    // 🆕 **INVERT MODE**: Silence region has absolute priority
-    if (barTime >= selectionStart && barTime <= selectionEnd) {
-      return 0.02; // 🎨 **FLAT LINE**: Small visual multiplier for silence region boundary
-    }
-    
-    // 🔥 **FADE EFFECTS FOR ACTIVE REGIONS**: Apply to regions before startTime and after endTime
-    if (fadeInDuration <= 0 && fadeOutDuration <= 0) return 1.0;
-    
-    let fadeMultiplier = 1.0;
-    
-    // 🎯 **FADE IN - FIRST ACTIVE REGION** (0 to selectionStart)
-    if (fadeInDuration > 0 && barTime < selectionStart) {
-      const activeRegionDuration = selectionStart; // From 0 to selectionStart
-      const fadeInEnd = Math.min(fadeInDuration, activeRegionDuration);
-      
-      if (barTime <= fadeInEnd) {
-        const fadeProgress = barTime / fadeInEnd;
-        fadeMultiplier = Math.min(fadeMultiplier, fadeProgress);
-      }
-    }
-    
-    // 🔥 **FADE OUT - SECOND ACTIVE REGION** (selectionEnd to duration)
-    if (fadeOutDuration > 0 && barTime >= selectionEnd) {
-      const activeRegionDuration = duration - selectionEnd; // From selectionEnd to duration
-      const actualFadeOutDuration = Math.min(fadeOutDuration, activeRegionDuration);
-      const fadeOutStart = duration - actualFadeOutDuration; // Fade at the END of this region
-      
-      if (barTime >= fadeOutStart) {
-        const fadeProgress = (duration - barTime) / actualFadeOutDuration;
-        fadeMultiplier = Math.min(fadeMultiplier, Math.max(0.05, fadeProgress));
-      }
-    }
-    
-    return Math.max(0.05, Math.min(1.0, fadeMultiplier));
-  } else {
-    // 🎯 **NORMAL MODE**: Enhanced logic with proper volume restoration
-    
-    // 🔥 **OUTSIDE REGION**: Always full volume for bars outside selection
-    if (barTime < selectionStart || barTime > selectionEnd) return 1.0;
-    
-    // 🔥 **INSIDE REGION**: Apply fade effects if any, otherwise full volume
-    if (fadeInDuration <= 0 && fadeOutDuration <= 0) return 1.0;
-    
-    let fadeMultiplier = 1.0;
-    const selectionDuration = selectionEnd - selectionStart;
-    
-    // Fade in effect
-    if (fadeInDuration > 0) {
-      const fadeInEnd = selectionStart + Math.min(fadeInDuration, selectionDuration / 2);
-      if (barTime <= fadeInEnd) {
-        const fadeProgress = Math.max(0, (barTime - selectionStart) / fadeInDuration);
-        fadeMultiplier = Math.min(fadeMultiplier, Math.max(0.05, fadeProgress));
-      }
-    }
-    
-    // Fade out effect  
-    if (fadeOutDuration > 0) {
-      const fadeOutStart = selectionEnd - Math.min(fadeOutDuration, selectionDuration / 2);
-      if (barTime >= fadeOutStart) {
-        const fadeProgress = Math.max(0, (selectionEnd - barTime) / fadeOutDuration);
-        fadeMultiplier = Math.min(fadeMultiplier, Math.max(0.05, fadeProgress));
-      }
-    }
-    
-    // 🆕 **ENSURE MINIMUM VOLUME**: Never go below 0.05 to maintain visibility
-    return Math.max(0.05, Math.min(1.0, fadeMultiplier));
+    return 0.02; // Small visual multiplier for region boundary
   }
+  
+  const barTimePosition = (barIndex / totalBars) * duration;
+  const relativePosition = (barTimePosition - startTime) / (endTime - startTime);
+  
+  let fadeMultiplier = 1;
+  
+  // 🎵 **FADE IN EFFECT**: Gradual increase from start
+  if (fadeIn > 0 && relativePosition < (fadeIn / (endTime - startTime))) {
+    const fadeProgress = relativePosition / (fadeIn / (endTime - startTime));
+    fadeMultiplier *= Math.max(0, Math.min(1, fadeProgress));
+  }
+  
+  // 🎵 **FADE OUT EFFECT**: Gradual decrease to end
+  if (fadeOut > 0 && relativePosition > (1 - fadeOut / (endTime - startTime))) {
+    const fadeProgress = (1 - relativePosition) / (fadeOut / (endTime - startTime));
+    fadeMultiplier *= Math.max(0, Math.min(1, fadeProgress));
+  }
+  
+  return fadeMultiplier;
 };
 
 // Adaptive waveform data processing

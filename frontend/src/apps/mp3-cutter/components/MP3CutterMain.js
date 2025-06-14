@@ -4,7 +4,6 @@ import React, { useState, useEffect, useRef, useCallback, useMemo, lazy } from '
 import { validateAudioFile, getAudioErrorMessage, getFormatDisplayName, generateCompatibilityReport, createSafeAudioURL, validateAudioURL } from '../utils/audioUtils';
 import { createInteractionManager } from '../utils/interactionUtils';
 import { getAutoReturnSetting } from '../utils/safeStorage';
-import { audioApi } from '../services/audioApi'; // 🆕 **AUDIO API**: Import for silence removal
 
 // Import hooks
 import { useAudioPlayer } from '../hooks/useAudioPlayer';
@@ -44,9 +43,6 @@ import {
   UnifiedControlBarLazy,
   preloadHeavyComponents
 } from '../../../components/LazyComponents';
-
-// 🚀 Additional lazy components for Phase 2
-const SilenceDetection = lazy(() => import('./SilenceDetection'));
 
 // 🔥 **ULTRA-LIGHT AUDIO COMPONENT**: Minimized for best performance
 const SafeAudioElement = React.memo(({ 
@@ -169,15 +165,7 @@ const MP3CutterMain = React.memo(() => {
   const [connectionError, setConnectionError] = useState(null);
   const [audioError, setAudioError] = useState(null);
   const [fileValidation, setFileValidation] = useState(null);  const [compatibilityReport, setCompatibilityReport] = useState(null);  // 🆕 **INVERT SELECTION STATE**: Track invert selection mode
-  const [isInverted, setIsInverted] = useState(false);  // 🆕 **SILENCE PANEL STATE**: Track silence detection panel visibility
-  const [isSilencePanelOpen, setIsSilencePanelOpen] = useState(false);
-  // 🆕 **SILENCE REGIONS STATE**: Track real-time silence regions for overlay
-  const [silenceRegions, setSilenceRegions] = useState([]);
-  // 🆕 **SKIP SILENCE STATE**: Track whether to skip silence during playback
-  const [skipSilenceEnabled, setSkipSilenceEnabled] = useState(false);  // 🆕 **SELECTED SILENCE REGIONS**: Track selected silence regions for deletion
-  const [selectedSilenceRegions, setSelectedSilenceRegions] = useState([]);
-  // 🆕 **SILENCE DETECTION PROCESSING**: Track if silence detection is currently running
-  const [isDetectingSilence, setIsDetectingSilence] = useState(false);
+  const [isInverted, setIsInverted] = useState(false);
 
   // 🔥 **PERFORMANCE REFS**
   const animationStateRef = useRef({ isPlaying: false, startTime: 0, endTime: 0 });
@@ -750,89 +738,6 @@ const MP3CutterMain = React.memo(() => {
         
         // 🔥 **INSTANT CURRENTTIME UPDATE** - Cập nhật ngay lập tức cho tooltip sync
         setCurrentTime(audioCurrentTime);
-
-        // 🆕 **SKIP SILENCE LOGIC**: Skip only selected silence regions when enabled
-        if (skipSilenceEnabled && selectedSilenceRegions.length > 0) {
-          // Check if current time is within any selected silence region
-          for (const region of selectedSilenceRegions) {
-            if (audioCurrentTime >= region.start && audioCurrentTime < region.end) {
-              // Skip to the end of the selected silence region
-              const skipToTime = Math.min(region.end, audioRef.current.duration);
-              audioRef.current.currentTime = skipToTime;
-              setCurrentTime(skipToTime);
-              console.log(`🔇 [SkipSilence] Skipped selected region from ${audioCurrentTime.toFixed(2)}s to ${skipToTime.toFixed(2)}s (${(skipToTime - audioCurrentTime).toFixed(2)}s skipped)`);
-              break; // Only skip one region per frame
-            }
-          }
-        }
-        
-        // 🆕 **INVERT MODE LOGIC**: Smart playback with edge case handling
-        if (isInverted && endTime > startTime) {
-          // 🚀 **SKIP REGION LOGIC**: When cursor reaches start point, skip to end
-          if (audioCurrentTime >= startTime - 0.05 && audioCurrentTime < endTime) {
-            const hasPostRegion = endTime < audioRef.current.duration;
-            
-            if (hasPostRegion) {
-              audioRef.current.currentTime = endTime;
-              setCurrentTime(endTime);
-            } else {
-              // 🎯 **NO POST REGION**: Stop at start point (end = duration)
-              audioRef.current.pause();
-              setIsPlaying(false);
-              audioRef.current.currentTime = startTime;
-              setCurrentTime(startTime);
-              return;
-            }
-          }
-          
-          // 🎯 **END OF AUDIO LOGIC**: When reaching end of audio in invert mode
-          if (audioCurrentTime >= audioRef.current.duration - 0.05) {
-            const autoReturnEnabled = getAutoReturnSetting();
-            const preRegionStart = startTime >= 3 ? startTime - 3 : 0;
-            
-            if (autoReturnEnabled && audioRef.current) {
-              // ✅ **LOOP MODE**: Loop back to pre-region start
-              audioRef.current.currentTime = preRegionStart;
-              setCurrentTime(preRegionStart);
-            } else if (audioRef.current) {
-              // ✅ **STOP MODE**: Pause and return to pre-region start
-              audioRef.current.pause();
-              setIsPlaying(false);
-              audioRef.current.currentTime = preRegionStart;
-              setCurrentTime(preRegionStart);
-              return;
-            }
-          }
-        } else {
-          // 🎯 **NORMAL MODE LOGIC**: Original auto-return logic for normal selection
-          if (endTime > startTime && audioCurrentTime >= endTime - 0.05) {
-            const autoReturnEnabled = getAutoReturnSetting();
-            
-            if (autoReturnEnabled && audioRef.current) {
-              // ✅ **LOOP MODE**: Auto-return BẬT → loop về startTime và tiếp tục phát
-              audioRef.current.currentTime = startTime;
-              setCurrentTime(startTime);
-              // Continue playing (không pause)
-              
-            } else if (audioRef.current) {
-              // ✅ **STOP MODE**: Auto-return TẮT → pause và quay cursor về startTime
-              audioRef.current.pause();
-              
-              // 🎯 **CURSOR RESET**: Quay cursor về startTime như yêu cầu
-              audioRef.current.currentTime = startTime;
-              setCurrentTime(startTime);
-              
-              return; // Exit update loop
-            }
-          }
-        }
-          // 🔧 **PERFORMANCE TRACKING** - Track framerate without logging
-        frameCount++;
-        const now = performance.now();
-        if (now - lastLogTime > 2000) { // Reset counters every 2 seconds
-          frameCount = 0;
-          lastLogTime = now;
-        }
         
         animationId = requestAnimationFrame(updateCursor);
       }
@@ -848,7 +753,7 @@ const MP3CutterMain = React.memo(() => {
         cancelAnimationFrame(animationId);
       }
     };
-  }, [isPlaying, startTime, endTime, audioRef, setCurrentTime, setIsPlaying, isInverted, skipSilenceEnabled, selectedSilenceRegions]);
+  }, [isPlaying, startTime, endTime, audioRef, setCurrentTime, setIsPlaying, isInverted]);
 
   // 🆕 **INITIAL CONFIG SYNC**: Only sync on startup and when selection changes (not fade values)
   const fadeConfigSyncedRef = useRef(false); // 🆕 **PREVENT MULTIPLE SYNCS**: Track if initial sync done
@@ -962,61 +867,7 @@ const MP3CutterMain = React.memo(() => {
     } else {
       // 🔙 **DISABLING INVERT MODE**: Return to normal
       jumpToTime(startTime);
-    }}, [duration, startTime, endTime, isInverted, saveState, fadeIn, fadeOut, jumpToTime, updateFadeConfig]);  // 🆕 **SILENCE PANEL TOGGLE HANDLER**: Handler to toggle silence detection panel với auto-trigger
-  const handleToggleSilencePanel = useCallback(() => {
-    setIsSilencePanelOpen(prev => {
-      const newIsOpen = !prev;
-      
-      if (!newIsOpen) {
-        // Clear silence regions when closing panel
-        setSilenceRegions([]);
-        console.log('🚀 [Panel] Silence panel closed - clearing regions');
-      } else {
-        // ✅ **AUTO-TRIGGER**: Auto-trigger silence detection khi panel mở
-        console.log('🚀 [Panel] Silence panel opened - checking for auto-trigger');
-        
-        // 🎯 **SMART AUTO-TRIGGER**: Use ref to call detectSilence directly
-        setTimeout(() => {
-          if (silenceDetectionRef.current && audioFile?.filename) {
-            const cacheInfo = silenceDetectionRef.current.getCacheInfo();
-            console.log('🔧 [Panel] Cache info:', cacheInfo);
-            
-            if (cacheInfo.isStale || cacheInfo.regionsCount === 0) {
-              console.log('🔥 [Panel] No cache available - triggering detectSilence via ref');
-              silenceDetectionRef.current.detectSilence();
-            } else {
-              console.log('⚡ [Panel] Cache available - skipping auto-trigger');
-            }
-          }
-        }, 150);
-      }
-      
-      return newIsOpen;
-    });
-  }, [audioFile?.filename]);
-  // 🆕 **SILENCE PREVIEW HANDLER**: Handler for real-time silence preview updates
-  const handleSilencePreviewUpdate = useCallback((regions) => {
-    setSilenceRegions(regions || []);
-  }, []);
-
-  // 🆕 **SKIP SILENCE HANDLER**: Handler for skip silence setting changes
-  const handleSkipSilenceChange = useCallback((enabled) => {
-    setSkipSilenceEnabled(enabled);
-    
-    // 🎯 **SMART PLAYBACK CONTROL**: Play from start when enabled, pause when disabled
-    if (enabled) {
-      // Jump to start point and play
-      jumpToTime(startTime);
-      if (!isPlaying) {
-        togglePlayPause();
-      }
-    } else {
-      // Pause playback when disabled
-      if (isPlaying) {
-        togglePlayPause();
-      }
-    }
-  }, [startTime, isPlaying, jumpToTime, togglePlayPause]);
+    }}, [duration, startTime, endTime, isInverted, saveState, fadeIn, fadeOut, jumpToTime, updateFadeConfig]);
 
   // 🚀 **PHASE 2: ADVANCED PRELOADING HOOKS** - Smart preloading system
   const { triggerPreload } = useProgressivePreloader();
@@ -1085,7 +936,6 @@ const MP3CutterMain = React.memo(() => {
       scheduleIdlePreload(() => {
         console.log('🛌 [Phase3] Executing idle preload for secondary components');
         // Preload secondary components during idle time
-        addToPreloadQueue('SilenceDetectionPanel', '../apps/mp3-cutter/components/UnifiedControlBar/SilenceDetectionPanel', 2);
       });
     }
     
@@ -1125,84 +975,6 @@ const MP3CutterMain = React.memo(() => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workerMetrics.totalPreloaded, isWorkerReady]); // Remove addComponentToCache from deps to prevent loop
-
-  // Helper function to compare regions with floating point tolerance
-  const regionsEqual = useCallback((r1, r2) => {
-    const tolerance = 0.001; // 1ms tolerance
-    return Math.abs(r1.start - r2.start) < tolerance && Math.abs(r1.end - r2.end) < tolerance;
-  }, []);
-
-  // 🆕 **SILENCE REGION CLICK HANDLER**: Handle silence region selection
-  const handleSilenceRegionClick = useCallback((region) => {
-    console.log('🔍 [MP3CutterMain] Silence region clicked:', region);
-    
-    // Validate region
-    if (!region || typeof region.start !== 'number' || typeof region.end !== 'number') {
-      console.error('❌ [MP3CutterMain] Invalid region:', region);
-      return;
-    }
-    
-    setSelectedSilenceRegions(prev => {
-      const isSelected = prev.some(r => regionsEqual(r, region));
-      const newSelected = isSelected
-        ? prev.filter(r => !regionsEqual(r, region))
-        : [...prev, region];
-      
-      console.log('🔍 [MP3CutterMain] Updated selected regions:', {
-        action: isSelected ? 'deselected' : 'selected',
-        region,
-        totalSelected: newSelected.length,
-        newSelectedList: newSelected.map(r => `${r.start.toFixed(3)}-${r.end.toFixed(3)}`)
-      });
-      
-      return newSelected;
-    });
-  }, [regionsEqual]);
-
-  // 🆕 **SELECTED REGIONS CHANGE HANDLER**: Update selected silence regions from SilenceDetection
-  const handleSelectedRegionsChange = useCallback((newSelectedRegions) => {
-    console.log('🔍 [MP3CutterMain] Selected regions changed:', newSelectedRegions);
-    setSelectedSilenceRegions(newSelectedRegions);
-  }, []);
-
-  // 🆕 **SILENCE REGION REMOVAL HANDLER**: Remove selected silence regions
-  const handleRemoveSelectedSilence = useCallback(async () => {
-    if (!selectedSilenceRegions.length || !audioFile?.filename) {
-      console.log('🔍 [MP3CutterMain] No regions to remove or no audio file');
-      return;
-    }
-
-    console.log('🔍 [MP3CutterMain] Removing selected regions:', selectedSilenceRegions);
-
-    try {
-      const result = await audioApi.removeSilenceRegions({
-        fileId: audioFile.filename,
-        regions: selectedSilenceRegions
-      });
-
-      if (result.success) {
-        // Update silence regions after removal
-        setSilenceRegions(prev => {
-          const newRegions = prev.filter(region => 
-            !selectedSilenceRegions.some(selected => regionsEqual(selected, region))
-          );
-          console.log('🔍 [MP3CutterMain] Updated silence regions after removal:', newRegions);
-          return newRegions;
-        });
-        setSelectedSilenceRegions([]); // Clear selection
-        // Refresh audio file
-        if (result.data?.newFileId) {
-          // Handle file refresh logic here
-          console.log('🔇 [SilenceRemoval] Successfully removed selected regions');
-        }
-      }
-    } catch (error) {
-      console.error('❌ [SilenceRemoval] Failed to remove silence regions:', error);
-    }
-  }, [selectedSilenceRegions, audioFile?.filename, regionsEqual]);
-
-  // 🚀 **SILENCE DETECTION REF**: Ref to control SilenceDetection component
-  const silenceDetectionRef = useRef(null);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-pink-50">
@@ -1270,43 +1042,11 @@ const MP3CutterMain = React.memo(() => {
               // 🚀 **REALTIME AUDIO ACCESS**: Direct audio element access cho ultra-smooth tooltips
               audioRef={audioRef}
               
-              // 🆕 **SILENCE DETECTION**: Real-time silence overlay
-              silenceRegions={silenceRegions}
-              showSilenceOverlay={isSilencePanelOpen}
-              onSilenceRegionClick={handleSilenceRegionClick}
-              selectedSilenceRegions={selectedSilenceRegions}
-              
               onMouseDown={handleCanvasMouseDown}
               onMouseMove={handleCanvasMouseMove}
               onMouseUp={handleCanvasMouseUp}
               onMouseLeave={handleCanvasMouseLeave}
-            />            {/* 🔇 SILENCE DETECTION - Advanced component with real-time preview */}            {audioFile && (
-              <SilenceDetection
-                ref={silenceDetectionRef}
-                fileId={audioFile?.filename || audioFile?.name}
-                duration={duration}
-                waveformData={waveformData}
-                audioRef={audioRef}
-                onSilenceDetected={(data) => {
-                  if (data) {
-                    console.log('🔇 [SilenceDetection] Data received:', data);
-                  }
-                }}
-                onPreviewSilenceUpdate={handleSilencePreviewUpdate}
-                onSkipSilenceChange={handleSkipSilenceChange}
-                onDetectingStateChange={setIsDetectingSilence}
-                isOpen={isSilencePanelOpen}
-                onToggleOpen={handleToggleSilencePanel}
-                disabled={!audioFile}
-                // 🎯 **REGION-BASED PROPS**: Auto-detect region processing
-                startTime={startTime}
-                endTime={endTime}
-                selectedRegions={selectedSilenceRegions}
-                onRegionClick={handleSilenceRegionClick}
-                onSelectedRegionsChange={handleSelectedRegionsChange}
-                onRemoveSelected={handleRemoveSelectedSilence}
-              />
-            )}
+            />
 
             {/* 🎯 UNIFIED CONTROLS - Single row layout with all controls */}
             <UnifiedControlBarLazy
@@ -1328,19 +1068,7 @@ const MP3CutterMain = React.memo(() => {
               onEndTimeChange={handleEndTimeChange}
                 // 🆕 **INVERT SELECTION**: New prop for invert selection handler
               onInvertSelection={handleInvertSelection}
-              isInverted={isInverted}              // 🆕 **SILENCE DETECTION**: Props for silence detection
-              fileId={audioFile?.filename || audioFile?.name}
-              waveformData={waveformData}
-              onSilenceDetected={(data) => {
-                if (data) {
-                  console.log('🔇 [SilenceDetection] Data received:', data);
-                }
-              }}              isSilencePanelOpen={isSilencePanelOpen}
-              onToggleSilencePanel={handleToggleSilencePanel}
-              isDetectingSilence={isDetectingSilence}
-              selectedSilenceRegions={selectedSilenceRegions}
-              onSilenceRegionClick={handleSilenceRegionClick}
-              onRemoveSelectedSilence={handleRemoveSelectedSilence}
+              isInverted={isInverted}
               
               // History props
               canUndo={canUndo}

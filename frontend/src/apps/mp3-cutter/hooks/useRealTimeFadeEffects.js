@@ -156,16 +156,12 @@ export const useRealTimeFadeEffects = () => {
       debugStateRef.current.lastCurrentTime = currentTime;
     }
     
+    // 🆕 **INVERT MODE**: Different fade logic for inverted selection
     if (isInverted) {
-      // 🆕 **INVERT MODE**: Silence region has absolute priority
-      if (currentTime >= startTime && currentTime <= endTime) {
-        return 0.0; // 🔇 **COMPLETE SILENCE**: Zero volume in silence region
-      }
-      
       // 🔥 **FADE EFFECTS FOR ACTIVE REGIONS**: Apply to regions before startTime and after endTime
-      if (fadeIn === 0 && fadeOut === 0) return 1.0;
+      if (fadeIn <= 0 && fadeOut <= 0) return 1.0;
       
-      let multiplier = 1.0;
+      let fadeMultiplier = 1.0;
       
       // 🎯 **FADE IN - FIRST ACTIVE REGION** (0 to startTime)
       if (fadeIn > 0 && currentTime < startTime) {
@@ -174,26 +170,28 @@ export const useRealTimeFadeEffects = () => {
         
         if (currentTime <= fadeInEnd) {
           const fadeProgress = currentTime / fadeInEnd;
-          const easedProgress = 1 - Math.pow(1 - fadeProgress, 1.5);
-          multiplier = Math.min(multiplier, 0.001 + (easedProgress * 0.999));
+          fadeMultiplier = Math.min(fadeMultiplier, fadeProgress);
         }
       }
       
       // 🔥 **FADE OUT - SECOND ACTIVE REGION** (endTime to duration)
-      if (fadeOut > 0 && currentTime >= endTime && duration > 0) {
+      if (fadeOut > 0 && currentTime >= endTime) {
         const activeRegionDuration = duration - endTime; // From endTime to duration
         const actualFadeOutDuration = Math.min(fadeOut, activeRegionDuration);
         const fadeOutStart = duration - actualFadeOutDuration; // Fade at the END of this region
         
         if (currentTime >= fadeOutStart) {
           const fadeProgress = (duration - currentTime) / actualFadeOutDuration;
-          const easedProgress = Math.pow(fadeProgress, 1.5);
-          const fadeOutMultiplier = 0.001 + (easedProgress * 0.999);
-          multiplier = Math.min(multiplier, fadeOutMultiplier);
+          fadeMultiplier = Math.min(fadeMultiplier, Math.max(0.05, fadeProgress));
         }
       }
       
-      return Math.max(0.0001, Math.min(1.0, multiplier));
+      // 🆕 **SILENCE REGION**: Complete silence within selection
+      if (currentTime >= startTime && currentTime <= endTime) {
+        return 0.0; // Complete silence in region
+      }
+      
+      return Math.max(0.05, Math.min(1.0, fadeMultiplier));
     } else {
       // 🎯 **NORMAL MODE**: Original logic
       if (fadeIn === 0 && fadeOut === 0) return 1.0;

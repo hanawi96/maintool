@@ -68,23 +68,23 @@ const WaveformLoadingIndicator = React.memo(() => {
 
 WaveformLoadingIndicator.displayName = 'WaveformLoadingIndicator';
 
-const Waveform = ({
-  // Waveform props
+const Waveform = React.memo(({
   canvasRef,
-  waveformData,
-  currentTime,
-  duration,
-  startTime,
-  endTime,
-  hoveredHandle,
-  isDragging,
-  isPlaying,
+  waveformData = [],
+  currentTime = 0,
+  duration = 0,
+  startTime = 0,
+  endTime = 0,
+  hoveredHandle = null,
+  isDragging = false,
+  isPlaying = false,
   volume = 1,
-  isGenerating = false, // 🆕 **LOADING STATE**
+  isGenerating = false,
+  enhancedFeatures = {},
   
-  // 🆕 **FADE EFFECTS**: Visual fade in/out effects cho waveform
-  fadeIn = 0,   // Fade in duration (seconds)
-  fadeOut = 0,  // Fade out duration (seconds)
+  // 🆕 **FADE EFFECTS**: Visual fade in/out effects trên waveform
+  fadeIn = 0,   // Fade in duration - bars sẽ hiển thị thấp → cao dần trong khoảng này
+  fadeOut = 0,  // Fade out duration - bars sẽ hiển thị cao → thấp dần trong khoảng này
   
   // 🆕 **INVERT SELECTION**: Visual invert selection mode
   isInverted = false, // Invert selection mode - đảo ngược vùng active/inactive
@@ -92,13 +92,6 @@ const Waveform = ({
   // 🚀 **REALTIME AUDIO ACCESS**: Direct audio element access cho ultra-smooth tooltips
   audioRef,
   
-  // 🆕 **SILENCE DETECTION PROPS**: Real-time silence overlay
-  silenceRegions = [],
-  showSilenceOverlay = false,
-  onSilenceRegionClick = null,
-  selectedSilenceRegions = [],
-  
-  // Canvas handlers
   onMouseDown,
   onMouseMove,
   onMouseUp,
@@ -181,10 +174,6 @@ const Waveform = ({
             fadeOut={fadeOut}
             isInverted={isInverted}
             audioRef={audioRef}
-            silenceRegions={silenceRegions}
-            showSilenceOverlay={showSilenceOverlay}
-            onSilenceRegionClick={onSilenceRegionClick}
-            selectedSilenceRegions={selectedSilenceRegions}
             onMouseDown={onMouseDown}
             onMouseMove={onMouseMove}
             onMouseUp={onMouseUp}
@@ -193,7 +182,7 @@ const Waveform = ({
         </div>
       </div>
       
-      {/* �� **GLOBAL SCROLLBAR HIDE CSS**: Ensure no scrollbars appear */}
+      {/* 🎨 **GLOBAL SCROLLBAR HIDE CSS**: Ensure no scrollbars appear */}
       <style>
         {`
           .waveform-container-no-scrollbar::-webkit-scrollbar {
@@ -211,6 +200,6 @@ const Waveform = ({
       </style>
     </div>
   );
-};
+});
 
 export default Waveform;

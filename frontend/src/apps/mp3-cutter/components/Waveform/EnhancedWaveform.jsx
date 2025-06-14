@@ -74,38 +74,34 @@ const EnhancedWaveformLoadingIndicator = React.memo(({ processingStrategy, fromC
 
 EnhancedWaveformLoadingIndicator.displayName = 'EnhancedWaveformLoadingIndicator';
 
-const EnhancedWaveform = ({
-  // 🔄 **BACKWARD COMPATIBLE PROPS**: Same as original Waveform
+const EnhancedWaveform = React.memo(({
   canvasRef,
-  waveformData,
-  currentTime,
-  duration,
-  startTime,
-  endTime,
-  hoveredHandle,
-  isDragging,
-  isPlaying,
+  waveformData = [],
+  currentTime = 0,
+  duration = 0,
+  startTime = 0,
+  endTime = 0,
+  hoveredHandle = null,
+  isDragging = false,
+  isPlaying = false,
   volume = 1,
-  fadeIn = 0,
-  fadeOut = 0,
-  isInverted = false,
   isGenerating = false,
+  enhancedFeatures = {},
+  
+  // 🆕 **FADE EFFECTS**: Visual fade in/out effects trên waveform
+  fadeIn = 0,   // Fade in duration - bars sẽ hiển thị thấp → cao dần trong khoảng này
+  fadeOut = 0,  // Fade out duration - bars sẽ hiển thị cao → thấp dần trong khoảng này
+  
+  // 🆕 **INVERT SELECTION**: Visual invert selection mode
+  isInverted = false, // Invert selection mode - đảo ngược vùng active/inactive
+  
+  // 🚀 **REALTIME AUDIO ACCESS**: Direct audio element access cho ultra-smooth tooltips
   audioRef,
+  
   onMouseDown,
   onMouseMove,
   onMouseUp,
-  onMouseLeave,
-  
-  // 🆕 **SILENCE DETECTION PROPS**: Real-time silence overlay
-  silenceRegions = [],
-  showSilenceOverlay = false,
-  onSilenceRegionClick = null,
-  selectedSilenceRegions = [],
-  
-  // 🆕 **ENHANCED PROPS**: New hybrid-specific props
-  enhancedFeatures = null,
-  showPerformanceBadge = true,
-  onPerformanceStatsRequest = null
+  onMouseLeave
 }) => {
   const setupCompleteRef = useRef(false);
   const lastLogKeyRef = useRef('');
@@ -216,10 +212,6 @@ const EnhancedWaveform = ({
             onMouseMove={onMouseMove}
             onMouseUp={onMouseUp}
             onMouseLeave={onMouseLeave}
-            silenceRegions={silenceRegions}
-            showSilenceOverlay={showSilenceOverlay}
-            onSilenceRegionClick={onSilenceRegionClick}
-            selectedSilenceRegions={selectedSilenceRegions}
           />
         </div>
       </div>
@@ -242,6 +234,6 @@ const EnhancedWaveform = ({
       </style>
     </div>
   );
-};
+});
 
 export default EnhancedWaveform;

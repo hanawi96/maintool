@@ -295,185 +295,62 @@ export const audioApi = {
     }
   },
 
-  // 🆕 **CHANGE AUDIO SPEED BY FILE ID**: Thay đổi tốc độ audio bằng fileId
-  async changeAudioSpeedByFileId(params) {
-
-    // 🔍 **VALIDATE PARAMS**: Kiểm tra params có đủ không
+  // 🎯 **CHANGE SPEED BY FILE ID**: Change audio speed using fileId
+  async changeSpeedByFileId(params) {
     if (!params.fileId) {
-      throw new Error('fileId is required for speed change operation');
+      throw new Error('fileId is required for speed change');
     }
 
-    if (!params.playbackRate || params.playbackRate < 0.25 || params.playbackRate > 4) {
-      throw new Error('playbackRate must be between 0.25x and 4x');
-    }
+    const { fileId, playbackRate = 1, outputFormat = 'mp3', quality = 'medium' } = params;
 
-    const speedUrl = `${API_BASE_URL}${API_ENDPOINTS.CHANGE_SPEED_BY_FILEID}`;
-    
-    let response;
     try {
-      response = await fetch(speedUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(params)
-      });
-      
-
-      
-    } catch (networkError) {
-      console.error('🌐 [changeAudioSpeedByFileId] Network error:', networkError);
-      throw new Error(`Network error: ${networkError.message}. Please check if backend is running on ${API_BASE_URL}`);
-    }
-
-    if (!response.ok) {
-      await handleApiError(response, 'Change Speed by FileId');
-    }
-    
-    // 🎯 Safe JSON parsing
-    try {
-      const result = await safeJsonParse(response);
-      return result;
-    } catch (parseError) {
-      console.error('❌ [changeAudioSpeedByFileId] Response parsing failed:', parseError);
-      throw new Error(`Speed change response parsing failed: ${parseError.message}`);
-    }
-  },
-  // 🔇 **SILENCE DETECTION**: Detect and remove silent parts from audio
-  async detectSilence(params) {
-
-    // 🔍 **VALIDATE PARAMS**: Check required parameters
-    if (!params.fileId) {
-      throw new Error('fileId is required for silence detection');
-    }
-
-    if (!params.threshold || params.threshold < -60 || params.threshold > -10) {
-      throw new Error('threshold must be between -60dB and -10dB');
-    }
-
-    if (!params.minDuration || params.minDuration < 0.1 || params.minDuration > 10) {
-      throw new Error('minDuration must be between 0.1s and 10s');
-    }
-
-    const silenceUrl = `${API_BASE_URL}${API_ENDPOINTS.DETECT_SILENCE}/${params.fileId}`;
-    
-    let response;
-    try {
-      response = await fetch(silenceUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          threshold: params.threshold,
-          minDuration: params.minDuration,
-          duration: params.duration
-        })
+      console.log('⚡ [changeSpeedByFileId] Sending parameters:', {
+        fileId,
+        playbackRate,
+        outputFormat,
+        quality
       });
 
-      
-    } catch (networkError) {
-      console.error('🌐 [detectSilence] Network error:', networkError);
-      throw new Error(`Network error: ${networkError.message}. Please check if backend is running on ${API_BASE_URL}`);
-    }
+      const speedUrl = `${API_BASE_URL}${API_ENDPOINTS.CHANGE_SPEED}/${fileId}`;
 
-    if (!response.ok) {
-      await handleApiError(response, 'Silence Detection');
-    }
-    
-    // 🎯 Safe JSON parsing
-    try {
-      const result = await safeJsonParse(response);
-      return result;
-    } catch (parseError) {
-      console.error('❌ [detectSilence] Response parsing failed:', parseError);
-      throw new Error(`Silence detection response parsing failed: ${parseError.message}`);
-    }
-  },
-
-  // 🎯 **REGION-BASED SILENCE DETECTION**: Smart silence removal within selected region only
-  async detectSilenceInRegion(params) {
-    // 🔍 **VALIDATE PARAMS**: Check required parameters for region-based detection
-    if (!params.fileId) {
-      throw new Error('fileId is required for region-based silence detection');
-    }
-
-    if (!params.threshold || params.threshold < -60 || params.threshold > -10) {
-      throw new Error('threshold must be between -60dB and -10dB');
-    }
-
-    if (!params.minDuration || params.minDuration < 0.1 || params.minDuration > 10) {
-      throw new Error('minDuration must be between 0.1s and 10s');
-    }
-
-    if (typeof params.startTime !== 'number' || params.startTime < 0) {
-      throw new Error('startTime must be a non-negative number');
-    }    if (params.endTime !== null && params.endTime !== undefined && params.endTime <= params.startTime) {
-      throw new Error('endTime must be greater than startTime');
-    }
-
-    // 🔍 **ENHANCED VALIDATION**: Check duration bounds
-    if (params.duration && typeof params.duration === 'number') {
-      if (params.startTime >= params.duration) {
-        throw new Error(`startTime (${params.startTime}) cannot be >= duration (${params.duration})`);
+      let response;
+      try {
+        response = await fetch(speedUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            playbackRate,
+            outputFormat,
+            quality
+          })
+        });
+      } catch (networkError) {
+        console.error('🌐 [changeSpeedByFileId] Network error:', networkError);
+        throw new Error(`Network error: ${networkError.message}`);
       }
-      
-      if (params.endTime !== null && params.endTime !== undefined && params.endTime > params.duration) {
-        throw new Error(`endTime (${params.endTime}) cannot be > duration (${params.duration})`);
+
+      await handleApiError(response, 'Speed Change');
+
+      let result;
+      try {
+        result = await response.json();
+      } catch (parseError) {
+        console.error('❌ [changeSpeedByFileId] Response parsing failed:', parseError);
+        throw new Error(`Speed change response parsing failed: ${parseError.message}`);
       }
-    }
 
-    console.log('🎯 [detectSilenceInRegion] Sending parameters:', {
-      fileId: params.fileId,
-      threshold: params.threshold,
-      minDuration: params.minDuration,
-      startTime: params.startTime,
-      endTime: params.endTime,
-      duration: params.duration,
-      validEndTime: params.endTime === null || params.endTime === undefined || params.endTime <= params.duration
-    });
-
-    const regionSilenceUrl = `${API_BASE_URL}${API_ENDPOINTS.DETECT_SILENCE}-region/${params.fileId}`;
-    
-    let response;
-    try {
-      response = await fetch(regionSilenceUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          threshold: params.threshold,
-          minDuration: params.minDuration,
-          startTime: params.startTime,
-          endTime: params.endTime,
-          duration: params.duration
-        })
+      console.log('⚡ [changeSpeedByFileId] Success:', {
+        outputFilename: result.data?.output?.filename,
+        playbackRate: result.data?.processing?.playbackRate
       });
-      
-    } catch (networkError) {
-      console.error('🌐 [detectSilenceInRegion] Network error:', networkError);
-      throw new Error(`Network error: ${networkError.message}. Please check if backend is running on ${API_BASE_URL}`);
-    }
 
-    if (!response.ok) {
-      await handleApiError(response, 'Region-based Silence Detection');
-    }
-    
-    // 🎯 Safe JSON parsing
-    try {
-      const result = await safeJsonParse(response);
-      console.log('🎯 [detectSilenceInRegion] Success:', {
-        fileId: params.fileId,
-        regionStart: params.startTime,
-        regionEnd: params.endTime,
-        regionsFound: result.data?.count || 0,
-        totalSilence: result.data?.totalSilence || 0
-      });
       return result;
-    } catch (parseError) {
-      console.error('❌ [detectSilenceInRegion] Response parsing failed:', parseError);
-      throw new Error(`Region-based silence detection response parsing failed: ${parseError.message}`);
+
+    } catch (error) {
+      console.error('❌ [changeSpeedByFileId] Failed:', error);
+      throw error;
     }
   },
 };

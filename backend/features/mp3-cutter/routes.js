@@ -8,8 +8,7 @@ import {
   validateCutParams,
   validateWaveformParams,
   validateFileId,
-  validateSpeedParams,
-  validateSilenceParams
+  validateSpeedParams
 } from './validation.js';
 
 const router = express.Router();
@@ -69,26 +68,6 @@ router.post('/waveform',
   validateAudioFile,
   validateWaveformParams,
   MP3Controller.waveform
-);
-
-/**
- * @route POST /api/mp3-cutter/detect-silence/:fileId
- * @desc Detect and remove silent parts from audio file by fileId
- */
-router.post('/detect-silence/:fileId',
-  validateFileId,
-  validateSilenceParams,
-  MP3Controller.detectSilence
-);
-
-/**
- * @route POST /api/mp3-cutter/detect-silence-region/:fileId
- * @desc 🎯 Region-based silence detection - only process selected time range
- */
-router.post('/detect-silence-region/:fileId',
-  validateFileId,
-  validateSilenceParams,
-  MP3Controller.detectSilenceInRegion
 );
 
 /**

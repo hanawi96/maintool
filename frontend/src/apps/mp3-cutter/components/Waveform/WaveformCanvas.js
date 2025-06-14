@@ -8,31 +8,27 @@ import { useWaveformRender } from '../../hooks/useWaveformRender';
 
 const WaveformCanvas = React.memo(({
   canvasRef,
-  waveformData,
-  currentTime,
-  duration,
-  startTime,
-  endTime,
-  hoveredHandle,
-  isDragging,
-  isPlaying,
-  volume = 1, // 🆕 **VOLUME PROP**: Volume level (0-1) for responsive bars
+  waveformData = [],
+  currentTime = 0,
+  duration = 0,
+  startTime = 0,
+  endTime = 0,
+  hoveredHandle = null,
+  isDragging = false,
+  isPlaying = false,
+  volume = 1,
+  isGenerating = false,
+  enhancedFeatures = {},
   
-  // 🆕 **FADE EFFECTS**: Visual fade in/out effects cho waveform bars
-  fadeIn = 0,   // Fade in duration (seconds) - sóng âm thấp → cao dần
-  fadeOut = 0,  // Fade out duration (seconds) - sóng âm cao → thấp dần
+  // 🆕 **FADE EFFECTS**: Visual fade in/out effects trên waveform
+  fadeIn = 0,   // Fade in duration - bars sẽ hiển thị thấp → cao dần trong khoảng này
+  fadeOut = 0,  // Fade out duration - bars sẽ hiển thị cao → thấp dần trong khoảng này
   
   // 🆕 **INVERT SELECTION**: Visual invert selection mode
   isInverted = false, // Invert selection mode - đảo ngược vùng active/inactive
   
   // 🚀 **REALTIME AUDIO ACCESS**: Direct audio element access cho ultra-smooth tooltips
   audioRef,
-  
-  // 🆕 **SILENCE DETECTION PROPS**: Real-time silence overlay
-  silenceRegions = [], // Array of silence regions from SilenceDetection component
-  showSilenceOverlay = false, // Toggle silence overlay visibility
-  onSilenceRegionClick = null, // Handler for silence region clicks
-  selectedSilenceRegions = [], // Selected silence regions for deletion
   
   onMouseDown,
   onMouseMove,
@@ -48,22 +44,21 @@ const WaveformCanvas = React.memo(({
   const purpleWaveformCacheRef = useRef(null);
   const lastPurpleCacheKey = useRef(null);
 
-  // 🚀 **SILENCE OVERLAY CACHE**: Pre-computed silence overlay for ultra-fast drag
-  const silenceOverlayCacheRef = useRef(null);
-  const lastSilenceCacheKey = useRef(null);
-  const fullSilenceRegionsRef = useRef(null); // Store full audio silence regions
-
-  // 🔇 **SILENCE REGION HOVER STATE**: Track hovered silence region
-  const [hoveredSilenceRegion, setHoveredSilenceRegion] = React.useState(null);
-
   // 🚀 **OPTIMIZED TOOLTIP HOOK** - Bao gồm main cursor tooltip
   const {
     hoverTooltip,
-    handleTooltips,
+    handleTooltips: handleTooltipsData,
     mainCursorTooltip,
     updateHoverTooltip,
     clearHoverTooltip
   } = useOptimizedTooltip(canvasRef, duration, currentTime, isPlaying, audioRef, startTime, endTime, hoveredHandle, isDragging, isInverted);
+
+  // 🆕 **HANDLE TOOLTIPS FUNCTION**: Function to handle tooltip updates based on mouse position
+  const handleTooltips = useCallback((mouseX) => {
+    // This function can be used to trigger tooltip updates based on mouse position
+    // For now, it's a placeholder since tooltips are handled by the hook
+    updateHoverTooltip({ clientX: mouseX + (canvasRef.current?.getBoundingClientRect().left || 0) });
+  }, [updateHoverTooltip, canvasRef]);
 
   const {
     updateCursor
@@ -78,121 +73,12 @@ const WaveformCanvas = React.memo(({
     containerWidth
   } = useWaveformRender(canvasRef, waveformData, volume, isDragging, isPlaying, hoverTooltip);
 
-  // 🔇 **FORMAT TIME UTILITY**: Simple time formatter for silence tooltips
-  const formatTime = useCallback((seconds) => {
-    if (typeof seconds !== 'number' || isNaN(seconds)) return '0.000s';
-    return `${seconds.toFixed(3)}s`;
-  }, []);
-
-  // 🔇 **SILENCE TOOLTIP CALCULATOR**: Create tooltip for hovered silence region
-  const silenceTooltip = useMemo(() => {
-    if (!hoveredSilenceRegion || !canvasRef.current || !containerWidth) return null;
-    
-    const { MODERN_HANDLE_WIDTH } = WAVEFORM_CONFIG;
-    const responsiveHandleWidth = containerWidth < WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT ? 
-      Math.max(3, MODERN_HANDLE_WIDTH * 0.75) : MODERN_HANDLE_WIDTH;
-    
-    const leftHandleWidth = responsiveHandleWidth;
-    const rightHandleWidth = responsiveHandleWidth;
-    const waveformStartX = leftHandleWidth;
-    const waveformEndX = containerWidth - rightHandleWidth;
-    const availableWaveformWidth = waveformEndX - waveformStartX;
-    
-    // Calculate region position
-    const regionStartPercent = hoveredSilenceRegion.start / duration;
-    const regionEndPercent = hoveredSilenceRegion.end / duration;
-    const regionCenterX = waveformStartX + ((regionStartPercent + regionEndPercent) / 2 * availableWaveformWidth);
-    
-    return {
-      visible: true,
-      x: Math.max(5, Math.min(containerWidth - 5, regionCenterX)),
-      startTime: hoveredSilenceRegion.start,
-      endTime: hoveredSilenceRegion.end,
-      duration: hoveredSilenceRegion.duration || (hoveredSilenceRegion.end - hoveredSilenceRegion.start),
-      formattedText: `${formatTime(hoveredSilenceRegion.start)} → ${formatTime(hoveredSilenceRegion.end)} (${formatTime(hoveredSilenceRegion.duration || (hoveredSilenceRegion.end - hoveredSilenceRegion.start))})`
-    };
-  }, [hoveredSilenceRegion, canvasRef, containerWidth, duration, formatTime]);
-
-  // 🎯 **SILENCE REGION CLICK DETECTOR**: Detect clicks on silence regions
-  const detectSilenceRegionClick = useCallback((mouseX) => {
-    if (!showSilenceOverlay || !fullSilenceRegionsRef.current?.length || !duration || !containerWidth) {
-      return null;
-    }
-    
-    const { MODERN_HANDLE_WIDTH } = WAVEFORM_CONFIG;
-    const responsiveHandleWidth = containerWidth < WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT ? 
-      Math.max(3, MODERN_HANDLE_WIDTH * 0.75) : MODERN_HANDLE_WIDTH;
-    
-    const leftHandleWidth = responsiveHandleWidth;
-    const rightHandleWidth = responsiveHandleWidth;
-    const waveformStartX = leftHandleWidth;
-    const waveformEndX = containerWidth - rightHandleWidth;
-    const availableWaveformWidth = waveformEndX - waveformStartX;
-    
-    if (availableWaveformWidth <= 0) return null;
-    
-    // Check each silence region
-    for (const region of fullSilenceRegionsRef.current) {
-      const regionStartPercent = region.start / duration;
-      const regionEndPercent = region.end / duration;
-      const regionStartX = waveformStartX + (regionStartPercent * availableWaveformWidth);
-      const regionEndX = waveformStartX + (regionEndPercent * availableWaveformWidth);
-      
-      if (mouseX >= regionStartX && mouseX <= regionEndX) {
-        return region;
-      }
-    }
-    
-    return null;
-  }, [showSilenceOverlay, duration, containerWidth]);
-
-  // 🔇 **SILENCE REGION HOVER DETECTOR**: Detect hover on silence regions to hide cursor line
-  const detectSilenceRegionHover = useCallback((mouseX) => {
-    if (!showSilenceOverlay || !fullSilenceRegionsRef.current?.length || !duration || !containerWidth) {
-      return null;
-    }
-    
-    const { MODERN_HANDLE_WIDTH } = WAVEFORM_CONFIG;
-    const responsiveHandleWidth = containerWidth < WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT ? 
-      Math.max(3, MODERN_HANDLE_WIDTH * 0.75) : MODERN_HANDLE_WIDTH;
-    
-    const leftHandleWidth = responsiveHandleWidth;
-    const rightHandleWidth = responsiveHandleWidth;
-    const waveformStartX = leftHandleWidth;
-    const waveformEndX = containerWidth - rightHandleWidth;
-    const availableWaveformWidth = waveformEndX - waveformStartX;
-    
-    if (availableWaveformWidth <= 0) return null;
-    
-    // Check if mouse is over any silence region and return the region
-    for (const region of fullSilenceRegionsRef.current) {
-      const regionStartPercent = region.start / duration;
-      const regionEndPercent = region.end / duration;
-      const regionStartX = waveformStartX + (regionStartPercent * availableWaveformWidth);
-      const regionEndX = waveformStartX + (regionEndPercent * availableWaveformWidth);
-      
-      if (mouseX >= regionStartX && mouseX <= regionEndX) {
-        return region; // Return the hovered region object
-      }
-    }
-    
-    return null; // Mouse is not over any silence region
-  }, [showSilenceOverlay, duration, containerWidth]);
-
   // 🚀 **ENHANCED MOUSE HANDLERS** - Updated to use Pointer Events for better drag tracking
   const handleEnhancedPointerDown = useCallback((e) => {
     const canvas = canvasRef.current;
     if (canvas) {
       const rect = canvas.getBoundingClientRect();
       const mouseX = e.clientX - rect.left;
-      
-      // 🎯 **SILENCE REGION CLICK DETECTION**: Check if click is on silence region first
-      const clickedRegion = detectSilenceRegionClick(mouseX);
-      if (clickedRegion && onSilenceRegionClick) {
-        // Handle silence region click and prevent further processing
-        onSilenceRegionClick(clickedRegion);
-        return;
-      }
       
       // 🎯 **POINTER CAPTURE**: Capture pointer để track movement ngay cả khi ra ngoài canvas
       canvas.setPointerCapture(e.pointerId);
@@ -202,7 +88,7 @@ const WaveformCanvas = React.memo(({
     }
     
     if (onMouseDown) onMouseDown(e);
-  }, [onMouseDown, canvasRef, updateCursor, clearHoverTooltip, detectSilenceRegionClick, onSilenceRegionClick]);
+  }, [onMouseDown, canvasRef, updateCursor, clearHoverTooltip]);
 
   const handleEnhancedPointerMove = useCallback((e) => {
     if (onMouseMove) onMouseMove(e);
@@ -214,21 +100,10 @@ const WaveformCanvas = React.memo(({
       
       updateCursor(mouseX);
       
-      // 🔇 **SILENCE REGION HOVER DETECTION**: Check if hovering over silence region
-      const hoveredRegion = detectSilenceRegionHover(mouseX);
-      
-      // 🔇 **UPDATE HOVERED REGION**: Set hovered region state
-      setHoveredSilenceRegion(hoveredRegion);
-      
-      if (hoveredRegion) {
-        // Clear hover tooltip to hide the cursor line when hovering over silence
-        clearHoverTooltip();
-      } else {
-        // Normal hover tooltip update
-        updateHoverTooltip(e);
-      }
+      // 🎯 **TOOLTIP UPDATES**: Update tooltips based on mouse position
+      handleTooltips(mouseX);
     }
-  }, [onMouseMove, canvasRef, updateCursor, updateHoverTooltip, clearHoverTooltip, detectSilenceRegionHover]);
+  }, [onMouseMove, canvasRef, updateCursor, handleTooltips]);
 
   const handleEnhancedPointerUp = useCallback((e) => {
     if (onMouseUp) onMouseUp(e);
@@ -245,9 +120,6 @@ const WaveformCanvas = React.memo(({
     
     // 🚀 **ALWAYS HIDE HOVER LINE**: Hide hover cursor line when leaving waveform
     clearHoverTooltip();
-    
-    // 🔇 **CLEAR HOVERED SILENCE REGION**: Clear hovered region when leaving
-    setHoveredSilenceRegion(null);
   }, [onMouseLeave, clearHoverTooltip]);
 
   // 🆕 **HANDLE EVENT HANDLERS**: Direct handlers cho handles - Updated for Pointer Events
@@ -484,49 +356,6 @@ const WaveformCanvas = React.memo(({
     return createImageBitmap(purpleCanvas);
   }, []);
 
-  // 🚀 **SILENCE OVERLAY CACHE CREATOR**: Pre-compute silence overlay for ultra-fast drag rendering
-  const createSilenceOverlayCache = useCallback(async (allSilenceRegions, width, height, containerWidth, duration) => {
-    if (!allSilenceRegions?.length || !duration) return null;
-    
-    // 🔧 **HANDLE SPACE ADJUSTMENT**: Calculate available waveform area
-    const { MODERN_HANDLE_WIDTH } = WAVEFORM_CONFIG;
-    const responsiveHandleWidth = containerWidth < WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT ? 
-      Math.max(3, MODERN_HANDLE_WIDTH * 0.75) : MODERN_HANDLE_WIDTH;
-    
-    const leftHandleWidth = responsiveHandleWidth;
-    const rightHandleWidth = responsiveHandleWidth;
-    const waveformStartX = leftHandleWidth;
-    const waveformEndX = width - rightHandleWidth;
-    const availableWaveformWidth = waveformEndX - waveformStartX;
-    
-    if (availableWaveformWidth <= 0) return null;
-    
-    // 🎯 **CREATE SILENCE CANVAS**: Temporary canvas for silence overlay rendering
-    const silenceCanvas = document.createElement('canvas');
-    silenceCanvas.width = width;
-    silenceCanvas.height = height;
-    const silenceCtx = silenceCanvas.getContext('2d', { willReadFrequently: true });
-    
-    // 🚀 **PERFORMANCE SETUP**: GPU acceleration
-    silenceCtx.imageSmoothingEnabled = false;
-    
-    // 🎨 **RENDER ALL SILENCE REGIONS**: Pre-render all regions to cache
-    allSilenceRegions.forEach(region => {
-      const regionStartPercent = region.start / duration;
-      const regionEndPercent = region.end / duration;
-      const regionStartX = waveformStartX + (regionStartPercent * availableWaveformWidth);
-      const regionEndX = waveformStartX + (regionEndPercent * availableWaveformWidth);
-      const regionWidth = regionEndX - regionStartX;
-      
-      // 🎯 **DEFAULT GREEN COLOR**: All regions rendered as normal (green)
-      silenceCtx.fillStyle = 'rgba(34, 197, 94, 0.3)';
-      silenceCtx.fillRect(regionStartX, 0, regionWidth, height);
-    });
-    
-    // 🚀 **CREATE IMAGEBITMAP**: Convert to ImageBitmap for ultra-fast drawImage
-    return createImageBitmap(silenceCanvas);
-  }, []);
-
   // 🎯 **CACHE KEY GENERATOR**: Detect when background needs re-caching
   const generateCacheKey = useCallback((renderData, containerWidth) => {
     if (!renderData?.waveformData) return null;
@@ -534,7 +363,7 @@ const WaveformCanvas = React.memo(({
     return `${renderData.waveformData.length}-${renderData.containerWidth || containerWidth}-${renderData.mode || 'default'}`;
   }, []);
 
-  // 🎯 **PURPLE CACHE KEY GENERATOR**: Detect when purple cache needs re-caching
+  // 🚀 **PURPLE CACHE KEY GENERATOR**: Detect when purple cache needs re-caching
   const generatePurpleCacheKey = useCallback((renderData, containerWidth) => {
     if (!renderData?.waveformData) return null;
     
@@ -543,18 +372,6 @@ const WaveformCanvas = React.memo(({
     const fadeOutValue = renderData.fadeOut || 0;
     
     return `purple-${renderData.waveformData.length}-${renderData.containerWidth || containerWidth}-${renderData.mode || 'default'}-${Math.round(volumeValue * 100)}-${Math.round(fadeInValue * 10)}-${Math.round(fadeOutValue * 10)}`;
-  }, []);
-
-  // 🎯 **SILENCE CACHE KEY GENERATOR**: Detect when silence cache needs re-caching
-  const generateSilenceCacheKey = useCallback((allRegions, containerWidth) => {
-    if (!allRegions?.length) return null;
-    
-    // 🚀 **STABLE CACHE KEY**: Based on total regions + container width only (not filtered count)
-    const totalRegions = allRegions.length;
-    const firstRegionStart = allRegions[0]?.start || 0;
-    const lastRegionEnd = allRegions[allRegions.length - 1]?.end || 0;
-    
-    return `silence-${totalRegions}-${containerWidth}-${Math.round(firstRegionStart * 100)}-${Math.round(lastRegionEnd * 100)}`;
   }, []);
 
   // 🚀 **OPTIMIZED DRAW FUNCTION**: Ultra-fast rendering with cached background  
@@ -657,9 +474,9 @@ const WaveformCanvas = React.memo(({
       ctx.fillStyle = 'rgba(139, 92, 246, 0.15)';
       ctx.fillRect(startX, 0, endX - startX, height);
     }
-    
-    // 4. **SILENCE OVERLAY**: Render silence regions on canvas (ultra-fast)
-    if (showSilenceOverlay && duration > 0) {
+
+    // 4. **CURRENT TIME CURSOR**: Draw playback cursor
+    if (renderData.currentTime >= 0 && duration > 0) {
       const { MODERN_HANDLE_WIDTH } = WAVEFORM_CONFIG;
       const responsiveHandleWidth = containerWidth < WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT ? 
         Math.max(3, MODERN_HANDLE_WIDTH * 0.75) : MODERN_HANDLE_WIDTH;
@@ -671,132 +488,19 @@ const WaveformCanvas = React.memo(({
       const availableWaveformWidth = waveformEndX - waveformStartX;
       
       if (availableWaveformWidth > 0) {
-        const renderStartTime = performance.now();
+        const cursorPercent = renderData.currentTime / duration;
+        const cursorX = waveformStartX + (cursorPercent * availableWaveformWidth);
         
-        // 🚀 **CACHED RENDERING**: Use cache if available
-        if (silenceOverlayCacheRef.current) {
-          ctx.save();
-          
-          // 🚀 **CLIPPING MASK**: Only show silence regions in visible area
-          const visibleStartPercent = Math.max(0, startTime / duration);
-          const visibleEndPercent = Math.min(1, endTime / duration);
-          const clipStartX = waveformStartX + (visibleStartPercent * availableWaveformWidth);
-          const clipWidth = (visibleEndPercent - visibleStartPercent) * availableWaveformWidth;
-          
-          // Apply clipping to show only visible silence regions
-          ctx.beginPath();
-          ctx.rect(clipStartX, 0, clipWidth, height);
-          ctx.clip();
-          
-          // 🚀 **ULTRA-FAST CACHED RENDERING**: Single drawImage call with clipping
-          ctx.drawImage(silenceOverlayCacheRef.current, 0, 0);
-          
-          ctx.restore();
-          
-          const renderTime = performance.now() - renderStartTime;
-          if (renderTime > 2) { // Only log if render took more than 2ms
-            console.log('🚀 [SilenceOverlay] Cached render:', renderTime.toFixed(2) + 'ms');
-          }
-        } else {
-          // 🚀 **OPTIMIZED FALLBACK RENDERING**: Ultra-fast direct rendering
-          if (fullSilenceRegionsRef.current?.length > 0) {
-            // 🚀 **BATCH RENDERING**: Prepare all regions first, then render in batch
-            const visibleRegions = [];
-            const visibleStartPercent = Math.max(0, startTime / duration);
-            const visibleEndPercent = Math.min(1, endTime / duration);
-            
-            // 🚀 **PRE-FILTER VISIBLE REGIONS**: Only calculate positions for visible regions
-            for (const region of fullSilenceRegionsRef.current) {
-              if (region.end > startTime && region.start < endTime) {
-                const regionStartPercent = region.start / duration;
-                const regionEndPercent = region.end / duration;
-                const regionStartX = waveformStartX + (regionStartPercent * availableWaveformWidth);
-                const regionEndX = waveformStartX + (regionEndPercent * availableWaveformWidth);
-                
-                visibleRegions.push({
-                  x: regionStartX,
-                  width: regionEndX - regionStartX,
-                  isHovered: hoveredSilenceRegion && 
-                    region.start === hoveredSilenceRegion.start && 
-                    region.end === hoveredSilenceRegion.end
-                });
-              }
-            }
-            
-            // 🚀 **BATCH RENDER**: Render all visible regions in one go
-            if (visibleRegions.length > 0) {
-              ctx.save();
-              
-              // 🚀 **CLIPPING MASK**: Only show silence regions in visible area
-              const clipStartX = waveformStartX + (visibleStartPercent * availableWaveformWidth);
-              const clipWidth = (visibleEndPercent - visibleStartPercent) * availableWaveformWidth;
-              
-              ctx.beginPath();
-              ctx.rect(clipStartX, 0, clipWidth, height);
-              ctx.clip();
-              
-              // 🚀 **SINGLE FILL STYLE**: Set once for all normal regions
-              ctx.fillStyle = 'rgba(34, 197, 94, 0.3)';
-              visibleRegions.forEach(region => {
-                if (!region.isHovered) {
-                  ctx.fillRect(region.x, 0, region.width, height);
-                }
-              });
-              
-              // 🚀 **HOVERED REGIONS**: Render separately with different color
-              const hoveredRegions = visibleRegions.filter(r => r.isHovered);
-              if (hoveredRegions.length > 0) {
-                ctx.fillStyle = 'rgba(34, 197, 94, 0.5)';
-                hoveredRegions.forEach(region => {
-                  ctx.fillRect(region.x, 0, region.width, height);
-                });
-              }
-              
-              ctx.restore();
-            }
-            
-            const renderTime = performance.now() - renderStartTime;
-            if (renderTime > 2) { // Only log if render took more than 2ms
-              console.log('🚀 [SilenceOverlay] Fallback render:', {
-                time: renderTime.toFixed(2) + 'ms',
-                regions: visibleRegions.length,
-                total: fullSilenceRegionsRef.current.length
-              });
-            }
-          }
-        }
-        
-        // 🎯 **SELECTED REGIONS OVERLAY**: Only render selected regions on top (within visible area)
-        if (selectedSilenceRegions?.length > 0) {
-          const selectedRenderStartTime = performance.now();
-          
-          selectedSilenceRegions.forEach(region => {
-            // Only render if region intersects with visible area
-            if (region.end > startTime && region.start < endTime) {
-              const regionStartPercent = region.start / duration;
-              const regionEndPercent = region.end / duration;
-              const regionStartX = waveformStartX + (regionStartPercent * availableWaveformWidth);
-              const regionEndX = waveformStartX + (regionEndPercent * availableWaveformWidth);
-              const regionWidth = regionEndX - regionStartX;
-              
-              // 🔇 **HOVER EFFECT FOR SELECTED**: Use darker red for hovered selected region
-              const isHovered = hoveredSilenceRegion && 
-                region.start === hoveredSilenceRegion.start && 
-                region.end === hoveredSilenceRegion.end;
-              
-              ctx.fillStyle = isHovered ? 'rgba(239, 68, 68, 0.7)' : 'rgba(239, 68, 68, 0.5)';
-              ctx.fillRect(regionStartX, 0, regionWidth, height);
-            }
-          });
-          
-          const selectedRenderTime = performance.now() - selectedRenderStartTime;
-          if (selectedRenderTime > 1) { // Only log if render took more than 1ms
-            console.log('🚀 [SilenceOverlay] Selected render:', selectedRenderTime.toFixed(2) + 'ms');
-          }
-        }
+        // Draw cursor line
+        ctx.strokeStyle = '#ef4444';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(cursorX, 0);
+        ctx.lineTo(cursorX, height);
+        ctx.stroke();
       }
     }
-  }, [canvasRef, renderData, containerWidth, showSilenceOverlay, selectedSilenceRegions, hoveredSilenceRegion]);
+  }, [canvasRef, renderData, containerWidth]);
 
   // 🚀 **BACKGROUND CACHE MANAGEMENT**: Update cache when needed
   useEffect(() => {
@@ -861,67 +565,6 @@ const WaveformCanvas = React.memo(({
     updateCache();
   }, [renderData, containerWidth, generateCacheKey, generatePurpleCacheKey, createBackgroundCache, createPurpleWaveformCache, requestRedraw, drawWaveform, canvasRef]);
 
-  // 🚀 **SILENCE REGIONS UPDATE**: Handle silence regions changes with instant overlay update
-  useEffect(() => {
-    if (silenceRegions !== fullSilenceRegionsRef.current) {
-      console.log('🔄 [SilenceOverlay] Regions updated:', { 
-        newCount: silenceRegions?.length || 0, 
-        oldCount: fullSilenceRegionsRef.current?.length || 0 
-      });
-      fullSilenceRegionsRef.current = silenceRegions;
-      
-      // 🚀 **INSTANT FALLBACK REDRAW**: Trigger immediate redraw for fallback rendering
-      if (showSilenceOverlay) {
-        requestRedraw(drawWaveform);
-      }
-    }
-    
-    const updateSilenceCache = async () => {
-      if (!showSilenceOverlay || !fullSilenceRegionsRef.current?.length || !canvasRef.current || !duration) return;
-      
-      const canvas = canvasRef.current;
-      const currentSilenceCacheKey = generateSilenceCacheKey(fullSilenceRegionsRef.current, containerWidth);
-      
-      if (currentSilenceCacheKey && currentSilenceCacheKey !== lastSilenceCacheKey.current) {
-        try {
-          if (silenceOverlayCacheRef.current) {
-            silenceOverlayCacheRef.current.close?.();
-          }
-          console.log('🔄 [SilenceCache] Updating cache:', { 
-            regionsCount: fullSilenceRegionsRef.current?.length, 
-            cacheKey: currentSilenceCacheKey.substring(0, 50) + '...' // Truncate long cache key
-          });
-          silenceOverlayCacheRef.current = await createSilenceOverlayCache(
-            fullSilenceRegionsRef.current,
-            canvas.width,
-            canvas.height,
-            containerWidth,
-            duration
-          );
-          lastSilenceCacheKey.current = currentSilenceCacheKey;
-          console.log('✅ [SilenceCache] Cache updated successfully');
-          requestRedraw(drawWaveform);
-        } catch (error) {
-          console.error('❌ [SilenceCache] Cache update failed:', error);
-          silenceOverlayCacheRef.current = null;
-        }
-      }
-    };
-    
-    // 🛡️ **SMART DEBOUNCE**: No debounce for immediate responsiveness, but batch rapid changes
-    let debounceTime = 0; // 🚀 **INSTANT UPDATE**: No debounce for ultra-fast overlay updates
-    
-    // 🔄 **DETECT RAPID CHANGES**: If cache key is changing rapidly, use minimal debounce
-    const currentCacheKey = generateSilenceCacheKey(fullSilenceRegionsRef.current, containerWidth);
-    if (currentCacheKey && currentCacheKey !== lastSilenceCacheKey.current) {
-      // 🚀 **BATCH RAPID CHANGES**: Only use minimal debounce for very rapid changes
-      debounceTime = 16; // ~1 frame at 60fps for batching only
-    }
-    
-    const timeoutId = setTimeout(updateSilenceCache, debounceTime);
-    return () => clearTimeout(timeoutId);
-  }, [showSilenceOverlay, silenceRegions, containerWidth, duration, generateSilenceCacheKey, createSilenceOverlayCache, requestRedraw, drawWaveform, canvasRef]);
-
   // 🚀 **EFFECT OPTIMIZATIONS**: Controlled re-renders
   useEffect(() => {
     if (hoverTooltip?.visible || isPlaying || isDragging) {
@@ -934,35 +577,6 @@ const WaveformCanvas = React.memo(({
       requestRedraw(drawWaveform);
     }
   }, [renderData, requestRedraw, drawWaveform]);
-
-  // 🚀 **SELECTED SILENCE REGIONS REDRAW**: Trigger redraw when selected regions change
-  useEffect(() => {
-    if (showSilenceOverlay && selectedSilenceRegions?.length >= 0) {
-      requestRedraw(drawWaveform);
-    }
-  }, [showSilenceOverlay, selectedSilenceRegions, requestRedraw, drawWaveform]);
-
-  // 🚀 **INSTANT SILENCE VISUAL UPDATE**: Trigger immediate redraw when dragging in silence mode
-  useEffect(() => {
-    if (showSilenceOverlay && isDragging && silenceOverlayCacheRef.current) {
-      requestRedraw(drawWaveform);
-    }
-  }, [showSilenceOverlay, isDragging, startTime, endTime, requestRedraw, drawWaveform]);
-
-  // 🔇 **HOVERED SILENCE REGION REDRAW**: Trigger redraw when hovered region changes
-  useEffect(() => {
-    if (showSilenceOverlay && hoveredSilenceRegion !== null) {
-      requestRedraw(drawWaveform);
-    }
-  }, [showSilenceOverlay, hoveredSilenceRegion, requestRedraw, drawWaveform]);
-
-  // 🚀 **INSTANT SILENCE REGIONS REDRAW**: Trigger immediate redraw when silence regions change
-  useEffect(() => {
-    if (showSilenceOverlay && silenceRegions) {
-      console.log('⚡ [SilenceOverlay] Triggering instant redraw for regions change:', silenceRegions.length);
-      requestRedraw(drawWaveform);
-    }
-  }, [showSilenceOverlay, silenceRegions, requestRedraw, drawWaveform]);
 
   // 🆕 **HANDLE POSITION CALCULATOR**: Calculate handle positions for React rendering
   const handlePositions = useMemo(() => {
@@ -1097,10 +711,6 @@ const WaveformCanvas = React.memo(({
         purpleWaveformCacheRef.current.close?.();
         purpleWaveformCacheRef.current = null;
       }
-      if (silenceOverlayCacheRef.current) {
-        silenceOverlayCacheRef.current.close?.();
-        silenceOverlayCacheRef.current = null;
-      }
     };
   }, []);
 
@@ -1125,9 +735,8 @@ const WaveformCanvas = React.memo(({
 
       <WaveformUI 
         hoverTooltip={hoverTooltip}
-        handleTooltips={handleTooltips}
+        handleTooltips={handleTooltipsData}
         mainCursorTooltip={mainCursorTooltip}
-        silenceTooltip={silenceTooltip}
         handlePositions={handlePositions}
         cursorPositions={cursorPositions}
         onHandleMouseDown={handleHandlePointerDown}
