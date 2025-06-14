@@ -370,8 +370,10 @@ const WaveformCanvas = React.memo(({
     const volumeValue = renderData.volume !== undefined ? renderData.volume : 1;
     const fadeInValue = renderData.fadeIn || 0;
     const fadeOutValue = renderData.fadeOut || 0;
+    const startTimeValue = renderData.startTime || 0;
+    const endTimeValue = renderData.endTime || 0;
     
-    return `purple-${renderData.waveformData.length}-${renderData.containerWidth || containerWidth}-${renderData.mode || 'default'}-${Math.round(volumeValue * 100)}-${Math.round(fadeInValue * 10)}-${Math.round(fadeOutValue * 10)}`;
+    return `purple-${renderData.waveformData.length}-${renderData.containerWidth || containerWidth}-${renderData.mode || 'default'}-${Math.round(volumeValue * 100)}-${Math.round(fadeInValue * 10)}-${Math.round(fadeOutValue * 10)}-${Math.round(startTimeValue * 10)}-${Math.round(endTimeValue * 10)}`;
   }, []);
 
   // 🚀 **OPTIMIZED DRAW FUNCTION**: Ultra-fast rendering with cached background  
@@ -537,6 +539,10 @@ const WaveformCanvas = React.memo(({
           if (purpleWaveformCacheRef.current) {
             purpleWaveformCacheRef.current.close?.();
           }
+          
+          // 🔍 **DEBUG FADE CACHE UPDATE**: Log when cache is updated due to fade/handle changes
+          console.log(`🎨 [WaveformCache] Purple cache update - fadeIn: ${renderData.fadeIn}s, fadeOut: ${renderData.fadeOut}s, region: [${renderData.startTime?.toFixed(2)}s - ${renderData.endTime?.toFixed(2)}s]`);
+          
           purpleWaveformCacheRef.current = await createPurpleWaveformCache(
             renderData.waveformData, 
             canvas.width, 
