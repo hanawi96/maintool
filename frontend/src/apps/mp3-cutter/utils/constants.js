@@ -113,7 +113,7 @@ export const WAVEFORM_CONFIG = {
     
     // Animation frame rates for different states
     FRAME_RATES: {
-      DRAGGING: 2,            // 500fps for ultra-smooth dragging
+      DRAGGING: 8.33,         // 120fps for ultra-smooth dragging (tối ưu)
       PLAYING: 8,             // 125fps for smooth cursor movement  
       HOVERING: 8,            // 125fps for smooth hover line
       STATIC: 16              // 60fps for static UI updates

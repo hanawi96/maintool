@@ -44,6 +44,10 @@ const WaveformCanvas = React.memo(({
   // 🚀 **BACKGROUND CANVAS CACHE**: Separate canvas for static gray background
   const backgroundCacheRef = useRef(null);
   const lastCacheKey = useRef(null);
+  
+  // 🚀 **PURPLE WAVEFORM CACHE**: Separate cache for purple waveform bars
+  const purpleWaveformCacheRef = useRef(null);
+  const lastPurpleCacheKey = useRef(null);
 
   // 🚀 **OPTIMIZED TOOLTIP HOOK** - Bao gồm main cursor tooltip
   const {
@@ -209,71 +213,6 @@ const WaveformCanvas = React.memo(({
     }
   }, [canvasRef, renderData]);  // Trigger when render data changes
 
-  // 🆕 **FADE EFFECT CALCULATOR**: Ultra-optimized fade calculation - Fixed invert mode fadeout
-  const calculateFadeMultiplier = useCallback((barTime, selectionStart, selectionEnd, fadeInDuration, fadeOutDuration, isInverted = false, duration = 0) => {
-    if (isInverted) {
-      // 🆕 **INVERT MODE**: Silence region has absolute priority
-      if (barTime >= selectionStart && barTime <= selectionEnd) {
-        return 0.02; // 🎨 **FLAT LINE**: Small visual multiplier for silence region boundary
-      }
-      
-      // 🔥 **FADE EFFECTS FOR ACTIVE REGIONS**: Apply to regions before startTime and after endTime
-      if (fadeInDuration <= 0 && fadeOutDuration <= 0) return 1.0;
-      
-      let fadeMultiplier = 1.0;
-      
-      // 🎯 **FADE IN - FIRST ACTIVE REGION** (0 to selectionStart)
-      if (fadeInDuration > 0 && barTime < selectionStart) {
-        const activeRegionDuration = selectionStart; // From 0 to selectionStart
-        const fadeInEnd = Math.min(fadeInDuration, activeRegionDuration);
-        
-        if (barTime <= fadeInEnd) {
-          const fadeProgress = barTime / fadeInEnd;
-          fadeMultiplier = Math.min(fadeMultiplier, fadeProgress);
-        }
-      }
-      
-      // 🔥 **FADE OUT - SECOND ACTIVE REGION** (selectionEnd to duration)
-      if (fadeOutDuration > 0 && barTime >= selectionEnd) {
-        const activeRegionDuration = duration - selectionEnd; // From selectionEnd to duration
-        const actualFadeOutDuration = Math.min(fadeOutDuration, activeRegionDuration);
-        const fadeOutStart = duration - actualFadeOutDuration; // Fade at the END of this region
-        
-        if (barTime >= fadeOutStart) {
-          const fadeProgress = (duration - barTime) / actualFadeOutDuration;
-          fadeMultiplier = Math.min(fadeMultiplier, Math.max(0.05, fadeProgress));
-        }
-      }
-      
-      return Math.max(0.05, Math.min(1.0, fadeMultiplier));
-    } else {
-      // 🎯 **NORMAL MODE**: Original logic unchanged
-      if (fadeInDuration <= 0 && fadeOutDuration <= 0) return 1.0;
-      if (barTime < selectionStart || barTime > selectionEnd) return 1.0;
-      
-      let fadeMultiplier = 1.0;
-      const selectionDuration = selectionEnd - selectionStart;
-      
-      if (fadeInDuration > 0) {
-        const fadeInEnd = selectionStart + Math.min(fadeInDuration, selectionDuration / 2);
-        if (barTime <= fadeInEnd) {
-          const fadeProgress = Math.max(0, (barTime - selectionStart) / fadeInDuration);
-          fadeMultiplier = Math.min(fadeMultiplier, fadeProgress);
-        }
-      }
-      
-      if (fadeOutDuration > 0) {
-        const fadeOutStart = selectionEnd - Math.min(fadeOutDuration, selectionDuration / 2);
-        if (barTime >= fadeOutStart) {
-          const fadeProgress = Math.max(0, (selectionEnd - barTime) / fadeOutDuration);
-          fadeMultiplier = Math.min(fadeMultiplier, fadeProgress);
-        }
-      }
-      
-      return Math.max(0.05, Math.min(1.0, fadeMultiplier));
-    }
-  }, []);
-
   // 🚀 **BACKGROUND CACHE CREATOR**: Create cached background for ultra-fast re-renders
   const createBackgroundCache = useCallback(async (waveformData, width, height, containerWidth) => {
     // 🔧 **HANDLE SPACE ADJUSTMENT**: Calculate available waveform area
@@ -326,11 +265,109 @@ const WaveformCanvas = React.memo(({
     return createImageBitmap(bgCanvas);
   }, []);
 
+  // 🚀 **PURPLE WAVEFORM CACHE CREATOR**: Create cached purple waveform for ultra-fast region rendering
+  const createPurpleWaveformCache = useCallback(async (waveformData, width, height, containerWidth, volume, fadeIn, fadeOut, startTime, endTime, duration) => {
+    // 🔧 **HANDLE SPACE ADJUSTMENT**: Calculate available waveform area
+    const { MODERN_HANDLE_WIDTH } = WAVEFORM_CONFIG;
+    const responsiveHandleWidth = containerWidth < WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT ? 
+      Math.max(3, MODERN_HANDLE_WIDTH * 0.75) : MODERN_HANDLE_WIDTH;
+    
+    const leftHandleWidth = responsiveHandleWidth;
+    const rightHandleWidth = responsiveHandleWidth;
+    const waveformStartX = leftHandleWidth;
+    const waveformEndX = width - rightHandleWidth;
+    const availableWaveformWidth = waveformEndX - waveformStartX;
+    
+    // 🎯 **CREATE PURPLE CANVAS**: Temporary canvas for purple waveform rendering
+    const purpleCanvas = document.createElement('canvas');
+    purpleCanvas.width = width;
+    purpleCanvas.height = height;
+    const purpleCtx = purpleCanvas.getContext('2d', { willReadFrequently: true });
+    
+    // 🚀 **PERFORMANCE SETUP**: GPU acceleration
+    purpleCtx.imageSmoothingEnabled = false;
+    
+    // 🎨 **PURPLE WAVEFORM BARS**: Render all bars in purple (full length)
+    const centerY = height / 2;
+    const FLAT_BAR_HEIGHT_PX = 1;
+    const MAX_SCALING_PX = 65;
+    
+    const volumePercent = Math.max(0, Math.min(100, volume * 100));
+    const volumeStep = volumePercent / 2;
+    const scalingPixels = volumeStep * (MAX_SCALING_PX / 50);
+    const absoluteBarHeightPx = FLAT_BAR_HEIGHT_PX + scalingPixels;
+    const waveformVariation = Math.max(0, Math.min(1, volume));
+    const adjustedBarWidth = availableWaveformWidth / waveformData.length;
+    
+    purpleCtx.fillStyle = '#7c3aed'; // 🔧 **STATIC PURPLE**: All purple bars
+    
+    // 🎯 **FADE CALCULATION HELPER**: Calculate fade multiplier for each bar position
+    const calculateFadeMultiplier = (barIndex, totalBars) => {
+      if (!fadeIn && !fadeOut) return 1;
+      
+      const barTimePosition = (barIndex / totalBars) * duration;
+      const relativePosition = (barTimePosition - startTime) / (endTime - startTime);
+      
+      let fadeMultiplier = 1;
+      
+      // 🎵 **FADE IN EFFECT**: Gradual increase from start
+      if (fadeIn > 0 && relativePosition < (fadeIn / (endTime - startTime))) {
+        const fadeProgress = relativePosition / (fadeIn / (endTime - startTime));
+        fadeMultiplier *= Math.max(0, Math.min(1, fadeProgress));
+      }
+      
+      // 🎵 **FADE OUT EFFECT**: Gradual decrease to end
+      if (fadeOut > 0 && relativePosition > (1 - fadeOut / (endTime - startTime))) {
+        const fadeProgress = (1 - relativePosition) / (fadeOut / (endTime - startTime));
+        fadeMultiplier *= Math.max(0, Math.min(1, fadeProgress));
+      }
+      
+      return fadeMultiplier;
+    };
+    
+    for (let i = 0; i < waveformData.length; i++) {
+      const value = waveformData[i];
+      
+      let effectiveBarHeight;
+      if (waveformVariation === 0) {
+        // 🎯 **VOLUME 0%**: Show flat bars at minimum height
+        effectiveBarHeight = FLAT_BAR_HEIGHT_PX;
+      } else {
+        const flatHeight = FLAT_BAR_HEIGHT_PX;
+        const dynamicHeight = absoluteBarHeightPx * value;
+        effectiveBarHeight = flatHeight + (dynamicHeight - flatHeight) * waveformVariation;
+      }
+      
+      // 🎵 **APPLY FADE EFFECTS**: Modify bar height based on fade position
+      if (fadeIn > 0 || fadeOut > 0) {
+        const fadeMultiplier = calculateFadeMultiplier(i, waveformData.length);
+        effectiveBarHeight = FLAT_BAR_HEIGHT_PX + (effectiveBarHeight - FLAT_BAR_HEIGHT_PX) * fadeMultiplier;
+      }
+      
+      const x = waveformStartX + (i * adjustedBarWidth);
+      purpleCtx.fillRect(Math.floor(x), centerY - effectiveBarHeight, adjustedBarWidth, effectiveBarHeight * 2);
+    }
+    
+    // 🚀 **CREATE IMAGEBITMAP**: Convert to ImageBitmap for ultra-fast drawImage
+    return createImageBitmap(purpleCanvas);
+  }, []);
+
   // 🎯 **CACHE KEY GENERATOR**: Detect when background needs re-caching
   const generateCacheKey = useCallback((renderData, containerWidth) => {
     if (!renderData?.waveformData) return null;
     
     return `${renderData.waveformData.length}-${renderData.containerWidth || containerWidth}-${renderData.mode || 'default'}`;
+  }, []);
+
+  // 🎯 **PURPLE CACHE KEY GENERATOR**: Detect when purple cache needs re-caching
+  const generatePurpleCacheKey = useCallback((renderData, containerWidth) => {
+    if (!renderData?.waveformData) return null;
+    
+    const volumeValue = renderData.volume !== undefined ? renderData.volume : 1;
+    const fadeInValue = renderData.fadeIn || 0;
+    const fadeOutValue = renderData.fadeOut || 0;
+    
+    return `purple-${renderData.waveformData.length}-${renderData.containerWidth || containerWidth}-${renderData.mode || 'default'}-${Math.round(volumeValue * 100)}-${Math.round(fadeInValue * 10)}-${Math.round(fadeOutValue * 10)}`;
   }, []);
 
   // 🚀 **OPTIMIZED DRAW FUNCTION**: Ultra-fast rendering with cached background  
@@ -348,13 +385,10 @@ const WaveformCanvas = React.memo(({
     ctx.clearRect(0, 0, width, height);
     
     const { 
-      waveformData, 
       duration, 
       startTime, 
       endTime, 
       volume: currentVolume, 
-      fadeIn: currentFadeIn, 
-      fadeOut: currentFadeOut,
       isInverted
     } = renderData;
     
@@ -367,7 +401,7 @@ const WaveformCanvas = React.memo(({
     }
     
     // 2. **DRAW ACTIVE SELECTION ONLY**: Only render purple bars for selection
-    if (startTime < endTime && duration > 0) {
+    if (startTime < endTime && duration > 0 && purpleWaveformCacheRef.current) {
       const { MODERN_HANDLE_WIDTH } = WAVEFORM_CONFIG;
       const responsiveHandleWidth = containerWidth < WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT ? 
         Math.max(3, MODERN_HANDLE_WIDTH * 0.75) : MODERN_HANDLE_WIDTH;
@@ -379,104 +413,49 @@ const WaveformCanvas = React.memo(({
       const availableWaveformWidth = waveformEndX - waveformStartX;
       
       if (availableWaveformWidth > 0) {
-        const centerY = height / 2;
-        const FLAT_BAR_HEIGHT_PX = 1;
-        const MAX_SCALING_PX = 65;
-        const volumePercent = Math.max(0, Math.min(100, currentVolume * 100));
-        const volumeStep = volumePercent / 2;
-        const scalingPixels = volumeStep * (MAX_SCALING_PX / 50);
-        const absoluteBarHeightPx = FLAT_BAR_HEIGHT_PX + scalingPixels;
-        const waveformVariation = Math.max(0, Math.min(1, currentVolume));
-        const adjustedBarWidth = availableWaveformWidth / waveformData.length;
-        
         ctx.save();
-        ctx.fillStyle = '#7c3aed'; // 🚀 **SINGLE COLOR**: Purple for active selection
-        
-        const fadeEffectsActive = currentFadeIn > 0 || currentFadeOut > 0;
-        
-        // 🔥 **OPTIMIZED LOOP**: Render bars based on invert mode
-        const startIndex = Math.floor((startTime / duration) * waveformData.length);
-        const endIndex = Math.ceil((endTime / duration) * waveformData.length);
         
         if (isInverted) {
-          // 🆕 **INVERT MODE**: Render bars OUTSIDE selection (before + after)
-          // Render before selection: 0 -> startIndex
-          for (let i = 0; i < startIndex; i++) {
-            const value = waveformData[i];
-            const barTime = (i / waveformData.length) * duration;
+          // 🆕 **INVERT MODE**: Clip and draw regions OUTSIDE selection (before + after)
+          
+          // Draw before selection region (0 to startTime)
+          if (startTime > 0) {
+            const startPercent = 0;
+            const endPercent = startTime / duration;
+            const clipStartX = waveformStartX + (startPercent * availableWaveformWidth);
+            const clipWidth = (endPercent * availableWaveformWidth);
             
-            // 🚀 **FADE CALCULATION**: Only for active bars
-            let fadeMultiplier = 1.0;
-            if (fadeEffectsActive) {
-              fadeMultiplier = calculateFadeMultiplier(barTime, startTime, endTime, currentFadeIn, currentFadeOut, isInverted, duration);
-            }
-            
-            let effectiveBarHeight;
-            if (waveformVariation === 0) {
-              effectiveBarHeight = FLAT_BAR_HEIGHT_PX;
-            } else {
-              const flatHeight = FLAT_BAR_HEIGHT_PX;
-              const dynamicHeight = absoluteBarHeightPx * value;
-              effectiveBarHeight = flatHeight + (dynamicHeight - flatHeight) * waveformVariation;
-            }
-            
-            const finalBarHeight = effectiveBarHeight * fadeMultiplier;
-            const x = waveformStartX + (i * adjustedBarWidth);
-            
-            ctx.fillRect(Math.floor(x), centerY - finalBarHeight, adjustedBarWidth, finalBarHeight * 2);
+            ctx.beginPath();
+            ctx.rect(clipStartX, 0, clipWidth, height);
+            ctx.clip();
+            ctx.drawImage(purpleWaveformCacheRef.current, 0, 0);
+            ctx.restore();
+            ctx.save();
           }
           
-          // Render after selection: endIndex -> total length
-          for (let i = endIndex; i < waveformData.length; i++) {
-            const value = waveformData[i];
-            const barTime = (i / waveformData.length) * duration;
+          // Draw after selection region (endTime to duration)
+          if (endTime < duration) {
+            const startPercent = endTime / duration;
+            const endPercent = 1;
+            const clipStartX = waveformStartX + (startPercent * availableWaveformWidth);
+            const clipWidth = ((endPercent - startPercent) * availableWaveformWidth);
             
-            // 🚀 **FADE CALCULATION**: Only for active bars
-            let fadeMultiplier = 1.0;
-            if (fadeEffectsActive) {
-              fadeMultiplier = calculateFadeMultiplier(barTime, startTime, endTime, currentFadeIn, currentFadeOut, isInverted, duration);
-            }
-            
-            let effectiveBarHeight;
-            if (waveformVariation === 0) {
-              effectiveBarHeight = FLAT_BAR_HEIGHT_PX;
-            } else {
-              const flatHeight = FLAT_BAR_HEIGHT_PX;
-              const dynamicHeight = absoluteBarHeightPx * value;
-              effectiveBarHeight = flatHeight + (dynamicHeight - flatHeight) * waveformVariation;
-            }
-            
-            const finalBarHeight = effectiveBarHeight * fadeMultiplier;
-            const x = waveformStartX + (i * adjustedBarWidth);
-            
-            ctx.fillRect(Math.floor(x), centerY - finalBarHeight, adjustedBarWidth, finalBarHeight * 2);
+            ctx.beginPath();
+            ctx.rect(clipStartX, 0, clipWidth, height);
+            ctx.clip();
+            ctx.drawImage(purpleWaveformCacheRef.current, 0, 0);
           }
         } else {
-          // 🎯 **NORMAL MODE**: Render bars INSIDE selection only
-          for (let i = startIndex; i < Math.min(endIndex, waveformData.length); i++) {
-            const value = waveformData[i];
-            const barTime = (i / waveformData.length) * duration;
-            
-            // 🚀 **FADE CALCULATION**: Only for active bars
-            let fadeMultiplier = 1.0;
-            if (fadeEffectsActive) {
-              fadeMultiplier = calculateFadeMultiplier(barTime, startTime, endTime, currentFadeIn, currentFadeOut, isInverted, duration);
-            }
-            
-            let effectiveBarHeight;
-            if (waveformVariation === 0) {
-              effectiveBarHeight = FLAT_BAR_HEIGHT_PX;
-            } else {
-              const flatHeight = FLAT_BAR_HEIGHT_PX;
-              const dynamicHeight = absoluteBarHeightPx * value;
-              effectiveBarHeight = flatHeight + (dynamicHeight - flatHeight) * waveformVariation;
-            }
-            
-            const finalBarHeight = effectiveBarHeight * fadeMultiplier;
-            const x = waveformStartX + (i * adjustedBarWidth);
-            
-            ctx.fillRect(Math.floor(x), centerY - finalBarHeight, adjustedBarWidth, finalBarHeight * 2);
-          }
+          // 🎯 **NORMAL MODE**: Clip and draw region INSIDE selection only
+          const startPercent = startTime / duration;
+          const endPercent = endTime / duration;
+          const clipStartX = waveformStartX + (startPercent * availableWaveformWidth);
+          const clipWidth = ((endPercent - startPercent) * availableWaveformWidth);
+          
+          ctx.beginPath();
+          ctx.rect(clipStartX, 0, clipWidth, height);
+          ctx.clip();
+          ctx.drawImage(purpleWaveformCacheRef.current, 0, 0);
         }
         
         ctx.restore();
@@ -491,7 +470,7 @@ const WaveformCanvas = React.memo(({
       ctx.fillStyle = 'rgba(139, 92, 246, 0.15)';
       ctx.fillRect(startX, 0, endX - startX, height);
     }
-  }, [canvasRef, renderData, calculateFadeMultiplier, containerWidth]);
+  }, [canvasRef, renderData, containerWidth]);
 
   // 🚀 **BACKGROUND CACHE MANAGEMENT**: Update cache when needed
   useEffect(() => {
@@ -500,7 +479,10 @@ const WaveformCanvas = React.memo(({
       
       const canvas = canvasRef.current;
       const currentCacheKey = generateCacheKey(renderData, containerWidth);
+      const currentPurpleCacheKey = generatePurpleCacheKey(renderData, containerWidth);
+      let needsRedraw = false;
       
+      // 🎯 **BACKGROUND CACHE UPDATE**
       if (currentCacheKey && currentCacheKey !== lastCacheKey.current) {
         try {
           if (backgroundCacheRef.current) {
@@ -513,15 +495,45 @@ const WaveformCanvas = React.memo(({
             containerWidth
           );
           lastCacheKey.current = currentCacheKey;
-          requestRedraw(drawWaveform); // Trigger redraw after cache update
+          needsRedraw = true;
         } catch (error) {
           backgroundCacheRef.current = null;
         }
       }
+      
+      // 🚀 **PURPLE CACHE UPDATE**
+      if (currentPurpleCacheKey && currentPurpleCacheKey !== lastPurpleCacheKey.current) {
+        try {
+          if (purpleWaveformCacheRef.current) {
+            purpleWaveformCacheRef.current.close?.();
+          }
+          purpleWaveformCacheRef.current = await createPurpleWaveformCache(
+            renderData.waveformData, 
+            canvas.width, 
+            canvas.height, 
+            containerWidth,
+            renderData.volume !== undefined ? renderData.volume : 1,
+            renderData.fadeIn,
+            renderData.fadeOut,
+            renderData.startTime,
+            renderData.endTime,
+            renderData.duration
+          );
+          lastPurpleCacheKey.current = currentPurpleCacheKey;
+          needsRedraw = true;
+        } catch (error) {
+          purpleWaveformCacheRef.current = null;
+        }
+      }
+      
+      // 🔄 **TRIGGER REDRAW**: Only after cache updates
+      if (needsRedraw) {
+        requestRedraw(drawWaveform);
+      }
     };
     
     updateCache();
-  }, [renderData, containerWidth, generateCacheKey, createBackgroundCache, requestRedraw, drawWaveform, canvasRef]);
+  }, [renderData, containerWidth, generateCacheKey, generatePurpleCacheKey, createBackgroundCache, createPurpleWaveformCache, requestRedraw, drawWaveform, canvasRef]);
 
   // 🚀 **EFFECT OPTIMIZATIONS**: Controlled re-renders
   useEffect(() => {
@@ -664,6 +676,10 @@ const WaveformCanvas = React.memo(({
       if (backgroundCacheRef.current) {
         backgroundCacheRef.current.close?.();
         backgroundCacheRef.current = null;
+      }
+      if (purpleWaveformCacheRef.current) {
+        purpleWaveformCacheRef.current.close?.();
+        purpleWaveformCacheRef.current = null;
       }
     };
   }, []);

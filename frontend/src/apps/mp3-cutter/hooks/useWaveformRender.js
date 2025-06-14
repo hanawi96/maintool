@@ -158,13 +158,13 @@ export const useWaveformRender = (canvasRef, waveformData, volume, isDragging, i
     animationFrameRef.current = requestAnimationFrame((timestamp) => {
       let minInterval;
       if (isDragging) {
-        minInterval = 2;   // 500fps for dragging
+        minInterval = 8.33;  // 120fps for dragging (tối ưu, không thừa thãi)
       } else if (isPlaying) {
-        minInterval = 8;   // 125fps for playing
+        minInterval = 8;     // 125fps for playing
       } else if (hoverTooltip?.visible) {
-        minInterval = 8;   // 125fps for hover
+        minInterval = 8;     // 125fps for hover
       } else {
-        minInterval = 16;  // 60fps for static
+        minInterval = 16;    // 60fps for static
       }
       
       // 🚀 **RESIZE THROTTLING**: Extra throttling during potential resize
