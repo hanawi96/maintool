@@ -621,6 +621,13 @@ const MP3CutterMain = React.memo(() => {
   const handleUndo = useCallback(() => {
     const prevState = undo();
     if (prevState) {
+      console.log(`🔄 [Undo] Restoring state:`, {
+        startTime: prevState.startTime?.toFixed(2),
+        endTime: prevState.endTime?.toFixed(2),
+        isInverted: prevState.isInverted,
+        fadeIn: prevState.fadeIn,
+        fadeOut: prevState.fadeOut
+      });
       
       setStartTime(prevState.startTime);
       setEndTime(prevState.endTime);
@@ -634,9 +641,11 @@ const MP3CutterMain = React.memo(() => {
         
         if (!isNewFileUpload && !hasPreventFlag) {
           setIsInverted(prevState.isInverted);
+          console.log(`✅ [Undo] Restored isInverted: ${prevState.isInverted}`);
         } else {
           // 🎯 **FORCE RESET**: Keep isInverted as false for new files
           setIsInverted(false);
+          console.log(`🚫 [Undo] Blocked isInverted restore (new file protection)`);
         }
       }
       
@@ -649,6 +658,13 @@ const MP3CutterMain = React.memo(() => {
   const handleRedo = useCallback(() => {
     const nextState = redo();
     if (nextState) {
+      console.log(`🔄 [Redo] Restoring state:`, {
+        startTime: nextState.startTime?.toFixed(2),
+        endTime: nextState.endTime?.toFixed(2),
+        isInverted: nextState.isInverted,
+        fadeIn: nextState.fadeIn,
+        fadeOut: nextState.fadeOut
+      });
       
       setStartTime(nextState.startTime);
       setEndTime(nextState.endTime);
@@ -662,9 +678,11 @@ const MP3CutterMain = React.memo(() => {
         
         if (!isNewFileUpload && !hasPreventFlag) {
           setIsInverted(nextState.isInverted);
+          console.log(`✅ [Redo] Restored isInverted: ${nextState.isInverted}`);
         } else {
           // 🎯 **FORCE RESET**: Keep isInverted as false for new files
           setIsInverted(false);
+          console.log(`🚫 [Redo] Blocked isInverted restore (new file protection)`);
         }
       }
       
@@ -1065,11 +1083,14 @@ const MP3CutterMain = React.memo(() => {
   const handleInvertSelection = useCallback(() => {
     if (duration <= 0 || startTime >= endTime) return;
     
-    // 🎯 **HISTORY SAVE**: Save current state before inversion
-    saveState({ startTime, endTime, fadeIn, fadeOut, isInverted });
-    
-    // 🚀 **TOGGLE INVERT MODE**: Simply toggle the invert state
+    // 🚀 **TOGGLE INVERT MODE**: Calculate new invert state first
     const newInvertState = !isInverted;
+    
+    // 🎯 **HISTORY SAVE**: Save NEW state after inversion (not old state)
+    saveState({ startTime, endTime, fadeIn, fadeOut, isInverted: newInvertState });
+    console.log(`💾 [InvertSelection] Saving history with isInverted: ${newInvertState}`);
+    
+    // 🔄 **APPLY NEW STATE**: Apply the new invert state
     setIsInverted(newInvertState);
     
     // 🆕 **FORCE FADE CONFIG UPDATE**: Update fade config to ensure visual restoration
