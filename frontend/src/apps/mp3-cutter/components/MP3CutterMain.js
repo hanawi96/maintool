@@ -81,17 +81,22 @@ function useAudioEventHandlers({
       if (window.requestIdleCallback)
         window.requestIdleCallback(() => { setDuration(d); setEndTime(d); });
       else setTimeout(() => { setDuration(d); setEndTime(d); }, 0);
-    };
-    const onEnded = () => {
+    };    const onEnded = () => {
+      const autoReturn = getAutoReturnSetting();
       if (isInverted) {
-        if (getAutoReturnSetting()) {
+        if (autoReturn) {
           jumpToTime(0);
           audio.play?.();
         } else {
           setIsPlaying(false); setCurrentTime(audio.duration);
         }
       } else {
-        setIsPlaying(false); jumpToTime(startTime);
+        if (autoReturn) {
+          jumpToTime(startTime);
+          audio.play?.();
+        } else {
+          setIsPlaying(false); jumpToTime(startTime);
+        }
       }
     };
     const onPlay = () => setTimeout(() => setIsPlaying(true), 16);
@@ -148,15 +153,14 @@ function useSmartPreloader(audioFile, waveformData) {
   const { triggerPreload } = useProgressivePreloader();
   const { shouldPreload: netPreload } = useNetworkAwarePreloader();
   const { shouldPreload: memPreload } = useMemoryAwarePreloader();
-  const { trackInteraction } = useInteractionPreloader();
-  useEffect(() => {
+  const { trackInteraction } = useInteractionPreloader();  useEffect(() => {
     if (audioFile && netPreload('large') && memPreload() !== false) {
       triggerPreload('fileLoad'); preloadHeavyComponents();
     }
-  }, [audioFile?.name]);
+  }, [audioFile, netPreload, memPreload, triggerPreload]);
   useEffect(() => {
     if (waveformData.length > 0) triggerPreload('waveformReady');
-  }, [waveformData.length]);
+  }, [waveformData.length, triggerPreload]);
   const handleUserInteraction = useCallback((type) => {
     trackInteraction(type); triggerPreload('userInteraction');
   }, [trackInteraction, triggerPreload]);
@@ -325,17 +329,30 @@ const MP3CutterMain = React.memo(() => {
 
   useEffect(() => { animationRef.current.isPlaying = isPlaying; }, [isPlaying]);
   useAudioEventHandlers({ audioRef, audioFile, setDuration, setEndTime, setCurrentTime, setIsPlaying, setAudioError, jumpToTime, startTime, isInverted, fileValidation });
-
   useEffect(() => {
     let animationId;
     const updateCursor = () => {
       if (isPlaying && audioRef.current) {
         const t = audioRef.current.currentTime;
+        const autoReturn = getAutoReturnSetting();
+        
         if (isInverted && t >= startTime && t < endTime) {
-          audioRef.current.currentTime = endTime; setCurrentTime(endTime);
+          audioRef.current.currentTime = endTime; 
+          setCurrentTime(endTime);
         } else if (!isInverted && shouldPauseAtEndTime(t, endTime, duration, canvasRef)) {
-          audioRef.current.pause(); setIsPlaying(false); jumpToTime(startTime);
-        } else setCurrentTime(t);
+          audioRef.current.pause(); 
+          setIsPlaying(false); 
+          if (autoReturn) {
+            setTimeout(() => {
+              jumpToTime(startTime);
+              audioRef.current?.play?.();
+            }, 50);
+          } else {
+            jumpToTime(startTime);
+          }
+        } else {
+          setCurrentTime(t);
+        }
         animationId = requestAnimationFrame(updateCursor);
       }
     };
@@ -396,7 +413,6 @@ const MP3CutterMain = React.memo(() => {
       scheduleIdlePreload(() => {});
     }
   }, [isWorkerSupported, isWorkerReady, audioFile, preloadCriticalComponents, scheduleIdlePreload]);
-
   useEffect(() => {
     if (isWorkerReady && workerMetrics.totalPreloaded > 0) {
       workerMetrics.loadedComponents.forEach(componentName => {
@@ -405,7 +421,7 @@ const MP3CutterMain = React.memo(() => {
         }, 0);
       });
     }
-  }, [workerMetrics.totalPreloaded, isWorkerReady]);
+  }, [workerMetrics.totalPreloaded, workerMetrics.loadedComponents, isWorkerReady, addComponentToCache]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-pink-50">
