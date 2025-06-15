@@ -81,7 +81,6 @@ const WaveformCanvas = React.memo(({
     }
     onMouseDown?.(e);
   }, [onMouseDown, updateCursor, clearHoverTooltip, canvasRef]);
-
   const handlePointerMove = useCallback((e) => {
     onMouseMove?.(e);
     const canvas = canvasRef.current;
@@ -89,7 +88,7 @@ const WaveformCanvas = React.memo(({
       const rect = canvas.getBoundingClientRect();
       const mouseX = e.clientX - rect.left;
       updateCursor(mouseX);
-      updateHoverTooltip({ clientX: e.clientX });
+      updateHoverTooltip(e);
     }
   }, [onMouseMove, updateCursor, updateHoverTooltip, canvasRef]);
 
@@ -404,8 +403,7 @@ const WaveformCanvas = React.memo(({
     const mainCursorX = currentTime >= 0 ? startX + (currentTime / duration) * areaWidth : -1;
     const shouldShowHover = hoverTooltip && hoverTooltip.visible &&
       isDragging !== 'start' && isDragging !== 'end' &&
-      isDragging !== 'region' && isDragging !== 'region-potential';
-    return {
+      isDragging !== 'region' && isDragging !== 'region-potential';    return {
       mainCursor: {
         visible: currentTime >= 0 && duration > 0 && mainCursorX >= startX && mainCursorX <= (w - startX),
         x: mainCursorX,
@@ -415,8 +413,8 @@ const WaveformCanvas = React.memo(({
         color: '#ef4444'
       },
       hoverLine: {
-        visible: shouldShowHover && hoverTooltip.cursorX >= 0,
-        x: hoverTooltip?.cursorX ?? -1,
+        visible: shouldShowHover && hoverTooltip.x >= 0,
+        x: hoverTooltip?.x ?? -1,
         y: 0,
         width: 0.6,
         height: h,
