@@ -20,16 +20,17 @@ export const HANDLE_TYPES = {
 };
 
 /**
- * 🎯 Smart handle detection with responsive sizing - UPDATED FOR MODERN HANDLES
+ * 🎯 Smart handle detection with responsive sizing - UPDATED FOR MODERN HANDLES AND INVERT MODE
  * @param {number} x - Mouse X position relative to canvas
  * @param {number} canvasWidth - Canvas width in pixels
  * @param {number} duration - Audio duration in seconds
  * @param {number} startTime - Selection start time in seconds
  * @param {number} endTime - Selection end time in seconds
  * @param {Object} eventInfo - Additional event information (optional)
+ * @param {boolean} isInverted - Whether invert selection mode is active (optional)
  * @returns {string|null} Handle type ('start', 'end', or null)
  */
-export const detectHandle = (x, canvasWidth, duration, startTime, endTime, eventInfo = null) => {
+export const detectHandle = (x, canvasWidth, duration, startTime, endTime, eventInfo = null, isInverted = false) => {
   if (duration === 0 || canvasWidth === 0) return null;
   
   // 🆕 **DIRECT HANDLE EVENT**: Nếu event đến từ handle trực tiếp, return ngay
@@ -57,9 +58,18 @@ export const detectHandle = (x, canvasWidth, duration, startTime, endTime, event
   const regionStartX = waveformStartX + (regionStartPercent * availableWaveformWidth);
   const regionEndX = waveformStartX + (regionEndPercent * availableWaveformWidth);
   
-  // 🎯 **HANDLE WRAPPING POSITIONS**: Calculate handle positions that wrap around region
-  const startHandleX = regionStartX - responsiveHandleWidth; // Right edge aligns with region start
-  const endHandleX = regionEndX; // Left edge aligns with region end
+  // 🎯 **HANDLE WRAPPING POSITIONS**: Calculate handle positions that wrap around region WITH INVERT MODE SUPPORT
+  let startHandleX, endHandleX;
+  
+  if (isInverted) {
+    // 🆕 **INVERT MODE POSITIONING**: Match WaveformCanvas positioning logic exactly
+    startHandleX = regionStartX; // Left edge (no radius) aligns with region start
+    endHandleX = regionEndX - responsiveHandleWidth; // Right edge (no radius) aligns with region end
+  } else {
+    // 🎯 **NORMAL MODE POSITIONING**: Standard positioning
+    startHandleX = regionStartX - responsiveHandleWidth; // Right edge aligns with region start
+    endHandleX = regionEndX; // Left edge aligns with region end
+  }
   
   // 🔧 **VISUAL HANDLE AREAS**: Define where handles are visually rendered
   // Start handle: render from startHandleX to startHandleX + responsiveHandleWidth
@@ -77,7 +87,7 @@ export const detectHandle = (x, canvasWidth, duration, startTime, endTime, event
     return HANDLE_TYPES.START;
   }
   
-  if (endDetected) {
+  if (endDetected) {  
     return HANDLE_TYPES.END;
   }
   
@@ -315,8 +325,7 @@ export class InteractionManager {
    * @param {number} endTime - Selection end time in seconds
    * @param {Object} eventInfo - Additional event information (optional)
    * @returns {Object} Action result object
-   */
-  handleMouseDown(x, canvasWidth, duration, startTime, endTime, eventInfo = null) {
+   */  handleMouseDown(x, canvasWidth, duration, startTime, endTime, eventInfo = null) {
     // 🚨 **RESET PREVIOUS STATE**: Clear any previous interaction state
     this.state = INTERACTION_STATES.IDLE;
     this.activeHandle = HANDLE_TYPES.NONE;
@@ -333,10 +342,21 @@ export class InteractionManager {
     this.hasPendingJump = false;
     this.pendingHandleUpdate = null;
     this.hasPendingHandleUpdate = false;
-    
-    // 🎯 **SMART HANDLE DETECTION**: Updated to use eventInfo
-    const detectedHandle = detectHandle(x, canvasWidth, duration, startTime, endTime, eventInfo);
+      // 🎯 **SMART HANDLE DETECTION**: Updated to use eventInfo AND audio context for invert mode
+    const isInverted = this.audioContext?.isInverted || false;
+    const detectedHandle = detectHandle(x, canvasWidth, duration, startTime, endTime, eventInfo, isInverted);
     const currentTimePosition = positionToTime(x, canvasWidth, duration);
+    
+    // 🔍 **DEBUG MOUSE DOWN**: Log mouse down processing
+    console.log(`🔍 [MouseDown] Processing mouse down at x=${x.toFixed(1)}px`, {
+      canvasWidth,
+      duration: duration.toFixed(3),
+      region: { start: startTime.toFixed(3), end: endTime.toFixed(3) },
+      isInverted,
+      detectedHandle,
+      currentTimePosition: currentTimePosition.toFixed(3),
+      eventInfo: eventInfo ? { isHandleEvent: eventInfo.isHandleEvent, handleType: eventInfo.handleType } : null
+    });
     
     // Record interaction start
     this.mouseDownTimestamp = performance.now();
@@ -658,7 +678,7 @@ export class InteractionManager {
         return { action: 'none', reason: 'mouse_re_entry_protection' };
       }
       
-      const handle = detectHandle(x, canvasWidth, duration, startTime, endTime);
+      const handle = detectHandle(x, canvasWidth, duration, startTime, endTime, null, audioContext?.isInverted || false);
       
       if (handle !== this.lastHoveredHandle) {
         this.lastHoveredHandle = handle;
@@ -967,10 +987,10 @@ export class InteractionManager {
    * @param {number} endTime - Selection end time in seconds
    * @param {Object} eventInfo - Additional event information (optional)
    * @returns {string|null} Handle type ('start', 'end', or null)
-   */
-  getHandleAtPosition(x, canvasWidth, duration, startTime, endTime, eventInfo = null) {
+   */  getHandleAtPosition(x, canvasWidth, duration, startTime, endTime, eventInfo = null) {
     // 🔧 **USE SAME DETECTION LOGIC**: Sử dụng cùng logic với handleMouseDown
-    return detectHandle(x, canvasWidth, duration, startTime, endTime, eventInfo);
+    const isInverted = this.audioContext?.isInverted || false;
+    return detectHandle(x, canvasWidth, duration, startTime, endTime, eventInfo, isInverted);
   }
   
   /**

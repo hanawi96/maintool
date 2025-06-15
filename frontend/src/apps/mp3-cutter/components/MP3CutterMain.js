@@ -86,6 +86,85 @@ const SafeAudioElement = React.memo(({
 
 SafeAudioElement.displayName = 'SafeAudioElement';
 
+// 🎯 **PIXEL-PERFECT THRESHOLD CALCULATOR**
+// Calculate precise threshold for cursor edge-to-edge contact with handle
+const shouldPauseAtEndTime = (currentTime, endTime, duration, canvasRef) => {
+  // 🔧 **DYNAMIC CALCULATION**: Use actual canvas dimensions and responsive handle width
+  const canvas = canvasRef?.current;
+  if (!canvas || !duration || duration <= 0) {
+    return currentTime >= endTime; // Fallback to basic time comparison
+  }
+  
+  const canvasWidth = canvas.width || 800;
+  
+  // 🚀 **RESPONSIVE HANDLE WIDTH**: Match WaveformCanvas calculation
+  const { MODERN_HANDLE_WIDTH, RESPONSIVE } = {
+    MODERN_HANDLE_WIDTH: 8,
+    RESPONSIVE: { MOBILE_BREAKPOINT: 640 }
+  };
+  
+  const responsiveHandleWidth = canvasWidth < RESPONSIVE.MOBILE_BREAKPOINT ? 
+    Math.max(3, MODERN_HANDLE_WIDTH * 0.75) : MODERN_HANDLE_WIDTH;
+  
+  // 🎯 **ACTUAL WAVEFORM AREA**: Match exact calculation from WaveformCanvas
+  const leftHandleWidth = responsiveHandleWidth;
+  const rightHandleWidth = responsiveHandleWidth;
+  const availableWaveformWidth = canvasWidth - leftHandleWidth - rightHandleWidth;
+  
+  // 🔧 **PIXEL-BASED CALCULATION**: 
+  // - Main cursor width = 1px, right edge = center + 0.5px
+  // - Handle left edge aligns exactly with endTime pixel position
+  // - Threshold = endTime - (0.5px worth of time)
+  const CURSOR_HALF_WIDTH = 0.5; // 0.5px for cursor right edge
+  const TIME_PER_PIXEL = duration / availableWaveformWidth;
+  const THRESHOLD_OFFSET = CURSOR_HALF_WIDTH * TIME_PER_PIXEL;
+  
+  // 🎯 **PRECISION THRESHOLD**: Exact calculation based on actual pixel positioning
+  const threshold = endTime - THRESHOLD_OFFSET;
+  
+  // 🔍 **ENHANCED MINIMUM THRESHOLD**: More aggressive threshold for better precision
+  // Use smaller buffer to prevent overshoot, but ensure it's still positive
+  const MINIMUM_BUFFER = Math.min(0.001, THRESHOLD_OFFSET * 0.1); // 10% of threshold or 1ms, whichever is smaller
+  const minimumThreshold = Math.max(threshold, endTime - MINIMUM_BUFFER);
+  
+  // 🆕 **SAFETY CHECK**: Additional check to prevent any overshoot
+  const SAFETY_MARGIN = TIME_PER_PIXEL * 0.25; // 0.25px worth of time as safety margin
+  const safeThreshold = Math.max(minimumThreshold - SAFETY_MARGIN, endTime - THRESHOLD_OFFSET - SAFETY_MARGIN);
+  
+  // 🔍 **DEBUG LOGGING**: Log detailed calculation when approaching endTime
+  if (currentTime >= endTime - 0.1) { // Start logging 100ms before endTime
+    console.log(`🔍 [CursorDebug] Dynamic threshold calculation:`, {
+      currentTime: currentTime.toFixed(6),
+      endTime: endTime.toFixed(6),
+      duration: duration.toFixed(2),
+      canvas: {
+        width: canvasWidth,
+        responsiveHandleWidth,
+        availableWaveformWidth,
+        leftHandleWidth,
+        rightHandleWidth
+      },
+      calculation: {
+        timePerPixel: TIME_PER_PIXEL.toFixed(8),
+        cursorHalfWidth: CURSOR_HALF_WIDTH,
+        thresholdOffset: THRESHOLD_OFFSET.toFixed(6),
+        calculatedThreshold: threshold.toFixed(6),
+        minimumThreshold: minimumThreshold.toFixed(6),
+        safetyMargin: SAFETY_MARGIN.toFixed(6),
+        safeThreshold: safeThreshold.toFixed(6)
+      },
+      timing: {
+        timeToEndTime: (endTime - currentTime).toFixed(6),
+        timeToThreshold: (safeThreshold - currentTime).toFixed(6),
+        shouldPause: currentTime >= safeThreshold,
+        overshoot: currentTime > endTime ? (currentTime - endTime).toFixed(6) : 'none'
+      }
+    });
+  }
+  
+  return currentTime >= safeThreshold;
+};
+
 const MP3CutterMain = React.memo(() => {
   // 🔥 **ESSENTIAL HOOKS ONLY**
   const { 
@@ -758,11 +837,11 @@ const MP3CutterMain = React.memo(() => {
           // 🎯 **SKIP TO END**: Nhảy tới endTime khi cursor chạm vào vùng region
           console.log(`⚡ [InvertMode] Cursor reached region start (${audioCurrentTime.toFixed(2)}s), jumping to end (${endTime.toFixed(2)}s)`);
           audioRef.current.currentTime = endTime;
-          setCurrentTime(endTime);        } else if (!isInverted && audioCurrentTime >= endTime) {
-          // 🆕 **NORMAL MODE AUTO-PAUSE & RESET**: Always pause and reset to start point when reaching end
+          setCurrentTime(endTime);        } else if (!isInverted && shouldPauseAtEndTime(audioCurrentTime, endTime, duration, canvasRef)) {
+          // 🎯 **PRECISION AUTO-PAUSE**: Pause exactly when cursor right edge touches handle left edge
           audioRef.current.pause();
           setIsPlaying(false);
-          console.log(`⏹️ [NormalMode] Cursor reached region end (${audioCurrentTime.toFixed(2)}s), pausing and resetting to start (${startTime.toFixed(2)}s)`);
+          console.log(`⏹️ [NormalMode] Cursor edge contact (${audioCurrentTime.toFixed(3)}s), pausing and resetting to start (${startTime.toFixed(2)}s)`);
           jumpToTime(startTime);
         }else {
           // 🔥 **INSTANT CURRENTTIME UPDATE** - Cập nhật ngay lập tức cho tooltip sync
@@ -783,7 +862,7 @@ const MP3CutterMain = React.memo(() => {
         cancelAnimationFrame(animationId);
       }
     };
-  }, [isPlaying, startTime, endTime, audioRef, setCurrentTime, setIsPlaying, isInverted, jumpToTime]);
+  }, [isPlaying, startTime, endTime, audioRef, setCurrentTime, setIsPlaying, isInverted, jumpToTime, duration, canvasRef]);
 
   // 🆕 **INITIAL CONFIG SYNC**: Only sync on startup and when selection changes (not fade values)
   const fadeConfigSyncedRef = useRef(false); // 🆕 **PREVENT MULTIPLE SYNCS**: Track if initial sync done

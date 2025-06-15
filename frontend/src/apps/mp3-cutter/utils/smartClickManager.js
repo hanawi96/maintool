@@ -138,55 +138,35 @@ export class SmartClickManager {
         
         // 🆕 **REGION DRAG POTENTIAL**: Mark để có thể trigger region drag khi có movement
         actionDetails.regionDragPotential = true; // 🔧 **ENABLE REGION DRAG**: Flag để interactionManager biết có thể drag region
-        break;
-        
-      case CLICK_ZONES.BEFORE_START:
-        // 🔧 **PROTECTION CHECK**: Kiểm tra có nên cho phép handle update không
-        if (!this.shouldAllowHandleUpdate(clickZone, clickTime, startTime, endTime, duration, isActualClick)) {
-          actionDetails.action = CLICK_ACTIONS.NO_ACTION;
-          actionDetails.cursor = 'pointer';
-          actionDetails.reason = 'PROTECTED: Handle update blocked by protection logic';
-          break;
-        }
-        
-        if (this.preferences.enableSmartUpdate) {
+        break;      case CLICK_ZONES.BEFORE_START:
+        // 🎯 **SMART LOGIC**: Check if this should be handle update or cursor jump
+        if (this.preferences.enableSmartUpdate && this.shouldAllowHandleUpdate(clickZone, clickTime, startTime, endTime, duration, isActualClick)) {
+          // 🔧 **HANDLE UPDATE**: Update start handle position
           actionDetails.action = CLICK_ACTIONS.UPDATE_START;
-          // 🔧 **HANDLE WRAPPING FIX**: With handle wrapping logic, the clicked position should be the RIGHT EDGE of start handle
-          // This means the region start time equals the clicked time (right edge of handle aligns with clicked position)
           actionDetails.newStartTime = clickTime;
           actionDetails.cursor = 'pointer';
           actionDetails.reason = `Moving start to ${clickTime.toFixed(2)}s (right edge of start handle aligns with click)`;
         } else {
-          actionDetails.action = CLICK_ACTIONS.CREATE_SELECTION;
-          actionDetails.newStartTime = clickTime;
-          actionDetails.newEndTime = clickTime;
+          // 🆕 **CURSOR JUMP**: Default to cursor jump when handle update is blocked
+          actionDetails.action = CLICK_ACTIONS.JUMP_TO_TIME;
+          actionDetails.seekTime = clickTime;
           actionDetails.cursor = 'pointer';
-          actionDetails.reason = 'Creating new selection';
+          actionDetails.reason = `Jumping to ${clickTime.toFixed(2)}s (before selection)`;
         }
-        break;
-        
-      case CLICK_ZONES.AFTER_END:
-        // 🔧 **PROTECTION CHECK**: Kiểm tra có nên cho phép handle update không
-        if (!this.shouldAllowHandleUpdate(clickZone, clickTime, startTime, endTime, duration, isActualClick)) {
-          actionDetails.action = CLICK_ACTIONS.NO_ACTION;
-          actionDetails.cursor = 'pointer';
-          actionDetails.reason = 'PROTECTED: Handle update blocked by protection logic';
-          break;
-        }
-        
-        if (this.preferences.enableSmartUpdate) {
+        break;      case CLICK_ZONES.AFTER_END:
+        // 🎯 **SMART LOGIC**: Check if this should be handle update or cursor jump
+        if (this.preferences.enableSmartUpdate && this.shouldAllowHandleUpdate(clickZone, clickTime, startTime, endTime, duration, isActualClick)) {
+          // 🔧 **HANDLE UPDATE**: Update end handle position
           actionDetails.action = CLICK_ACTIONS.UPDATE_END;
-          // 🔧 **HANDLE WRAPPING FIX**: With handle wrapping logic, the clicked position should be the LEFT EDGE of end handle
-          // This means the region end time equals the clicked time (left edge of handle aligns with clicked position)
           actionDetails.newEndTime = clickTime;
           actionDetails.cursor = 'pointer';
           actionDetails.reason = `Moving end to ${clickTime.toFixed(2)}s (left edge of end handle aligns with click)`;
         } else {
-          actionDetails.action = CLICK_ACTIONS.CREATE_SELECTION;
-          actionDetails.newStartTime = clickTime;
-          actionDetails.newEndTime = clickTime;
+          // 🆕 **CURSOR JUMP**: Default to cursor jump when handle update is blocked
+          actionDetails.action = CLICK_ACTIONS.JUMP_TO_TIME;
+          actionDetails.seekTime = clickTime;
           actionDetails.cursor = 'pointer';
-          actionDetails.reason = 'Creating new selection';
+          actionDetails.reason = `Jumping to ${clickTime.toFixed(2)}s (after selection)`;
         }
         break;
         
@@ -225,14 +205,13 @@ export class SmartClickManager {
    * @param {string} handleAtPosition - Handle detected at position
    * @param {boolean} isActualClick - Có phải actual click hay chỉ hover (default: true)
    * @returns {object} Complete action details
-   */
-  processClick(clickTime, startTime, endTime, duration, handleAtPosition, isActualClick = true) {
+   */  processClick(clickTime, startTime, endTime, duration, handleAtPosition, isActualClick = true) {
     // 🎯 ANALYZE: Determine click zone
     const clickZone = this.analyzeClickZone(
       clickTime, startTime, endTime, duration, handleAtPosition
     );
     
-    // 🎯 DETERMINE: Choose appropriate action WITH protection logic
+    // 🎯 DETERMINE: Choose appropriate action
     const actionDetails = this.determineAction(
       clickZone, clickTime, startTime, endTime, duration, isActualClick
     );
@@ -270,8 +249,7 @@ export class SmartClickManager {
    * @param {number} duration - Total duration
    * @param {boolean} isActualClick - Có phải actual click event hay chỉ hover
    * @returns {boolean} True nếu handle update được phép
-   */
-  shouldAllowHandleUpdate(clickZone, clickTime, startTime, endTime, duration, isActualClick = true) {
+   */  shouldAllowHandleUpdate(clickZone, clickTime, startTime, endTime, duration, isActualClick = true) {
     // 🚫 **HOVER PROTECTION**: Nếu chỉ hover và protection enabled, không cho phép update
     if (!isActualClick && this.preferences.enableHoverProtection) {
       return false;
@@ -281,41 +259,41 @@ export class SmartClickManager {
     const isStartAtEdge = Math.abs(startTime - 0) < 0.1; // Start handle gần đầu file (< 0.1s)
     const isEndAtEdge = Math.abs(endTime - duration) < 0.1; // End handle gần cuối file (< 0.1s)
     
-    // 🛡️ **ENHANCED EDGE PROTECTION**: Tăng cường protection với threshold lớn hơn
-    const edgeProtectionThreshold = 0.5; // 🚀 REDUCED: 2.0s → 0.5s để cho phép drag handles dễ hơn
+    // 🆕 **MOVEMENT DISTANCE CHECK**: Kiểm tra khoảng cách di chuyển
+    const moveDistanceThreshold = 1.0; // 1 giây - reasonable distance for handle movement
     
-    // 🔧 **BEFORE_START PROTECTION**: Protect start handle khi đã ở edge
-    if (clickZone === CLICK_ZONES.BEFORE_START && isStartAtEdge && this.preferences.preventAccidentalHandleMove) {
-      // 🛡️ **DISTANCE CHECK**: Kiểm tra khoảng cách click với start handle
-      const distanceFromStart = Math.abs(clickTime - startTime);
-      if (distanceFromStart < edgeProtectionThreshold) {
-        return false;
-      }
-    }
-    
-    // 🔧 **AFTER_END PROTECTION**: Protect end handle khi đã ở edge  
-    if (clickZone === CLICK_ZONES.AFTER_END && isEndAtEdge && this.preferences.preventAccidentalHandleMove) {
-      // 🛡️ **DISTANCE CHECK**: Kiểm tra khoảng cách click với end handle
-      const distanceFromEnd = Math.abs(clickTime - endTime);
-      if (distanceFromEnd < edgeProtectionThreshold) {
-        return false;
-      }
-    }
-    
-    // 🔧 **MINIMAL MOVEMENT PROTECTION**: Tránh movement quá nhỏ
-    const minMovementThreshold = 0.3; // 🚀 REDUCED: 1.0s → 0.3s để cho phép movements nhỏ hơn
+    // 🔧 **BEFORE_START ANALYSIS**: 
     if (clickZone === CLICK_ZONES.BEFORE_START) {
-      const movementDistance = Math.abs(startTime - clickTime);
-      if (movementDistance < minMovementThreshold) {
-        return false;
+      const distanceFromStart = Math.abs(clickTime - startTime);
+      
+      // 🎯 **ALLOW SIGNIFICANT MOVEMENTS**: Luôn cho phép di chuyển khoảng cách lớn
+      if (distanceFromStart >= moveDistanceThreshold) {
+        return true;
       }
+      
+      // 🛡️ **PROTECT SMALL MOVEMENTS NEAR EDGE**: Chỉ block movement nhỏ khi handle đã ở edge
+      if (isStartAtEdge && distanceFromStart < 0.5) {
+        return false; // Block small movements when handle is at edge
+      }
+      
+      return true; // Allow other movements
     }
     
+    // 🔧 **AFTER_END ANALYSIS**:
     if (clickZone === CLICK_ZONES.AFTER_END) {
-      const movementDistance = Math.abs(endTime - clickTime);
-      if (movementDistance < minMovementThreshold) {
-        return false;
+      const distanceFromEnd = Math.abs(clickTime - endTime);
+      
+      // 🎯 **ALLOW SIGNIFICANT MOVEMENTS**: Luôn cho phép di chuyển khoảng cách lớn
+      if (distanceFromEnd >= moveDistanceThreshold) {
+        return true;
       }
+      
+      // 🛡️ **PROTECT SMALL MOVEMENTS NEAR EDGE**: Chỉ block movement nhỏ khi handle đã ở edge
+      if (isEndAtEdge && distanceFromEnd < 0.5) {
+        return false; // Block small movements when handle is at edge
+      }
+      
+      return true; // Allow other movements
     }
     
     // 🛡️ **ADDITIONAL PROTECTION**: Check cho mouse re-entry scenarios

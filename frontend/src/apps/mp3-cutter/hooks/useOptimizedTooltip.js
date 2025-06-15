@@ -103,7 +103,6 @@ export const useOptimizedTooltip = (canvasRef, duration, currentTime, isPlaying,
       rightHandleWidth
     };
   }, []);
-  
   // ⚡ **MAIN CURSOR CALCULATOR** - Optimized for 60fps with handle space awareness + clamping
   const calculateMainCursorTooltip = useCallback(() => {
     if (!canvasRef?.current || !duration || duration === 0 || typeof currentTime !== 'number') return null;
@@ -173,8 +172,7 @@ export const useOptimizedTooltip = (canvasRef, duration, currentTime, isPlaying,
         visible: true,
         x: clampedDurationX,
         originalX: durationX, // Keep original position for reference
-        duration: selectionDuration,
-        formattedTime: formatTime(selectionDuration)
+        duration: selectionDuration,        formattedTime: formatTime(selectionDuration)
       } : null
     };
   }, [canvasRef, duration, startTime, endTime, formatTime, getWaveformArea]);

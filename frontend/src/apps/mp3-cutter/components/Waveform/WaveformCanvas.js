@@ -241,14 +241,9 @@ const WaveformCanvas = React.memo(({
     
     // 1. **BACKGROUND GRADIENT**: Match main canvas
     const gradient = bgCtx.createLinearGradient(0, 0, 0, height);
-    gradient.addColorStop(0, 'rgba(99, 102, 241, 0.04)');
-    gradient.addColorStop(1, 'rgba(168, 85, 247, 0.04)');
+    gradient.addColorStop(0, 'rgba(99, 102, 241, 0.04)');    gradient.addColorStop(1, 'rgba(168, 85, 247, 0.04)');
     bgCtx.fillStyle = gradient;
     bgCtx.fillRect(waveformStartX, 0, availableWaveformWidth, height);    
-    // 🔧 **BORDER**: Match main canvas
-    bgCtx.strokeStyle = '#e2e8f0'; // Border màu xám nhạt hơn từ #cbd5e1 thành #e2e8f0
-    bgCtx.lineWidth = 1;
-    bgCtx.strokeRect(waveformStartX, 0, availableWaveformWidth, height);
     // 2. **GRAY WAVEFORM BARS ONLY**: Render all bars in gray (background)
     const centerY = height / 2;
     const FLAT_BAR_HEIGHT_PX = 1;
@@ -614,10 +609,9 @@ const WaveformCanvas = React.memo(({
       requestRedraw(drawWaveform);
     }
   }, [renderData, requestRedraw, drawWaveform]);
-
   // 🆕 **HANDLE POSITION CALCULATOR**: Calculate handle positions for React rendering
   const handlePositions = useMemo(() => {
-    if (!canvasRef.current || duration === 0 || startTime >= endTime) {
+    if (!canvasRef.current || duration === 0 || startTime >= endTime || !renderData) {
       return { start: null, end: null };
     }
     
@@ -678,11 +672,10 @@ const WaveformCanvas = React.memo(({
         color: isDragging === 'end' ? '#0d9488' : '#14b8a6' // 🔧 **DRAG-ONLY COLOR**: Chỉ đổi màu khi drag, không đổi khi hover
       }
     };
-  }, [canvasRef, duration, startTime, endTime, hoveredHandle, isDragging, containerWidth, isInverted]);
-
+  }, [canvasRef, duration, startTime, endTime, hoveredHandle, isDragging, containerWidth, isInverted, renderData]);
   // 🆕 **CURSOR POSITION CALCULATOR**: Calculate cursor positions for React rendering
   const cursorPositions = useMemo(() => {
-    if (!canvasRef.current || duration === 0) {
+    if (!canvasRef.current || duration === 0 || !renderData) {
       return { mainCursor: null, hoverLine: null };
     }
     
@@ -700,11 +693,69 @@ const WaveformCanvas = React.memo(({
     const waveformStartX = leftHandleWidth;
     const waveformEndX = currentWidth - rightHandleWidth;
     const availableWaveformWidth = waveformEndX - waveformStartX;
-    
-    // 🔵 **MAIN CURSOR CALCULATION**: Map to waveform area
+      // 🔵 **MAIN CURSOR CALCULATION**: Map to waveform area
     const mainCursorPercent = currentTime >= 0 ? currentTime / duration : -1;
     const mainCursorX = mainCursorPercent >= 0 ? 
       waveformStartX + (mainCursorPercent * availableWaveformWidth) : -1;
+    
+    // 🔍 **DEBUG CURSOR & HANDLE POSITIONING**: Log pixel positions when approaching endTime
+    if (currentTime >= 0 && duration > 0 && endTime > 0 && currentTime >= endTime - 0.1) {
+      // Calculate end handle position - EXACTLY match handlePositions logic
+      const regionEndPercent = endTime / duration;
+      const regionEndX = waveformStartX + (regionEndPercent * availableWaveformWidth);
+      const endHandleLeftEdge = regionEndX; // Left edge aligns with region end (normal mode)
+      
+      // Calculate cursor edge positions - EXACTLY match cursor logic
+      const cursorCenter = mainCursorX;
+      const cursorRightEdge = cursorCenter + 0.5; // Cursor width = 1px, right edge = center + 0.5
+      
+    // 🎯 **PRECISE COLLISION CALCULATION**: Match MP3CutterMain shouldPauseAtEndTime logic
+    const TIME_PER_PIXEL = duration / availableWaveformWidth;
+    const CURSOR_HALF_WIDTH = 0.5;
+    const THRESHOLD_OFFSET = CURSOR_HALF_WIDTH * TIME_PER_PIXEL;
+    const calculatedThreshold = endTime - THRESHOLD_OFFSET;
+    const MINIMUM_BUFFER = Math.min(0.001, THRESHOLD_OFFSET * 0.1);
+    const minimumThreshold = Math.max(calculatedThreshold, endTime - MINIMUM_BUFFER);
+    
+    // 🆕 **SAFETY CHECK**: Additional check to prevent any overshoot  
+    const SAFETY_MARGIN = TIME_PER_PIXEL * 0.25;
+    const safeThreshold = Math.max(minimumThreshold - SAFETY_MARGIN, endTime - THRESHOLD_OFFSET - SAFETY_MARGIN);
+      
+      console.log(`🔍 [PixelDebug] Position comparison:`, {
+        currentTime: currentTime.toFixed(6),
+        endTime: endTime.toFixed(6),
+        timeToEnd: (endTime - currentTime).toFixed(6),
+        canvas: {
+          width: currentWidth,
+          waveformStartX,
+          waveformEndX,  
+          availableWaveformWidth,
+          responsiveHandleWidth
+        },
+        cursor: {
+          center: cursorCenter.toFixed(2),
+          rightEdge: cursorRightEdge.toFixed(2),
+          width: 1
+        },
+        handle: {
+          leftEdge: endHandleLeftEdge.toFixed(2),
+          rightEdge: (endHandleLeftEdge + responsiveHandleWidth).toFixed(2),
+          width: responsiveHandleWidth
+        },
+        collision: {
+          timePerPixel: TIME_PER_PIXEL.toFixed(8),
+          thresholdOffset: THRESHOLD_OFFSET.toFixed(6),
+          calculatedThreshold: calculatedThreshold.toFixed(6),
+          minimumThreshold: minimumThreshold.toFixed(6),
+          safetyMargin: SAFETY_MARGIN.toFixed(6),
+          safeThreshold: safeThreshold.toFixed(6),
+          pixelGap: (endHandleLeftEdge - cursorRightEdge).toFixed(2),
+          willCollide: currentTime >= safeThreshold,
+          timeToCollision: (safeThreshold - currentTime).toFixed(6),
+          actualPixelOverlap: cursorRightEdge > endHandleLeftEdge ? (cursorRightEdge - endHandleLeftEdge).toFixed(2) : 'none'
+        }
+      });
+    }
     
     // 🖱️ **HOVER LINE CALCULATION**: Map to waveform area 
     const shouldShowHoverLine = hoverTooltip && hoverTooltip.visible && 
@@ -735,7 +786,7 @@ const WaveformCanvas = React.memo(({
         color: 'rgba(156, 163, 175, 0.6)' // Gray color
       }
     };
-  }, [canvasRef, duration, currentTime, isPlaying, hoverTooltip, isDragging, containerWidth]);
+  }, [canvasRef, duration, currentTime, isPlaying, hoverTooltip, isDragging, containerWidth, endTime, renderData]);
 
   // 🚀 **CLEANUP**: Clean up ImageBitmap on unmount
   useEffect(() => {
@@ -750,12 +801,12 @@ const WaveformCanvas = React.memo(({
       }
     };
   }, []);
-
   return (
     <div className="relative" style={{ 
       minWidth: `${WAVEFORM_CONFIG.RESPONSIVE.MIN_WIDTH}px`,
       overflow: 'visible'
     }}>
+      {/* 🔧 **CANVAS VISIBILITY**: Only show canvas when waveform data exists */}
       <canvas
         ref={canvasRef}
         onPointerDown={handleEnhancedPointerDown}
@@ -766,23 +817,27 @@ const WaveformCanvas = React.memo(({
         style={{ 
           height: WAVEFORM_CONFIG.HEIGHT,
           touchAction: 'none', // 🚀 **IMPORTANT**: Prevent default touch actions for better pointer control
-          zIndex: 1 // Base layer - below everything else
+          zIndex: 1, // Base layer - below everything else
+          visibility: renderData ? 'visible' : 'hidden' // 🔧 **HIDE CANVAS**: Hide when no waveform data to prevent flash
         }}
       />
 
-      <WaveformUI 
-        hoverTooltip={hoverTooltip}
-        handleTooltips={handleTooltipsData}
-        mainCursorTooltip={mainCursorTooltip}
-        handlePositions={handlePositions}
-        cursorPositions={cursorPositions}
-        onHandleMouseDown={handleHandlePointerDown}
-        onHandleMouseMove={handleHandlePointerMove}
-        onHandleMouseUp={handleHandlePointerUp}
-        isPlaying={isPlaying}
-        isDragging={isDragging}
-        isInverted={isInverted}
-      />
+      {/* 🔧 **UI ELEMENTS VISIBILITY**: Only show UI elements when waveform data exists */}
+      {renderData && (
+        <WaveformUI 
+          hoverTooltip={hoverTooltip}
+          handleTooltips={handleTooltipsData}
+          mainCursorTooltip={mainCursorTooltip}
+          handlePositions={handlePositions}
+          cursorPositions={cursorPositions}
+          onHandleMouseDown={handleHandlePointerDown}
+          onHandleMouseMove={handleHandlePointerMove}
+          onHandleMouseUp={handleHandlePointerUp}
+          isPlaying={isPlaying}
+          isDragging={isDragging}
+          isInverted={isInverted}
+        />
+      )}
     </div>
   );
 });
