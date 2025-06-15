@@ -1,267 +1,127 @@
-// 🚀 **PHASE 2: ADVANCED COMPONENT PRELOADER** - Smart preloading for Phase 2 optimization
 import { useState, useEffect, useCallback, useRef } from 'react';
 
-// 🎯 **INTERSECTION OBSERVER PRELOADER** - Preload based on user scroll behavior
+// 1. Intersection Observer Preloader
 export const useIntersectionPreloader = () => {
-  const [preloadTriggers, setPreloadTriggers] = useState(new Set());
-
-  const createTrigger = useCallback((elementRef, componentName, loadComponent) => {
-    if (!elementRef.current || preloadTriggers.has(componentName)) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            // Preloading component...
-            
-            loadComponent()
-              .then(() => {
-                // Component preloaded successfully
-              })
-              .catch(console.warn);
-            
-            observer.disconnect();
-            setPreloadTriggers(prev => new Set([...prev, componentName]));
-          }
-        });
-      },
-      { 
-        rootMargin: '100px', // Start loading 100px before element comes into view
-        threshold: 0.1 
+  const loadedSetRef = useRef(new Set());
+  const createTrigger = useCallback((elementRef, name, loader) => {
+    if (!elementRef.current || loadedSetRef.current.has(name)) return;
+    const observer = new window.IntersectionObserver(entries => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) {
+          loader?.();
+          loadedSetRef.current.add(name);
+          observer.disconnect();
+        }
       }
-    );
-
+    }, { rootMargin: '100px', threshold: 0.1 });
     observer.observe(elementRef.current);
-    
     return () => observer.disconnect();
-  }, [preloadTriggers]);
-
+  }, []);
   return { createTrigger };
 };
 
-// 🎯 **IDLE CALLBACK PRELOADER** - Preload during browser idle time
+// 2. Idle Callback Preloader
 export const useIdlePreloader = () => {
   const [isIdle, setIsIdle] = useState(false);
-
   useEffect(() => {
-    const requestIdleCallback = window.requestIdleCallback || ((cb) => setTimeout(cb, 1));
-      const handleIdle = () => {
-      setIsIdle(true);
-      // Browser is idle - perfect time for preloading
-    };
-
-    requestIdleCallback(handleIdle, { timeout: 2000 });
+    const cb = window.requestIdleCallback || ((f) => setTimeout(f, 1));
+    cb(() => setIsIdle(true), { timeout: 2000 });
   }, []);
-
-  const preloadWhenIdle = useCallback((loadComponent, componentName) => {
-    if (!isIdle) return;
-
-    const requestIdleCallback = window.requestIdleCallback || ((cb) => setTimeout(cb, 1));
-      requestIdleCallback(() => {
-      // Preloading component during idle time...
-      
-      loadComponent()
-        .then(() => {
-          // Component preloaded successfully
-        })
-        .catch(console.warn);
-    }, { timeout: 1000 });
-  }, [isIdle]);
-
+  const preloadWhenIdle = useCallback((loader) => { isIdle && loader?.(); }, [isIdle]);
   return { preloadWhenIdle, isIdle };
 };
 
-// 🎯 **USER INTERACTION PRELOADER** - Preload based on user actions
+// 3. User Interaction Preloader
 export const useInteractionPreloader = () => {
-  const [interactionScore, setInteractionScore] = useState(0);
-
+  const [score, setScore] = useState(0);
   const trackInteraction = useCallback((type) => {
-    setInteractionScore(prev => {
-      const newScore = prev + 1;
-        // Trigger preloading after certain interaction thresholds
-      if (newScore === 3) {
-        // User is actively engaging - preloading FadeControls
-        import('../apps/mp3-cutter/components/Effects/FadeControls').catch(console.warn);      } else if (newScore === 5) {
-        // High engagement - preloading ExportPanel
-        import('../apps/mp3-cutter/components/Export').catch(console.warn);
-      }
-      
-      return newScore;
+    setScore(prev => {
+      const n = prev + 1;
+      if (n === 3) import('../apps/mp3-cutter/components/Effects/FadeControls').catch(()=>{});
+      else if (n === 5) import('../apps/mp3-cutter/components/Export').catch(()=>{});
+      return n;
     });
   }, []);
-
-  return { trackInteraction, interactionScore };
+  return { trackInteraction, interactionScore: score };
 };
 
-// Define preload queue outside component to avoid dependency issues
+// 4. Progressive Preloader (priority queue, only Set as ref, not state)
 const PRELOAD_QUEUE = [
-  {
-    name: 'SmartWaveform',
-    priority: 1,
-    loader: () => import('../apps/mp3-cutter/components/Waveform/SmartWaveform'),
-    trigger: 'fileLoad'
-  },
-  {
-    name: 'UnifiedControlBar',
-    priority: 2,
-    loader: () => import('../apps/mp3-cutter/components/UnifiedControlBar'),
-    trigger: 'fileLoad'
-  },
-  {
-    name: 'FadeControls',
-    priority: 3,
-    loader: () => import('../apps/mp3-cutter/components/Effects/FadeControls'),
-    trigger: 'waveformReady'
-  },
-  {
-    name: 'ExportPanel',
-    priority: 4,
-    loader: () => import('../apps/mp3-cutter/components/Export'),
-    trigger: 'userInteraction'
-  }
+  { name: 'SmartWaveform', priority: 1, loader: () => import('../apps/mp3-cutter/components/Waveform/SmartWaveform'), trigger: 'fileLoad' },
+  { name: 'UnifiedControlBar', priority: 2, loader: () => import('../apps/mp3-cutter/components/UnifiedControlBar'), trigger: 'fileLoad' },
+  { name: 'FadeControls', priority: 3, loader: () => import('../apps/mp3-cutter/components/Effects/FadeControls'), trigger: 'waveformReady' },
+  { name: 'ExportPanel', priority: 4, loader: () => import('../apps/mp3-cutter/components/Export'), trigger: 'userInteraction' }
 ];
-
-// 🎯 **PROGRESSIVE PRELOADER** - Load components in priority order
 export const useProgressivePreloader = () => {
-  const [loadedComponents, setLoadedComponents] = useState(new Set());
-
+  const loadedSet = useRef(new Set());
   const triggerPreload = useCallback((trigger) => {
-    const componentsToLoad = PRELOAD_QUEUE
-      .filter(comp => comp.trigger === trigger && !loadedComponents.has(comp.name))
-      .sort((a, b) => a.priority - b.priority);
-
-    componentsToLoad.forEach((component, index) => {      // Stagger loading to avoid overwhelming the browser
-      setTimeout(() => {
-        // Loading component with priority order
-        
-        component.loader()
-          .then(() => {
-            // Component loaded successfully
-            setLoadedComponents(prev => new Set([...prev, component.name]));
-          })
-          .catch(console.warn);
-      }, index * 200); // 200ms between each component
-    });
-  }, [loadedComponents]);
-
-  return { triggerPreload, loadedComponents };
+    PRELOAD_QUEUE
+      .filter(c => c.trigger === trigger && !loadedSet.current.has(c.name))
+      .sort((a, b) => a.priority - b.priority)
+      .forEach((c, i) => {
+        setTimeout(() => {
+          c.loader().then(() => loadedSet.current.add(c.name)).catch(()=>{});
+        }, i * 150);
+      });
+  }, []);
+  return { triggerPreload, loadedComponents: loadedSet.current };
 };
 
-// 🎯 **NETWORK-AWARE PRELOADER** - Adjust preloading based on connection
+// 5. Network-aware preloader
 export const useNetworkAwarePreloader = () => {
-  const [connectionInfo, setConnectionInfo] = useState({
-    effectiveType: '4g',
-    downlink: 10,
-    saveData: false
-  });
-
+  const [info, setInfo] = useState({ effectiveType: '4g', downlink: 10, saveData: false });
   useEffect(() => {
-    if ('connection' in navigator) {
-      const updateConnection = () => {
-        setConnectionInfo({
-          effectiveType: navigator.connection.effectiveType,
-          downlink: navigator.connection.downlink,
-          saveData: navigator.connection.saveData
-        });
-      };
-
-      updateConnection();
-      navigator.connection.addEventListener('change', updateConnection);
-      
-      return () => {
-        navigator.connection.removeEventListener('change', updateConnection);
-      };
-    }
-  }, []);  const shouldPreload = useCallback((componentSize = 'medium') => {
-    const { effectiveType, saveData } = connectionInfo;
-    
-    // Don't preload if user has save-data enabled
-    if (saveData) {
-      // Save-data mode - skipping preload
-      return false;
-    }
-    
-    // Adjust based on connection speed
-    if (effectiveType === 'slow-2g' || effectiveType === '2g') {
-      // Slow connection - minimal preloading
-      return componentSize === 'small';
-    }
-    
-    if (effectiveType === '3g' && componentSize === 'large') {
-      // 3G connection - skipping large components
-      return false;
-    }
-    
-    // Fast connection - preload everything
+    if (!('connection' in navigator)) return;
+    const update = () => setInfo({
+      effectiveType: navigator.connection.effectiveType,
+      downlink: navigator.connection.downlink,
+      saveData: navigator.connection.saveData
+    });
+    navigator.connection.addEventListener('change', update);
+    update();
+    return () => navigator.connection.removeEventListener('change', update);
+  }, []);
+  const shouldPreload = useCallback((size = 'medium') => {
+    if (info.saveData) return false;
+    if (info.effectiveType === '2g' || info.effectiveType === 'slow-2g') return size === 'small';
+    if (info.effectiveType === '3g' && size === 'large') return false;
     return true;
-  }, [connectionInfo]);
-
-  return { shouldPreload, connectionInfo };
+  }, [info]);
+  return { shouldPreload, connectionInfo: info };
 };
 
-// 🎯 **MEMORY-AWARE PRELOADER** - Monitor memory usage
+// 6. Memory-aware preloader (uses ref, only updates when change >5%)
 export const useMemoryAwarePreloader = () => {
-  const [memoryInfo, setMemoryInfo] = useState(null);
-  const intervalRef = useRef(null);
-
+  const [memory, setMemory] = useState(null);
   useEffect(() => {
-    if ('memory' in performance) {
-      const updateMemory = () => {
-        const newMemoryInfo = {
-          used: performance.memory.usedJSHeapSize,
-          total: performance.memory.totalJSHeapSize,
-          limit: performance.memory.jsHeapSizeLimit
-        };
-        
-        // Only update if there's a significant change to prevent infinite re-renders
-        setMemoryInfo(prev => {
-          if (!prev) return newMemoryInfo;
-          
-          const usageChange = Math.abs(newMemoryInfo.used - prev.used) / prev.used;
-          if (usageChange > 0.05) { // Only update if 5% change
-            return newMemoryInfo;
-          }
-          return prev;
-        });
-      };
-
-      updateMemory();
-      intervalRef.current = setInterval(updateMemory, 10000); // Check every 10 seconds instead of 5
-      
-      return () => {
-        if (intervalRef.current) {
-          clearInterval(intervalRef.current);
-        }
-      };
-    }
-  }, []); // Empty dependency array to run only once
+    if (!performance.memory) return;
+    const update = () => {
+      const m = performance.memory;
+      setMemory(prev => {
+        if (!prev || Math.abs(m.usedJSHeapSize - prev.used) / prev.used > 0.05)
+          return { used: m.usedJSHeapSize, total: m.totalJSHeapSize, limit: m.jsHeapSizeLimit };
+        return prev;
+      });
+    };
+    update();
+    const id = setInterval(update, 10000);
+    return () => clearInterval(id);
+  }, []);
   const shouldPreload = useCallback(() => {
-    if (!memoryInfo) return true; // If we can't measure, proceed
-
-    const usagePercent = (memoryInfo.used / memoryInfo.limit) * 100;
-    
-    if (usagePercent > 80) {
-      // High memory usage - skipping preload
-      return false;
-    }
-    
-    if (usagePercent > 60) {
-      // Moderate memory usage - limited preloading
-      return 'limited';
-    }
-    
+    if (!memory) return true;
+    const percent = (memory.used / memory.limit) * 100;
+    if (percent > 80) return false;
+    if (percent > 60) return 'limited';
     return true;
-  }, [memoryInfo]);
-
-  return { shouldPreload, memoryInfo };
+  }, [memory]);
+  return { shouldPreload, memoryInfo: memory };
 };
 
-const advancedPreloaderHooks = {
+export default {
   useIntersectionPreloader,
   useIdlePreloader,
   useInteractionPreloader,
   useProgressivePreloader,
   useNetworkAwarePreloader,
-  useMemoryAwarePreloader
+  useMemoryAwarePreloader,
 };
-
-export default advancedPreloaderHooks;
