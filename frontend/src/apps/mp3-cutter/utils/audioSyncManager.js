@@ -94,10 +94,14 @@ export class AudioSyncManager {
           const proposedTime = newTime - this.preferences.endHandleOffset;
           targetTime = Math.max(startTime, proposedTime); // ✅ Never go before startTime
         }
+      }    } else if (handleType === 'region') {
+      if (isInverted) {
+        // 🆕 **INVERT MODE - REGION**: Cursor 3s before start of region
+        targetTime = Math.max(0, startTime - 3);
+      } else {
+        // 🎯 **NORMAL MODE - REGION**: Cursor at start of region
+        targetTime = startTime;
       }
-    } else if (handleType === 'region') {
-      // 🆕 **REGION START SYNC**: newTime is already startTime - no offset needed
-      targetTime = newTime; // 🎯 **SIMPLIFIED**: newTime is already startTime for region
     }
     
     const timeDifference = Math.abs(targetTime - currentAudioTime);
@@ -154,10 +158,16 @@ export class AudioSyncManager {
     if (shouldSyncStart || shouldSyncEnd || shouldSyncRegion) {
       // 🎯 FORCE FINAL SYNC: Ignore throttling for completion
       this.lastSyncTime = 0; // Reset throttle
-      
-      // 🆕 **REGION SYNC**: Region drag completion - sync to start not middle
+        // 🆕 **REGION SYNC**: Region drag completion - sync with invert mode awareness
       if (handleType === 'region') {
-        this.syncAudioCursor(startTime, audioRef, setCurrentTime, isPlaying, 'region', startTime, isInverted); // 🎯 **SYNC TO START**: Use startTime instead of finalTime
+        if (isInverted) {
+          // 🆕 **INVERT MODE**: Cursor 3s before start time of region
+          const targetTime = Math.max(0, startTime - 3);
+          this.syncAudioCursor(targetTime, audioRef, setCurrentTime, isPlaying, 'region', startTime, isInverted);
+        } else {
+          // 🎯 **NORMAL MODE**: Cursor at start time of region
+          this.syncAudioCursor(startTime, audioRef, setCurrentTime, isPlaying, 'region', startTime, isInverted);
+        }
       } else {
         // 🔥 **INTELLIGENT SYNC**: Pass startTime for boundary checking in end handle sync
         this.syncAudioCursor(finalTime, audioRef, setCurrentTime, isPlaying, handleType, startTime, isInverted);
@@ -328,10 +338,14 @@ export class AudioSyncManager {
           const proposedTime = newTime - this.preferences.endHandleOffset;
           targetTime = Math.max(startTime, proposedTime); // ✅ Never go before startTime
         }
+      }    } else if (handleType === 'region') {
+      if (isInverted) {
+        // 🆕 **INVERT MODE - REGION DRAG**: Cursor 3s before start of region
+        targetTime = Math.max(0, startTime - 3);
+      } else {
+        // 🎯 **NORMAL MODE - REGION DRAG**: Cursor at start of region
+        targetTime = startTime;
       }
-    } else if (handleType === 'region') {
-      // 🆕 **REGION START SYNC**: Always sync to region start as requested by user
-      targetTime = startTime; // 🎯 **SIMPLIFIED**: Use startTime instead of newTime (which was middle)
     }
     
     // 🔥 **MICRO-OPTIMIZATION**: Skip if change is too small (< 1ms) but allow for region drag

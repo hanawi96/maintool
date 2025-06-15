@@ -176,11 +176,11 @@ export const useOptimizedTooltip = (canvasRef, duration, currentTime, isPlaying,
       } : null
     };
   }, [canvasRef, duration, startTime, endTime, formatTime, getWaveformArea]);
-  
-  // ⚡ **HOVER CALCULATOR** - 60fps optimized with absolute canvas bounds for tooltip
+    // ⚡ **HOVER CALCULATOR** - 60fps optimized with absolute canvas bounds for tooltip
   const calculateHoverTooltip = useCallback(() => {
     if (!isHoverActive || !hoverMousePosition || !canvasRef?.current || !duration ||
-        isDragging === 'start' || isDragging === 'end') return null;
+        isDragging === 'start' || isDragging === 'end' || 
+        isDragging === 'region' || isDragging === 'region-potential') return null;
     
     const canvas = canvasRef.current;
     const { x: mouseX } = hoverMousePosition;

@@ -90,8 +90,7 @@ export class SmartClickManager {
     // 🎯 FALLBACK: Should not reach here
     return CLICK_ZONES.OUTSIDE_DURATION;
   }
-  
-  /**
+    /**
    * 🎯 Determine smart action based on click zone
    * @param {string} clickZone - Result from analyzeClickZone
    * @param {number} clickTime - Time position of click
@@ -99,9 +98,10 @@ export class SmartClickManager {
    * @param {number} endTime - Current end time
    * @param {number} duration - Total duration cho protection logic
    * @param {boolean} isActualClick - Có phải actual click hay chỉ hover
+   * @param {boolean} isInverted - Whether invert selection mode is active (default: false)
    * @returns {object} Action details with type and parameters
    */
-  determineAction(clickZone, clickTime, startTime, endTime, duration = Infinity, isActualClick = true) {
+  determineAction(clickZone, clickTime, startTime, endTime, duration = Infinity, isActualClick = true, isInverted = false) {
     const actionDetails = {
       zone: clickZone,
       action: CLICK_ACTIONS.NO_ACTION,
@@ -126,9 +126,19 @@ export class SmartClickManager {
         actionDetails.handle = 'end';
         actionDetails.cursor = 'ew-resize';
         actionDetails.reason = 'Dragging end handle';
-        break;
+        break;      case CLICK_ZONES.INSIDE_SELECTION:
+        // 🛡️ **INVERT MODE LOGIC**: Allow region drag but block cursor jump
+        if (isInverted) {
+          // 🎯 **ENABLE REGION DRAG ONLY**: No cursor jump, but allow potential region drag
+          actionDetails.action = CLICK_ACTIONS.JUMP_TO_TIME; // Use same action but will be blocked in mouse up
+          actionDetails.seekTime = clickTime;
+          actionDetails.cursor = 'grab'; // Show grab cursor to indicate draggable
+          actionDetails.reason = 'INVERT MODE: Region drag enabled, cursor jump blocked';
+          actionDetails.blockedByInvertMode = true; // 🆕 **FLAG**: Mark cursor jump as blocked
+          actionDetails.regionDragPotential = true; // 🔧 **ENABLE REGION DRAG**: Allow region drag
+          break;
+        }
         
-      case CLICK_ZONES.INSIDE_SELECTION:
         // 🆕 **ENHANCED LOGIC**: Click trong region có thể jump hoặc enable drag potential
         // Default action là JUMP_TO_TIME, nhưng cần chuẩn bị cho region drag potential
         actionDetails.action = CLICK_ACTIONS.JUMP_TO_TIME;
@@ -138,7 +148,7 @@ export class SmartClickManager {
         
         // 🆕 **REGION DRAG POTENTIAL**: Mark để có thể trigger region drag khi có movement
         actionDetails.regionDragPotential = true; // 🔧 **ENABLE REGION DRAG**: Flag để interactionManager biết có thể drag region
-        break;      case CLICK_ZONES.BEFORE_START:
+        break;case CLICK_ZONES.BEFORE_START:
         // 🎯 **SMART LOGIC**: Check if this should be handle update or cursor jump
         if (this.preferences.enableSmartUpdate && this.shouldAllowHandleUpdate(clickZone, clickTime, startTime, endTime, duration, isActualClick)) {
           // 🔧 **HANDLE UPDATE**: Update start handle position
@@ -195,8 +205,7 @@ export class SmartClickManager {
     
     return actionDetails;
   }
-  
-  /**
+    /**
    * 🎯 Process smart click with full analysis
    * @param {number} clickTime - Time position of click
    * @param {number} startTime - Current start time
@@ -204,8 +213,9 @@ export class SmartClickManager {
    * @param {number} duration - Total audio duration
    * @param {string} handleAtPosition - Handle detected at position
    * @param {boolean} isActualClick - Có phải actual click hay chỉ hover (default: true)
+   * @param {boolean} isInverted - Whether invert selection mode is active (default: false)
    * @returns {object} Complete action details
-   */  processClick(clickTime, startTime, endTime, duration, handleAtPosition, isActualClick = true) {
+   */  processClick(clickTime, startTime, endTime, duration, handleAtPosition, isActualClick = true, isInverted = false) {
     // 🎯 ANALYZE: Determine click zone
     const clickZone = this.analyzeClickZone(
       clickTime, startTime, endTime, duration, handleAtPosition
@@ -213,7 +223,7 @@ export class SmartClickManager {
     
     // 🎯 DETERMINE: Choose appropriate action
     const actionDetails = this.determineAction(
-      clickZone, clickTime, startTime, endTime, duration, isActualClick
+      clickZone, clickTime, startTime, endTime, duration, isActualClick, isInverted
     );
     
     return actionDetails;

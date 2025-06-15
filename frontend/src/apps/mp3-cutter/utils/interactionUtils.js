@@ -150,10 +150,10 @@ export class InteractionManager {
     this.isDraggingRegion = false;             // True khi đang drag toàn bộ region
     this.regionDragStartTime = null;           // Reference time cho region drag
     this.regionDragOffset = 0;                 // Offset từ click position đến region start
-    
-    // 🆕 **PENDING JUMP**: Support cho delayed cursor movement
+      // 🆕 **PENDING JUMP**: Support cho delayed cursor movement
     this.pendingJumpTime = null;               // Time to jump to after mouse up (if no drag)
     this.hasPendingJump = false;               // Flag to track pending jump
+    this.pendingJumpBlockedByInvert = false;   // 🆕 **INVERT MODE BLOCK**: Flag to block pending jump in invert mode
     
     // 🆕 **PENDING HANDLE UPDATES**: Support cho delayed handle movement
     this.pendingHandleUpdate = null;           // {type: 'start'|'end', newTime: number, reason: string}
@@ -225,10 +225,10 @@ export class InteractionManager {
         this.isDraggingRegion = false;
         this.regionDragStartTime = null;
         this.regionDragOffset = 0;
-        
-        // Clear pending actions
+          // Clear pending actions
         this.pendingJumpTime = null;
         this.hasPendingJump = false;
+        this.pendingJumpBlockedByInvert = false; // 🆕 **RESET INVERT BLOCK**: Reset invert block flag
         this.pendingHandleUpdate = null;
         this.hasPendingHandleUpdate = false;
         
@@ -334,12 +334,12 @@ export class InteractionManager {
     this.dragStartTime = null;
     this.isDraggingConfirmed = false;
     this.isDraggingRegion = false;
-    this.regionDragStartTime = null;
-    this.regionDragOffset = 0;
+    this.regionDragStartTime = null;    this.regionDragOffset = 0;
     
     // Clear pending actions
     this.pendingJumpTime = null;
     this.hasPendingJump = false;
+    this.pendingJumpBlockedByInvert = false; // 🆕 **RESET INVERT BLOCK**: Reset invert block flag
     this.pendingHandleUpdate = null;
     this.hasPendingHandleUpdate = false;
       // 🎯 **SMART HANDLE DETECTION**: Updated to use eventInfo AND audio context for invert mode
@@ -393,10 +393,9 @@ export class InteractionManager {
     
     // 🆕 **TRACK MOUSE DOWN**: Record mouse down event for drag detection
     this.isDraggingConfirmed = false;
-    
-    // 🆕 NEW: Use SmartClickManager for intelligent click analysis
+      // 🆕 NEW: Use SmartClickManager for intelligent click analysis
     const smartAction = this.smartClickManager.processClick(
-      currentTimePosition, startTime, endTime, duration, detectedHandle
+      currentTimePosition, startTime, endTime, duration, detectedHandle, true, isInverted
     );
     
     // 🎯 Process smart action
@@ -422,11 +421,11 @@ export class InteractionManager {
             offsetForEnd: smartAction.handle === HANDLE_TYPES.END ? 3.0 : 0
           }
         };
-        
-      case CLICK_ACTIONS.JUMP_TO_TIME:
+          case CLICK_ACTIONS.JUMP_TO_TIME:
         // 🆕 **DELAY CURSOR MOVEMENT**: Store pending jump thay vì jump ngay để tránh shock khi drag
         this.pendingJumpTime = smartAction.seekTime;
         this.hasPendingJump = true;
+        this.pendingJumpBlockedByInvert = smartAction.blockedByInvertMode || false; // 🆕 **TRACK INVERT BLOCK**: Track if jump is blocked by invert mode
         
         // 🆕 **REGION DRAG POTENTIAL**: Check if this click can potentially become region drag
         if (smartAction.regionDragPotential && this.smartClickManager.preferences.enableRegionDrag) {
@@ -443,7 +442,8 @@ export class InteractionManager {
           action: 'pendingJump', // 🆕 **NEW ACTION**: Indicate pending jump instead of immediate
           time: smartAction.seekTime,
           regionDragPotential: smartAction.regionDragPotential || false,
-          pendingJumpTime: this.pendingJumpTime // 🆕 **PASS PENDING TIME**: For debugging
+          pendingJumpTime: this.pendingJumpTime, // 🆕 **PASS PENDING TIME**: For debugging
+          blockedByInvertMode: smartAction.blockedByInvertMode || false // 🆕 **PASS INVERT BLOCK FLAG**: For UI to handle
         };
         
       case CLICK_ACTIONS.UPDATE_START:
@@ -518,12 +518,12 @@ export class InteractionManager {
             originalEnd: endTime
           }
         };
-        
-      case CLICK_ACTIONS.NO_ACTION:
+          case CLICK_ACTIONS.NO_ACTION:
       default:
         return {
           action: 'none',
-          reason: smartAction.reason
+          reason: smartAction.reason,
+          blockedByInvertMode: smartAction.blockedByInvertMode || false // 🆕 **INVERT MODE FLAG**: Pass through the flag
         };
     }
   }
@@ -581,18 +581,12 @@ export class InteractionManager {
         // 🔒 **BOUNDARY CHECK**: Đảm bảo region không ra ngoài duration
         const adjustedStartTime = Math.max(0, Math.min(newStartTime, duration - regionDuration));
         const adjustedEndTime = adjustedStartTime + regionDuration;
-        
-        // 🎯 **SIMPLIFIED REGION SYNC**: Always sync to region start as requested
+          // 🎯 **SIMPLIFIED REGION SYNC**: Always sync to region start as requested
         let audioSynced = false;
         if (audioContext) {
-          const { audioRef, setCurrentTime } = audioContext;
-          
-          // 🆕 **REGION START SYNC**: Always sync to start of region for consistent behavior
-          const targetSyncTime = adjustedStartTime; // 🎯 **SIMPLIFIED**: Always use region start
-          
-          // 🚀 **ULTRA-SMOOTH REAL-TIME SYNC**: Force immediate sync with no throttling - always to start
+          const { audioRef, setCurrentTime } = audioContext;          // 🚀 **ULTRA-SMOOTH REAL-TIME SYNC**: Force immediate sync with no throttling - pass startTime correctly
           audioSynced = this.audioSyncManager.realTimeSync(
-            targetSyncTime, audioRef, setCurrentTime, 'region', true, adjustedStartTime, audioContext.isInverted // force = true, pass isInverted
+            adjustedStartTime, audioRef, setCurrentTime, 'region', true, adjustedStartTime, audioContext.isInverted // newTime = adjustedStartTime, startTime = adjustedStartTime
           );
         }
         
@@ -689,16 +683,20 @@ export class InteractionManager {
         
         if (handle) {
           // 🎯 **HANDLE HOVER**: Resize cursor cho handles
-          hoverCursor = 'ew-resize';
-        } else {
+          hoverCursor = 'ew-resize';        } else {
           // 🆕 **CHECK REGION HOVER**: Kiểm tra xem có hover trong region không
           const timeAtPosition = positionToTime(x, canvasWidth, duration);
           const isInRegion = timeAtPosition >= startTime && timeAtPosition <= endTime && 
                             startTime < endTime; // Ensure có valid region
           
           if (isInRegion) {
-            // 🤚 **REGION HOVER**: Grab cursor (bàn tay xòe ra) khi hover vào region - theo yêu cầu user
-            hoverCursor = 'grab'; // 🤚 **GRAB CURSOR**: "Hình bàn tay xòe ra" như user yêu cầu
+            // 🛡️ **INVERT MODE PROTECTION**: No special cursor when hovering region in invert mode
+            if (audioContext?.isInverted) {
+              hoverCursor = 'pointer'; // Keep default cursor in invert mode
+            } else {
+              // 🤚 **REGION HOVER**: Grab cursor (bàn tay xòe ra) khi hover vào region - theo yêu cầu user
+              hoverCursor = 'grab'; // 🤚 **GRAB CURSOR**: "Hình bàn tay xòe ra" như user yêu cầu
+            }
           }
         }
         
@@ -770,16 +768,14 @@ export class InteractionManager {
     this.isDraggingRegion = false;
     this.regionDragStartTime = null;
     this.regionDragOffset = 0;
-    
-    // 🆕 **EXECUTE PENDING JUMP**: Execute delayed jump nếu không có confirmed drag
+      // 🆕 **EXECUTE PENDING JUMP**: Execute delayed jump nếu không có confirmed drag
     let executePendingJump = false;
     let pendingHandleUpdateData = null;     // 🆕 **STORE DATA**: Store before reset
     
-    if (hasPendingJump && !wasConfirmedDrag && pendingJumpTime !== null) {
+    if (hasPendingJump && !wasConfirmedDrag && pendingJumpTime !== null && !this.pendingJumpBlockedByInvert) {
       executePendingJump = true;
     }
-    
-    // 🆕 **EXECUTE PENDING HANDLE UPDATE**: Execute delayed handle update nếu không có confirmed drag
+      // 🆕 **EXECUTE PENDING HANDLE UPDATE**: Execute delayed handle update nếu không có confirmed drag
     if (executePendingHandleUpdate) {
       pendingHandleUpdateData = { ...this.pendingHandleUpdate }; // Store copy before reset
     }
@@ -787,6 +783,7 @@ export class InteractionManager {
     // 🆕 **RESET PENDING JUMP**: Reset pending jump state
     this.pendingJumpTime = null;
     this.hasPendingJump = false;
+    this.pendingJumpBlockedByInvert = false; // 🆕 **RESET INVERT BLOCK**: Reset invert block flag
     
     // 🆕 **RESET PENDING HANDLE UPDATES**: Reset pending handle update state
     this.pendingHandleUpdate = null;
@@ -800,8 +797,7 @@ export class InteractionManager {
     return {
       action: wasDragging ? 'completeDrag' : 'none',
       saveHistory: shouldSaveHistory, // 🆕 **LƯU HISTORY CHO HANDLE UPDATES**: Lưu history cho cả confirmed drag và pending handle updates
-      cursor: this.lastHoveredHandle ? 'ew-resize' : 'pointer', // 🔧 **CURSOR LOGIC**: ew-resize for handle hover, pointer for default
-      audioSynced: wasDragging && audioContext && (draggedHandle || wasRegionDrag) && wasConfirmedDrag,
+      cursor: this.lastHoveredHandle ? 'ew-resize' : 'pointer', // 🔧 **CURSOR LOGIC**: ew-resize for handle hover, pointer for default      audioSynced: wasDragging && audioContext && (draggedHandle || wasRegionDrag) && wasConfirmedDrag,
       wasRegionDrag: wasRegionDrag, // 🆕 **FLAG**: Thông báo đã hoàn thành region drag
       // 🆕 **PENDING JUMP RESULT**: Return pending jump info
       executePendingJump: executePendingJump,
@@ -843,11 +839,11 @@ export class InteractionManager {
       
       // 🔧 **RESET NON-DRAG STATES**: Chỉ reset hover và pending actions
       this.lastHoveredHandle = HANDLE_TYPES.NONE;
-      
-      // 🛡️ **CLEAR PENDING ACTIONS**: Clear pending actions để tránh trigger khi mouse re-enter
+        // 🛡️ **CLEAR PENDING ACTIONS**: Clear pending actions để tránh trigger khi mouse re-enter
       if (this.hasPendingJump) {
         this.pendingJumpTime = null;
         this.hasPendingJump = false;
+        this.pendingJumpBlockedByInvert = false; // 🆕 **RESET INVERT BLOCK**: Reset invert block flag
       }
       
       if (this.hasPendingHandleUpdate) {
@@ -915,12 +911,12 @@ export class InteractionManager {
     
     // 🆕 **RESET REGION DRAG**: Reset region drag state
     this.isDraggingRegion = false;
-    this.regionDragStartTime = null;
-    this.regionDragOffset = 0;
+    this.regionDragStartTime = null;    this.regionDragOffset = 0;
     
     // 🆕 **RESET PENDING JUMP**: Reset pending jump state
     this.pendingJumpTime = null;
     this.hasPendingJump = false;
+    this.pendingJumpBlockedByInvert = false; // 🆕 **RESET INVERT BLOCK**: Reset invert block flag
     
     // 🆕 **RESET PENDING HANDLE UPDATES**: Reset pending handle update state
     this.pendingHandleUpdate = null;

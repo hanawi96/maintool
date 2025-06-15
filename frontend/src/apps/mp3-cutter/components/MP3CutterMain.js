@@ -265,42 +265,7 @@ const MP3CutterMain = React.memo(() => {
     updateFadeConfig
   }), [audioRef, setCurrentTime, jumpToTime, isPlaying, fadeIn, fadeOut, startTime, endTime, isInverted, updateFadeConfig]);
 
-  // 🎯 **INTERACTION HANDLERS**: Extract interaction logic using custom hook
-  const {
-    handleCanvasMouseDown,
-    handleCanvasMouseMove,
-    handleCanvasMouseUp,
-    handleCanvasMouseLeave
-  } = useInteractionHandlers({
-    canvasRef,
-    duration,
-    startTime,
-    endTime,
-    audioRef,
-    isPlaying,
-    fadeIn,
-    fadeOut,
-    
-    // 🔧 **FIX MISSING PARAMETER**: Add isDragging state
-    isDragging, // 🆕 **ADDED**: Pass isDragging state to fix undefined error
-    
-    // State setters
-    setStartTime,
-    setEndTime,
-    setIsDragging,
-    setHoveredHandle,
-    setCurrentTime,
-    
-    // Utilities
-    jumpToTime,
-    saveState,
-    interactionManagerRef,
-    
-    // 🆕 **AUDIO CONTEXT**: Pass full audio context with isInverted
-    audioContext
-  });
-
-  // 🎯 **TIME CHANGE HANDLERS**: Extract time change logic using custom hook
+  // 🎯 **TIME CHANGE HANDLERS**: Extract time change logic using custom hook (MOVED UP)
   const {
     handleStartTimeChange: originalHandleStartTimeChange,
     handleEndTimeChange: originalHandleEndTimeChange,
@@ -337,20 +302,66 @@ const MP3CutterMain = React.memo(() => {
     // No need to change play state - if it was playing, it continues; if paused, stays paused
   }, [originalHandleStartTimeChange, jumpToTime, isInverted]);
 
-  // 🆕 **ENHANCED END TIME HANDLER**: Auto-jump cursor to 3 seconds before new end point
+  // 🆕 **ENHANCED END TIME HANDLER**: Auto-jump cursor based on invert mode
   const handleEndTimeChange = useCallback((newEndTime) => {
     
     // 1. Update end time first
     originalHandleEndTimeChange(newEndTime);
     
-    // 2. Calculate cursor position: 3 seconds before new end point, but not before start time
-    const targetCursorTime = Math.max(startTime, newEndTime - 3);
+    // 2. Jump main cursor based on invert mode
+    let targetCursorTime;
+    if (isInverted) {
+      // 🆕 **INVERT MODE**: Jump cursor 3s before start point (same as start handle)
+      targetCursorTime = Math.max(0, startTime - 3);
+    } else {
+      // 🎯 **NORMAL MODE**: Jump cursor 3s before new end point, but not before start time
+      targetCursorTime = Math.max(startTime, newEndTime - 3);
+    }
     
     // 3. Jump main cursor to calculated position
     jumpToTime(targetCursorTime);
     
     // No need to change play state - if it was playing, it continues; if paused, stays paused
-  }, [originalHandleEndTimeChange, jumpToTime, startTime]);
+  }, [originalHandleEndTimeChange, jumpToTime, startTime, isInverted]);
+
+  // 🎯 **INTERACTION HANDLERS**: Extract interaction logic using custom hook (MOVED DOWN)
+  const {
+    handleCanvasMouseDown,
+    handleCanvasMouseMove,
+    handleCanvasMouseUp,
+    handleCanvasMouseLeave
+  } = useInteractionHandlers({
+    canvasRef,
+    duration,
+    startTime,
+    endTime,
+    audioRef,
+    isPlaying,
+    fadeIn,
+    fadeOut,
+    
+    // 🔧 **FIX MISSING PARAMETER**: Add isDragging state
+    isDragging, // 🆕 **ADDED**: Pass isDragging state to fix undefined error
+    
+    // State setters
+    setStartTime,
+    setEndTime,
+    setIsDragging,
+    setHoveredHandle,
+    setCurrentTime,
+    
+    // 🆕 **INVERT MODE HANDLERS**: Add enhanced handlers for invert logic
+    handleStartTimeChange,
+    handleEndTimeChange,
+    
+    // Utilities
+    jumpToTime,
+    saveState,
+    interactionManagerRef,
+    
+    // 🆕 **AUDIO CONTEXT**: Pass full audio context with isInverted
+    audioContext
+  });
 
   // 🔥 **ESSENTIAL SETUP ONLY**
   useEffect(() => {

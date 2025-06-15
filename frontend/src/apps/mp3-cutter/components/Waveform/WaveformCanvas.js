@@ -756,10 +756,10 @@ const WaveformCanvas = React.memo(({
         }
       });
     }
-    
-    // 🖱️ **HOVER LINE CALCULATION**: Map to waveform area 
+      // 🖱️ **HOVER LINE CALCULATION**: Map to waveform area - Hide during all drag operations
     const shouldShowHoverLine = hoverTooltip && hoverTooltip.visible && 
-      isDragging !== 'start' && isDragging !== 'end';
+      isDragging !== 'start' && isDragging !== 'end' && 
+      isDragging !== 'region' && isDragging !== 'region-potential';
     
     // 🔧 **UNCLAMPED HOVER LINE**: Use cursorX (original mouse position) for cursor line
     let hoverLineX = -1;

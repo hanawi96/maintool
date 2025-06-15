@@ -22,6 +22,10 @@ export const useInteractionHandlers = ({
   setHoveredHandle,
   setCurrentTime,
   
+  // 🆕 **INVERT MODE HANDLERS**: Enhanced handlers with invert logic
+  handleStartTimeChange,
+  handleEndTimeChange,
+  
   // Utilities
   jumpToTime,
   saveState,
@@ -62,8 +66,9 @@ export const useInteractionHandlers = ({
           setTimeout(() => saveState({ startTime, endTime, fadeIn, fadeOut }), 100);
           return;
         }
-        if (result.startTime !== undefined) setStartTime(result.startTime);
-        if (result.endTime !== undefined) setEndTime(result.endTime);
+        // 🆕 **USE ENHANCED HANDLERS**: Use enhanced handlers for proper cursor positioning
+        if (result.startTime !== undefined) handleStartTimeChange(result.startTime);
+        if (result.endTime !== undefined) handleEndTimeChange(result.endTime);
       };
       
       manager.setupGlobalDragContext(rect, canvasRef.current.width, duration, startTime, endTime, audioContext, globalDragCallback);
@@ -87,7 +92,7 @@ export const useInteractionHandlers = ({
         // No action needed for other cases
         break;
     }
-  }, [canvasRef, duration, startTime, endTime, setStartTime, setEndTime, setIsDragging, interactionManagerRef, audioContext, saveState, fadeIn, fadeOut]);
+  }, [canvasRef, duration, startTime, endTime, setStartTime, setEndTime, setIsDragging, interactionManagerRef, audioContext, saveState, fadeIn, fadeOut, handleStartTimeChange, handleEndTimeChange]);
 
   // 🎯 **OPTIMIZED MOUSE MOVE**
   const handleCanvasMouseMove = useCallback((e) => {
@@ -102,11 +107,19 @@ export const useInteractionHandlers = ({
     
     const manager = interactionManagerRef.current;
     const result = manager.handleMouseMove(x, canvasRef.current.width, duration, startTime, endTime, audioContext);
-    
-    switch (result.action) {
-      case 'updateRegion':
-        if (result.startTime !== undefined) setStartTime(result.startTime);
-        if (result.endTime !== undefined) setEndTime(result.endTime);
+      switch (result.action) {
+            case 'updateRegion':
+        // 🆕 **USE ENHANCED HANDLERS**: Use enhanced handlers for proper cursor positioning
+        if (result.isRegionDrag) {
+          // 🎯 **REGION DRAG**: Only update start/end times, don't call enhanced handlers
+          // This avoids cursor jumping to endTime - 3 in normal mode
+          if (result.startTime !== undefined) setStartTime(result.startTime);
+          if (result.endTime !== undefined) setEndTime(result.endTime);
+        } else {
+          // 🎯 **HANDLE DRAG**: Use enhanced handlers for proper cursor positioning
+          if (result.startTime !== undefined) handleStartTimeChange(result.startTime);
+          if (result.endTime !== undefined) handleEndTimeChange(result.endTime);
+        }
         break;
       case 'hover':
         setHoveredHandle(result.handle);
@@ -118,7 +131,7 @@ export const useInteractionHandlers = ({
     
     // 🎯 **CURSOR UPDATE**: Set hovered handle based on cursor
     setHoveredHandle(result.cursor === 'ew-resize' && result.handle ? result.handle : null);
-  }, [canvasRef, duration, startTime, endTime, setStartTime, setEndTime, setHoveredHandle, interactionManagerRef, audioContext]);
+  }, [canvasRef, duration, startTime, endTime, setHoveredHandle, interactionManagerRef, audioContext, handleStartTimeChange, handleEndTimeChange, setStartTime, setEndTime]);
 
   // 🎯 **OPTIMIZED MOUSE UP**
   const handleCanvasMouseUp = useCallback(() => {
@@ -154,23 +167,16 @@ export const useInteractionHandlers = ({
       console.log(`⚡ [${isInvertMode ? 'InvertMode' : 'NormalMode'}] Jumped cursor to ${result.pendingJumpTime.toFixed(2)}s`);
     }
     
-    // 🔄 **HANDLE UPDATE LOGIC**: Only in normal mode, or in invert mode without pending jump
+    // 🔄 **HANDLE UPDATE LOGIC**: Use enhanced handlers for invert mode support
     if (result.executePendingHandleUpdate && result.pendingHandleUpdate !== null && !isInvertMode) {
       const updateData = result.pendingHandleUpdate;
       
       if (updateData.type === 'start') {
-        setStartTime(updateData.newTime);
-        if (audioRef.current) {
-          audioRef.current.currentTime = updateData.newTime;
-          setCurrentTime(updateData.newTime);
-        }
+        // 🆕 **USE ENHANCED HANDLER**: Use handleStartTimeChange for invert logic
+        handleStartTimeChange(updateData.newTime);
       } else if (updateData.type === 'end') {
-        setEndTime(updateData.newTime);
-        const previewTime = Math.max(0, updateData.newTime - 3.0);
-        if (audioRef.current) {
-          audioRef.current.currentTime = previewTime;
-          setCurrentTime(previewTime);
-        }
+        // 🆕 **USE ENHANCED HANDLER**: Use handleEndTimeChange for invert logic
+        handleEndTimeChange(updateData.newTime);
       }
       console.log(`📍 [NormalMode] Updated ${updateData.type} handle to ${updateData.newTime.toFixed(2)}s`);
     } else if (result.executePendingHandleUpdate && result.pendingHandleUpdate !== null && isInvertMode) {
@@ -207,7 +213,7 @@ export const useInteractionHandlers = ({
     } else if (result.saveHistory && historySavedRef.current) {
       console.log(`🚫 [History] Pending handle update - history already saved, skipping duplicate`);
     }
-  }, [startTime, endTime, fadeIn, fadeOut, duration, saveState, setIsDragging, audioRef, setCurrentTime, jumpToTime, setStartTime, setEndTime, interactionManagerRef, audioContext]);
+  }, [startTime, endTime, fadeIn, fadeOut, duration, saveState, setIsDragging, audioRef, setCurrentTime, jumpToTime, setStartTime, setEndTime, interactionManagerRef, audioContext, handleStartTimeChange, handleEndTimeChange]);
 
   // 🎯 **OPTIMIZED MOUSE LEAVE**
   const handleCanvasMouseLeave = useCallback(() => {

@@ -89,9 +89,10 @@ export const WaveformUI = memo(({
 
   // 🚀 **PHASE 2: ALWAYS SHOW TOOLTIPS** - Remove playing state restrictions for tooltips
   const enableHoverEffects = true; // 🆕 **ALWAYS ENABLE**: Always show hover effects regardless of play state
-  const enableNonEssentialTooltips = true; // 🆕 **ALWAYS ENABLE**: Always show all tooltips regardless of play state
-  // 🚀 **OPTIMIZED CONDITIONAL RENDERING** - Always show tooltips for better UX
-  const shouldRenderHoverTooltip = enableHoverEffects && hoverTooltip?.visible && hoverTooltip.x >= 0;
+  const enableNonEssentialTooltips = true; // 🆕 **ALWAYS ENABLE**: Always show all tooltips regardless of play state  // 🚀 **OPTIMIZED CONDITIONAL RENDERING** - Always show tooltips for better UX, but hide hover tooltip during drag operations
+  const shouldRenderHoverTooltip = enableHoverEffects && hoverTooltip?.visible && hoverTooltip.x >= 0 && 
+    isDragging !== 'start' && isDragging !== 'end' && 
+    isDragging !== 'region' && isDragging !== 'region-potential';
   const shouldRenderStartTooltip = enableNonEssentialTooltips && handleTooltips?.start?.visible && handleTooltips.start.x >= 0 && handlePositions?.start;
   const shouldRenderEndTooltip = enableNonEssentialTooltips && handleTooltips?.end?.visible && handleTooltips.end.x >= 0 && handlePositions?.end;
   const shouldRenderDurationTooltip = enableNonEssentialTooltips && handleTooltips?.selectionDuration?.visible && handleTooltips.selectionDuration.x >= 0 && handlePositions?.start && handlePositions?.end;
