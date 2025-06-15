@@ -622,15 +622,13 @@ canvas[data-cursor="pointer"] {
 }
 
 @supports not (cursor: grab) {
-  .cursor-grab,
-  canvas[data-cursor="region-hover"] {
+  .cursor-grab {
     cursor: -webkit-grab !important;
   }
 }
 
 @supports not (cursor: -webkit-grab) {
-  .cursor-grab,
-  canvas[data-cursor="region-hover"] {
+  .cursor-grab {
     cursor: move !important;
   }
 }
@@ -649,7 +647,7 @@ canvas[data-cursor="pointer"] {
 }
 
 canvas[data-cursor="region-hover"] {
-  cursor: grab !important;
+  cursor: pointer !important;
 }
 
 canvas[data-cursor="pointer"] {

@@ -17,9 +17,8 @@ export const useWaveformCursor = (canvasRef, duration, startTime, endTime, isDra
       const overStart = mouseX >= startX - hWidth && mouseX <= startX;
       const overEnd = mouseX >= endX - hWidth && mouseX <= endX;
       if (overStart || overEnd) return 'ew-resize';
-    }
-    const t = (mouseX / canvasWidth) * duration;
-    if (t >= startTime && t <= endTime && startTime < endTime) return 'grab';
+    }    const t = (mouseX / canvasWidth) * duration;
+    if (t >= startTime && t <= endTime && startTime < endTime) return 'pointer';
     return 'pointer';
   }, [duration, startTime, endTime, isDragging]);
 

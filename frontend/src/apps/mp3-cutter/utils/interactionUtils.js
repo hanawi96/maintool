@@ -330,14 +330,13 @@ export class InteractionManager {
 
     const handle = detectHandle(x, canvasWidth, duration, startTime, endTime, null, audioContext?.isInverted || false);
     if (handle !== this.lastHoveredHandle) {
-      this.lastHoveredHandle = handle;
-      this.state = handle ? INTERACTION_STATES.HOVERING : INTERACTION_STATES.IDLE;
+      this.lastHoveredHandle = handle;      this.state = handle ? INTERACTION_STATES.HOVERING : INTERACTION_STATES.IDLE;
       let hoverCursor = 'pointer';
       if (handle) hoverCursor = 'ew-resize';
       else {
         const tAtPos = positionToTime(x, canvasWidth, duration);
         const isInRegion = tAtPos >= startTime && tAtPos <= endTime && startTime < endTime;
-        if (isInRegion) hoverCursor = audioContext?.isInverted ? 'pointer' : 'grab';
+        if (isInRegion) hoverCursor = 'pointer'; // Changed from 'grab' to 'pointer' for region hover
       }
       return { action: 'updateHover', handle, cursor: hoverCursor, hoverOnly: true };
     }
