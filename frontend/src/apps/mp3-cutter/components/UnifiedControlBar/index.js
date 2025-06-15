@@ -1,8 +1,9 @@
-import React, { useCallback, useMemo, useEffect, useRef } from 'react';
+import React, { useCallback, useMemo, useEffect, useRef, useState } from 'react';
 import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Zap, RotateCcw, RotateCw, Repeat, Shuffle, TrendingUp, TrendingDown } from 'lucide-react';
 import CompactTimeSelector from './CompactTimeSelector';
 import { getAutoReturnSetting, setAutoReturnSetting } from '../../utils/safeStorage';
 import '../../styles/UnifiedControlBar.css';
+import FadeSliderPopup from './FadeSliderPopup';
 
 // 🎯 **UNIFIED CONTROL BAR** - Single responsive row for all controls
 // Layout: [PlayControls] | [Volume] | [Speed] | [InvertSelection] | [FadeControls] | [TimeSelector] | [History]
@@ -35,6 +36,8 @@ const UnifiedControlBar = React.memo(({
   fadeOut = 0,
   onFadeInToggle,
   onFadeOutToggle,
+  onFadeInChange,
+  onFadeOutChange,
   
   // History props
   canUndo,
@@ -53,7 +56,15 @@ const UnifiedControlBar = React.memo(({
   // 🆕 **AUTO-RETURN STATE**: State quản lý auto-return loop setting
   const [autoReturnEnabled, setAutoReturnEnabled] = React.useState(() => getAutoReturnSetting());
   
-  // 🆕 **AUTO-RETURN TOGGLE**: Handler để toggle auto-return setting
+  // 🆕 **POPUP STATE**: State để quản lý popup hiển thị
+  const [popupState, setPopupState] = useState({
+    fadeInVisible: false,
+    fadeOutVisible: false
+  });
+  const fadeInButtonRef = useRef(null);
+  const fadeOutButtonRef = useRef(null);
+  
+  // 🆕 **AUTO-RETURN TOGGLE**: Toggle để bật/tắt auto-return
   const toggleAutoReturn = useCallback(() => {
     const newValue = !autoReturnEnabled;
     setAutoReturnEnabled(newValue);
@@ -68,16 +79,30 @@ const UnifiedControlBar = React.memo(({
     
   }, [onInvertSelection, duration, startTime, endTime]);
 
-  // 🆕 **FADE TOGGLE HANDLERS**: Smart handlers for fade effects
-  const handleFadeInToggle = useCallback(() => {
-    if (!onFadeInToggle) return;
-    onFadeInToggle();
-  }, [onFadeInToggle]);
+  // 🆕 **POPUP HANDLERS**: Xử lý show/hide popup
+  const handleFadeInClick = useCallback(() => {
+    setPopupState(prev => ({
+      ...prev,
+      fadeInVisible: !prev.fadeInVisible,
+      fadeOutVisible: false // Đóng fade out popup nếu đang mở
+    }));
+  }, []);
 
-  const handleFadeOutToggle = useCallback(() => {
-    if (!onFadeOutToggle) return;
-    onFadeOutToggle();
-  }, [onFadeOutToggle]);
+  const handleFadeOutClick = useCallback(() => {
+    setPopupState(prev => ({
+      ...prev,
+      fadeOutVisible: !prev.fadeOutVisible,
+      fadeInVisible: false // Đóng fade in popup nếu đang mở
+    }));
+  }, []);
+
+  const closeFadeInPopup = useCallback(() => {
+    setPopupState(prev => ({ ...prev, fadeInVisible: false }));
+  }, []);
+
+  const closeFadeOutPopup = useCallback(() => {
+    setPopupState(prev => ({ ...prev, fadeOutVisible: false }));
+  }, []);
 
   // 🔥 **SINGLE SETUP LOG**: Only log initial setup once, asynchronously (production optimized)
   useEffect(() => {
@@ -371,128 +396,155 @@ const UnifiedControlBar = React.memo(({
         <Shuffle className="w-4 h-4 text-slate-700 group-hover:text-slate-900 group-disabled:text-slate-400" />
       </button>
 
-      {/* 🆕 Fade In Toggle */}
+      {/* 🆕 Fade In Toggle - Với popup */}
       <button
-        onClick={handleFadeInToggle}
+        ref={fadeInButtonRef}
+        onClick={handleFadeInClick}
         disabled={disabled || duration <= 0 || startTime >= endTime}
         className={`relative p-2 rounded-lg transition-all duration-200 group ${
           fadeIn > 0 
-            ? 'bg-green-100 hover:bg-green-200 border border-green-300' 
+            ? 'bg-emerald-100 hover:bg-emerald-200 border border-emerald-300' 
+            : popupState.fadeInVisible
+            ? 'bg-slate-200 border border-slate-400'
             : 'bg-slate-100 hover:bg-slate-200'
         } disabled:opacity-50 disabled:cursor-not-allowed`}
-        title={`Fade In: ${fadeIn > 0 ? `ON - ${fadeIn.toFixed(1)}s` : 'OFF'}`}
+        title={`Fade In: ${fadeIn > 0 ? `${fadeIn.toFixed(1)}s` : 'Click to adjust'}`}
       >
         <TrendingUp className={`w-4 h-4 transition-colors ${
           fadeIn > 0 
-            ? 'text-green-700 group-hover:text-green-800' 
+            ? 'text-emerald-700 group-hover:text-emerald-800' 
             : 'text-slate-700 group-hover:text-slate-900'
         }`} />
         {/* 🎯 Visual indicator khi enabled */}
         {fadeIn > 0 && (
-          <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full shadow-sm"></div>
+          <div className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-500 rounded-full shadow-sm"></div>
         )}
       </button>
 
-      {/* 🆕 Fade Out Toggle */}
+      {/* 🆕 Fade Out Toggle - Với popup */}
       <button
-        onClick={handleFadeOutToggle}
+        ref={fadeOutButtonRef}
+        onClick={handleFadeOutClick}
         disabled={disabled || duration <= 0 || startTime >= endTime}
         className={`relative p-2 rounded-lg transition-all duration-200 group ${
           fadeOut > 0 
-            ? 'bg-red-100 hover:bg-red-200 border border-red-300' 
+            ? 'bg-orange-100 hover:bg-orange-200 border border-orange-300' 
+            : popupState.fadeOutVisible
+            ? 'bg-slate-200 border border-slate-400'
             : 'bg-slate-100 hover:bg-slate-200'
         } disabled:opacity-50 disabled:cursor-not-allowed`}
-        title={`Fade Out: ${fadeOut > 0 ? `ON - ${fadeOut.toFixed(1)}s` : 'OFF'}`}
+        title={`Fade Out: ${fadeOut > 0 ? `${fadeOut.toFixed(1)}s` : 'Click to adjust'}`}
       >
         <TrendingDown className={`w-4 h-4 transition-colors ${
           fadeOut > 0 
-            ? 'text-red-700 group-hover:text-red-800' 
+            ? 'text-orange-700 group-hover:text-orange-800' 
             : 'text-slate-700 group-hover:text-slate-900'
         }`} />
         {/* 🎯 Visual indicator khi enabled */}
         {fadeOut > 0 && (
-          <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full shadow-sm"></div>
+          <div className="absolute -top-1 -right-1 w-2 h-2 bg-orange-500 rounded-full shadow-sm"></div>
         )}
       </button>
     </div>
-  ), [canUndo, canRedo, onUndo, onRedo, historyIndex, historyLength, disabled, handleInvertSelection, duration, startTime, endTime, isInverted, handleFadeInToggle, handleFadeOutToggle, fadeIn, fadeOut]);
+  ), [canUndo, canRedo, onUndo, onRedo, historyIndex, historyLength, disabled, handleInvertSelection, duration, startTime, endTime, isInverted, handleFadeInClick, handleFadeOutClick, fadeIn, fadeOut, popupState, closeFadeInPopup, closeFadeOutPopup, onFadeInChange, onFadeOutChange]);
 
   return (
-    <div className="unified-control-bar bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-      {/* 🎯 **MAIN CONTROL ROW** - Updated layout theo yêu cầu user: time selector ở cuối, float left */}
-      <div className="flex items-center gap-1 flex-wrap xl:flex-nowrap">
-        
-        {/* 1. ✅ Jump to Start + Play/Pause + Jump to End */}
-        {PlayControlsSection}
-        
-        {/* 2. ✅ Undo/Redo - Moved after playback controls */}
-        {HistoryControlsSection}
-        
-        {/* 3. ✅ Volume Control */}
-        <div className="hidden sm:flex">
-          {VolumeControlSection}
-        </div>
-          {/* 4. ✅ Speed Control */}
-        <div className="hidden md:flex">
-          {SpeedControlSection}
-        </div>
-        
-        {/* 5. ✅ Start Time + End Time - Time selector controls */}
-        <div className="px-4">
-          <CompactTimeSelector
-            startTime={startTime}
-            endTime={endTime}
-            duration={duration}
-            onStartTimeChange={onStartTimeChange}
-            onEndTimeChange={onEndTimeChange}
-          />
-        </div>
-      </div>
-        {/* 🎯 **MOBILE RESPONSIVE** - Tối ưu responsive với border ngăn cách */}
-      <div className="sm:hidden mt-4 pt-4 border-t border-slate-200">
-        <div className="flex items-center justify-center gap-4">
-          {/* Mobile Volume - Compact với border */}
-          <div className="flex items-center gap-2 px-3 border-r border-slate-300/50">
-            <Volume2 className="w-4 h-4 text-slate-600" />
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.02"
-              value={volume}
-              onChange={handleVolumeChange}
-              disabled={disabled}
-              className="w-16 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer disabled:opacity-50"
-              style={{
-                background: `linear-gradient(to right, #6366f1 0%, #6366f1 ${volume * 100}%, #e2e8f0 ${volume * 100}%, #e2e8f0 100%)`
-              }}
+    <>
+      <div className="unified-control-bar bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+        {/* 🎯 **MAIN CONTROL ROW** - Updated layout theo yêu cầu user: time selector ở cuối, float left */}
+        <div className="flex items-center gap-1 flex-wrap xl:flex-nowrap">
+          
+          {/* 1. ✅ Jump to Start + Play/Pause + Jump to End */}
+          {PlayControlsSection}
+          
+          {/* 2. ✅ Undo/Redo - Moved after playback controls */}
+          {HistoryControlsSection}
+          
+          {/* 3. ✅ Volume Control */}
+          <div className="hidden sm:flex">
+            {VolumeControlSection}
+          </div>
+            {/* 4. ✅ Speed Control */}
+          <div className="hidden md:flex">
+            {SpeedControlSection}
+          </div>
+          
+          {/* 5. ✅ Start Time + End Time - Time selector controls */}
+          <div className="px-4">
+            <CompactTimeSelector
+              startTime={startTime}
+              endTime={endTime}
+              duration={duration}
+              onStartTimeChange={onStartTimeChange}
+              onEndTimeChange={onEndTimeChange}
             />
-            <span className="text-sm text-slate-600 w-8 text-center">{Math.round(volume * 100)}%</span>
           </div>
         </div>
-          {/* Mobile Speed Row */}
-        <div className="md:hidden mt-3 pt-3 border-t border-slate-200/50 flex items-center justify-center">
-          {/* Speed Control */}
-          <div className="flex items-center gap-2">
-            <Zap className="w-4 h-4 text-slate-600" />
-            <input
-              type="range"
-              min="0.5"
-              max="2"
-              step="0.1"
-              value={playbackRate}
-              onChange={handleSpeedChange}
-              disabled={disabled}
-              className="w-16 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer disabled:opacity-50"
-              style={{
-                background: `linear-gradient(to right, #8b5cf6 0%, #8b5cf6 ${((playbackRate - 0.5) / 1.5) * 100}%, #e2e8f0 ${((playbackRate - 0.5) / 1.5) * 100}%, #e2e8f0 100%)`
-              }}
-            />
-            <span className="text-sm text-slate-600 w-9 text-center">{playbackRate.toFixed(1)}x</span>
+          {/* 🎯 **MOBILE RESPONSIVE** - Tối ưu responsive với border ngăn cách */}
+        <div className="sm:hidden mt-4 pt-4 border-t border-slate-200">
+          <div className="flex items-center justify-center gap-4">
+            {/* Mobile Volume - Compact với border */}
+            <div className="flex items-center gap-2 px-3 border-r border-slate-300/50">
+              <Volume2 className="w-4 h-4 text-slate-600" />
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.02"
+                value={volume}
+                onChange={handleVolumeChange}
+                disabled={disabled}
+                className="w-16 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer disabled:opacity-50"
+                style={{
+                  background: `linear-gradient(to right, #6366f1 0%, #6366f1 ${volume * 100}%, #e2e8f0 ${volume * 100}%, #e2e8f0 100%)`
+                }}
+              />
+              <span className="text-sm text-slate-600 w-8 text-center">{Math.round(volume * 100)}%</span>
+            </div>
+          </div>
+            {/* Mobile Speed Row */}
+          <div className="md:hidden mt-3 pt-3 border-t border-slate-200/50 flex items-center justify-center">
+            {/* Speed Control */}
+            <div className="flex items-center gap-2">
+              <Zap className="w-4 h-4 text-slate-600" />
+              <input
+                type="range"
+                min="0.5"
+                max="2"
+                step="0.1"
+                value={playbackRate}
+                onChange={handleSpeedChange}
+                disabled={disabled}
+                className="w-16 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer disabled:opacity-50"
+                style={{
+                  background: `linear-gradient(to right, #8b5cf6 0%, #8b5cf6 ${((playbackRate - 0.5) / 1.5) * 100}%, #e2e8f0 ${((playbackRate - 0.5) / 1.5) * 100}%, #e2e8f0 100%)`
+                }}
+              />
+              <span className="text-sm text-slate-600 w-9 text-center">{playbackRate.toFixed(1)}x</span>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+
+      {/* 🌟 **PORTAL POPUPS**: Render qua Portal để tránh z-index conflicts */}
+      <FadeSliderPopup
+        type="in"
+        value={fadeIn}
+        onChange={onFadeInChange}
+        onClose={closeFadeInPopup}
+        isVisible={popupState.fadeInVisible}
+        buttonRef={fadeInButtonRef}
+      />
+      
+      <FadeSliderPopup
+        type="out"
+        value={fadeOut}
+        onChange={onFadeOutChange}
+        onClose={closeFadeOutPopup}
+        isVisible={popupState.fadeOutVisible}
+        buttonRef={fadeOutButtonRef}
+      />
+    </>
   );
 });
 

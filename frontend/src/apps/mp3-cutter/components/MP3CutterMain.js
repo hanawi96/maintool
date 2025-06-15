@@ -484,6 +484,8 @@ const MP3CutterMain = React.memo(() => {
               fadeOut={fadeOut}
               onFadeInToggle={handleFadeInToggle}
               onFadeOutToggle={handleFadeOutToggle}
+              onFadeInChange={handleFadeInChange}
+              onFadeOutChange={handleFadeOutChange}
               canUndo={canUndo}
               canRedo={canRedo}
               onUndo={handleUndo}

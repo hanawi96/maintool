@@ -853,3 +853,88 @@ html body div.bg-white\/70.backdrop-blur-sm {
   left: 50%;
   transform: translateX(-50%);
 }
+
+/* 🎯 Fade Popup Slider Styles - Tone màu sáng */
+.fade-popup-slider-in,
+.fade-popup-slider-out {
+  -webkit-appearance: none;
+  appearance: none;
+  outline: none;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+.fade-popup-slider-in::-webkit-slider-thumb,
+.fade-popup-slider-out::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 18px;
+  width: 18px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid #10b981;
+  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3);
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.fade-popup-slider-out::-webkit-slider-thumb {
+  border-color: #f59e0b;
+  box-shadow: 0 2px 6px rgba(245, 158, 11, 0.3);
+}
+
+.fade-popup-slider-in::-webkit-slider-thumb:hover,
+.fade-popup-slider-out::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+  box-shadow: 0 3px 8px rgba(16, 185, 129, 0.4);
+}
+
+.fade-popup-slider-out::-webkit-slider-thumb:hover {
+  box-shadow: 0 3px 8px rgba(245, 158, 11, 0.4);
+}
+
+.fade-popup-slider-in::-webkit-slider-thumb:active,
+.fade-popup-slider-out::-webkit-slider-thumb:active {
+  transform: scale(1.15);
+}
+
+.fade-popup-slider-in::-moz-range-thumb,
+.fade-popup-slider-out::-moz-range-thumb {
+  height: 18px;
+  width: 18px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid #10b981;
+  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3);
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.fade-popup-slider-out::-moz-range-thumb {
+  border-color: #f59e0b;
+  box-shadow: 0 2px 6px rgba(245, 158, 11, 0.3);
+}
+
+.fade-popup-slider-in::-moz-range-thumb:hover,
+.fade-popup-slider-out::-moz-range-thumb:hover {
+  transform: scale(1.1);
+}
+
+.fade-popup-slider-in::-moz-range-track,
+.fade-popup-slider-out::-moz-range-track {
+  height: 8px;
+  border-radius: 4px;
+  border: none;
+  outline: none;
+}
+
+/* Focus states - subtle cho popup */
+.fade-popup-slider-in:focus,
+.fade-popup-slider-out:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+}
+
+.fade-popup-slider-out:focus {
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
+}

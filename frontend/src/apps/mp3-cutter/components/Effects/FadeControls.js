@@ -2,14 +2,6 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Settings, TrendingUp, TrendingDown } from 'lucide-react';
 import { FADE_CONFIG } from '../../utils/constants';
 
-const presets = [
-  { key: 'GENTLE', label: 'Gentle (1s)' },
-  { key: 'STANDARD', label: 'Standard (3s)' },
-  { key: 'DRAMATIC', label: 'Dramatic (5s)' },
-  { key: 'EXTENDED', label: 'Extended (8s)' },
-  { key: 'MAXIMUM', label: 'Maximum (15s)', className: 'bg-purple-100 hover:bg-purple-200 text-purple-700 col-span-2' }
-];
-
 const FadeSlider = ({
   label,
   icon: Icon,
@@ -70,8 +62,7 @@ const FadeControls = ({
   onFadeInChange,
   onFadeOutChange,
   onFadeInDragEnd,
-  onFadeOutDragEnd,
-  onPresetApply
+  onFadeOutDragEnd
 }) => {
   const [drag, setDrag] = useState({ fadeIn: false, fadeOut: false });
 
@@ -105,16 +96,10 @@ const FadeControls = ({
       document.addEventListener('mouseup', handleUp);
     return () => document.removeEventListener('mouseup', handleUp);
   }, [drag, handleDragEnd]);
-
   const percent = useMemo(() => ({
     fadeIn: (fadeIn / FADE_CONFIG.MAX_DURATION) * 100,
     fadeOut: (fadeOut / FADE_CONFIG.MAX_DURATION) * 100
   }), [fadeIn, fadeOut]);
-
-  const handlePreset = key => {
-    const preset = FADE_CONFIG.DEFAULT_PRESETS[key];
-    if (preset) onPresetApply?.(preset.fadeIn, preset.fadeOut);
-  };
 
   return (
     <div className="bg-white/70 backdrop-blur-sm rounded-xl p-4 border border-slate-200/50 shadow-sm">
@@ -139,7 +124,7 @@ const FadeControls = ({
           onChange={handleFadeChange('in')}
           onMouseDown={handleDragStart('fadeIn')}
           onMouseUp={handleDragEnd('fadeIn')}
-          onReset={() => onPresetApply?.(0, fadeOut)}
+          onReset={() => onFadeInChange(0)}
         />
 
         <FadeSlider
@@ -154,25 +139,7 @@ const FadeControls = ({
           onChange={handleFadeChange('out')}
           onMouseDown={handleDragStart('fadeOut')}
           onMouseUp={handleDragEnd('fadeOut')}
-          onReset={() => onPresetApply?.(fadeIn, 0)}
-        />
-
-        {/* Presets */}
-        <div className="pt-2 border-t border-slate-200">
-          <div className="text-xs text-slate-500 mb-2">Quick Presets:</div>
-          <div className="grid grid-cols-2 gap-2">
-            {presets.map(({ key, label, className }) => (
-              <button
-                key={key}
-                onClick={() => handlePreset(key)}
-                className={`px-2 py-1 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 rounded transition-colors ${className || ''}`}
-                type="button"
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
+          onReset={() => onFadeOutChange(0)}        />
 
         {(fadeIn > 0 || fadeOut > 0) && (
           <div className="pt-2 border-t border-slate-200">
