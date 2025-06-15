@@ -10,7 +10,9 @@ export const useTimeChangeHandlers = ({
   fadeOut,
   setStartTime,
   setEndTime,
-  saveState
+  saveState,
+  // 🆕 **SHARED HISTORY REF**: Shared ref để prevent duplicate saves
+  historySavedRef // Ref từ parent để track history saving
 }) => {
   // 🚀 **SHARED DEBOUNCE REFS**: Single timeout per handler để prevent memory leaks
   const startTimeoutRef = useRef(null);
@@ -23,6 +25,11 @@ export const useTimeChangeHandlers = ({
     // ⚡ **INSTANT UI UPDATE**: Update UI ngay lập tức - no delay
     setStartTime(clampedTime);
     
+    // 🆕 **RESET HISTORY TRACKING**: Reset for new time selector change
+    if (historySavedRef) {
+      historySavedRef.current = false;
+    }
+    
     // 🔄 **CLEAR PREVIOUS TIMEOUT**: Prevent multiple saves
     if (startTimeoutRef.current) {
       clearTimeout(startTimeoutRef.current);
@@ -30,12 +37,18 @@ export const useTimeChangeHandlers = ({
     
     // 🚀 **ULTRA-FAST HISTORY SAVE**: Chỉ 100ms thay vì 300ms - gấp 3 lần nhanh hơn
     startTimeoutRef.current = setTimeout(() => {
-      console.log(`💾 [TimeChangeHandlers] FAST start time history save: ${clampedTime.toFixed(2)}s`);
-      saveState({ startTime: clampedTime, endTime, fadeIn, fadeOut });
+      // 🆕 **PREVENT DUPLICATE SAVE**: Only save if not already saved by interaction handlers
+      if (historySavedRef && !historySavedRef.current) {
+        console.log(`💾 [TimeChangeHandlers] FAST start time history save: ${clampedTime.toFixed(2)}s`);
+        historySavedRef.current = true; // Mark as saved
+        saveState({ startTime: clampedTime, endTime, fadeIn, fadeOut });
+      } else {
+        console.log(`🚫 [TimeChangeHandlers] Start time history already saved by interaction handler, skipping`);
+      }
       startTimeoutRef.current = null; // 🧹 Cleanup ref
     }, 100); // 🚀 **100MS ONLY**: Gấp 3 lần nhanh hơn
     
-  }, [endTime, setStartTime, saveState, fadeIn, fadeOut]);
+  }, [endTime, setStartTime, saveState, fadeIn, fadeOut, historySavedRef]);
 
   // 🚀 **ULTRA-FAST END TIME**: Immediate UI update + smart debounced history  
   const handleEndTimeChange = useCallback((newTime) => {
@@ -44,6 +57,11 @@ export const useTimeChangeHandlers = ({
     // ⚡ **INSTANT UI UPDATE**: Update UI ngay lập tức - no delay
     setEndTime(clampedTime);
     
+    // 🆕 **RESET HISTORY TRACKING**: Reset for new time selector change
+    if (historySavedRef) {
+      historySavedRef.current = false;
+    }
+    
     // 🔄 **CLEAR PREVIOUS TIMEOUT**: Prevent multiple saves
     if (endTimeoutRef.current) {
       clearTimeout(endTimeoutRef.current);
@@ -51,12 +69,18 @@ export const useTimeChangeHandlers = ({
     
     // 🚀 **ULTRA-FAST HISTORY SAVE**: Chỉ 100ms thay vì 300ms - gấp 3 lần nhanh hơn
     endTimeoutRef.current = setTimeout(() => {
-      console.log(`💾 [TimeChangeHandlers] FAST end time history save: ${clampedTime.toFixed(2)}s`);
-      saveState({ startTime, endTime: clampedTime, fadeIn, fadeOut });
+      // 🆕 **PREVENT DUPLICATE SAVE**: Only save if not already saved by interaction handlers
+      if (historySavedRef && !historySavedRef.current) {
+        console.log(`💾 [TimeChangeHandlers] FAST end time history save: ${clampedTime.toFixed(2)}s`);
+        historySavedRef.current = true; // Mark as saved
+        saveState({ startTime, endTime: clampedTime, fadeIn, fadeOut });
+      } else {
+        console.log(`🚫 [TimeChangeHandlers] End time history already saved by interaction handler, skipping`);
+      }
       endTimeoutRef.current = null; // 🧹 Cleanup ref
     }, 100); // 🚀 **100MS ONLY**: Gấp 3 lần nhanh hơn
     
-  }, [startTime, duration, setEndTime, saveState, fadeIn, fadeOut]);
+  }, [startTime, duration, setEndTime, saveState, fadeIn, fadeOut, historySavedRef]);
 
   // 🧹 **CLEANUP ON UNMOUNT**: Đảm bảo no memory leaks
   const cleanup = useCallback(() => {

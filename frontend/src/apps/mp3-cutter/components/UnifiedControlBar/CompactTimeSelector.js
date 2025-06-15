@@ -62,10 +62,8 @@ const ArrowTimeInput = React.memo(({ value, onChange, label, max, min = 0, isSta
     const clampedDeciseconds = Math.min(newDeciseconds, maxDeciseconds);
     const newValue = clampedDeciseconds / 10; // Convert back to seconds (exact 0.1s multiple)
     
-    // 🚀 **OPTIMIZED DEBUG**: Chỉ log essential info khi cần debug
-    if (Math.random() < 0.1) { // 10% sampling để giảm noise
-      console.log(`⬆️ [ArrowTimeInput] ${label} UP: ${normalizedValue.toFixed(1)}s → ${newValue.toFixed(1)}s (+0.1s)`);
-    }
+    // 🆕 **DEBUG HISTORY TRIGGER**: Log when time selector triggers history save
+    console.log(`⬆️ [TimeSelector] ${label} UP: ${normalizedValue.toFixed(1)}s → ${newValue.toFixed(1)}s (+0.1s) - triggering history save`);
     
     // ⚡ **INSTANT CHANGE**: Call onChange ngay lập tức
     onChange(newValue);
@@ -88,10 +86,8 @@ const ArrowTimeInput = React.memo(({ value, onChange, label, max, min = 0, isSta
     const clampedDeciseconds = Math.max(newDeciseconds, minDeciseconds);
     const newValue = clampedDeciseconds / 10; // Convert back to seconds (exact 0.1s multiple)
     
-    // 🚀 **OPTIMIZED DEBUG**: Chỉ log essential info khi cần debug
-    if (Math.random() < 0.1) { // 10% sampling để giảm noise
-      console.log(`⬇️ [ArrowTimeInput] ${label} DOWN: ${normalizedValue.toFixed(1)}s → ${newValue.toFixed(1)}s (-0.1s)`);
-    }
+    // 🆕 **DEBUG HISTORY TRIGGER**: Log when time selector triggers history save
+    console.log(`⬇️ [TimeSelector] ${label} DOWN: ${normalizedValue.toFixed(1)}s → ${newValue.toFixed(1)}s (-0.1s) - triggering history save`);
     
     // ⚡ **INSTANT CHANGE**: Call onChange ngay lập tức
     onChange(newValue);
@@ -158,10 +154,8 @@ const ArrowTimeInput = React.memo(({ value, onChange, label, max, min = 0, isSta
       newValue = normalizedValue;
     }
     
-    // 🚀 **OPTIMIZED DEBUG**: Chỉ log essential info khi cần debug
-    if (Math.random() < 0.1) { // 10% sampling để giảm noise
-      console.log(`⬆️ [ArrowTimeInput] ${label} UP: ${normalizedValue.toFixed(1)}s → ${newValue.toFixed(1)}s (+0.1s)`);
-    }
+    // 🆕 **DEBUG HISTORY TRIGGER**: Log when manual input triggers history save
+    console.log(`✏️ [TimeSelector] ${label} INPUT: ${normalizedValue.toFixed(1)}s → ${newValue.toFixed(1)}s - triggering history save`);
     
     // ⚡ **INSTANT CHANGE**: Call onChange ngay lập tức
     onChange(newValue);

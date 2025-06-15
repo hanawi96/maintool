@@ -265,7 +265,68 @@ const MP3CutterMain = React.memo(() => {
     updateFadeConfig
   }), [audioRef, setCurrentTime, jumpToTime, isPlaying, fadeIn, fadeOut, startTime, endTime, isInverted, updateFadeConfig]);
 
-  // 🎯 **TIME CHANGE HANDLERS**: Extract time change logic using custom hook (MOVED UP)
+  // 🆕 **ENHANCED HANDLERS REFS**: Refs để break circular dependency
+  const enhancedHandlersRef = useRef({
+    handleStartTimeChange: null,
+    handleEndTimeChange: null
+  });
+
+  // 🎯 **INTERACTION HANDLERS**: Extract interaction logic using custom hook (MOVED UP)
+  const {
+    handleCanvasMouseDown,
+    handleCanvasMouseMove,
+    handleCanvasMouseUp,
+    handleCanvasMouseLeave,
+    // 🆕 **SHARED HISTORY REF**: Get shared ref để prevent duplicate saves
+    historySavedRef
+  } = useInteractionHandlers({
+    canvasRef,
+    duration,
+    startTime,
+    endTime,
+    audioRef,
+    isPlaying,
+    fadeIn,
+    fadeOut,
+    
+    // 🔧 **FIX MISSING PARAMETER**: Add isDragging state
+    isDragging, // 🆕 **ADDED**: Pass isDragging state to fix undefined error
+    
+    // State setters
+    setStartTime,
+    setEndTime,
+    setIsDragging,
+    setHoveredHandle,
+    setCurrentTime,
+    
+    // 🆕 **INVERT MODE HANDLERS**: Use ref-based approach để break circular dependency
+    handleStartTimeChange: (time) => {
+      // Use enhanced handler if available, otherwise fallback to basic setter
+      if (enhancedHandlersRef.current.handleStartTimeChange) {
+        enhancedHandlersRef.current.handleStartTimeChange(time);
+      } else {
+        setStartTime(time);
+      }
+    },
+    handleEndTimeChange: (time) => {
+      // Use enhanced handler if available, otherwise fallback to basic setter
+      if (enhancedHandlersRef.current.handleEndTimeChange) {
+        enhancedHandlersRef.current.handleEndTimeChange(time);
+      } else {
+        setEndTime(time);
+      }
+    },
+    
+    // Utilities
+    jumpToTime,
+    saveState,
+    interactionManagerRef,
+    
+    // 🆕 **AUDIO CONTEXT**: Pass full audio context with isInverted
+    audioContext
+  });
+
+  // 🎯 **TIME CHANGE HANDLERS**: Extract time change logic using custom hook (MOVED DOWN)
   const {
     handleStartTimeChange: originalHandleStartTimeChange,
     handleEndTimeChange: originalHandleEndTimeChange,
@@ -278,7 +339,9 @@ const MP3CutterMain = React.memo(() => {
     fadeOut,
     setStartTime,
     setEndTime,
-    saveState
+    saveState,
+    // 🆕 **SHARED HISTORY REF**: Pass shared ref để prevent duplicate saves
+    historySavedRef
   });
 
   // 🆕 **ENHANCED START TIME HANDLER**: Auto-jump cursor to new start point
@@ -324,44 +387,11 @@ const MP3CutterMain = React.memo(() => {
     // No need to change play state - if it was playing, it continues; if paused, stays paused
   }, [originalHandleEndTimeChange, jumpToTime, startTime, isInverted]);
 
-  // 🎯 **INTERACTION HANDLERS**: Extract interaction logic using custom hook (MOVED DOWN)
-  const {
-    handleCanvasMouseDown,
-    handleCanvasMouseMove,
-    handleCanvasMouseUp,
-    handleCanvasMouseLeave
-  } = useInteractionHandlers({
-    canvasRef,
-    duration,
-    startTime,
-    endTime,
-    audioRef,
-    isPlaying,
-    fadeIn,
-    fadeOut,
-    
-    // 🔧 **FIX MISSING PARAMETER**: Add isDragging state
-    isDragging, // 🆕 **ADDED**: Pass isDragging state to fix undefined error
-    
-    // State setters
-    setStartTime,
-    setEndTime,
-    setIsDragging,
-    setHoveredHandle,
-    setCurrentTime,
-    
-    // 🆕 **INVERT MODE HANDLERS**: Add enhanced handlers for invert logic
-    handleStartTimeChange,
-    handleEndTimeChange,
-    
-    // Utilities
-    jumpToTime,
-    saveState,
-    interactionManagerRef,
-    
-    // 🆕 **AUDIO CONTEXT**: Pass full audio context with isInverted
-    audioContext
-  });
+  // 🆕 **UPDATE REFS**: Update refs với enhanced handlers
+  useEffect(() => {
+    enhancedHandlersRef.current.handleStartTimeChange = handleStartTimeChange;
+    enhancedHandlersRef.current.handleEndTimeChange = handleEndTimeChange;
+  }, [handleStartTimeChange, handleEndTimeChange]);
 
   // 🔥 **ESSENTIAL SETUP ONLY**
   useEffect(() => {

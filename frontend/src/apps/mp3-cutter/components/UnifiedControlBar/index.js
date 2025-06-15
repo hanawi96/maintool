@@ -212,7 +212,7 @@ const UnifiedControlBar = React.memo(({
         className={`relative p-2 rounded-lg transition-all duration-200 group ${
           autoReturnEnabled 
             ? 'bg-green-100 hover:bg-green-200 border border-green-300' 
-            : 'bg-slate-100 hover:bg-slate-200 border border-slate-300'
+            : 'bg-slate-100 hover:bg-slate-200'
         } disabled:opacity-50 disabled:cursor-not-allowed`}
         title={`Auto-Return Loop: ${autoReturnEnabled ? 'ON - Will loop region' : 'OFF - Will stop at end'}`}
       >
@@ -326,7 +326,11 @@ const UnifiedControlBar = React.memo(({
       <button
         onClick={onUndo}
         disabled={!canUndo || disabled}
-        className="p-2 bg-slate-100 hover:bg-slate-200 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors relative group"
+        className={`p-2 ${
+          canUndo && !disabled
+            ? 'bg-slate-100 hover:bg-slate-200 border border-slate-300'
+            : 'bg-slate-100 hover:bg-slate-200'
+        } disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors relative group`}
         title="Undo"
       >
         <RotateCcw className="w-4 h-4 text-slate-700" />
@@ -341,7 +345,11 @@ const UnifiedControlBar = React.memo(({
       <button
         onClick={onRedo}
         disabled={!canRedo || disabled}
-        className="p-2 bg-slate-100 hover:bg-slate-200 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors relative group"
+        className={`p-2 ${
+          canRedo && !disabled
+            ? 'bg-slate-100 hover:bg-slate-200 border border-slate-300'
+            : 'bg-slate-100 hover:bg-slate-200'
+        } disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors relative group`}
         title="Redo"
       >
         <RotateCw className="w-4 h-4 text-slate-700" />
@@ -370,7 +378,7 @@ const UnifiedControlBar = React.memo(({
         className={`relative p-2 rounded-lg transition-all duration-200 group ${
           fadeIn > 0 
             ? 'bg-green-100 hover:bg-green-200 border border-green-300' 
-            : 'bg-slate-100 hover:bg-slate-200 border border-slate-300'
+            : 'bg-slate-100 hover:bg-slate-200'
         } disabled:opacity-50 disabled:cursor-not-allowed`}
         title={`Fade In: ${fadeIn > 0 ? `ON - ${fadeIn.toFixed(1)}s` : 'OFF'}`}
       >
@@ -392,7 +400,7 @@ const UnifiedControlBar = React.memo(({
         className={`relative p-2 rounded-lg transition-all duration-200 group ${
           fadeOut > 0 
             ? 'bg-red-100 hover:bg-red-200 border border-red-300' 
-            : 'bg-slate-100 hover:bg-slate-200 border border-slate-300'
+            : 'bg-slate-100 hover:bg-slate-200'
         } disabled:opacity-50 disabled:cursor-not-allowed`}
         title={`Fade Out: ${fadeOut > 0 ? `ON - ${fadeOut.toFixed(1)}s` : 'OFF'}`}
       >

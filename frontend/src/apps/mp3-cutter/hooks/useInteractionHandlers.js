@@ -61,9 +61,10 @@ export const useInteractionHandlers = ({
     if (manager && canvasRef.current) {
       const globalDragCallback = (result) => {
         if (result.action === 'saveHistoryOnGlobalMouseUp' && result.saveHistory && !historySavedRef.current) {
-          console.log(`💾 [History] Global mouse up - saving history (first save)`);
+          console.log(`💾 [History] Global mouse up - saving history (SINGLE save)`);
           historySavedRef.current = true;
-          setTimeout(() => saveState({ startTime, endTime, fadeIn, fadeOut }), 100);
+          // 🔄 **IMMEDIATE SAVE**: Save immediately to prevent race condition with regular mouse up
+          saveState({ startTime, endTime, fadeIn, fadeOut, isInverted: audioContext?.isInverted || false });
           return;
         }
         // 🆕 **USE ENHANCED HANDLERS**: Use enhanced handlers for proper cursor positioning
@@ -141,12 +142,14 @@ export const useInteractionHandlers = ({
     switch (result.action) {
       case 'completeDrag':
         setIsDragging(null);
+        // 🔄 **CONSOLIDATED SAVE LOGIC**: Only save if not already saved by global callback
         if (result.saveHistory && !historySavedRef.current) {
-          console.log(`💾 [History] Mouse up - saving history (first save)`);
+          console.log(`💾 [History] Local mouse up - saving history (SINGLE save)`);
           historySavedRef.current = true;
-          setTimeout(() => saveState({ startTime, endTime, fadeIn, fadeOut }), 100);
+          // 🔄 **IMMEDIATE SAVE**: No timeout needed, save immediately with invert state
+          saveState({ startTime, endTime, fadeIn, fadeOut, isInverted: audioContext?.isInverted || false });
         } else if (result.saveHistory && historySavedRef.current) {
-          console.log(`🚫 [History] Mouse up - history already saved, skipping duplicate`);
+          console.log(`🚫 [History] Local mouse up - history already saved by global callback, skipping`);
         }
         break;
       default:
@@ -193,25 +196,24 @@ export const useInteractionHandlers = ({
       console.log(`⚡ [InvertMode] Cursor jumped to click position: ${targetTime.toFixed(2)}s (handle update skipped)`);
     }
     
+    // 🔄 **PENDING ACTIONS**: Handle pending actions only if not already handled by drag completion
     if (result.saveHistory && !historySavedRef.current) {
-      console.log(`💾 [History] Pending handle update - saving history (first save)`);
+      console.log(`💾 [History] Pending handle update - saving history (SINGLE save)`);
       historySavedRef.current = true;
-      setTimeout(() => {
-        // 🔄 **INVERT MODE HISTORY**: Don't save handle changes in invert mode, only current state
-        if (isInvertMode) {
-          // In invert mode, no handle changes occurred, just save current state
-          saveState({ startTime, endTime, fadeIn, fadeOut });
-        } else {
-          // Normal mode: save with potential handle changes
-          const finalStartTime = result.executePendingHandleUpdate && result.pendingHandleUpdate?.type === 'start'
-            ? result.pendingHandleUpdate.newTime : startTime;
-          const finalEndTime = result.executePendingHandleUpdate && result.pendingHandleUpdate?.type === 'end'
-            ? result.pendingHandleUpdate.newTime : endTime;
-          saveState({ startTime: finalStartTime, endTime: finalEndTime, fadeIn, fadeOut });
-        }
-      }, 100);
+      // 🔄 **IMMEDIATE SAVE**: Save immediately without timeout
+      if (isInvertMode) {
+        // In invert mode, no handle changes occurred, just save current state
+        saveState({ startTime, endTime, fadeIn, fadeOut, isInverted: true });
+      } else {
+        // Normal mode: save with potential handle changes
+        const finalStartTime = result.executePendingHandleUpdate && result.pendingHandleUpdate?.type === 'start'
+          ? result.pendingHandleUpdate.newTime : startTime;
+        const finalEndTime = result.executePendingHandleUpdate && result.pendingHandleUpdate?.type === 'end'
+          ? result.pendingHandleUpdate.newTime : endTime;
+        saveState({ startTime: finalStartTime, endTime: finalEndTime, fadeIn, fadeOut, isInverted: false });
+      }
     } else if (result.saveHistory && historySavedRef.current) {
-      console.log(`🚫 [History] Pending handle update - history already saved, skipping duplicate`);
+      console.log(`🚫 [History] Pending handle update - history already saved, skipping`);
     }
   }, [startTime, endTime, fadeIn, fadeOut, duration, saveState, setIsDragging, audioRef, setCurrentTime, jumpToTime, setStartTime, setEndTime, interactionManagerRef, audioContext, handleStartTimeChange, handleEndTimeChange]);
 
@@ -229,6 +231,8 @@ export const useInteractionHandlers = ({
     handleCanvasMouseDown,
     handleCanvasMouseMove,
     handleCanvasMouseUp,
-    handleCanvasMouseLeave
+    handleCanvasMouseLeave,
+    // 🆕 **SHARED HISTORY REF**: Export để share với useTimeChangeHandlers
+    historySavedRef // Export để prevent duplicate saves
   };
 };
