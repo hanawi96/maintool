@@ -1,224 +1,155 @@
-// 🚀 **WAVEFORM PROCESSING WEB WORKER** - Heavy computation off main thread
+// 🚀 WAVEFORM PROCESSING WEB WORKER (Optimized, keep all logic)
 // filepath: d:\mp3-cutter-pro\frontend\public\workers\waveform-processor.js
 
 class WaveformWorker {
   constructor() {
-    this.processingQueue = [];
     this.cache = new Map();
-    console.log('🔧 [WaveformWorker] Worker initialized');
   }
-  // 🎯 **MAIN PROCESSING**: Enhanced with cache check
+
   async processAudioBuffer(audioBuffer, options = {}) {
-    const startTime = performance.now();
-    
-    // 🔍 **CACHE CHECK**: Check cache first
-    const cacheKey = this.generateCacheKey(audioBuffer, options);
-    const cachedResult = this.getCacheData(cacheKey);
-    
-    if (cachedResult) {
-      console.log('⚡ [WaveformWorker] Cache hit:', cacheKey);
-      return {
-        ...cachedResult,
-        fromCache: true,
-        processingTime: performance.now() - startTime
-      };
+    const t0 = performance.now();
+    const cacheKey = this._genCacheKey(audioBuffer, options);
+    const cached = this._cacheGet(cacheKey);
+
+    if (cached) {
+      return { ...cached, fromCache: true, processingTime: performance.now() - t0 };
     }
 
-    console.log('🎵 [WaveformWorker] Processing audio buffer:', {
-      duration: audioBuffer.duration.toFixed(2) + 's',
+    const { samples, chunkSize, quality } = this._calcOptions(audioBuffer, options);
+    const data = await this._processChunks(audioBuffer, samples, chunkSize);
+
+    const result = {
+      data,
+      duration: audioBuffer.duration,
       sampleRate: audioBuffer.sampleRate,
-      channels: audioBuffer.numberOfChannels,
-      cacheKey
-    });
-
-    try {
-      const adaptiveOptions = this.calculateAdaptiveOptions(audioBuffer, options);
-      const waveformData = await this.processInChunks(audioBuffer, adaptiveOptions);
-      
-      const result = {
-        data: waveformData,
-        duration: audioBuffer.duration,
-        sampleRate: audioBuffer.sampleRate,
-        numberOfChannels: audioBuffer.numberOfChannels,
-        processingTime: performance.now() - startTime,
-        quality: adaptiveOptions.quality,
-        fromCache: false
-      };
-
-      // 💾 **CACHE RESULT**: Store for future use
-      this.setCacheData(cacheKey, result);
-      
-      console.log('✅ [WaveformWorker] Processing complete:', {
-        processingTime: result.processingTime.toFixed(2) + 'ms',
-        dataPoints: waveformData.length,
-        cached: true
-      });
-
-      return result;
-    } catch (error) {
-      console.error('❌ [WaveformWorker] Processing failed:', error);
-      throw error;
-    }
-  }
-
-  // 🧠 **ADAPTIVE QUALITY CALCULATOR**: Tự động tối ưu quality
-  calculateAdaptiveOptions(audioBuffer, userOptions) {
-    const duration = audioBuffer.duration;
-    const fileSize = audioBuffer.length * audioBuffer.numberOfChannels * 4; // Approximate size
-    
-    let quality, samples, chunkSize;
-    
-    if (duration > 3600) { // > 1 hour
-      quality = 'low';
-      samples = Math.min(1000, userOptions.samples || 1000);
-      chunkSize = 50000;
-    } else if (duration > 1800) { // > 30 minutes  
-      quality = 'medium';
-      samples = Math.min(2000, userOptions.samples || 2000);
-      chunkSize = 25000;
-    } else if (duration > 600) { // > 10 minutes
-      quality = 'high';
-      samples = Math.min(4000, userOptions.samples || 3000);
-      chunkSize = 10000;
-    } else { // < 10 minutes
-      quality = 'ultra';
-      samples = userOptions.samples || 5000;
-      chunkSize = 5000;
-    }
-
-    console.log('🎯 [WaveformWorker] Adaptive quality selected:', {
-      duration: duration.toFixed(2) + 's',
+      numberOfChannels: audioBuffer.numberOfChannels,
+      processingTime: performance.now() - t0,
       quality,
-      samples,
-      chunkSize
-    });
-
-    return { quality, samples, chunkSize, ...userOptions };
+      fromCache: false
+    };
+    this._cacheSet(cacheKey, result);
+    return result;
   }
 
-  // ⚡ **CHUNK PROCESSING**: Xử lý theo chunks để progressive
-  async processInChunks(audioBuffer, options) {
-    const { samples, chunkSize } = options;
+  _calcOptions(audioBuffer, userOptions = {}) {
+    const duration = audioBuffer.duration;
+    // Ưu tiên options truyền vào, fallback về auto
+    if (userOptions.samples && userOptions.chunkSize && userOptions.quality) {
+      return {
+        samples: userOptions.samples,
+        chunkSize: userOptions.chunkSize,
+        quality: userOptions.quality
+      };
+    }
+    // Auto adapt
+    if (duration > 3600)      return { quality: 'low',    samples: 1000, chunkSize: 50000, ...userOptions };
+    if (duration > 1800)      return { quality: 'medium', samples: 2000, chunkSize: 25000, ...userOptions };
+    if (duration > 600)       return { quality: 'high',   samples: 4000, chunkSize: 10000, ...userOptions };
+    /* < 10 phút */           return { quality: 'ultra',  samples: 5000, chunkSize: 5000, ...userOptions };
+  }
+
+  async _processChunks(audioBuffer, samples, chunkSize) {
     const channelData = audioBuffer.getChannelData(0);
     const blockSize = Math.floor(channelData.length / samples);
-    const waveformData = [];
+    const waveformData = new Array(samples);
 
-    // 🔥 **PROGRESSIVE CHUNKING**: Process in small chunks
     for (let i = 0; i < samples; i += chunkSize) {
-      const endIndex = Math.min(i + chunkSize, samples);
-      
-      // Process chunk
-      for (let j = i; j < endIndex; j++) {
-        const start = j * blockSize;
-        const end = Math.min(start + blockSize, channelData.length);
-        
-        let max = 0;
-        for (let k = start; k < end; k++) {
-          const sample = Math.abs(channelData[k]);
-          if (sample > max) max = sample;
+      const end = Math.min(i + chunkSize, samples);
+
+      for (let j = i; j < end; j++) {
+        let max = 0, idxStart = j * blockSize, idxEnd = Math.min(idxStart + blockSize, channelData.length);
+        for (let k = idxStart; k < idxEnd; k++) {
+          const v = Math.abs(channelData[k]);
+          if (v > max) max = v;
         }
-        waveformData.push(max);
+        waveformData[j] = max;
       }
 
-      // 🚀 **YIELD CONTROL**: Cho phép other tasks chạy
+      // Yield & report progress
       if (i % (chunkSize * 4) === 0) {
-        await this.yieldControl();
-        
-        // 📊 **PROGRESS REPORTING**: Report progress to main thread
-        const progress = (i / samples) * 100;
+        await this._yield();
         self.postMessage({
           type: 'progress',
-          progress: Math.round(progress),
+          progress: Math.round((i / samples) * 100),
           currentSamples: i,
           totalSamples: samples
         });
       }
     }
-
     return waveformData;
   }
 
-  // ⏸️ **YIELD CONTROL**: Cho phép other tasks execute
-  async yieldControl() {
-    return new Promise(resolve => setTimeout(resolve, 0));
+  async _yield() {
+    return new Promise(res => setTimeout(res, 0));
   }
-  // 🗄️ **SMART CACHE**: Intelligent caching with compression
-  setCacheData(key, data) {
-    if (this.cache.size > 100) {
-      const firstKey = this.cache.keys().next().value;
-      this.cache.delete(firstKey);
-    }
-    
-    // 🔧 Simple compression for cache efficiency
-    const compressed = this.compressData(data);
+
+  // --- CACHE ---
+  _cacheSet(key, data) {
+    // Limit cache size
+    if (this.cache.size > 100) this.cache.delete(this.cache.keys().next().value);
+    // Chỉ nén mảng data
+    const compressed = {
+      ...data,
+      data: this._compress(data.data)
+    };
     this.cache.set(key, compressed);
   }
 
-  getCacheData(key) {
+  _cacheGet(key) {
     const compressed = this.cache.get(key);
-    return compressed ? this.decompressData(compressed) : null;
+    if (!compressed) return null;
+    return {
+      ...compressed,
+      data: this._decompress(compressed.data)
+    };
   }
 
-  // 📦 **DATA COMPRESSION**: Simple but effective compression
-  compressData(data) {
-    if (!Array.isArray(data)) return data;
-    
-    // Quantize to reduce precision (0.001 precision is enough for waveform)
-    const quantized = data.map(val => Math.round(val * 1000) / 1000);
-    return { compressed: quantized, length: data.length };
+  _compress(arr) {
+    // Chỉ nén nếu là mảng số
+    if (!Array.isArray(arr)) return arr;
+    // Quantize 0.001 (nhẹ nhất mà không mất chi tiết)
+    const q = new Float32Array(arr.length);
+    for (let i = 0; i < arr.length; i++) q[i] = Math.round(arr[i] * 1000) / 1000;
+    return q;
   }
 
-  decompressData(compressed) {
-    return compressed.compressed || compressed;
+  _decompress(arr) {
+    // Trả lại dạng array
+    if (arr instanceof Float32Array) return Array.from(arr);
+    if (Array.isArray(arr)) return arr;
+    return [];
   }
 
-  // 🎯 **GENERATE CACHE KEY**: Smart cache key generation
-  generateCacheKey(audioBuffer, options) {
-    const duration = Math.round(audioBuffer.duration * 100) / 100;
-    const sampleRate = audioBuffer.sampleRate;
-    const samples = options.samples || 2000;
-    const quality = options.quality || 'standard';
-    
-    return `wf_${duration}_${sampleRate}_${samples}_${quality}`;
+  _genCacheKey(audioBuffer, options) {
+    // Dùng các thuộc tính quyết định waveform
+    return [
+      'wf',
+      Math.round(audioBuffer.duration * 100) / 100,
+      audioBuffer.sampleRate,
+      options.samples || 2000,
+      options.quality || 'standard'
+    ].join('_');
   }
 }
 
-// 🎯 **WORKER MESSAGE HANDLER**
-const waveformWorker = new WaveformWorker();
+// === WORKER HANDLER ===
+const worker = new WaveformWorker();
 
-self.onmessage = async function(e) {
+self.onmessage = async function (e) {
   const { type, data, id } = e.data;
-  
   try {
-    switch (type) {
-      case 'process-audio':
-        const result = await waveformWorker.processAudioBuffer(data.audioBuffer, data.options);
-        self.postMessage({
-          type: 'process-complete',
-          id,
-          result
-        });
-        break;
-        
-      case 'cache-set':
-        waveformWorker.setCacheData(data.key, data.value);
-        self.postMessage({
-          type: 'cache-set-complete',
-          id
-        });
-        break;
-        
-      case 'cache-get':
-        const cachedData = waveformWorker.getCacheData(data.key);
-        self.postMessage({
-          type: 'cache-get-complete',
-          id,
-          result: cachedData
-        });
-        break;
-        
-      default:
-        console.warn('🚨 [WaveformWorker] Unknown message type:', type);
+    if (type === 'process-audio') {
+      const result = await worker.processAudioBuffer(data.audioBuffer, data.options);
+      self.postMessage({ type: 'process-complete', id, result });
+    } else if (type === 'cache-set') {
+      worker._cacheSet(data.key, data.value);
+      self.postMessage({ type: 'cache-set-complete', id });
+    } else if (type === 'cache-get') {
+      const cachedData = worker._cacheGet(data.key);
+      self.postMessage({ type: 'cache-get-complete', id, result: cachedData });
+    } else {
+      // Unknown
+      // Optionally: ignore silently, or log in dev mode
     }
   } catch (error) {
     self.postMessage({
@@ -229,5 +160,3 @@ self.onmessage = async function(e) {
     });
   }
 };
-
-console.log('🚀 [WaveformWorker] Worker ready for processing');

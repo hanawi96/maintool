@@ -1,163 +1,109 @@
-// 🔄 **HYBRID WAVEFORM INTEGRATION** - Bridge between old and new systems
+// api/hybridWaveformIntegration.js
+
 import { WaveformGenerator } from './waveformGenerator';
 import { HybridWaveformService } from './hybridWaveformService';
 
-export class HybridWaveformIntegration {
+class HybridWaveformIntegration {
   constructor() {
     this.hybridService = new HybridWaveformService();
     this.fallbackGenerator = WaveformGenerator;
-    this.useHybridSystem = true; // Flag to enable/disable hybrid system
-    
-    console.log('🔄 [HybridWaveformIntegration] Initialized with hybrid:', this.useHybridSystem);
+    this.useHybridSystem = true;
   }
 
-  /**
-   * 🎯 **MAIN PROCESSING METHOD** - Intelligently routes to best system with unified loading
-   */
+  // Main API: Tự chọn hệ thống, fallback tự động, giữ thời gian xử lý
   async generateWaveform(file, options = {}) {
-    const startTime = performance.now();
-    
+    const start = performance.now();
     try {
-      let result;
-
+      const result = this.useHybridSystem
+        ? await this._processUnifiedHybrid(file, options)
+        : await this._processFallback(file, options);
+      return { ...result, processingTime: performance.now() - start };
+    } catch (err) {
       if (this.useHybridSystem) {
-        // 🚀 **UNIFIED HYBRID PROCESSING**: Single loading state for entire process
-        result = await this.processWithUnifiedHybrid(file, options);
-      } else {
-        // 🔄 **FALLBACK**: Use original system
-        result = await this.processWithFallback(file, options);
-      }
-
-      const processingTime = performance.now() - startTime;
-
-      return {
-        ...result,
-        processingTime
-      };
-
-    } catch (error) {
-      console.error('❌ [HybridWaveformIntegration] Failed:', error);
-      
-      // 🔄 **AUTO-FALLBACK**: If hybrid fails, try fallback
-      if (this.useHybridSystem) {
+        // Fallback tự động nếu hybrid lỗi
         try {
-          return await this.processWithFallback(file, options);
-        } catch (fallbackError) {
-          console.error('❌ [HybridWaveformIntegration] Fallback also failed:', fallbackError);
-          throw fallbackError;
+          const result = await this._processFallback(file, options);
+          return { ...result, processingTime: performance.now() - start };
+        } catch (fbErr) {
+          throw fbErr;
         }
       }
-      
-      throw error;
+      throw err;
     }
   }
 
-  /**
-   * 🚀 **UNIFIED HYBRID PROCESSING** - Single loading state for entire process
-   */
-  async processWithUnifiedHybrid(file, options = {}) {
-    // 🎯 **SKIP THUMBNAIL PHASE**: Go directly to full processing to avoid double loading
-    const hybridOptions = {
+  // Hybrid: Ưu tiên direct generator, lỗi mới gọi hybridService
+  async _processUnifiedHybrid(file, options) {
+    const opts = {
       quality: options.quality || 'standard',
       priority: options.priority || 'normal',
-      skipThumbnail: true, // 🔧 **KEY FIX**: Skip thumbnail to prevent double loading
-      unifiedProgress: true // 🔧 **UNIFIED PROGRESS**: Single progress bar
+      skipThumbnail: true,
+      unifiedProgress: true
     };
 
     try {
-      // 🚀 **DIRECT FULL PROCESSING**: Skip hybrid service complexity, use direct generator
-      const result = await this.fallbackGenerator.generateWaveform(file);
-      
-      return {
-        data: result.data,
-        duration: result.duration,
-        sampleRate: result.sampleRate || 44100,
-        numberOfChannels: result.numberOfChannels || 1,
-        strategy: 'unified-direct',
-        fromCache: false,
-        processingTime: performance.now()
-      };
-    } catch (error) {
-      // 🔄 **FALLBACK TO HYBRID SERVICE**: If direct fails, try hybrid service
-      const result = await this.hybridService.processFile(file, hybridOptions);
-      
-      return {
-        data: result.data,
-        duration: result.duration,
-        sampleRate: result.sampleRate || 44100,
-        numberOfChannels: result.numberOfChannels || 1,
-        strategy: result.strategy,
-        fromCache: result.fromCache,
-        processingTime: result.processingTime
-      };
+      // Ưu tiên generator cũ nếu chạy được
+      const res = await this.fallbackGenerator.generateWaveform(file);
+      return this._normalizeResult(res, 'unified-direct', false);
+    } catch {
+      // Nếu không, fallback sang hybridService
+      const res = await this.hybridService.processFile(file, opts);
+      return this._normalizeResult(res, res.strategy, res.fromCache, res.processingTime);
     }
   }
 
-  /**
-   * 🔄 **FALLBACK PROCESSING**
-   */
-  async processWithFallback(file, options = {}) {
-    const result = await this.fallbackGenerator.generateWaveform(file);
-    
+  // Fallback luôn gọi generator cũ
+  async _processFallback(file, options) {
+    const res = await this.fallbackGenerator.generateWaveform(file);
+    return this._normalizeResult(res, 'fallback', false);
+  }
+
+  // Chuẩn hóa dữ liệu trả về (giảm lặp code)
+  _normalizeResult(res, strategy, fromCache = false, processingTime) {
     return {
-      ...result,
-      strategy: 'fallback',
-      fromCache: false
+      data: res.data,
+      duration: res.duration,
+      sampleRate: res.sampleRate || 44100,
+      numberOfChannels: res.numberOfChannels || 1,
+      strategy,
+      fromCache,
+      ...(processingTime ? { processingTime } : {})
     };
   }
 
-  /**
-   * 🎯 **ENABLE/DISABLE HYBRID SYSTEM**
-   */
+  // Cho phép bật/tắt hybrid
   setHybridEnabled(enabled) {
-    this.useHybridSystem = enabled;
-    console.log('🔄 [HybridWaveformIntegration] Hybrid system:', enabled ? 'ENABLED' : 'DISABLED');
+    this.useHybridSystem = !!enabled;
   }
 
-  /**
-   * 🧹 **CLEANUP**
-   */
-  dispose() {
-    if (this.hybridService) {
-      this.hybridService.dispose();
-    }
-  }
-
-  /**
-   * 📊 **GET PERFORMANCE STATS**
-   */
-  async getPerformanceStats() {
-    if (this.hybridService && this.hybridService.cache) {
-      return await this.hybridService.cache.getStats();
-    }
-    return null;
-  }
-
-  /**
-   * 🧹 **CLEAR CACHE**
-   */
+  // Xoá cache
   async clearCache() {
-    if (this.hybridService && this.hybridService.cache) {
+    if (this.hybridService?.cache) {
       await this.hybridService.cache.clear();
-      console.log('🧹 [HybridWaveformIntegration] Cache cleared');
     }
+  }
+
+  // Lấy thông tin cache
+  async getPerformanceStats() {
+    return this.hybridService?.cache?.getStats?.() || null;
+  }
+
+  // Xoá resources
+  dispose() {
+    this.hybridService?.dispose?.();
   }
 }
 
-// 🎯 **SINGLETON INSTANCE** - Single instance across the app
-let hybridIntegrationInstance = null;
-
+// Singleton export
+let instance = null;
 export const getHybridWaveformIntegration = () => {
-  if (!hybridIntegrationInstance) {
-    hybridIntegrationInstance = new HybridWaveformIntegration();
-  }
-  return hybridIntegrationInstance;
+  if (!instance) instance = new HybridWaveformIntegration();
+  return instance;
 };
 
-// 🔄 **BACKWARD COMPATIBILITY** - Drop-in replacement for WaveformGenerator
+// Drop-in replacement (giữ interface cũ)
 export const HybridWaveformGenerator = {
   async generateWaveform(file, options = {}) {
-    const integration = getHybridWaveformIntegration();
-    return await integration.generateWaveform(file, options);
+    return getHybridWaveformIntegration().generateWaveform(file, options);
   }
 };

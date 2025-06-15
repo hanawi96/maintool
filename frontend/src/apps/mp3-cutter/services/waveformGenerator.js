@@ -1,79 +1,55 @@
 import { WAVEFORM_CONFIG } from '../utils/constants';
 
 export class WaveformGenerator {
-  static async generateWaveform(file) {
-    // 🔧 **REDUCED LOGGING**: Only log for files larger than 5MB to reduce spam
-    if (file.size > 5 * 1024 * 1024) {
-      console.log('🎵 [WaveformGenerator] Processing large file...', {
-        fileName: file.name,
-        fileSize: (file.size / 1024 / 1024).toFixed(2) + 'MB',
-        fileType: file.type
-      });
-    }
-
+  static async generateWaveform(file, options = {}) {
+    const SAMPLE_COUNT = options.samples || WAVEFORM_CONFIG.SAMPLE_COUNT || 1000;
+    let audioContext;
     try {
       const arrayBuffer = await file.arrayBuffer();
-      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      audioContext = new (window.AudioContext || window.webkitAudioContext)();
       const buffer = await audioContext.decodeAudioData(arrayBuffer);
-      const { SAMPLE_COUNT } = WAVEFORM_CONFIG;
-      
-      // 🔧 **REDUCED LOGGING**: Only log for large files
-      if (file.size > 5 * 1024 * 1024) {
-        console.log('📊 [WaveformGenerator] Extracting waveform data...', {
-          targetSamples: SAMPLE_COUNT,
-          bufferLength: buffer.length
-        });
-      }
 
-      const blockSize = Math.floor(buffer.length / SAMPLE_COUNT);
-      const channelData = buffer.getChannelData(0); // Use first channel
-      const waveData = [];
-      for (let i = 0; i < SAMPLE_COUNT; i++) {
-        const start = i * blockSize;
-        const end = Math.min(start + blockSize, buffer.length); // Prevent overflow
+      // Bảo đảm số sample không lớn hơn số frame
+      const samples = Math.min(SAMPLE_COUNT, buffer.length);
+      const blockSize = Math.floor(buffer.length / samples) || 1;
+      const channelData = buffer.getChannelData(0); // chỉ dùng channel đầu tiên
+      const waveData = new Array(samples);
+
+      for (let i = 0; i < samples; i++) {
         let max = 0;
+        const start = i * blockSize;
+        const end = Math.min(start + blockSize, buffer.length);
         for (let j = start; j < end; j++) {
-          const sample = Math.abs(channelData[j]);
-          if (sample > max) max = sample;
+          const val = Math.abs(channelData[j]);
+          if (val > max) max = val;
         }
-        
-        waveData.push(max);
+        waveData[i] = max;
       }
 
-      // 🎯 Step 5: Validate waveform data
-      const maxValue = Math.max(...waveData);
-      const minValue = Math.min(...waveData);
-      const avgValue = waveData.reduce((sum, val) => sum + val, 0) / waveData.length;
-      
-      // 🎯 Step 6: Cleanup and return
-      audioContext.close();
+      await audioContext.close();
 
-      const result = {
+      return {
         data: waveData,
         duration: buffer.duration,
         sampleRate: buffer.sampleRate,
         numberOfChannels: buffer.numberOfChannels
       };
-      return result;
-      
+
     } catch (error) {
-      console.error('❌ [WaveformGenerator] Generation failed:', error);
-      console.error('🔍 [WaveformGenerator] Error details:', {
-        errorName: error.name,
-        errorMessage: error.message,
-        errorStack: error.stack
-      });
-      
-      // 🎯 Provide specific error context
-      if (error.name === 'EncodingError') {
-        throw new Error('Audio file format is not supported or corrupted');
-      } else if (error.name === 'NotSupportedError') {
-        throw new Error('Your browser does not support this audio format');
-      } else if (error.message.includes('decodeAudioData')) {
-        throw new Error('Failed to decode audio data. Please check file format');
-      } else {
-        throw new Error(`Waveform generation failed: ${error.message}`);
+      if (audioContext && audioContext.state !== 'closed') {
+        audioContext.close();
       }
+      // Nhẹ lỗi và chỉ throw thông báo thật ngắn gọn
+      if (error?.name === 'EncodingError') {
+        throw new Error('Audio file format is not supported or is corrupted');
+      }
+      if (error?.name === 'NotSupportedError') {
+        throw new Error('Your browser does not support this audio format');
+      }
+      if (error?.message?.includes('decodeAudioData')) {
+        throw new Error('Failed to decode audio data. Please check file format');
+      }
+      throw new Error(`Waveform generation failed: ${error?.message || error}`);
     }
   }
 }
