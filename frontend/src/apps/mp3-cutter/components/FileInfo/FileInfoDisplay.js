@@ -1,53 +1,49 @@
 import React from 'react';
-import { FileAudio } from 'lucide-react';
+import { Music, HardDrive, Clock } from 'lucide-react';
 import { formatTimeUnified, formatFileSize } from '../../utils/timeFormatter';
 
-const FileInfoDisplay = ({ audioFile, duration, currentTime, isPlaying }) => {
+const FileInfoDisplay = ({ audioFile, duration }) => {
   if (!audioFile) return null;
 
+  // Get the original filename from audioFile.originalName
+  const displayName = audioFile.originalName || 
+                     audioFile.name || 
+                     audioFile.filename || 
+                     'Audio File';
+
   return (
-    <div className="bg-white/70 backdrop-blur-sm rounded-xl p-3 border border-slate-200/50 shadow-sm">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
+    <div className="bg-white rounded-2xl p-4 border border-gray-200 shadow-sm">
+      <div className="flex items-center gap-4">
+        {/* Music Icon */}
+        <div className="flex-shrink-0 w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center">
+          <Music className="w-6 h-6 text-white" />
+        </div>
         
-        {/* File Name & Basic Info */}
-        <div className="flex items-center gap-3">
-          <FileAudio className="w-5 h-5 text-indigo-600" />
-          <div>
-            <div className="text-sm font-semibold text-slate-800 truncate max-w-xs">
-              {audioFile.name || 'Audio File'}
-            </div>
-            <div className="text-xs text-slate-500">
-              {formatFileSize(audioFile.size)}
-            </div>
-          </div>
-        </div>
-
-        {/* Duration & Format */}
-        <div className="flex items-center gap-6">
-          <div className="text-center">
-            <div className="text-xs text-slate-500">Duration</div>
-            <div className="text-sm font-mono text-slate-800">{formatTimeUnified(duration)}</div>
+        {/* File Info */}
+        <div className="flex-1 min-w-0">
+          {/* File Name */}
+          <div className="text-base font-medium text-gray-900 truncate" title={displayName}>
+            {displayName}
           </div>
           
-          <div className="text-center">
-            <div className="text-xs text-slate-500">Format</div>
-            <div className="text-sm font-semibold text-slate-800">
-              {audioFile.type?.split('/')[1]?.toUpperCase() || 'AUDIO'}
+          {/* File Size and Duration */}
+          <div className="flex items-center gap-4 mt-1">
+            {/* File Size */}
+            <div className="flex items-center gap-1.5">
+              <HardDrive className="w-4 h-4 text-gray-400" />
+              <span className="text-sm text-gray-600">
+                {formatFileSize(audioFile.size)}
+              </span>
+            </div>
+            
+            {/* Duration */}
+            <div className="flex items-center gap-1.5">
+              <Clock className="w-4 h-4 text-gray-400" />
+              <span className="text-sm text-gray-600">
+                {formatTimeUnified(duration)}
+              </span>
             </div>
           </div>
-          
-          <div className="text-center">
-            <div className="text-xs text-slate-500">Current Time</div>
-            <div className="text-sm font-mono text-purple-600">{formatTimeUnified(currentTime)}</div>
-          </div>
-        </div>
-
-        {/* Status Indicator */}
-        <div className="flex items-center gap-2">
-          <div className={`w-2 h-2 rounded-full ${isPlaying ? 'bg-green-400 animate-pulse' : 'bg-slate-400'}`}></div>
-          <span className="text-xs text-slate-600">
-            {isPlaying ? 'Playing' : 'Paused'}
-          </span>
         </div>
       </div>
     </div>

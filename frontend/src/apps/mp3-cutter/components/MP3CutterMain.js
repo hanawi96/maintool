@@ -404,12 +404,21 @@ const MP3CutterMain = React.memo(() => {
 
   // 🎯 NEW: File upload handler with audio validation
   const handleFileUpload = useCallback(async (file) => {
+    // 🔒 **TRACK FILE UPLOAD TIME**: Track upload time để prevent invert state restore
+    window.lastFileUploadTime = Date.now();
+    
     // 🆕 RESET PREVIOUS ERRORS
     setAudioError(null);
     setFileValidation(null);
     
-    // 🆕 **RESET STATES**: Reset tất cả states cho file mới
+    // 🆕 **CRITICAL STATE RESET**: Force reset all states cho file mới
     setIsInverted(false);
+    
+    // 🔒 **ENSURE NO RESTORE**: Set flag to prevent any state restoration
+    window.preventInvertStateRestore = true;
+    setTimeout(() => {
+      window.preventInvertStateRestore = false;
+    }, 10000); // 10 seconds protection
     
     // 🚀 **SET GLOBAL FILE REFERENCE**: Make file available to Web Worker
     window.currentAudioFile = file;
@@ -580,9 +589,18 @@ const MP3CutterMain = React.memo(() => {
       setEndTime(prevState.endTime);
       setFadeIn(prevState.fadeIn);
       setFadeOut(prevState.fadeOut);
-      // 🆕 **RESTORE INVERT STATE**: Restore invert selection state
+      // 🆕 **RESTORE INVERT STATE**: Restore invert selection state với protection cho file mới
       if (prevState.isInverted !== undefined) {
-        setIsInverted(prevState.isInverted);
+        // 🔒 **ENHANCED PROTECTION**: Use both timestamp and global flag
+        const isNewFileUpload = Date.now() - (window.lastFileUploadTime || 0) < 5000; // 5s protection window
+        const hasPreventFlag = window.preventInvertStateRestore === true;
+        
+        if (!isNewFileUpload && !hasPreventFlag) {
+          setIsInverted(prevState.isInverted);
+        } else {
+          // 🎯 **FORCE RESET**: Keep isInverted as false for new files
+          setIsInverted(false);
+        }
       }
       
       // 🆕 **JUMP CURSOR TO START POINT**: Move cursor to start point of restored state
@@ -599,9 +617,18 @@ const MP3CutterMain = React.memo(() => {
       setEndTime(nextState.endTime);
       setFadeIn(nextState.fadeIn);
       setFadeOut(nextState.fadeOut);
-      // 🆕 **RESTORE INVERT STATE**: Restore invert selection state
+      // 🆕 **RESTORE INVERT STATE**: Restore invert selection state với protection cho file mới
       if (nextState.isInverted !== undefined) {
-        setIsInverted(nextState.isInverted);
+        // 🔒 **ENHANCED PROTECTION**: Use both timestamp and global flag
+        const isNewFileUpload = Date.now() - (window.lastFileUploadTime || 0) < 5000; 
+        const hasPreventFlag = window.preventInvertStateRestore === true;
+        
+        if (!isNewFileUpload && !hasPreventFlag) {
+          setIsInverted(nextState.isInverted);
+        } else {
+          // 🎯 **FORCE RESET**: Keep isInverted as false for new files
+          setIsInverted(false);
+        }
       }
       
       // 🆕 **JUMP CURSOR TO START POINT**: Move cursor to start point of restored state
@@ -1138,8 +1165,6 @@ const MP3CutterMain = React.memo(() => {
               <FileInfo
                 audioFile={audioFile}
                 duration={duration}
-                currentTime={currentTime}
-                isPlaying={isPlaying}
               />
             </div>            {/* Smart Waveform with Hybrid System */}            <SmartWaveformLazy
               canvasRef={canvasRef}

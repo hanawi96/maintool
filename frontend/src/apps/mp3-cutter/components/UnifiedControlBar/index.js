@@ -300,36 +300,8 @@ const UnifiedControlBar = React.memo(({
           </button>
         )}
       </div>
-    );
-  }, [playbackRate, handleSpeedChange, resetSpeed, disabled]);
-  // 🎯 **INVERT SELECTION SECTION** - New section for invert selection
-  const InvertSelectionSection = useMemo(() => (
-    <div className="flex items-center gap-2 px-3 border-r border-slate-300/50">
-      <button
-        onClick={handleInvertSelection}
-        disabled={disabled || duration <= 0 || startTime >= endTime}
-        className={`relative p-2 rounded-lg transition-all duration-200 group ${
-          isInverted 
-            ? 'bg-indigo-100 hover:bg-indigo-200 border border-indigo-300' 
-            : 'bg-slate-100 hover:bg-slate-200 border border-slate-300'
-        } disabled:opacity-50 disabled:cursor-not-allowed`}
-        title={`Invert Selection: ${isInverted ? 'ON - Playing outside selection' : 'OFF - Playing inside selection'}`}
-      >
-        <Shuffle className={`w-4 h-4 transition-colors ${
-          isInverted 
-            ? 'text-indigo-700 group-hover:text-indigo-800' 
-            : 'text-slate-700 group-hover:text-slate-900'
-        } group-disabled:text-slate-400`} />
-        
-        {/* 🎯 **ACTIVE INDICATOR** - Visual dot when invert mode is enabled */}
-        {isInverted && (
-          <div className="absolute -top-1 -right-1 w-2 h-2 bg-indigo-500 rounded-full shadow-sm"></div>
-        )}
-      </button>
-    </div>
-  ), [handleInvertSelection, disabled, duration, startTime, endTime, isInverted]);
-
-  // 🎯 **HISTORY CONTROLS SECTION** - Memoized with badge counters, updated borders
+    );  }, [playbackRate, handleSpeedChange, resetSpeed, disabled]);
+  // 🎯 **HISTORY CONTROLS SECTION** - Undo/Redo + Invert Selection
   const HistoryControlsSection = useMemo(() => (
     <div className="flex items-center gap-1 px-3 border-r border-slate-300/50">
       {/* Undo */}
@@ -361,8 +333,19 @@ const UnifiedControlBar = React.memo(({
           </span>
         )}
       </button>
+
+      {/* Invert Selection - Moved here, next to undo/redo */}
+      <button
+        onClick={handleInvertSelection}
+        disabled={disabled || duration <= 0 || startTime >= endTime}
+        data-inverted={isInverted}
+        className="p-2 bg-slate-100 hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors relative group"
+        title={`Invert Selection: ${isInverted ? 'ON - Playing outside selection' : 'OFF - Playing inside selection'}`}
+      >
+        <Shuffle className="w-4 h-4 text-slate-700 group-hover:text-slate-900 group-disabled:text-slate-400" />
+      </button>
     </div>
-  ), [canUndo, canRedo, onUndo, onRedo, historyIndex, historyLength, disabled]);
+  ), [canUndo, canRedo, onUndo, onRedo, historyIndex, historyLength, disabled, handleInvertSelection, duration, startTime, endTime, isInverted]);
 
   return (
     <div className="unified-control-bar bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
@@ -379,18 +362,12 @@ const UnifiedControlBar = React.memo(({
         <div className="hidden sm:flex">
           {VolumeControlSection}
         </div>
-        
-        {/* 4. ✅ Speed Control */}
+          {/* 4. ✅ Speed Control */}
         <div className="hidden md:flex">
           {SpeedControlSection}
         </div>
         
-        {/* 5. ✅ Invert Selection - New section */}
-        <div className="hidden md:flex">
-          {InvertSelectionSection}
-        </div>
-        
-        {/* 6. ✅ Start Time + End Time - Time selector controls */}
+        {/* 5. ✅ Start Time + End Time - Time selector controls */}
         <div className="px-4">
           <CompactTimeSelector
             startTime={startTime}
@@ -423,11 +400,10 @@ const UnifiedControlBar = React.memo(({
             <span className="text-sm text-slate-600 w-8 text-center">{Math.round(volume * 100)}%</span>
           </div>
         </div>
-        
-        {/* Mobile Speed Row - với border ngăn cách */}
-        <div className="md:hidden mt-3 pt-3 border-t border-slate-200/50 flex items-center justify-center gap-4">
-          {/* Speed Control với border */}
-          <div className="flex items-center gap-2 px-3 border-r border-slate-300/50">
+          {/* Mobile Speed Row */}
+        <div className="md:hidden mt-3 pt-3 border-t border-slate-200/50 flex items-center justify-center">
+          {/* Speed Control */}
+          <div className="flex items-center gap-2">
             <Zap className="w-4 h-4 text-slate-600" />
             <input
               type="range"
@@ -444,25 +420,6 @@ const UnifiedControlBar = React.memo(({
             />
             <span className="text-sm text-slate-600 w-9 text-center">{playbackRate.toFixed(1)}x</span>
           </div>
-          
-          {/* 🆕 **MOBILE INVERT SELECTION** - Compact button với border */}
-          <button
-            onClick={handleInvertSelection}
-            disabled={disabled || duration <= 0 || startTime >= endTime}
-            className={`relative p-2 rounded-lg transition-all duration-200 ${
-              isInverted 
-                ? 'bg-indigo-100 border border-indigo-300' 
-                : 'bg-slate-100 border border-slate-300'
-            } disabled:opacity-50 disabled:cursor-not-allowed`}
-            title={`Invert Selection: ${isInverted ? 'ON' : 'OFF'}`}
-          >
-            <Shuffle className={`w-4 h-4 ${
-              isInverted ? 'text-indigo-700' : 'text-slate-700'
-            }`} />
-            {isInverted && (
-              <div className="absolute -top-1 -right-1 w-2 h-2 bg-indigo-500 rounded-full shadow-sm"></div>
-            )}
-          </button>
         </div>
       </div>
     </div>

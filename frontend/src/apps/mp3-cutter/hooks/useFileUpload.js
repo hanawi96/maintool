@@ -37,11 +37,11 @@ export const useFileUpload = () => {
       setUploadProgress(25); // Local file loaded
       // 🎯 Upload to backend with enhanced error handling
       const result = await audioApi.uploadFile(file);
-      setUploadProgress(75); // Upload completed
-      // Backend URL can be used for other purposes if needed
+      setUploadProgress(75); // Upload completed      // Backend URL can be used for other purposes if needed
       setAudioFile(prev => ({
         ...prev,
         filename: result.data?.file?.filename || result.data?.filename || result.filename || prev.name,
+        originalName: result.data?.file?.originalName || result.data?.originalName, // 🔧 **FIX**: Add originalName from backend response
         fileId: result.data?.fileId || result.fileId,
         serverData: result.data || result,
         duration: result.data?.duration || result.duration || result.data?.audio?.duration,
