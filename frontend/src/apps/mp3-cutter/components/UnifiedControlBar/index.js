@@ -1,11 +1,11 @@
 import React, { useCallback, useMemo, useEffect, useRef } from 'react';
-import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Zap, RotateCcw, RotateCw, Repeat, Shuffle } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Zap, RotateCcw, RotateCw, Repeat, Shuffle, TrendingUp, TrendingDown } from 'lucide-react';
 import CompactTimeSelector from './CompactTimeSelector';
 import { getAutoReturnSetting, setAutoReturnSetting } from '../../utils/safeStorage';
 import '../../styles/UnifiedControlBar.css';
 
 // 🎯 **UNIFIED CONTROL BAR** - Single responsive row for all controls
-// Layout: [PlayControls] | [Volume] | [Speed] | [InvertSelection] | [TimeSelector] | [History]
+// Layout: [PlayControls] | [Volume] | [Speed] | [InvertSelection] | [FadeControls] | [TimeSelector] | [History]
 
 const UnifiedControlBar = React.memo(({
   // Audio Player props
@@ -29,6 +29,12 @@ const UnifiedControlBar = React.memo(({
   onInvertSelection,
   // 🆕 **INVERT STATE**: Prop to track if invert mode is active
   isInverted = false,
+  
+  // 🆕 **FADE EFFECTS**: Props for fade in/out controls
+  fadeIn = 0,
+  fadeOut = 0,
+  onFadeInToggle,
+  onFadeOutToggle,
   
   // History props
   canUndo,
@@ -61,7 +67,19 @@ const UnifiedControlBar = React.memo(({
     onInvertSelection();
     
   }, [onInvertSelection, duration, startTime, endTime]);
-    // 🔥 **SINGLE SETUP LOG**: Only log initial setup once, asynchronously (production optimized)
+
+  // 🆕 **FADE TOGGLE HANDLERS**: Smart handlers for fade effects
+  const handleFadeInToggle = useCallback(() => {
+    if (!onFadeInToggle) return;
+    onFadeInToggle();
+  }, [onFadeInToggle]);
+
+  const handleFadeOutToggle = useCallback(() => {
+    if (!onFadeOutToggle) return;
+    onFadeOutToggle();
+  }, [onFadeOutToggle]);
+
+  // 🔥 **SINGLE SETUP LOG**: Only log initial setup once, asynchronously (production optimized)
   useEffect(() => {
     if (!setupCompleteRef.current && duration > 0) {
       setupCompleteRef.current = true;
@@ -301,7 +319,7 @@ const UnifiedControlBar = React.memo(({
         )}
       </div>
     );  }, [playbackRate, handleSpeedChange, resetSpeed, disabled]);
-  // 🎯 **HISTORY CONTROLS SECTION** - Undo/Redo + Invert Selection
+  // 🎯 **HISTORY CONTROLS SECTION** - Undo/Redo + Invert Selection + Fade Controls
   const HistoryControlsSection = useMemo(() => (
     <div className="flex items-center gap-1 px-3 border-r border-slate-300/50">
       {/* Undo */}
@@ -344,8 +362,52 @@ const UnifiedControlBar = React.memo(({
       >
         <Shuffle className="w-4 h-4 text-slate-700 group-hover:text-slate-900 group-disabled:text-slate-400" />
       </button>
+
+      {/* 🆕 Fade In Toggle */}
+      <button
+        onClick={handleFadeInToggle}
+        disabled={disabled || duration <= 0 || startTime >= endTime}
+        className={`relative p-2 rounded-lg transition-all duration-200 group ${
+          fadeIn > 0 
+            ? 'bg-green-100 hover:bg-green-200 border border-green-300' 
+            : 'bg-slate-100 hover:bg-slate-200 border border-slate-300'
+        } disabled:opacity-50 disabled:cursor-not-allowed`}
+        title={`Fade In: ${fadeIn > 0 ? `ON - ${fadeIn.toFixed(1)}s` : 'OFF'}`}
+      >
+        <TrendingUp className={`w-4 h-4 transition-colors ${
+          fadeIn > 0 
+            ? 'text-green-700 group-hover:text-green-800' 
+            : 'text-slate-700 group-hover:text-slate-900'
+        }`} />
+        {/* 🎯 Visual indicator khi enabled */}
+        {fadeIn > 0 && (
+          <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full shadow-sm"></div>
+        )}
+      </button>
+
+      {/* 🆕 Fade Out Toggle */}
+      <button
+        onClick={handleFadeOutToggle}
+        disabled={disabled || duration <= 0 || startTime >= endTime}
+        className={`relative p-2 rounded-lg transition-all duration-200 group ${
+          fadeOut > 0 
+            ? 'bg-red-100 hover:bg-red-200 border border-red-300' 
+            : 'bg-slate-100 hover:bg-slate-200 border border-slate-300'
+        } disabled:opacity-50 disabled:cursor-not-allowed`}
+        title={`Fade Out: ${fadeOut > 0 ? `ON - ${fadeOut.toFixed(1)}s` : 'OFF'}`}
+      >
+        <TrendingDown className={`w-4 h-4 transition-colors ${
+          fadeOut > 0 
+            ? 'text-red-700 group-hover:text-red-800' 
+            : 'text-slate-700 group-hover:text-slate-900'
+        }`} />
+        {/* 🎯 Visual indicator khi enabled */}
+        {fadeOut > 0 && (
+          <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full shadow-sm"></div>
+        )}
+      </button>
     </div>
-  ), [canUndo, canRedo, onUndo, onRedo, historyIndex, historyLength, disabled, handleInvertSelection, duration, startTime, endTime, isInverted]);
+  ), [canUndo, canRedo, onUndo, onRedo, historyIndex, historyLength, disabled, handleInvertSelection, duration, startTime, endTime, isInverted, handleFadeInToggle, handleFadeOutToggle, fadeIn, fadeOut]);
 
   return (
     <div className="unified-control-bar bg-white border border-slate-200 rounded-xl p-4 shadow-sm">

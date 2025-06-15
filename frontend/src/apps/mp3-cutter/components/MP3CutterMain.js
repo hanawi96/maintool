@@ -690,7 +690,46 @@ const MP3CutterMain = React.memo(() => {
     saveState({ startTime, endTime, fadeIn, fadeOut: finalFadeOut, isInverted });
   }, [startTime, endTime, fadeIn, saveState, isInverted]);
 
-  // 🆕 **PRESET APPLY CALLBACK**: Lưu lịch sử khi apply preset
+  // 🆕 **FADE TOGGLE HANDLERS**: Smart toggle for fade in/out buttons
+  const handleFadeInToggle = useCallback(() => {
+    const newFadeIn = fadeIn > 0 ? 0 : 3.0; // Toggle between 0 and 3s default
+    setFadeIn(newFadeIn);
+    
+    // 🔄 **REAL-TIME UPDATE**: Update fade config immediately
+    const newConfig = {
+      fadeIn: newFadeIn,
+      fadeOut,
+      startTime,
+      endTime,
+      isInverted,
+      duration
+    };
+    updateFadeConfig(newConfig);
+    
+    // 🆕 **SAVE HISTORY**: Save state for undo/redo
+    saveState({ startTime, endTime, fadeIn: newFadeIn, fadeOut, isInverted });
+  }, [fadeIn, fadeOut, startTime, endTime, isInverted, duration, updateFadeConfig, saveState]);
+
+  const handleFadeOutToggle = useCallback(() => {
+    const newFadeOut = fadeOut > 0 ? 0 : 3.0; // Toggle between 0 and 3s default
+    setFadeOut(newFadeOut);
+    
+    // 🔄 **REAL-TIME UPDATE**: Update fade config immediately
+    const newConfig = {
+      fadeIn,
+      fadeOut: newFadeOut,
+      startTime,
+      endTime,
+      isInverted,
+      duration
+    };
+    updateFadeConfig(newConfig);
+    
+    // 🆕 **SAVE HISTORY**: Save state for undo/redo
+    saveState({ startTime, endTime, fadeIn, fadeOut: newFadeOut, isInverted });
+  }, [fadeIn, fadeOut, startTime, endTime, isInverted, duration, updateFadeConfig, saveState]);
+
+  // 🆕 **PRESET APPLY**: Apply fade presets với enhanced history management
   const handlePresetApply = useCallback((newFadeIn, newFadeOut) => {
     setFadeIn(newFadeIn);
     setFadeOut(newFadeOut);
@@ -1214,9 +1253,16 @@ const MP3CutterMain = React.memo(() => {
               duration={duration}
               onStartTimeChange={handleStartTimeChange}
               onEndTimeChange={handleEndTimeChange}
-                // 🆕 **INVERT SELECTION**: New prop for invert selection handler
+              
+              // 🆕 **INVERT SELECTION**: New prop for invert selection handler
               onInvertSelection={handleInvertSelection}
               isInverted={isInverted}
+              
+              // 🆕 **FADE EFFECTS**: Fade in/out toggle props
+              fadeIn={fadeIn}
+              fadeOut={fadeOut}
+              onFadeInToggle={handleFadeInToggle}
+              onFadeOutToggle={handleFadeOutToggle}
               
               // History props
               canUndo={canUndo}
@@ -1241,6 +1287,8 @@ const MP3CutterMain = React.memo(() => {
                   onFadeOutChange={handleFadeOutChange}
                   onFadeInDragEnd={handleFadeInDragEnd}
                   onFadeOutDragEnd={handleFadeOutDragEnd}
+                  onFadeInToggle={handleFadeInToggle}
+                  onFadeOutToggle={handleFadeOutToggle}
                   onPresetApply={handlePresetApply}
                   disabled={!audioFile}
                 />
