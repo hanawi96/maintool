@@ -938,3 +938,121 @@ html body div.bg-white\/70.backdrop-blur-sm {
 .fade-popup-slider-out:focus {
   box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
 }
+
+/* 🎯 Volume Popup Slider Styles - Blue theme */
+.volume-popup-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  outline: none;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+.volume-popup-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 18px;
+  width: 18px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid #6366f1;
+  box-shadow: 0 2px 6px rgba(99, 102, 241, 0.3);
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.volume-popup-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+  box-shadow: 0 3px 8px rgba(99, 102, 241, 0.4);
+}
+
+.volume-popup-slider::-webkit-slider-thumb:active {
+  transform: scale(1.15);
+}
+
+.volume-popup-slider::-moz-range-thumb {
+  height: 18px;
+  width: 18px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid #6366f1;
+  box-shadow: 0 2px 6px rgba(99, 102, 241, 0.3);
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.volume-popup-slider::-moz-range-thumb:hover {
+  transform: scale(1.1);
+}
+
+.volume-popup-slider::-moz-range-track {
+  height: 8px;
+  border-radius: 4px;
+  border: none;
+  outline: none;
+}
+
+/* Focus states - subtle cho volume popup */
+.volume-popup-slider:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+/* 🎯 Speed Popup Slider Styles - Purple theme */
+.speed-popup-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  outline: none;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+.speed-popup-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 18px;
+  width: 18px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid #8b5cf6;
+  box-shadow: 0 2px 6px rgba(139, 92, 246, 0.3);
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.speed-popup-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+  box-shadow: 0 3px 8px rgba(139, 92, 246, 0.4);
+}
+
+.speed-popup-slider::-webkit-slider-thumb:active {
+  transform: scale(1.15);
+}
+
+.speed-popup-slider::-moz-range-thumb {
+  height: 18px;
+  width: 18px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid #8b5cf6;
+  box-shadow: 0 2px 6px rgba(139, 92, 246, 0.3);
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.speed-popup-slider::-moz-range-thumb:hover {
+  transform: scale(1.1);
+}
+
+.speed-popup-slider::-moz-range-track {
+  height: 8px;
+  border-radius: 4px;
+  border: none;
+  outline: none;
+}
+
+/* Focus states - subtle cho speed popup */
+.speed-popup-slider:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.2);
+}

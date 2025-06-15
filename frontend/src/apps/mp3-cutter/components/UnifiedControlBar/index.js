@@ -4,6 +4,8 @@ import CompactTimeSelector from './CompactTimeSelector';
 import { getAutoReturnSetting, setAutoReturnSetting } from '../../utils/safeStorage';
 import '../../styles/UnifiedControlBar.css';
 import FadeSliderPopup from './FadeSliderPopup';
+import VolumeSliderPopup from './VolumeSliderPopup';
+import SpeedSliderPopup from './SpeedSliderPopup';
 
 // 🎯 **UNIFIED CONTROL BAR** - Single responsive row for all controls
 // Layout: [PlayControls] | [Volume] | [Speed] | [InvertSelection] | [FadeControls] | [TimeSelector] | [History]
@@ -59,10 +61,14 @@ const UnifiedControlBar = React.memo(({
   // 🆕 **POPUP STATE**: State để quản lý popup hiển thị
   const [popupState, setPopupState] = useState({
     fadeInVisible: false,
-    fadeOutVisible: false
+    fadeOutVisible: false,
+    volumeVisible: false,
+    speedVisible: false
   });
   const fadeInButtonRef = useRef(null);
   const fadeOutButtonRef = useRef(null);
+  const volumeButtonRef = useRef(null);
+  const speedButtonRef = useRef(null);
   
   // 🆕 **AUTO-RETURN TOGGLE**: Toggle để bật/tắt auto-return
   const toggleAutoReturn = useCallback(() => {
@@ -84,7 +90,9 @@ const UnifiedControlBar = React.memo(({
     setPopupState(prev => ({
       ...prev,
       fadeInVisible: !prev.fadeInVisible,
-      fadeOutVisible: false // Đóng fade out popup nếu đang mở
+      fadeOutVisible: false, // Đóng fade out popup nếu đang mở
+      volumeVisible: false, // Đóng volume popup nếu đang mở
+      speedVisible: false // Đóng speed popup nếu đang mở
     }));
   }, []);
 
@@ -92,7 +100,29 @@ const UnifiedControlBar = React.memo(({
     setPopupState(prev => ({
       ...prev,
       fadeOutVisible: !prev.fadeOutVisible,
-      fadeInVisible: false // Đóng fade in popup nếu đang mở
+      fadeInVisible: false, // Đóng fade in popup nếu đang mở
+      volumeVisible: false, // Đóng volume popup nếu đang mở
+      speedVisible: false // Đóng speed popup nếu đang mở
+    }));
+  }, []);
+
+  const handleVolumeClick = useCallback(() => {
+    setPopupState(prev => ({
+      ...prev,
+      volumeVisible: !prev.volumeVisible,
+      fadeInVisible: false, // Đóng fade in popup nếu đang mở
+      fadeOutVisible: false, // Đóng fade out popup nếu đang mở
+      speedVisible: false // Đóng speed popup nếu đang mở
+    }));
+  }, []);
+
+  const handleSpeedClick = useCallback(() => {
+    setPopupState(prev => ({
+      ...prev,
+      speedVisible: !prev.speedVisible,
+      fadeInVisible: false, // Đóng fade in popup nếu đang mở
+      fadeOutVisible: false, // Đóng fade out popup nếu đang mở
+      volumeVisible: false // Đóng volume popup nếu đang mở
     }));
   }, []);
 
@@ -102,6 +132,14 @@ const UnifiedControlBar = React.memo(({
 
   const closeFadeOutPopup = useCallback(() => {
     setPopupState(prev => ({ ...prev, fadeOutVisible: false }));
+  }, []);
+
+  const closeVolumePopup = useCallback(() => {
+    setPopupState(prev => ({ ...prev, volumeVisible: false }));
+  }, []);
+
+  const closeSpeedPopup = useCallback(() => {
+    setPopupState(prev => ({ ...prev, speedVisible: false }));
   }, []);
 
   // 🔥 **SINGLE SETUP LOG**: Only log initial setup once, asynchronously (production optimized)
@@ -254,96 +292,69 @@ const UnifiedControlBar = React.memo(({
     </div>
   ), [isPlaying, onTogglePlayPause, onJumpToStart, onJumpToEnd, disabled, toggleAutoReturn, autoReturnEnabled]);
 
-  // 🎯 **VOLUME CONTROL SECTION** - Optimized with callbacks
+  // 🎯 **VOLUME CONTROL SECTION** - Chỉ hiển thị button với popup
   const VolumeControlSection = useMemo(() => {
     const isMuted = volume === 0;
     
     return (
       <div className="flex items-center gap-2 px-3 border-r border-slate-300/50">
-        {/* Volume Icon */}
+        {/* Volume Button - Với popup */}
         <button
-          onClick={toggleMute}
+          ref={volumeButtonRef}
+          onClick={handleVolumeClick}
           disabled={disabled}
-          className="p-1 rounded hover:bg-slate-100 transition-colors group"
-          title={isMuted ? "Unmute" : "Mute"}
+          className={`relative p-2 rounded-lg transition-all duration-200 group ${
+            popupState.volumeVisible
+              ? 'bg-slate-200 border border-slate-400'
+              : isMuted
+              ? 'bg-red-100 hover:bg-red-200 border border-red-300'
+              : 'bg-slate-100 hover:bg-slate-200'
+          } disabled:opacity-50 disabled:cursor-not-allowed`}
+          title={`Volume: ${Math.round(volume * 100)}% - Click to adjust`}
         >
           {isMuted ? (
-            <VolumeX className="w-4 h-4 text-red-500" />
+            <VolumeX className="w-4 h-4 text-red-600 group-hover:text-red-700" />
           ) : (
-            <Volume2 className="w-4 h-4 text-slate-600 group-hover:text-slate-800" />
+            <Volume2 className="w-4 h-4 text-blue-600 group-hover:text-blue-700" />
+          )}
+          {/* 🎯 Visual indicator cho volume level */}
+          {!isMuted && (
+            <div 
+              className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full shadow-sm"
+              style={{ opacity: volume }}
+            ></div>
           )}
         </button>
-
-        {/* Volume Slider - Responsive */}
-        <div className="relative">
-          <input
-            type="range"
-            min="0"
-            max="1"
-            step="0.02"
-            value={volume}
-            onChange={handleVolumeChange}
-            disabled={disabled}
-            className="w-18 sm:w-22 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed volume-slider"
-            title={`Volume: ${Math.round(volume * 100)}%`}
-            style={{
-              background: `linear-gradient(to right, #6366f1 0%, #6366f1 ${volume * 100}%, #e2e8f0 ${volume * 100}%, #e2e8f0 100%)`
-            }}
-          />
-        </div>
-
-        {/* Volume Percentage - Enhanced font */}
-        <span className="text-sm font-mono text-slate-700 w-8 text-right">
-          {Math.round(volume * 100)}%
-        </span>
       </div>
     );
-  }, [volume, handleVolumeChange, toggleMute, disabled]);
-  // 🎯 **SPEED CONTROL SECTION** - Enhanced with border ngăn cách
+  }, [volume, handleVolumeClick, disabled, popupState.volumeVisible]);
+  // 🎯 **SPEED CONTROL SECTION** - Chỉ hiển thị button với popup
   const SpeedControlSection = useMemo(() => {
-    const progressPercent = ((playbackRate - 0.5) / (2 - 0.5)) * 100;
-
     return (
       <div className="flex items-center gap-2 px-3 border-r border-slate-300/50">
-        {/* Speed Icon */}
-        <Zap className="w-4 h-4 text-slate-600" />
-
-        {/* Speed Slider - Responsive */}
-        <div className="relative">
-          <input
-            type="range"
-            min="0.5"
-            max="2"
-            step="0.05"
-            value={playbackRate}
-            onChange={handleSpeedChange}
-            disabled={disabled}
-            className="w-18 sm:w-22 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed speed-slider"
-            title={`Speed: ${playbackRate}x`}
-            style={{
-              background: `linear-gradient(to right, #8b5cf6 0%, #8b5cf6 ${progressPercent}%, #e2e8f0 ${progressPercent}%, #e2e8f0 100%)`
-            }}
-          />
-        </div>
-
-        {/* Speed Display - Enhanced font */}
-        <span className="text-sm font-mono text-slate-700 w-9 text-right">
-          {playbackRate.toFixed(1)}x
-        </span>
-
-        {/* Quick Reset - Enhanced font */}
-        {playbackRate !== 1 && (
-          <button
-            onClick={resetSpeed}
-            disabled={disabled}
-            className="px-2 py-1 text-sm bg-purple-100 hover:bg-purple-200 text-purple-700 rounded transition-colors disabled:opacity-50"
-            title="Reset to 1x"
-          >
-            1x
-          </button>
-        )}
+        {/* Speed Button - Với popup */}
+        <button
+          ref={speedButtonRef}
+          onClick={handleSpeedClick}
+          disabled={disabled}
+          className={`relative p-2 rounded-lg transition-all duration-200 group ${
+            popupState.speedVisible
+              ? 'bg-slate-200 border border-slate-400'
+              : playbackRate !== 1
+              ? 'bg-purple-100 hover:bg-purple-200 border border-purple-300'
+              : 'bg-slate-100 hover:bg-slate-200'
+          } disabled:opacity-50 disabled:cursor-not-allowed`}
+          title={`Speed: ${playbackRate.toFixed(1)}x - Click to adjust`}
+        >
+          <Zap className="w-4 h-4 text-purple-600 group-hover:text-purple-700" />
+          {/* 🎯 Visual indicator cho speed level */}
+          {playbackRate !== 1 && (
+            <div className="absolute -top-1 -right-1 w-2 h-2 bg-purple-500 rounded-full shadow-sm"></div>
+          )}
+        </button>
       </div>
-    );  }, [playbackRate, handleSpeedChange, resetSpeed, disabled]);
+    );
+  }, [playbackRate, handleSpeedClick, disabled, popupState.speedVisible]);
   // 🎯 **HISTORY CONTROLS SECTION** - Undo/Redo + Invert Selection + Fade Controls
   const HistoryControlsSection = useMemo(() => (
     <div className="flex items-center gap-1 px-3 border-r border-slate-300/50">
@@ -483,44 +494,46 @@ const UnifiedControlBar = React.memo(({
           {/* 🎯 **MOBILE RESPONSIVE** - Tối ưu responsive với border ngăn cách */}
         <div className="sm:hidden mt-4 pt-4 border-t border-slate-200">
           <div className="flex items-center justify-center gap-4">
-            {/* Mobile Volume - Compact với border */}
+            {/* Mobile Volume - Button only */}
             <div className="flex items-center gap-2 px-3 border-r border-slate-300/50">
-              <Volume2 className="w-4 h-4 text-slate-600" />
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.02"
-                value={volume}
-                onChange={handleVolumeChange}
+              <button
+                onClick={handleVolumeClick}
                 disabled={disabled}
-                className="w-16 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer disabled:opacity-50"
-                style={{
-                  background: `linear-gradient(to right, #6366f1 0%, #6366f1 ${volume * 100}%, #e2e8f0 ${volume * 100}%, #e2e8f0 100%)`
-                }}
-              />
-              <span className="text-sm text-slate-600 w-8 text-center">{Math.round(volume * 100)}%</span>
+                className={`p-2 rounded-lg transition-all duration-200 group ${
+                  popupState.volumeVisible
+                    ? 'bg-slate-200 border border-slate-400'
+                    : volume === 0
+                    ? 'bg-red-100 hover:bg-red-200 border border-red-300'
+                    : 'bg-slate-100 hover:bg-slate-200'
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
+                title={`Volume: ${Math.round(volume * 100)}% - Tap to adjust`}
+              >
+                {volume === 0 ? (
+                  <VolumeX className="w-4 h-4 text-red-600" />
+                ) : (
+                  <Volume2 className="w-4 h-4 text-blue-600" />
+                )}
+              </button>
             </div>
           </div>
             {/* Mobile Speed Row */}
           <div className="md:hidden mt-3 pt-3 border-t border-slate-200/50 flex items-center justify-center">
-            {/* Speed Control */}
+            {/* Speed Control - Button only */}
             <div className="flex items-center gap-2">
-              <Zap className="w-4 h-4 text-slate-600" />
-              <input
-                type="range"
-                min="0.5"
-                max="2"
-                step="0.1"
-                value={playbackRate}
-                onChange={handleSpeedChange}
+              <button
+                onClick={handleSpeedClick}
                 disabled={disabled}
-                className="w-16 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer disabled:opacity-50"
-                style={{
-                  background: `linear-gradient(to right, #8b5cf6 0%, #8b5cf6 ${((playbackRate - 0.5) / 1.5) * 100}%, #e2e8f0 ${((playbackRate - 0.5) / 1.5) * 100}%, #e2e8f0 100%)`
-                }}
-              />
-              <span className="text-sm text-slate-600 w-9 text-center">{playbackRate.toFixed(1)}x</span>
+                className={`p-2 rounded-lg transition-all duration-200 group ${
+                  popupState.speedVisible
+                    ? 'bg-slate-200 border border-slate-400'
+                    : playbackRate !== 1
+                    ? 'bg-purple-100 hover:bg-purple-200 border border-purple-300'
+                    : 'bg-slate-100 hover:bg-slate-200'
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
+                title={`Speed: ${playbackRate.toFixed(1)}x - Tap to adjust`}
+              >
+                <Zap className="w-4 h-4 text-purple-600" />
+              </button>
             </div>
           </div>
         </div>
@@ -543,6 +556,22 @@ const UnifiedControlBar = React.memo(({
         onClose={closeFadeOutPopup}
         isVisible={popupState.fadeOutVisible}
         buttonRef={fadeOutButtonRef}
+      />
+
+      <VolumeSliderPopup
+        value={volume}
+        onChange={onVolumeChange}
+        onClose={closeVolumePopup}
+        isVisible={popupState.volumeVisible}
+        buttonRef={volumeButtonRef}
+      />
+
+      <SpeedSliderPopup
+        value={playbackRate}
+        onChange={onSpeedChange}
+        onClose={closeSpeedPopup}
+        isVisible={popupState.speedVisible}
+        buttonRef={speedButtonRef}
       />
     </>
   );
