@@ -1,10 +1,26 @@
 // 📄 src/apps/mp3-cutter/components/Waveform/WaveformCanvas.js
-import React, { useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useEffect, useRef, useMemo, useCallback } from 'react';
 import { WAVEFORM_CONFIG } from '../../utils/constants';
 import { WaveformUI } from './WaveformUI';
 import { useOptimizedTooltip } from '../../hooks/useOptimizedTooltip';
 import { useWaveformCursor } from '../../hooks/useWaveformCursor';
 import { useWaveformRender } from '../../hooks/useWaveformRender';
+
+// Helper: responsive handle width & waveform area (reduce repetition)
+const getResponsiveHandleWidth = (width) =>
+  width < WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT
+    ? Math.max(3, WAVEFORM_CONFIG.MODERN_HANDLE_WIDTH * 0.75)
+    : WAVEFORM_CONFIG.MODERN_HANDLE_WIDTH;
+
+const getWaveformArea = (width) => {
+  const handleW = getResponsiveHandleWidth(width);
+  return {
+    startX: handleW,
+    endX: width - handleW,
+    areaWidth: width - 2 * handleW,
+    handleW
+  };
+};
 
 const WaveformCanvas = React.memo(({
   canvasRef,
@@ -19,53 +35,33 @@ const WaveformCanvas = React.memo(({
   volume = 1,
   isGenerating = false,
   enhancedFeatures = {},
-  
-  // 🆕 **FADE EFFECTS**: Visual fade in/out effects trên waveform
-  fadeIn = 0,   // Fade in duration - bars sẽ hiển thị thấp → cao dần trong khoảng này
-  fadeOut = 0,  // Fade out duration - bars sẽ hiển thị cao → thấp dần trong khoảng này
-  
-  // 🆕 **INVERT SELECTION**: Visual invert selection mode
-  isInverted = false, // Invert selection mode - đảo ngược vùng active/inactive
-  
-  // 🚀 **REALTIME AUDIO ACCESS**: Direct audio element access cho ultra-smooth tooltips
+  fadeIn = 0,
+  fadeOut = 0,
+  isInverted = false,
   audioRef,
-  
   onMouseDown,
   onMouseMove,
   onMouseUp,
   onMouseLeave
 }) => {
-
-  // 🚀 **BACKGROUND CANVAS CACHE**: Separate canvas for static gray background
+  // Cache ref for static gray/purple canvas
   const backgroundCacheRef = useRef(null);
-  const lastCacheKey = useRef(null);
-  
-  // 🚀 **PURPLE WAVEFORM CACHE**: Separate cache for purple waveform bars
   const purpleWaveformCacheRef = useRef(null);
+  const lastCacheKey = useRef(null);
   const lastPurpleCacheKey = useRef(null);
 
-  // 🚀 **OPTIMIZED TOOLTIP HOOK** - Bao gồm main cursor tooltip
+  // Tooltip, cursor, waveform render hooks
   const {
     hoverTooltip,
     handleTooltips: handleTooltipsData,
     mainCursorTooltip,
     updateHoverTooltip,
     clearHoverTooltip
-  } = useOptimizedTooltip(canvasRef, duration, currentTime, isPlaying, audioRef, startTime, endTime, hoveredHandle, isDragging, isInverted);
-
-  // 🆕 **HANDLE TOOLTIPS FUNCTION**: Function to handle tooltip updates based on mouse position
-  const handleTooltips = useCallback((mouseX) => {
-    // This function can be used to trigger tooltip updates based on mouse position
-    // For now, it's a placeholder since tooltips are handled by the hook
-    updateHoverTooltip({ clientX: mouseX + (canvasRef.current?.getBoundingClientRect().left || 0) });
-  }, [updateHoverTooltip, canvasRef]);
-
-  const {
-    updateCursor
-    // Removed resetCursor since we don't use it with pointer capture
-  } = useWaveformCursor(canvasRef, duration, startTime, endTime, isDragging);
-
-  // 🚀 **OPTIMIZED HOOK**: Responsive waveform rendering with hybrid system
+  } = useOptimizedTooltip(
+    canvasRef, duration, currentTime, isPlaying,
+    audioRef, startTime, endTime, hoveredHandle, isDragging, isInverted
+  );
+  const { updateCursor } = useWaveformCursor(canvasRef, duration, startTime, endTime, isDragging);
   const {
     animatedVolume,
     hybridWaveformData,
@@ -73,81 +69,59 @@ const WaveformCanvas = React.memo(({
     containerWidth
   } = useWaveformRender(canvasRef, waveformData, volume, isDragging, isPlaying, hoverTooltip);
 
-  // 🚀 **ENHANCED MOUSE HANDLERS** - Updated to use Pointer Events for better drag tracking
-  const handleEnhancedPointerDown = useCallback((e) => {
+  // ----- POINTER EVENT HANDLERS -----
+  const handlePointerDown = useCallback((e) => {
     const canvas = canvasRef.current;
     if (canvas) {
       const rect = canvas.getBoundingClientRect();
       const mouseX = e.clientX - rect.left;
-      
-      // 🎯 **POINTER CAPTURE**: Capture pointer để track movement ngay cả khi ra ngoài canvas
       canvas.setPointerCapture(e.pointerId);
-      
       updateCursor(mouseX);
       clearHoverTooltip();
     }
-    
-    if (onMouseDown) onMouseDown(e);
-  }, [onMouseDown, canvasRef, updateCursor, clearHoverTooltip]);
+    onMouseDown?.(e);
+  }, [onMouseDown, updateCursor, clearHoverTooltip, canvasRef]);
 
-  const handleEnhancedPointerMove = useCallback((e) => {
-    if (onMouseMove) onMouseMove(e);
-  
+  const handlePointerMove = useCallback((e) => {
+    onMouseMove?.(e);
     const canvas = canvasRef.current;
     if (canvas) {
       const rect = canvas.getBoundingClientRect();
       const mouseX = e.clientX - rect.left;
-      
       updateCursor(mouseX);
-      
-      // 🎯 **TOOLTIP UPDATES**: Update tooltips based on mouse position
-      handleTooltips(mouseX);
+      updateHoverTooltip({ clientX: e.clientX });
     }
-  }, [onMouseMove, canvasRef, updateCursor, handleTooltips]);
+  }, [onMouseMove, updateCursor, updateHoverTooltip, canvasRef]);
 
-  const handleEnhancedPointerUp = useCallback((e) => {
-    if (onMouseUp) onMouseUp(e);
-    
-    const canvas = canvasRef.current;
-    if (canvas) {
-      // 🎯 **RELEASE POINTER CAPTURE**: Release pointer capture
-      canvas.releasePointerCapture(e.pointerId);
-    }
+  const handlePointerUp = useCallback((e) => {
+    onMouseUp?.(e);
+    canvasRef.current?.releasePointerCapture(e.pointerId);
   }, [onMouseUp, canvasRef]);
 
-  const handleEnhancedPointerLeave = useCallback((e) => {
-    if (onMouseLeave) onMouseLeave(e);
-    
-    // 🚀 **ALWAYS HIDE HOVER LINE**: Hide hover cursor line when leaving waveform
+  const handlePointerLeave = useCallback((e) => {
+    onMouseLeave?.(e);
     clearHoverTooltip();
   }, [onMouseLeave, clearHoverTooltip]);
 
-  // 🆕 **HANDLE EVENT HANDLERS**: Direct handlers cho handles - Updated for Pointer Events
+  // Handle events for region handles (left/right)
   const handleHandlePointerDown = useCallback((e) => {
-    // 🔧 **CLEAR HOVER TOOLTIP**: Ẩn hover tooltip khi bắt đầu drag handle
     clearHoverTooltip();
-    
-    // 🎯 **POINTER CAPTURE ON CANVAS**: Capture pointer trên canvas thay vì handle element
     const canvas = canvasRef.current;
     if (canvas) {
       canvas.setPointerCapture(e.pointerId);
-    }
-    
-    // 🔧 **DIRECT CANVAS EVENT**: Optimized direct forwarding
-    if (canvas && onMouseDown) {
-      const rect = canvas.getBoundingClientRect();
-      const canvasEvent = {
-        clientX: e.clientX,
-        clientY: e.clientY,
-        target: canvas,
-        handleType: e.handleType,
-        isHandleEvent: true,
-        canvasX: e.clientX - rect.left,
-        canvasY: e.clientY - rect.top,
-        pointerId: e.pointerId // 🆕 **POINTER ID**: Add pointer ID for tracking
-      };
-      
-      onMouseDown(canvasEvent);
+      if (onMouseDown) {
+        const rect = canvas.getBoundingClientRect();
+        onMouseDown({
+          clientX: e.clientX,
+          clientY: e.clientY,
+          target: canvas,
+          handleType: e.handleType,
+          isHandleEvent: true,
+          canvasX: e.clientX - rect.left,
+          canvasY: e.clientY - rect.top,
+          pointerId: e.pointerId
+        });
+      }
     }
   }, [canvasRef, onMouseDown, clearHoverTooltip]);
 
@@ -155,7 +129,7 @@ const WaveformCanvas = React.memo(({
     const canvas = canvasRef.current;
     if (canvas && onMouseMove) {
       const rect = canvas.getBoundingClientRect();
-      const canvasEvent = {
+      const evt = {
         clientX: e.clientX,
         clientY: e.clientY,
         target: canvas,
@@ -163,668 +137,321 @@ const WaveformCanvas = React.memo(({
         isHandleEvent: true,
         canvasX: e.clientX - rect.left,
         canvasY: e.clientY - rect.top,
-        pointerId: e.pointerId // 🆕 **POINTER ID**: Add pointer ID for tracking
+        pointerId: e.pointerId
       };
-      
-      onMouseMove(canvasEvent);
-      updateCursor(canvasEvent.canvasX, { isHandleEvent: true, handleType: e.handleType });
+      onMouseMove(evt);
+      updateCursor(evt.canvasX, { isHandleEvent: true, handleType: e.handleType });
     }
   }, [canvasRef, onMouseMove, updateCursor]);
 
   const handleHandlePointerUp = useCallback((e) => {
     const canvas = canvasRef.current;
     if (canvas && onMouseUp) {
-      // 🎯 **RELEASE POINTER CAPTURE**: Release pointer capture
       canvas.releasePointerCapture(e.pointerId);
-      
-      const canvasEvent = {
+      onMouseUp({
         target: canvas,
         handleType: e.handleType,
         isHandleEvent: true,
-        pointerId: e.pointerId // 🆕 **POINTER ID**: Add pointer ID for tracking
-      };
-      
-      onMouseUp(canvasEvent);
+        pointerId: e.pointerId
+      });
     }
   }, [canvasRef, onMouseUp]);
 
-  // 🎯 **RENDER DATA MEMOIZATION**: Prevent unnecessary recalculations  
+  // ----- RENDER DATA MEMO -----
   const renderData = useMemo(() => {
-    if (!hybridWaveformData?.data?.length || duration <= 0) {
-      return null;
-    }
-    
+    if (!hybridWaveformData?.data?.length || duration <= 0) return null;
     return {
-      waveformData: hybridWaveformData.data, // 🚀 **HYBRID DATA**: Use processed data
-      barWidth: hybridWaveformData.barWidth, // 🚀 **FIXED BAR WIDTH**: From hybrid system
-      mode: hybridWaveformData.mode, // 🚀 **PROCESSING MODE**: natural/interpolate/sample
+      waveformData: hybridWaveformData.data,
+      barWidth: hybridWaveformData.barWidth,
+      mode: hybridWaveformData.mode,
       duration,
       startTime,
       endTime,
       volume: animatedVolume,
       fadeIn,
       fadeOut,
-      isInverted, // 🆕 **INVERT MODE**: Track invert selection state
-      containerWidth
+      isInverted,
+      containerWidth,
+      currentTime
     };
-  }, [hybridWaveformData, duration, startTime, endTime, animatedVolume, fadeIn, fadeOut, isInverted, containerWidth]);
+  }, [hybridWaveformData, duration, startTime, endTime, animatedVolume, fadeIn, fadeOut, isInverted, containerWidth, currentTime]);
 
-  // 🔧 **HEIGHT CONSISTENCY CHECK**: Ensure consistent height during transitions
+  // ----- CANVAS HEIGHT GUARD -----
   useEffect(() => {
     const canvas = canvasRef.current;
     if (canvas && canvas.height !== WAVEFORM_CONFIG.HEIGHT) {
       canvas.height = WAVEFORM_CONFIG.HEIGHT;
     }
-  }, [canvasRef, renderData]);  // Trigger when render data changes
+  }, [canvasRef, renderData]);
 
-  // 🚀 **BACKGROUND CACHE CREATOR**: Create cached background for ultra-fast re-renders
+  // ----- CACHE KEYS -----
+  const generateCacheKey = useCallback((data, width) =>
+    data?.waveformData ? `${data.waveformData.length}-${data.containerWidth || width}-${data.mode || 'default'}` : null,
+    []
+  );
+  const generatePurpleCacheKey = useCallback((data, width) => {
+    if (!data?.waveformData) return null;
+    const v = data.volume ?? 1;
+    return `purple-${data.waveformData.length}-${data.containerWidth || width}-${data.mode || 'default'}-${Math.round(v * 100)}-${Math.round((data.fadeIn || 0) * 10)}-${Math.round((data.fadeOut || 0) * 10)}-${Math.round((data.startTime || 0) * 10)}-${Math.round((data.endTime || 0) * 10)}-${data.isInverted || false}`;
+  }, []);
+
+  // ----- BACKGROUND CANVAS CACHE -----
   const createBackgroundCache = useCallback(async (waveformData, width, height, containerWidth) => {
-    // 🔧 **HANDLE SPACE ADJUSTMENT**: Calculate available waveform area
-    const { MODERN_HANDLE_WIDTH } = WAVEFORM_CONFIG;
-    const responsiveHandleWidth = containerWidth < WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT ? 
-      Math.max(3, MODERN_HANDLE_WIDTH * 0.75) : MODERN_HANDLE_WIDTH;
-    
-    const leftHandleWidth = responsiveHandleWidth;
-    const rightHandleWidth = responsiveHandleWidth;
-    const waveformStartX = leftHandleWidth;
-    const waveformEndX = width - rightHandleWidth;
-    const availableWaveformWidth = waveformEndX - waveformStartX;
-    
-    // 🎯 **CREATE BACKGROUND CANVAS**: Temporary canvas for background rendering
+    const { startX, areaWidth } = getWaveformArea(width);
     const bgCanvas = document.createElement('canvas');
-    bgCanvas.width = width;
-    bgCanvas.height = height;
-    const bgCtx = bgCanvas.getContext('2d', { willReadFrequently: true });
-    
-    // 🚀 **PERFORMANCE SETUP**: GPU acceleration
-    bgCtx.imageSmoothingEnabled = false;
-    
-    // 1. **BACKGROUND GRADIENT**: Match main canvas
-    const gradient = bgCtx.createLinearGradient(0, 0, 0, height);
-    gradient.addColorStop(0, 'rgba(99, 102, 241, 0.04)');    gradient.addColorStop(1, 'rgba(168, 85, 247, 0.04)');
-    bgCtx.fillStyle = gradient;
-    bgCtx.fillRect(waveformStartX, 0, availableWaveformWidth, height);    
-    // 2. **GRAY WAVEFORM BARS ONLY**: Render all bars in gray (background)
-    const centerY = height / 2;
-    const FLAT_BAR_HEIGHT_PX = 1;
-    const MAX_SCALING_PX = 65;
-    const adjustedBarWidth = availableWaveformWidth / waveformData.length;
-    
-    bgCtx.fillStyle = '#e2e8f0'; // 🔧 **STATIC GRAY**: All background bars are gray (nhạt hơn từ #cbd5e1 thành #e2e8f0)
-    
+    bgCanvas.width = width; bgCanvas.height = height;
+    const ctx = bgCanvas.getContext('2d', { willReadFrequently: true });
+    ctx.imageSmoothingEnabled = false;
+    // Gradient
+    const gradient = ctx.createLinearGradient(0, 0, 0, height);
+    gradient.addColorStop(0, 'rgba(99,102,241,0.04)');
+    gradient.addColorStop(1, 'rgba(168,85,247,0.04)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(startX, 0, areaWidth, height);
+    // Gray bars
+    ctx.fillStyle = '#e2e8f0';
+    const centerY = height / 2, FLAT_BAR = 1, MAX_PX = 65;
+    const barW = areaWidth / waveformData.length;
     for (let i = 0; i < waveformData.length; i++) {
-      const value = waveformData[i];
-      const effectiveBarHeight = FLAT_BAR_HEIGHT_PX + (MAX_SCALING_PX * value);
-      const x = waveformStartX + (i * adjustedBarWidth);
-      
-      bgCtx.fillRect(Math.floor(x), centerY - effectiveBarHeight, adjustedBarWidth, effectiveBarHeight * 2);
+      const h = FLAT_BAR + (MAX_PX * waveformData[i]);
+      const x = startX + (i * barW);
+      ctx.fillRect(Math.floor(x), centerY - h, barW, h * 2);
     }
-    
-    // 🚀 **CREATE IMAGEBITMAP**: Convert to ImageBitmap for ultra-fast drawImage
     return createImageBitmap(bgCanvas);
   }, []);
 
-  // 🚀 **PURPLE WAVEFORM CACHE CREATOR**: Create cached purple waveform for ultra-fast region rendering
-  const createPurpleWaveformCache = useCallback(async (waveformData, width, height, containerWidth, volume, fadeIn, fadeOut, startTime, endTime, duration) => {
-    // 🔧 **HANDLE SPACE ADJUSTMENT**: Calculate available waveform area
-    const { MODERN_HANDLE_WIDTH } = WAVEFORM_CONFIG;
-    const responsiveHandleWidth = containerWidth < WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT ? 
-      Math.max(3, MODERN_HANDLE_WIDTH * 0.75) : MODERN_HANDLE_WIDTH;
-    
-    const leftHandleWidth = responsiveHandleWidth;
-    const rightHandleWidth = responsiveHandleWidth;
-    const waveformStartX = leftHandleWidth;
-    const waveformEndX = width - rightHandleWidth;
-    const availableWaveformWidth = waveformEndX - waveformStartX;
-    
-    // 🎯 **CREATE PURPLE CANVAS**: Temporary canvas for purple waveform rendering
-    const purpleCanvas = document.createElement('canvas');
-    purpleCanvas.width = width;
-    purpleCanvas.height = height;
-    const purpleCtx = purpleCanvas.getContext('2d', { willReadFrequently: true });
-    
-    // 🚀 **PERFORMANCE SETUP**: GPU acceleration
-    purpleCtx.imageSmoothingEnabled = false;
-    
-    // 🎨 **PURPLE WAVEFORM BARS**: Render all bars in purple (full length)
-    const centerY = height / 2;
-    const FLAT_BAR_HEIGHT_PX = 1;
-    const MAX_SCALING_PX = 65;
-    
-    const volumePercent = Math.max(0, Math.min(100, volume * 100));
-    const volumeStep = volumePercent / 2;
-    const scalingPixels = volumeStep * (MAX_SCALING_PX / 50);
-    const absoluteBarHeightPx = FLAT_BAR_HEIGHT_PX + scalingPixels;
-    const waveformVariation = Math.max(0, Math.min(1, volume));
-    const adjustedBarWidth = availableWaveformWidth / waveformData.length;
-    
-    purpleCtx.fillStyle = '#7c3aed'; // 🔧 **STATIC PURPLE**: All purple bars
-      // 🎯 **FADE CALCULATION HELPER**: Calculate fade multiplier for each bar position
-    const calculateFadeMultiplier = (barIndex, totalBars) => {
+  // ----- PURPLE WAVEFORM CACHE -----
+  const createPurpleWaveformCache = useCallback(async (
+    waveformData, width, height, containerWidth, volume, fadeIn, fadeOut, startTime, endTime, duration
+  ) => {
+    const { startX, areaWidth } = getWaveformArea(width);
+    const canvas = document.createElement('canvas');
+    canvas.width = width; canvas.height = height;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    ctx.imageSmoothingEnabled = false;
+    ctx.fillStyle = '#7c3aed';
+    const centerY = height / 2, FLAT_BAR = 1, MAX_PX = 65;
+    const vol = Math.max(0, Math.min(1, volume));
+    const barW = areaWidth / waveformData.length;
+    const fadeMultiplier = (i) => {
       if (!fadeIn && !fadeOut) return 1;
-      
-      const barTimePosition = (barIndex / totalBars) * duration;
-      
-      // 🆕 **INVERT MODE**: Different fade logic for inverted selection
+      const time = (i / waveformData.length) * duration;
+      // Invert mode
       if (isInverted) {
-        let fadeMultiplier = 1;
-        
-        // 🎯 **FADE IN - FIRST ACTIVE REGION** (0 to startTime)
-        if (fadeIn > 0 && barTimePosition < startTime) {
-          const activeRegionDuration = startTime; // From 0 to startTime
-          const fadeInDuration = Math.min(fadeIn, activeRegionDuration);
-          
-          if (barTimePosition <= fadeInDuration) {
-            const fadeProgress = barTimePosition / fadeInDuration;
-            fadeMultiplier = Math.min(fadeMultiplier, Math.max(0.05, fadeProgress));
-          }
+        let f = 1;
+        if (fadeIn > 0 && time < startTime) {
+          const fadeInDur = Math.min(fadeIn, startTime);
+          if (time <= fadeInDur) f = Math.max(0.05, time / fadeInDur);
         }
-        
-        // 🔥 **FADE OUT - SECOND ACTIVE REGION** (endTime to duration)
-        if (fadeOut > 0 && barTimePosition >= endTime) {
-          const activeRegionDuration = duration - endTime; // From endTime to duration
-          const fadeOutDuration = Math.min(fadeOut, activeRegionDuration);
-          const fadeOutStart = duration - fadeOutDuration; // Fade at the END of this region
-          
-          if (barTimePosition >= fadeOutStart) {
-            const fadeProgress = (duration - barTimePosition) / fadeOutDuration;
-            fadeMultiplier = Math.min(fadeMultiplier, Math.max(0.05, fadeProgress));
-          }
+        if (fadeOut > 0 && time >= endTime) {
+          const fadeOutDur = Math.min(fadeOut, duration - endTime);
+          const fadeOutStart = duration - fadeOutDur;
+          if (time >= fadeOutStart) f = Math.max(0.05, (duration - time) / fadeOutDur);
         }
-        
-        return fadeMultiplier;
+        return f;
       } else {
-        // 🎯 **NORMAL MODE**: Original logic for selection region
-        const relativePosition = (barTimePosition - startTime) / (endTime - startTime);
-        let fadeMultiplier = 1;
-        
-        // 🎵 **FADE IN EFFECT**: Gradual increase from start
-        if (fadeIn > 0 && relativePosition < (fadeIn / (endTime - startTime))) {
-          const fadeProgress = relativePosition / (fadeIn / (endTime - startTime));
-          fadeMultiplier *= Math.max(0.05, Math.min(1, fadeProgress));
+        const rel = (time - startTime) / (endTime - startTime);
+        let f = 1;
+        if (fadeIn > 0 && rel < (fadeIn / (endTime - startTime))) {
+          f *= Math.max(0.05, Math.min(1, rel / (fadeIn / (endTime - startTime))));
         }
-        
-        // 🎵 **FADE OUT EFFECT**: Gradual decrease to end
-        if (fadeOut > 0 && relativePosition > (1 - fadeOut / (endTime - startTime))) {
-          const fadeProgress = (1 - relativePosition) / (fadeOut / (endTime - startTime));
-          fadeMultiplier *= Math.max(0.05, Math.min(1, fadeProgress));
+        if (fadeOut > 0 && rel > (1 - fadeOut / (endTime - startTime))) {
+          f *= Math.max(0.05, Math.min(1, (1 - rel) / (fadeOut / (endTime - startTime))));
         }
-        
-        return fadeMultiplier;
+        return f;
       }
     };
-    
     for (let i = 0; i < waveformData.length; i++) {
-      const value = waveformData[i];
-      
-      let effectiveBarHeight;
-      if (waveformVariation === 0) {
-        // 🎯 **VOLUME 0%**: Show flat bars at minimum height
-        effectiveBarHeight = FLAT_BAR_HEIGHT_PX;
-      } else {
-        const flatHeight = FLAT_BAR_HEIGHT_PX;
-        const dynamicHeight = absoluteBarHeightPx * value;
-        effectiveBarHeight = flatHeight + (dynamicHeight - flatHeight) * waveformVariation;
-      }
-        // 🎵 **APPLY FADE EFFECTS**: Modify bar height based on fade position
-      if (fadeIn > 0 || fadeOut > 0) {
-        const fadeMultiplier = calculateFadeMultiplier(i, waveformData.length);
-        effectiveBarHeight = FLAT_BAR_HEIGHT_PX + (effectiveBarHeight - FLAT_BAR_HEIGHT_PX) * fadeMultiplier;
-        
-        // 🔍 **DEBUG FADE**: Log fade calculations for first few bars when fade is active  
-        if (i < 5 && (fadeIn > 0 || fadeOut > 0)) {
-          const barTimePosition = (i / waveformData.length) * duration;
-          console.log(`[WaveformCanvas] Fade Debug - Bar ${i}: time=${barTimePosition.toFixed(2)}s, fadeMultiplier=${fadeMultiplier.toFixed(3)}, isInverted=${isInverted}, fadeIn=${fadeIn}s, fadeOut=${fadeOut}s, startTime=${startTime}s, endTime=${endTime}s`);
-        }
-      }
-      
-      const x = waveformStartX + (i * adjustedBarWidth);
-      purpleCtx.fillRect(Math.floor(x), centerY - effectiveBarHeight, adjustedBarWidth, effectiveBarHeight * 2);
+      let h = FLAT_BAR + ((FLAT_BAR + (MAX_PX * waveformData[i]) - FLAT_BAR) * vol);
+      if (fadeIn > 0 || fadeOut > 0) h = FLAT_BAR + (h - FLAT_BAR) * fadeMultiplier(i);
+      const x = startX + (i * barW);
+      ctx.fillRect(Math.floor(x), centerY - h, barW, h * 2);
     }
-      // 🚀 **CREATE IMAGEBITMAP**: Convert to ImageBitmap for ultra-fast drawImage
-    return createImageBitmap(purpleCanvas);
+    return createImageBitmap(canvas);
   }, [isInverted]);
 
-  // 🎯 **CACHE KEY GENERATOR**: Detect when background needs re-caching
-  const generateCacheKey = useCallback((renderData, containerWidth) => {
-    if (!renderData?.waveformData) return null;
-    
-    return `${renderData.waveformData.length}-${renderData.containerWidth || containerWidth}-${renderData.mode || 'default'}`;
-  }, []);
-  // 🚀 **PURPLE CACHE KEY GENERATOR**: Detect when purple cache needs re-caching
-  const generatePurpleCacheKey = useCallback((renderData, containerWidth) => {
-    if (!renderData?.waveformData) return null;
-    
-    const volumeValue = renderData.volume !== undefined ? renderData.volume : 1;
-    const fadeInValue = renderData.fadeIn || 0;
-    const fadeOutValue = renderData.fadeOut || 0;
-    const startTimeValue = renderData.startTime || 0;
-    const endTimeValue = renderData.endTime || 0;
-    const isInvertedValue = renderData.isInverted || false;
-    
-    return `purple-${renderData.waveformData.length}-${renderData.containerWidth || containerWidth}-${renderData.mode || 'default'}-${Math.round(volumeValue * 100)}-${Math.round(fadeInValue * 10)}-${Math.round(fadeOutValue * 10)}-${Math.round(startTimeValue * 10)}-${Math.round(endTimeValue * 10)}-${isInvertedValue}`;
-  }, []);
-
-  // 🚀 **OPTIMIZED DRAW FUNCTION**: Ultra-fast rendering with cached background  
+  // ----- DRAW WAVEFORM (ULTRA FAST) -----
   const drawWaveform = useCallback(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !renderData) {
-      return;
-    }
-
+    if (!canvas || !renderData) return;
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     const { width, height } = canvas;
-    
-    // 🚀 **PERFORMANCE SETUP**: GPU acceleration
     ctx.imageSmoothingEnabled = false;
     ctx.clearRect(0, 0, width, height);
-    
-    const { 
-      duration, 
-      startTime, 
-      endTime, 
-      volume: currentVolume, 
-      isInverted
-    } = renderData;
-    
-    // 1. **DRAW CACHED BACKGROUND**: Ultra-fast single drawImage call with volume opacity sync
+
+    const { duration, startTime, endTime, volume: currentVolume, isInverted } = renderData;
+    const { startX, areaWidth } = getWaveformArea(width);
+
+    // 1. Gray bg
     if (backgroundCacheRef.current) {
-      // 🆕 **BACKGROUND OPACITY SYNC**: Sync background opacity with volume (minimum 30% for visibility)
       ctx.globalAlpha = Math.max(0.30, currentVolume);
       ctx.drawImage(backgroundCacheRef.current, 0, 0);
-      ctx.globalAlpha = 1.0; // Reset alpha for subsequent drawings
+      ctx.globalAlpha = 1;
     }
-    
-    // 2. **DRAW ACTIVE SELECTION ONLY**: Only render purple bars for selection
+    // 2. Active (purple) region
     if (startTime < endTime && duration > 0 && purpleWaveformCacheRef.current) {
-      const { MODERN_HANDLE_WIDTH } = WAVEFORM_CONFIG;
-      const responsiveHandleWidth = containerWidth < WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT ? 
-        Math.max(3, MODERN_HANDLE_WIDTH * 0.75) : MODERN_HANDLE_WIDTH;
-      
-      const leftHandleWidth = responsiveHandleWidth;
-      const rightHandleWidth = responsiveHandleWidth;
-      const waveformStartX = leftHandleWidth;
-      const waveformEndX = width - rightHandleWidth;
-      const availableWaveformWidth = waveformEndX - waveformStartX;
-      
-      if (availableWaveformWidth > 0) {
-        ctx.save();
-        
-        if (isInverted) {
-          // 🆕 **INVERT MODE**: Clip and draw regions OUTSIDE selection (before + after)
-          
-          // Draw before selection region (0 to startTime)
-          if (startTime > 0) {
-            const startPercent = 0;
-            const endPercent = startTime / duration;
-            const clipStartX = waveformStartX + (startPercent * availableWaveformWidth);
-            const clipWidth = (endPercent * availableWaveformWidth);
-            
-            ctx.beginPath();
-            ctx.rect(clipStartX, 0, clipWidth, height);
-            ctx.clip();
-            ctx.drawImage(purpleWaveformCacheRef.current, 0, 0);
-            ctx.restore();
-            ctx.save();
-          }
-          
-          // Draw after selection region (endTime to duration)
-          if (endTime < duration) {
-            const startPercent = endTime / duration;
-            const endPercent = 1;
-            const clipStartX = waveformStartX + (startPercent * availableWaveformWidth);
-            const clipWidth = ((endPercent - startPercent) * availableWaveformWidth);
-            
-            ctx.beginPath();
-            ctx.rect(clipStartX, 0, clipWidth, height);
-            ctx.clip();
-            ctx.drawImage(purpleWaveformCacheRef.current, 0, 0);
-          }
-        } else {
-          // 🎯 **NORMAL MODE**: Clip and draw region INSIDE selection only
-          const startPercent = startTime / duration;
-          const endPercent = endTime / duration;
-          const clipStartX = waveformStartX + (startPercent * availableWaveformWidth);
-          const clipWidth = ((endPercent - startPercent) * availableWaveformWidth);
-          
+      ctx.save();
+      if (isInverted) {
+        // Before selection
+        if (startTime > 0) {
           ctx.beginPath();
-          ctx.rect(clipStartX, 0, clipWidth, height);
+          ctx.rect(startX, 0, (startTime / duration) * areaWidth, height);
+          ctx.clip();
+          ctx.drawImage(purpleWaveformCacheRef.current, 0, 0);
+          ctx.restore(); ctx.save();
+        }
+        // After selection
+        if (endTime < duration) {
+          ctx.beginPath();
+          ctx.rect(startX + (endTime / duration) * areaWidth, 0, ((1 - endTime / duration) * areaWidth), height);
           ctx.clip();
           ctx.drawImage(purpleWaveformCacheRef.current, 0, 0);
         }
-        
-        ctx.restore();
-      }
-      
-      // 3. **SELECTION OVERLAY**: Add selection overlay
-      const startPercent = startTime / duration;
-      const endPercent = endTime / duration;
-      const startX = waveformStartX + (startPercent * availableWaveformWidth);
-      const endX = waveformStartX + (endPercent * availableWaveformWidth);
-      
-      ctx.fillStyle = 'rgba(139, 92, 246, 0.15)';
-      ctx.fillRect(startX, 0, endX - startX, height);
-    }
-
-    // 4. **CURRENT TIME CURSOR**: Draw playback cursor
-    if (renderData.currentTime >= 0 && duration > 0) {
-      const { MODERN_HANDLE_WIDTH } = WAVEFORM_CONFIG;
-      const responsiveHandleWidth = containerWidth < WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT ? 
-        Math.max(3, MODERN_HANDLE_WIDTH * 0.75) : MODERN_HANDLE_WIDTH;
-      
-      const leftHandleWidth = responsiveHandleWidth;
-      const rightHandleWidth = responsiveHandleWidth;
-      const waveformStartX = leftHandleWidth;
-      const waveformEndX = width - rightHandleWidth;
-      const availableWaveformWidth = waveformEndX - waveformStartX;
-      
-      if (availableWaveformWidth > 0) {
-        const cursorPercent = renderData.currentTime / duration;
-        const cursorX = waveformStartX + (cursorPercent * availableWaveformWidth);
-        
-        // Draw cursor line
-        ctx.strokeStyle = '#ef4444';
-        ctx.lineWidth = 2;
+      } else {
         ctx.beginPath();
-        ctx.moveTo(cursorX, 0);
-        ctx.lineTo(cursorX, height);
-        ctx.stroke();
-      }
+        ctx.rect(startX + (startTime / duration) * areaWidth, 0, ((endTime - startTime) / duration) * areaWidth, height);
+        ctx.clip();
+        ctx.drawImage(purpleWaveformCacheRef.current, 0, 0);
+      }      ctx.restore();
+      // 3. Selection overlay
+      ctx.fillStyle = 'rgba(139,92,246,0.15)';
+      ctx.fillRect(startX + (startTime / duration) * areaWidth, 0, ((endTime - startTime) / duration) * areaWidth, height);
     }
-  }, [canvasRef, renderData, containerWidth]);
+    // 4. Current time cursor - Now rendered by React component only
+  }, [canvasRef, renderData]);
 
-  // 🚀 **BACKGROUND CACHE MANAGEMENT**: Update cache when needed
+  // ----- CACHE MANAGEMENT -----
   useEffect(() => {
-    const updateCache = async () => {
-      if (!renderData?.waveformData || !canvasRef.current) return;
-      
-      const canvas = canvasRef.current;
-      const currentCacheKey = generateCacheKey(renderData, containerWidth);
-      const currentPurpleCacheKey = generatePurpleCacheKey(renderData, containerWidth);
-      let needsRedraw = false;
-      
-      // 🎯 **BACKGROUND CACHE UPDATE**
-      if (currentCacheKey && currentCacheKey !== lastCacheKey.current) {
-        try {
-          if (backgroundCacheRef.current) {
-            backgroundCacheRef.current.close?.();
-          }
-          backgroundCacheRef.current = await createBackgroundCache(
-            renderData.waveformData, 
-            canvas.width, 
-            canvas.height, 
-            containerWidth
-          );
-          lastCacheKey.current = currentCacheKey;
-          needsRedraw = true;
-        } catch (error) {
-          backgroundCacheRef.current = null;
-        }
-      }
-      
-      // 🚀 **PURPLE CACHE UPDATE**
-      if (currentPurpleCacheKey && currentPurpleCacheKey !== lastPurpleCacheKey.current) {
-        try {
-          if (purpleWaveformCacheRef.current) {
-            purpleWaveformCacheRef.current.close?.();
-          }
-          
-          purpleWaveformCacheRef.current = await createPurpleWaveformCache(
-            renderData.waveformData, 
-            canvas.width, 
-            canvas.height, 
-            containerWidth,
-            renderData.volume !== undefined ? renderData.volume : 1,
-            renderData.fadeIn,
-            renderData.fadeOut,
-            renderData.startTime,
-            renderData.endTime,
-            renderData.duration
-          );
-          lastPurpleCacheKey.current = currentPurpleCacheKey;
-          needsRedraw = true;
-        } catch (error) {
-          purpleWaveformCacheRef.current = null;
-        }
-      }
-      
-      // 🔄 **TRIGGER REDRAW**: Only after cache updates
-      if (needsRedraw) {
-        requestRedraw(drawWaveform);
-      }
-    };
-    
-    updateCache();
-  }, [renderData, containerWidth, generateCacheKey, generatePurpleCacheKey, createBackgroundCache, createPurpleWaveformCache, requestRedraw, drawWaveform, canvasRef]);
-
-  // 🚀 **EFFECT OPTIMIZATIONS**: Controlled re-renders
-  useEffect(() => {
-    if (hoverTooltip?.visible || isPlaying || isDragging) {
-      requestRedraw(drawWaveform);
-    }
-  }, [hoverTooltip, isPlaying, isDragging, requestRedraw, drawWaveform]);
-  
-  useEffect(() => {
-    if (renderData) {
-      requestRedraw(drawWaveform);
-    }
-  }, [renderData, requestRedraw, drawWaveform]);
-  // 🆕 **HANDLE POSITION CALCULATOR**: Calculate handle positions for React rendering
-  const handlePositions = useMemo(() => {
-    if (!canvasRef.current || duration === 0 || startTime >= endTime || !renderData) {
-      return { start: null, end: null };
-    }
-    
+    let mounted = true;
+    if (!renderData?.waveformData || !canvasRef.current) return;
     const canvas = canvasRef.current;
-    const currentWidth = containerWidth || canvas.width || 800; // 🚀 **USE CONTAINER WIDTH**: Better responsive
-    const height = canvas.height || WAVEFORM_CONFIG.HEIGHT;
-    
-    // 🔧 **HANDLE SPACE ADJUSTMENT**: Calculate available waveform area
-    const { MODERN_HANDLE_WIDTH } = WAVEFORM_CONFIG;
-    const responsiveHandleWidth = currentWidth < WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT ? 
-      Math.max(3, MODERN_HANDLE_WIDTH * 0.75) : MODERN_HANDLE_WIDTH;
-    
-    const leftHandleWidth = responsiveHandleWidth;
-    const rightHandleWidth = responsiveHandleWidth;
-    const waveformStartX = leftHandleWidth;
-    const waveformEndX = currentWidth - rightHandleWidth;
-    const availableWaveformWidth = waveformEndX - waveformStartX;
-    
-    // 🔧 **NEW HANDLE POSITIONING LOGIC**: Handles wrap around region boundaries
-    // Start handle: right edge aligns with region start
-    // End handle: left edge aligns with region end
-    
-    const regionStartPercent = startTime / duration;
-    const regionEndPercent = endTime / duration;
-    const regionStartX = waveformStartX + (regionStartPercent * availableWaveformWidth);
-    const regionEndX = waveformStartX + (regionEndPercent * availableWaveformWidth);
-    
-    // 🎯 **HANDLE WRAPPING**: Position handles to wrap around region with invert mode logic
-    let startHandleX, endHandleX;
-    
-    if (isInverted) {
-      // 🆕 **INVERT MODE POSITIONING**: Flip handle positions so non-radius edges align with points
-      startHandleX = regionStartX; // Left edge (no radius) aligns with region start
-      endHandleX = regionEndX - responsiveHandleWidth; // Right edge (no radius) aligns with region end
-    } else {
-      // 🎯 **NORMAL MODE POSITIONING**: Standard positioning
-      startHandleX = regionStartX - responsiveHandleWidth; // Right edge aligns with region start
-      endHandleX = regionEndX; // Left edge aligns with region end
+    const cacheKey = generateCacheKey(renderData, containerWidth);
+    const purpleKey = generatePurpleCacheKey(renderData, containerWidth);
+
+    const updateCaches = async () => {
+      let needsRedraw = false;
+      if (cacheKey && cacheKey !== lastCacheKey.current) {
+        backgroundCacheRef.current?.close?.();
+        backgroundCacheRef.current = await createBackgroundCache(
+          renderData.waveformData, canvas.width, canvas.height, containerWidth
+        );
+        lastCacheKey.current = cacheKey;
+        needsRedraw = true;
+      }
+      if (purpleKey && purpleKey !== lastPurpleCacheKey.current) {
+        purpleWaveformCacheRef.current?.close?.();
+        purpleWaveformCacheRef.current = await createPurpleWaveformCache(
+          renderData.waveformData, canvas.width, canvas.height, containerWidth,
+          renderData.volume ?? 1,
+          renderData.fadeIn,
+          renderData.fadeOut,
+          renderData.startTime,
+          renderData.endTime,
+          renderData.duration
+        );
+        lastPurpleCacheKey.current = purpleKey;
+        needsRedraw = true;
+      }
+      if (needsRedraw && mounted) requestRedraw(drawWaveform);
+    };
+    updateCaches();
+    return () => { mounted = false };
+  }, [renderData, containerWidth, canvasRef, createBackgroundCache, createPurpleWaveformCache, requestRedraw, drawWaveform, generateCacheKey, generatePurpleCacheKey]);
+
+  // ----- REDRAW CONTROL (minimize effect triggers) -----
+  useEffect(() => {
+    if ((hoverTooltip?.visible || isPlaying || isDragging) && renderData) {
+      requestRedraw(drawWaveform);
     }
-    
+  }, [hoverTooltip?.visible, isPlaying, isDragging, renderData, requestRedraw, drawWaveform]);
+
+  useEffect(() => {
+    if (renderData) requestRedraw(drawWaveform);
+  }, [renderData, requestRedraw, drawWaveform]);
+
+  // ----- HANDLE POSITION CALC -----
+  const handlePositions = useMemo(() => {
+    if (!canvasRef.current || duration === 0 || startTime >= endTime || !renderData) return { start: null, end: null };
+    const canvas = canvasRef.current;
+    const w = containerWidth || canvas.width || 800, h = canvas.height || WAVEFORM_CONFIG.HEIGHT;
+    const { startX, areaWidth, handleW } = getWaveformArea(w);
+    const regionStartX = startX + (startTime / duration) * areaWidth;
+    const regionEndX = startX + (endTime / duration) * areaWidth;
     return {
       start: {
         visible: true,
-        x: startHandleX,
-        y: 0,
-        width: responsiveHandleWidth,
-        height: height,
+        x: isInverted ? regionStartX : regionStartX - handleW,
+        y: 0, width: handleW, height: h,
         isActive: hoveredHandle === 'start' || isDragging === 'start',
-        color: isDragging === 'start' ? '#0d9488' : '#14b8a6' // 🔧 **DRAG-ONLY COLOR**: Chỉ đổi màu khi drag, không đổi khi hover
+        color: isDragging === 'start' ? '#0d9488' : '#14b8a6'
       },
       end: {
         visible: true,
-        x: endHandleX,
-        y: 0,
-        width: responsiveHandleWidth,
-        height: height,
+        x: isInverted ? regionEndX - handleW : regionEndX,
+        y: 0, width: handleW, height: h,
         isActive: hoveredHandle === 'end' || isDragging === 'end',
-        color: isDragging === 'end' ? '#0d9488' : '#14b8a6' // 🔧 **DRAG-ONLY COLOR**: Chỉ đổi màu khi drag, không đổi khi hover
+        color: isDragging === 'end' ? '#0d9488' : '#14b8a6'
       }
     };
   }, [canvasRef, duration, startTime, endTime, hoveredHandle, isDragging, containerWidth, isInverted, renderData]);
-  // 🆕 **CURSOR POSITION CALCULATOR**: Calculate cursor positions for React rendering
+
+  // ----- CURSOR POSITION CALC -----
   const cursorPositions = useMemo(() => {
-    if (!canvasRef.current || duration === 0 || !renderData) {
-      return { mainCursor: null, hoverLine: null };
-    }
-    
+    if (!canvasRef.current || duration === 0 || !renderData) return { mainCursor: null, hoverLine: null };
     const canvas = canvasRef.current;
-    const currentWidth = containerWidth || canvas.width || 800; // 🚀 **USE CONTAINER WIDTH**: Better responsive
-    const height = canvas.height || WAVEFORM_CONFIG.HEIGHT;
-    
-    // 🔧 **HANDLE SPACE ADJUSTMENT**: Calculate available waveform area
-    const { MODERN_HANDLE_WIDTH } = WAVEFORM_CONFIG;
-    const responsiveHandleWidth = currentWidth < WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT ? 
-      Math.max(3, MODERN_HANDLE_WIDTH * 0.75) : MODERN_HANDLE_WIDTH;
-    
-    const leftHandleWidth = responsiveHandleWidth;
-    const rightHandleWidth = responsiveHandleWidth;
-    const waveformStartX = leftHandleWidth;
-    const waveformEndX = currentWidth - rightHandleWidth;
-    const availableWaveformWidth = waveformEndX - waveformStartX;
-      // 🔵 **MAIN CURSOR CALCULATION**: Map to waveform area
-    const mainCursorPercent = currentTime >= 0 ? currentTime / duration : -1;
-    const mainCursorX = mainCursorPercent >= 0 ? 
-      waveformStartX + (mainCursorPercent * availableWaveformWidth) : -1;
-    
-    // 🔍 **DEBUG CURSOR & HANDLE POSITIONING**: Log pixel positions when approaching endTime
-    if (currentTime >= 0 && duration > 0 && endTime > 0 && currentTime >= endTime - 0.1) {
-      // Calculate end handle position - EXACTLY match handlePositions logic
-      const regionEndPercent = endTime / duration;
-      const regionEndX = waveformStartX + (regionEndPercent * availableWaveformWidth);
-      const endHandleLeftEdge = regionEndX; // Left edge aligns with region end (normal mode)
-      
-      // Calculate cursor edge positions - EXACTLY match cursor logic
-      const cursorCenter = mainCursorX;
-      const cursorRightEdge = cursorCenter + 0.5; // Cursor width = 1px, right edge = center + 0.5
-      
-    // 🎯 **PRECISE COLLISION CALCULATION**: Match MP3CutterMain shouldPauseAtEndTime logic
-    const TIME_PER_PIXEL = duration / availableWaveformWidth;
-    const CURSOR_HALF_WIDTH = 0.5;
-    const THRESHOLD_OFFSET = CURSOR_HALF_WIDTH * TIME_PER_PIXEL;
-    const calculatedThreshold = endTime - THRESHOLD_OFFSET;
-    const MINIMUM_BUFFER = Math.min(0.001, THRESHOLD_OFFSET * 0.1);
-    const minimumThreshold = Math.max(calculatedThreshold, endTime - MINIMUM_BUFFER);
-    
-    // 🆕 **SAFETY CHECK**: Additional check to prevent any overshoot  
-    const SAFETY_MARGIN = TIME_PER_PIXEL * 0.25;
-    const safeThreshold = Math.max(minimumThreshold - SAFETY_MARGIN, endTime - THRESHOLD_OFFSET - SAFETY_MARGIN);
-      
-      console.log(`🔍 [PixelDebug] Position comparison:`, {
-        currentTime: currentTime.toFixed(6),
-        endTime: endTime.toFixed(6),
-        timeToEnd: (endTime - currentTime).toFixed(6),
-        canvas: {
-          width: currentWidth,
-          waveformStartX,
-          waveformEndX,  
-          availableWaveformWidth,
-          responsiveHandleWidth
-        },
-        cursor: {
-          center: cursorCenter.toFixed(2),
-          rightEdge: cursorRightEdge.toFixed(2),
-          width: 1
-        },
-        handle: {
-          leftEdge: endHandleLeftEdge.toFixed(2),
-          rightEdge: (endHandleLeftEdge + responsiveHandleWidth).toFixed(2),
-          width: responsiveHandleWidth
-        },
-        collision: {
-          timePerPixel: TIME_PER_PIXEL.toFixed(8),
-          thresholdOffset: THRESHOLD_OFFSET.toFixed(6),
-          calculatedThreshold: calculatedThreshold.toFixed(6),
-          minimumThreshold: minimumThreshold.toFixed(6),
-          safetyMargin: SAFETY_MARGIN.toFixed(6),
-          safeThreshold: safeThreshold.toFixed(6),
-          pixelGap: (endHandleLeftEdge - cursorRightEdge).toFixed(2),
-          willCollide: currentTime >= safeThreshold,
-          timeToCollision: (safeThreshold - currentTime).toFixed(6),
-          actualPixelOverlap: cursorRightEdge > endHandleLeftEdge ? (cursorRightEdge - endHandleLeftEdge).toFixed(2) : 'none'
-        }
-      });
-    }
-      // 🖱️ **HOVER LINE CALCULATION**: Map to waveform area - Hide during all drag operations
-    const shouldShowHoverLine = hoverTooltip && hoverTooltip.visible && 
-      isDragging !== 'start' && isDragging !== 'end' && 
+    const w = containerWidth || canvas.width || 800, h = canvas.height || WAVEFORM_CONFIG.HEIGHT;
+    const { startX, areaWidth } = getWaveformArea(w);
+    const mainCursorX = currentTime >= 0 ? startX + (currentTime / duration) * areaWidth : -1;
+    const shouldShowHover = hoverTooltip && hoverTooltip.visible &&
+      isDragging !== 'start' && isDragging !== 'end' &&
       isDragging !== 'region' && isDragging !== 'region-potential';
-    
-    // 🔧 **UNCLAMPED HOVER LINE**: Use cursorX (original mouse position) for cursor line
-    let hoverLineX = -1;
-    if (shouldShowHoverLine && hoverTooltip.cursorX !== undefined) {
-      // 🎯 **DIRECT CURSOR POSITION**: Use unclamped cursor position for hover line
-      hoverLineX = hoverTooltip.cursorX;
-    }
-    
     return {
       mainCursor: {
-        visible: currentTime >= 0 && duration > 0 && mainCursorX >= waveformStartX && mainCursorX <= waveformEndX,
+        visible: currentTime >= 0 && duration > 0 && mainCursorX >= startX && mainCursorX <= (w - startX),
         x: mainCursorX,
         y: 0,
-        width: 1, // Ultra thin cursor
-        height: height,
-        color: isPlaying ? '#3b82f6' : '#2563eb'
+        width: 1,
+        height: h,
+        color: '#ef4444'
       },
       hoverLine: {
-        visible: shouldShowHoverLine && hoverLineX >= 0,
-        x: hoverLineX,
+        visible: shouldShowHover && hoverTooltip.cursorX >= 0,
+        x: hoverTooltip?.cursorX ?? -1,
         y: 0,
-        width: 0.6, // Ultra thin hover line  
-        height: height,
-        color: 'rgba(156, 163, 175, 0.6)' // Gray color
+        width: 0.6,
+        height: h,
+        color: 'rgba(156,163,175,0.6)'
       }
     };
-  }, [canvasRef, duration, currentTime, isPlaying, hoverTooltip, isDragging, containerWidth, endTime, renderData]);
+  }, [canvasRef, duration, currentTime, hoverTooltip, isDragging, containerWidth, renderData]);
 
-  // 🚀 **CLEANUP**: Clean up ImageBitmap on unmount
-  useEffect(() => {
-    return () => {
-      if (backgroundCacheRef.current) {
-        backgroundCacheRef.current.close?.();
-        backgroundCacheRef.current = null;
-      }
-      if (purpleWaveformCacheRef.current) {
-        purpleWaveformCacheRef.current.close?.();
-        purpleWaveformCacheRef.current = null;
-      }
-    };
+  // ----- CLEANUP IMAGEBITMAP -----
+  useEffect(() => () => {
+    backgroundCacheRef.current?.close?.();
+    backgroundCacheRef.current = null;
+    purpleWaveformCacheRef.current?.close?.();
+    purpleWaveformCacheRef.current = null;
   }, []);
+
+  // ----- RENDER -----
   return (
-    <div className="relative" style={{ 
-      minWidth: `${WAVEFORM_CONFIG.RESPONSIVE.MIN_WIDTH}px`,
-      overflow: 'visible'
-    }}>
-      {/* 🔧 **CANVAS VISIBILITY**: Only show canvas when waveform data exists */}
+    <div className="relative" style={{ minWidth: `${WAVEFORM_CONFIG.RESPONSIVE.MIN_WIDTH}px`, overflow: 'visible' }}>
       <canvas
         ref={canvasRef}
-        onPointerDown={handleEnhancedPointerDown}
-        onPointerMove={handleEnhancedPointerMove}
-        onPointerUp={handleEnhancedPointerUp}
-        onPointerLeave={handleEnhancedPointerLeave}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerLeave={handlePointerLeave}
         className="w-full"
-        style={{ 
+        style={{
           height: WAVEFORM_CONFIG.HEIGHT,
-          touchAction: 'none', // 🚀 **IMPORTANT**: Prevent default touch actions for better pointer control
-          zIndex: 1, // Base layer - below everything else
-          visibility: renderData ? 'visible' : 'hidden' // 🔧 **HIDE CANVAS**: Hide when no waveform data to prevent flash
+          touchAction: 'none',
+          zIndex: 1,
+          visibility: renderData ? 'visible' : 'hidden'
         }}
       />
-
-      {/* 🔧 **UI ELEMENTS VISIBILITY**: Only show UI elements when waveform data exists */}
       {renderData && (
-        <WaveformUI 
+        <WaveformUI
           hoverTooltip={hoverTooltip}
           handleTooltips={handleTooltipsData}
           mainCursorTooltip={mainCursorTooltip}
@@ -843,5 +470,4 @@ const WaveformCanvas = React.memo(({
 });
 
 WaveformCanvas.displayName = 'WaveformCanvas';
-
 export default WaveformCanvas;
