@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo, lazy } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 
 // Import utilities (must be at top)
 import { validateAudioFile, getAudioErrorMessage, getFormatDisplayName, generateCompatibilityReport, createSafeAudioURL, validateAudioURL } from '../utils/audioUtils';
@@ -256,7 +256,7 @@ const MP3CutterMain = React.memo(() => {
     jumpToTime(targetCursorTime);
     
     // No need to change play state - if it was playing, it continues; if paused, stays paused
-  }, [originalHandleStartTimeChange, jumpToTime, isPlaying, startTime, isInverted]);
+  }, [originalHandleStartTimeChange, jumpToTime, isInverted]);
 
   // 🆕 **ENHANCED END TIME HANDLER**: Auto-jump cursor to 3 seconds before new end point
   const handleEndTimeChange = useCallback((newEndTime) => {
@@ -270,12 +270,8 @@ const MP3CutterMain = React.memo(() => {
     // 3. Jump main cursor to calculated position
     jumpToTime(targetCursorTime);
     
-    // 4. Log behavior based on play state and position
-    const positionDesc = targetCursorTime === startTime ? 'start point (end point too close)' : `${targetCursorTime.toFixed(1)}s (3s before end)`;
-
-    
     // No need to change play state - if it was playing, it continues; if paused, stays paused
-  }, [originalHandleEndTimeChange, jumpToTime, isPlaying, endTime, startTime]);
+  }, [originalHandleEndTimeChange, jumpToTime, startTime]);
 
   // 🔥 **ESSENTIAL SETUP ONLY**
   useEffect(() => {
@@ -637,20 +633,43 @@ const MP3CutterMain = React.memo(() => {
           setEndTime(audioDuration);
         }, 0);
       }
-    };
-
-    const handleEnded = () => {
-      // 🆕 BATCH STATE UPDATES: Prevent setState conflicts
-      if (window.requestIdleCallback) {
-        window.requestIdleCallback(() => {
-          setIsPlaying(false);
-          setCurrentTime(audio.duration);
-        });
+    };    const handleEnded = () => {
+      // 🆕 **AUTO-PAUSE & RESET LOGIC**: Different behavior based on mode
+      if (isInverted) {
+        // 🆕 **INVERT MODE**: Check auto-return setting
+        const autoReturnEnabled = getAutoReturnSetting();
+        
+        if (autoReturnEnabled) {
+          // 🆕 **INVERT MODE AUTO-RETURN**: Return to start of file (0)
+          console.log(`🔄 [InvertMode] Auto-return: jumping to start of file (0s)`);
+          jumpToTime(0);
+          // Continue playing after jump
+          const playPromise = audio.play();
+          if (playPromise !== undefined) {
+            playPromise.catch(error => {
+              console.error('❌ [AutoReturn] Failed to resume playback after jump:', error);
+              setIsPlaying(false);
+            });
+          }
+        } else {
+          // 🛑 **NO AUTO-RETURN**: Stop playback normally
+          if (window.requestIdleCallback) {
+            window.requestIdleCallback(() => {
+              setIsPlaying(false);
+              setCurrentTime(audio.duration);
+            });
+          } else {
+            setTimeout(() => {
+              setIsPlaying(false);
+              setCurrentTime(audio.duration);
+            }, 0);
+          }
+        }
       } else {
-        setTimeout(() => {
-          setIsPlaying(false);
-          setCurrentTime(audio.duration);
-        }, 0);
+        // 🎯 **NORMAL MODE**: Always pause and reset to start point
+        console.log(`⏹️ [NormalMode] Track ended, pausing and resetting to start (${startTime.toFixed(2)}s)`);
+        setIsPlaying(false);
+        jumpToTime(startTime);
       }
     };
 
@@ -725,19 +744,30 @@ const MP3CutterMain = React.memo(() => {
         audio.removeEventListener('error', handleError);
       }
     };
-  }, [audioFile?.name, audioFile?.url, audioRef, setCurrentTime, setDuration, setIsPlaying, setEndTime, fileValidation, setAudioError]); // 🔥 **FIXED DEPS**: Added missing dependencies
+  }, [audioFile?.name, audioFile?.url, audioRef, setCurrentTime, setDuration, setIsPlaying, setEndTime, fileValidation, setAudioError, jumpToTime, startTime, isInverted]); // 🔥 **FIXED DEPS**: Added missing dependencies
 
   // 🚀 **ULTRA-SMOOTH MAIN ANIMATION LOOP** - Tối ưu coordination với tooltip animation
   useEffect(() => {
     let animationId = null;
-    let frameCount = 0;
-    let lastLogTime = 0;
       const updateCursor = () => {
       if (isPlaying && audioRef.current) {
         const audioCurrentTime = audioRef.current.currentTime;
         
-        // 🔥 **INSTANT CURRENTTIME UPDATE** - Cập nhật ngay lập tức cho tooltip sync
-        setCurrentTime(audioCurrentTime);
+        // 🆕 **INVERT MODE REGION SKIP**: Nhảy qua vùng region khi ở chế độ invert
+        if (isInverted && audioCurrentTime >= startTime && audioCurrentTime < endTime) {
+          // 🎯 **SKIP TO END**: Nhảy tới endTime khi cursor chạm vào vùng region
+          console.log(`⚡ [InvertMode] Cursor reached region start (${audioCurrentTime.toFixed(2)}s), jumping to end (${endTime.toFixed(2)}s)`);
+          audioRef.current.currentTime = endTime;
+          setCurrentTime(endTime);        } else if (!isInverted && audioCurrentTime >= endTime) {
+          // 🆕 **NORMAL MODE AUTO-PAUSE & RESET**: Always pause and reset to start point when reaching end
+          audioRef.current.pause();
+          setIsPlaying(false);
+          console.log(`⏹️ [NormalMode] Cursor reached region end (${audioCurrentTime.toFixed(2)}s), pausing and resetting to start (${startTime.toFixed(2)}s)`);
+          jumpToTime(startTime);
+        }else {
+          // 🔥 **INSTANT CURRENTTIME UPDATE** - Cập nhật ngay lập tức cho tooltip sync
+          setCurrentTime(audioCurrentTime);
+        }
         
         animationId = requestAnimationFrame(updateCursor);
       }
@@ -753,7 +783,7 @@ const MP3CutterMain = React.memo(() => {
         cancelAnimationFrame(animationId);
       }
     };
-  }, [isPlaying, startTime, endTime, audioRef, setCurrentTime, setIsPlaying, isInverted]);
+  }, [isPlaying, startTime, endTime, audioRef, setCurrentTime, setIsPlaying, isInverted, jumpToTime]);
 
   // 🆕 **INITIAL CONFIG SYNC**: Only sync on startup and when selection changes (not fade values)
   const fadeConfigSyncedRef = useRef(false); // 🆕 **PREVENT MULTIPLE SYNCS**: Track if initial sync done
@@ -843,7 +873,9 @@ const MP3CutterMain = React.memo(() => {
     if (duration <= 0 || startTime >= endTime) return;
     
     // 🎯 **HISTORY SAVE**: Save current state before inversion
-    saveState({ startTime, endTime, fadeIn, fadeOut, isInverted });    // 🚀 **TOGGLE INVERT MODE**: Simply toggle the invert state
+    saveState({ startTime, endTime, fadeIn, fadeOut, isInverted });
+    
+    // 🚀 **TOGGLE INVERT MODE**: Simply toggle the invert state
     const newInvertState = !isInverted;
     setIsInverted(newInvertState);
     
@@ -867,7 +899,8 @@ const MP3CutterMain = React.memo(() => {
     } else {
       // 🔙 **DISABLING INVERT MODE**: Return to normal
       jumpToTime(startTime);
-    }}, [duration, startTime, endTime, isInverted, saveState, fadeIn, fadeOut, jumpToTime, updateFadeConfig]);
+    }
+  }, [duration, startTime, endTime, isInverted, saveState, fadeIn, fadeOut, jumpToTime, updateFadeConfig]);
 
   // 🚀 **PHASE 2: ADVANCED PRELOADING HOOKS** - Smart preloading system
   const { triggerPreload } = useProgressivePreloader();

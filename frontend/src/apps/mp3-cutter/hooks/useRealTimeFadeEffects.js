@@ -367,16 +367,14 @@ export const useRealTimeFadeEffects = () => {
   // 🆕 **REAL-TIME CONFIG UPDATE** - instant update với enhanced animation restart
   const updateFadeConfig = useCallback((newConfig) => {
     const { fadeIn, fadeOut, startTime, endTime, isInverted = false, duration = 0 } = newConfig;
-    const isActive = (fadeIn > 0 || fadeOut > 0) && startTime < endTime;
-    
-    // 🔍 **DEBUG FADE CONFIG UPDATE**: Log khi fadeOut thay đổi trong invert mode
-    if (isInverted && fadeOut > 0) {
-      console.log(`🔥 [INVERT-FADEOUT-CONFIG] Config updated: fadeOut=${fadeOut.toFixed(1)}s, duration=${duration.toFixed(1)}s, activeRegion=[${endTime.toFixed(2)}s-${duration.toFixed(2)}s]`);
-    }
+    // 🔥 **ENHANCED ACTIVE CONDITION**: Include invert mode even without fade effects
+    const isActive = ((fadeIn > 0 || fadeOut > 0) || isInverted) && startTime < endTime;
     
     // 🔍 **DETECT CONFIG CHANGES**: Track previous state để detect activation
     const wasActive = fadeConfigRef.current.isActive;
+    const wasInverted = fadeConfigRef.current.isInverted;
     const becameActive = !wasActive && isActive; // 🆕 **ACTIVATION DETECTION**
+    const invertChanged = wasInverted !== isInverted; // 🆕 **INVERT CHANGE DETECTION**
     
     const updatedConfig = {
       fadeIn,
@@ -407,6 +405,7 @@ export const useRealTimeFadeEffects = () => {
         debugStateRef.current.lastGainValue = newGainValue;
         
       } catch (error) {
+        console.error('❌ [updateFadeConfig] Failed to apply immediate gain:', error);
       }
     }
     
@@ -419,18 +418,30 @@ export const useRealTimeFadeEffects = () => {
       
       if (isAudioPlaying && connectionStateRef.current === 'connected') {
         startFadeAnimation(audioElement);
-      } else {
-        
       }
     }
     
+    // 🆕 **INVERT MODE ANIMATION RESTART**: Force restart animation when invert changes during playback
+    if (invertChanged && currentAudioElementRef.current && connectionStateRef.current === 'connected') {
+      const audioElement = currentAudioElementRef.current;
+      const isAudioPlaying = audioElement && !audioElement.paused && audioElement.currentTime > 0;
+      
+      if (isAudioPlaying) {
+        // Stop current animation
+        if (isAnimatingRef.current) {
+          stopFadeAnimation();
+        }
+        // Start new animation with updated config
+        startFadeAnimation(audioElement);
+      }
+    }
     
     // 🔄 **SMART GAIN RESET** - chỉ reset khi fade effects được disable
     if (!isActive && gainNodeRef.current && gainNodeRef.current.gain) {
       gainNodeRef.current.gain.value = 1.0;
       debugStateRef.current.lastGainValue = 1.0;
     }
-  }, [calculateFadeMultiplier, startFadeAnimation]);
+  }, [calculateFadeMultiplier, startFadeAnimation, stopFadeAnimation]);
   
   // 🆕 **SYNC CONFIG REF** - đảm bảo ref luôn sync với state
   useEffect(() => {

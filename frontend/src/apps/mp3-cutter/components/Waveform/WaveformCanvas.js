@@ -304,29 +304,59 @@ const WaveformCanvas = React.memo(({
     const adjustedBarWidth = availableWaveformWidth / waveformData.length;
     
     purpleCtx.fillStyle = '#7c3aed'; // 🔧 **STATIC PURPLE**: All purple bars
-    
-    // 🎯 **FADE CALCULATION HELPER**: Calculate fade multiplier for each bar position
+      // 🎯 **FADE CALCULATION HELPER**: Calculate fade multiplier for each bar position
     const calculateFadeMultiplier = (barIndex, totalBars) => {
       if (!fadeIn && !fadeOut) return 1;
       
       const barTimePosition = (barIndex / totalBars) * duration;
-      const relativePosition = (barTimePosition - startTime) / (endTime - startTime);
       
-      let fadeMultiplier = 1;
-      
-      // 🎵 **FADE IN EFFECT**: Gradual increase from start
-      if (fadeIn > 0 && relativePosition < (fadeIn / (endTime - startTime))) {
-        const fadeProgress = relativePosition / (fadeIn / (endTime - startTime));
-        fadeMultiplier *= Math.max(0, Math.min(1, fadeProgress));
+      // 🆕 **INVERT MODE**: Different fade logic for inverted selection
+      if (isInverted) {
+        let fadeMultiplier = 1;
+        
+        // 🎯 **FADE IN - FIRST ACTIVE REGION** (0 to startTime)
+        if (fadeIn > 0 && barTimePosition < startTime) {
+          const activeRegionDuration = startTime; // From 0 to startTime
+          const fadeInDuration = Math.min(fadeIn, activeRegionDuration);
+          
+          if (barTimePosition <= fadeInDuration) {
+            const fadeProgress = barTimePosition / fadeInDuration;
+            fadeMultiplier = Math.min(fadeMultiplier, Math.max(0.05, fadeProgress));
+          }
+        }
+        
+        // 🔥 **FADE OUT - SECOND ACTIVE REGION** (endTime to duration)
+        if (fadeOut > 0 && barTimePosition >= endTime) {
+          const activeRegionDuration = duration - endTime; // From endTime to duration
+          const fadeOutDuration = Math.min(fadeOut, activeRegionDuration);
+          const fadeOutStart = duration - fadeOutDuration; // Fade at the END of this region
+          
+          if (barTimePosition >= fadeOutStart) {
+            const fadeProgress = (duration - barTimePosition) / fadeOutDuration;
+            fadeMultiplier = Math.min(fadeMultiplier, Math.max(0.05, fadeProgress));
+          }
+        }
+        
+        return fadeMultiplier;
+      } else {
+        // 🎯 **NORMAL MODE**: Original logic for selection region
+        const relativePosition = (barTimePosition - startTime) / (endTime - startTime);
+        let fadeMultiplier = 1;
+        
+        // 🎵 **FADE IN EFFECT**: Gradual increase from start
+        if (fadeIn > 0 && relativePosition < (fadeIn / (endTime - startTime))) {
+          const fadeProgress = relativePosition / (fadeIn / (endTime - startTime));
+          fadeMultiplier *= Math.max(0.05, Math.min(1, fadeProgress));
+        }
+        
+        // 🎵 **FADE OUT EFFECT**: Gradual decrease to end
+        if (fadeOut > 0 && relativePosition > (1 - fadeOut / (endTime - startTime))) {
+          const fadeProgress = (1 - relativePosition) / (fadeOut / (endTime - startTime));
+          fadeMultiplier *= Math.max(0.05, Math.min(1, fadeProgress));
+        }
+        
+        return fadeMultiplier;
       }
-      
-      // 🎵 **FADE OUT EFFECT**: Gradual decrease to end
-      if (fadeOut > 0 && relativePosition > (1 - fadeOut / (endTime - startTime))) {
-        const fadeProgress = (1 - relativePosition) / (fadeOut / (endTime - startTime));
-        fadeMultiplier *= Math.max(0, Math.min(1, fadeProgress));
-      }
-      
-      return fadeMultiplier;
     };
     
     for (let i = 0; i < waveformData.length; i++) {
@@ -341,20 +371,24 @@ const WaveformCanvas = React.memo(({
         const dynamicHeight = absoluteBarHeightPx * value;
         effectiveBarHeight = flatHeight + (dynamicHeight - flatHeight) * waveformVariation;
       }
-      
-      // 🎵 **APPLY FADE EFFECTS**: Modify bar height based on fade position
+        // 🎵 **APPLY FADE EFFECTS**: Modify bar height based on fade position
       if (fadeIn > 0 || fadeOut > 0) {
         const fadeMultiplier = calculateFadeMultiplier(i, waveformData.length);
         effectiveBarHeight = FLAT_BAR_HEIGHT_PX + (effectiveBarHeight - FLAT_BAR_HEIGHT_PX) * fadeMultiplier;
+        
+        // 🔍 **DEBUG FADE**: Log fade calculations for first few bars when fade is active  
+        if (i < 5 && (fadeIn > 0 || fadeOut > 0)) {
+          const barTimePosition = (i / waveformData.length) * duration;
+          console.log(`[WaveformCanvas] Fade Debug - Bar ${i}: time=${barTimePosition.toFixed(2)}s, fadeMultiplier=${fadeMultiplier.toFixed(3)}, isInverted=${isInverted}, fadeIn=${fadeIn}s, fadeOut=${fadeOut}s, startTime=${startTime}s, endTime=${endTime}s`);
+        }
       }
       
       const x = waveformStartX + (i * adjustedBarWidth);
       purpleCtx.fillRect(Math.floor(x), centerY - effectiveBarHeight, adjustedBarWidth, effectiveBarHeight * 2);
     }
-    
-    // 🚀 **CREATE IMAGEBITMAP**: Convert to ImageBitmap for ultra-fast drawImage
+      // 🚀 **CREATE IMAGEBITMAP**: Convert to ImageBitmap for ultra-fast drawImage
     return createImageBitmap(purpleCanvas);
-  }, []);
+  }, [isInverted]);
 
   // 🎯 **CACHE KEY GENERATOR**: Detect when background needs re-caching
   const generateCacheKey = useCallback((renderData, containerWidth) => {
@@ -362,7 +396,6 @@ const WaveformCanvas = React.memo(({
     
     return `${renderData.waveformData.length}-${renderData.containerWidth || containerWidth}-${renderData.mode || 'default'}`;
   }, []);
-
   // 🚀 **PURPLE CACHE KEY GENERATOR**: Detect when purple cache needs re-caching
   const generatePurpleCacheKey = useCallback((renderData, containerWidth) => {
     if (!renderData?.waveformData) return null;
@@ -372,8 +405,9 @@ const WaveformCanvas = React.memo(({
     const fadeOutValue = renderData.fadeOut || 0;
     const startTimeValue = renderData.startTime || 0;
     const endTimeValue = renderData.endTime || 0;
+    const isInvertedValue = renderData.isInverted || false;
     
-    return `purple-${renderData.waveformData.length}-${renderData.containerWidth || containerWidth}-${renderData.mode || 'default'}-${Math.round(volumeValue * 100)}-${Math.round(fadeInValue * 10)}-${Math.round(fadeOutValue * 10)}-${Math.round(startTimeValue * 10)}-${Math.round(endTimeValue * 10)}`;
+    return `purple-${renderData.waveformData.length}-${renderData.containerWidth || containerWidth}-${renderData.mode || 'default'}-${Math.round(volumeValue * 100)}-${Math.round(fadeInValue * 10)}-${Math.round(fadeOutValue * 10)}-${Math.round(startTimeValue * 10)}-${Math.round(endTimeValue * 10)}-${isInvertedValue}`;
   }, []);
 
   // 🚀 **OPTIMIZED DRAW FUNCTION**: Ultra-fast rendering with cached background  
