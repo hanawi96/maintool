@@ -1,201 +1,111 @@
-// 🎨 **RENDER WORKER** - Dedicated rendering worker for OffscreenCanvas
-// filepath: d:\mp3-cutter-pro\frontend\public\workers\render-worker.js
+// 🚀 Fast, lightweight OffscreenCanvas waveform renderer worker
 
-class RenderWorker {
-  constructor() {
-    this.renderQueue = [];
+self.onmessage = function(e) {
+  const { type, id, data } = e.data;
+  try {
+    if (type === 'render-waveform') {
+      const { canvasBitmap, timeMs } = renderWaveform(data);
+      self.postMessage({ type: 'render-complete', id, result: { canvas: canvasBitmap, processingTime: timeMs } });
+    }
+  } catch (error) {
+    self.postMessage({ type: 'error', id, error: error.message, stack: error.stack });
+  }
+};
+
+// ---- Main render logic ----
+
+function renderWaveform(renderData) {
+  const t0 = performance.now();
+  const { waveformData, width, height, volume, startTime, endTime, duration, fadeIn, fadeOut, isInverted } = renderData;
+
+  const canvas = new OffscreenCanvas(width, height);
+  const ctx = canvas.getContext('2d', { willReadFrequently: false });
+  ctx.imageSmoothingEnabled = false;
+
+  // --- Background gradient ---
+  ctx.clearRect(0, 0, width, height);
+  const grad = ctx.createLinearGradient(0, 0, 0, height);
+  grad.addColorStop(0, 'rgba(99,102,241,0.04)');
+  grad.addColorStop(1, 'rgba(168,85,247,0.04)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, width, height);
+
+  // --- Render waveform bars ---
+  drawBars(ctx, waveformData, width, height, volume, startTime, endTime, duration, fadeIn, fadeOut, isInverted);
+
+  // --- Render selection overlay ---
+  if (startTime < endTime && duration > 0) {
+    ctx.fillStyle = 'rgba(139,92,246,0.15)';
+    const sx = (startTime / duration) * width;
+    const ex = (endTime / duration) * width;
+    ctx.fillRect(sx, 0, ex - sx, height);
   }
 
-  // 🎨 **RENDER WAVEFORM**: Main rendering function
-  async renderWaveform(id, renderData) {
-    try {
-      const {
-        waveformData,
-        width,
-        height,
-        volume,
-        startTime,
-        endTime,
-        duration,
-        fadeIn,
-        fadeOut,
-        isInverted,
-        style
-      } = renderData;
+  return { canvasBitmap: canvas.transferToImageBitmap(), timeMs: performance.now() - t0 };
+}
 
-      // Create OffscreenCanvas for rendering
-      const canvas = new OffscreenCanvas(width, height);
-      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+// ---- Draw bars (main waveform) ----
 
-      // 🔧 **PERFORMANCE SETUP**
-      ctx.imageSmoothingEnabled = false;
-      
-      // 🎯 **CLEAR CANVAS**
-      ctx.clearRect(0, 0, width, height);
-      
-      // 🎨 **BACKGROUND GRADIENT**
-      const gradient = ctx.createLinearGradient(0, 0, 0, height);
-      gradient.addColorStop(0, 'rgba(99, 102, 241, 0.04)');
-      gradient.addColorStop(1, 'rgba(168, 85, 247, 0.04)');
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, width, height);      // 🌊 **RENDER WAVEFORM BARS**
-      await this.renderWaveformBars(ctx, renderData);
-      
-      // 🎯 **RENDER SELECTION OVERLAY** 
-      this.renderSelectionOverlay(ctx, renderData);
+function drawBars(ctx, data, width, height, volume, startTime, endTime, duration, fadeIn, fadeOut, isInverted) {
+  const centerY = height / 2, baseHeight = 2, maxHeight = height * 0.8;
+  const barCount = data.length, barWidth = width / barCount;
+  const vMul = Math.max(0, Math.min(1, volume));
+  let lastFill = null;
 
-      // Send result back
-      self.postMessage({
-        type: 'render-complete',
-        id,
-        result: {
-          canvas: canvas.transferToImageBitmap(),
-          processingTime: performance.now()
-        }
-      });
+  for (let i = 0; i < barCount; i++) {
+    const value = data[i];
+    const barTime = (i / barCount) * duration;
+    let rawHeight = baseHeight + (value * maxHeight * vMul);
+    const fadeMul = getFadeMul(i, barTime, barCount, duration, startTime, endTime, fadeIn, fadeOut, isInverted);
+    rawHeight = baseHeight + (rawHeight - baseHeight) * fadeMul;
+    const barHeight = Math.max(1, rawHeight);
 
-    } catch (error) {
-      self.postMessage({
-        type: 'error',
-        id,
-        error: error.message
-      });
-    }
-  }
-  // 🌊 **RENDER WAVEFORM BARS**: Core bar rendering
-  async renderWaveformBars(ctx, renderData) {
-    const { waveformData, width, height, volume, startTime, endTime, duration, fadeIn, fadeOut, isInverted } = renderData;
-    const centerY = height / 2;
-    const barWidth = width / waveformData.length;
+    // Selection logic (invert mode = outside region, else = inside)
+    let sel = isInverted ? (barTime < startTime || barTime > endTime) : (barTime >= startTime && barTime <= endTime);
+    const color = sel ? '#7c3aed' : '#e2e8f0';
+    if (color !== lastFill) ctx.fillStyle = lastFill = color;
 
-    // 🎯 **VOLUME SYSTEM**: Simple volume scaling
-    const baseHeight = 2;
-    const maxHeight = height * 0.8;
-    const volumeMultiplier = Math.max(0, Math.min(1, volume));
-
-    // 🎯 **FADE CALCULATION HELPER**: Calculate fade multiplier for each bar position  
-    const calculateFadeMultiplier = (barIndex, totalBars) => {
-      if (!fadeIn && !fadeOut) return 1;
-      
-      const barTimePosition = (barIndex / totalBars) * duration;
-      
-      // 🆕 **INVERT MODE**: Different fade logic for inverted selection
-      if (isInverted) {
-        let fadeMultiplier = 1;
-        
-        // 🎯 **FADE IN - FIRST ACTIVE REGION** (0 to startTime)
-        if (fadeIn > 0 && barTimePosition < startTime) {
-          const activeRegionDuration = startTime;
-          const fadeInDuration = Math.min(fadeIn, activeRegionDuration);
-          
-          if (barTimePosition <= fadeInDuration) {
-            const fadeProgress = barTimePosition / fadeInDuration;
-            fadeMultiplier = Math.min(fadeMultiplier, Math.max(0.05, fadeProgress));
-          }
-        }
-        
-        // 🔥 **FADE OUT - SECOND ACTIVE REGION** (endTime to duration)
-        if (fadeOut > 0 && barTimePosition >= endTime) {
-          const activeRegionDuration = duration - endTime;
-          const fadeOutDuration = Math.min(fadeOut, activeRegionDuration);
-          const fadeOutStart = duration - fadeOutDuration;
-          
-          if (barTimePosition >= fadeOutStart) {
-            const fadeProgress = (duration - barTimePosition) / fadeOutDuration;
-            fadeMultiplier = Math.min(fadeMultiplier, Math.max(0.05, fadeProgress));
-          }
-        }
-        
-        return fadeMultiplier;
-      } else {
-        // 🎯 **NORMAL MODE**: Original logic for selection region
-        const relativePosition = (barTimePosition - startTime) / (endTime - startTime);
-        let fadeMultiplier = 1;
-        
-        // 🎵 **FADE IN EFFECT**: Gradual increase from start
-        if (fadeIn > 0 && relativePosition < (fadeIn / (endTime - startTime))) {
-          const fadeProgress = relativePosition / (fadeIn / (endTime - startTime));
-          fadeMultiplier *= Math.max(0.05, Math.min(1, fadeProgress));
-        }
-        
-        // 🎵 **FADE OUT EFFECT**: Gradual decrease to end
-        if (fadeOut > 0 && relativePosition > (1 - fadeOut / (endTime - startTime))) {
-          const fadeProgress = (1 - relativePosition) / (fadeOut / (endTime - startTime));
-          fadeMultiplier *= Math.max(0.05, Math.min(1, fadeProgress));
-        }
-        
-        return fadeMultiplier;
-      }
-    };
-
-    for (let i = 0; i < waveformData.length; i++) {
-      const value = waveformData[i];
-      const barTime = (i / waveformData.length) * duration;
-      
-      // 🎨 **BAR HEIGHT CALCULATION** with fade effects
-      let rawHeight = baseHeight + (value * maxHeight * volumeMultiplier);
-      
-      // 🎵 **APPLY FADE EFFECTS**: Modify bar height based on fade position
-      if (fadeIn > 0 || fadeOut > 0) {
-        const fadeMultiplier = calculateFadeMultiplier(i, waveformData.length);
-        rawHeight = baseHeight + (rawHeight - baseHeight) * fadeMultiplier;
-      }
-      
-      const barHeight = Math.max(1, rawHeight);      
-      
-      // 🆕 **INVERT SELECTION LOGIC**: Determine if bar is in active region
-      let isInSelection;
-      if (isInverted) {
-        // In invert mode, active regions are outside the selection
-        isInSelection = barTime < startTime || barTime > endTime;
-      } else {
-        // In normal mode, active region is inside the selection
-        isInSelection = barTime >= startTime && barTime <= endTime;
-      }
-      
-      ctx.fillStyle = isInSelection ? '#7c3aed' : '#e2e8f0';
-      
-      const x = i * barWidth;
-      ctx.fillRect(Math.floor(x), centerY - barHeight/2, Math.max(1, barWidth - 0.5), barHeight);
-    }
-  }
-
-  // 🎯 **RENDER SELECTION OVERLAY**: Selection highlight
-  renderSelectionOverlay(ctx, renderData) {
-    const { width, height, startTime, endTime, duration } = renderData;
-    
-    if (startTime < endTime && duration > 0) {
-      const startPercent = startTime / duration;
-      const endPercent = endTime / duration;
-      const startX = startPercent * width;
-      const endX = endPercent * width;
-      
-      ctx.fillStyle = 'rgba(139, 92, 246, 0.15)';
-      ctx.fillRect(startX, 0, endX - startX, height);
-    }
+    const x = i * barWidth;
+    ctx.fillRect(Math.floor(x), centerY - barHeight/2, Math.max(1, barWidth - 0.5), barHeight);
   }
 }
 
-// 🎯 **WORKER MESSAGE HANDLER**
-const renderWorker = new RenderWorker();
+// ---- Fade calculation helper ----
 
-self.onmessage = async function(e) {
-  const { type, id, data } = e.data;
-    try {
-    switch (type) {
-      case 'render-waveform':
-        await renderWorker.renderWaveform(id, data);
-        break;
-        
-      default:
-        // Unknown message type - silently ignore
+function getFadeMul(i, barTime, barCount, duration, startTime, endTime, fadeIn, fadeOut, isInverted) {
+  if (!fadeIn && !fadeOut) return 1;
+  if (isInverted) {
+    let mul = 1;
+    // FadeIn: region [0, startTime]
+    if (fadeIn > 0 && barTime < startTime) {
+      const dur = Math.min(fadeIn, startTime);
+      if (dur > 0 && barTime <= dur) {
+        mul = Math.max(0.05, barTime / dur);
+      }
     }
-  } catch (error) {
-    self.postMessage({
-      type: 'error',
-      id,
-      error: error.message,
-      stack: error.stack
-    });
+    // FadeOut: region [endTime, duration]
+    if (fadeOut > 0 && barTime >= endTime) {
+      const dur = Math.min(fadeOut, duration - endTime);
+      const fadeStart = duration - dur;
+      if (dur > 0 && barTime >= fadeStart) {
+        mul = Math.max(0.05, (duration - barTime) / dur);
+      }
+    }
+    return mul;
+  } else {
+    // Normal mode: fade inside [startTime, endTime]
+    const selDur = endTime - startTime;
+    if (selDur <= 0) return 1;
+    const relPos = (barTime - startTime) / selDur;
+    let mul = 1;
+    // FadeIn
+    if (fadeIn > 0 && relPos < fadeIn / selDur) {
+      mul *= Math.max(0.05, relPos / (fadeIn / selDur));
+    }
+    // FadeOut
+    if (fadeOut > 0 && relPos > 1 - fadeOut / selDur) {
+      mul *= Math.max(0.05, (1 - relPos) / (fadeOut / selDur));
+    }
+    return mul;
   }
-};
+}

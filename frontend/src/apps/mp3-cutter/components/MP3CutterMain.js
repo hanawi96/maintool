@@ -24,8 +24,8 @@ import {
 } from '../../../hooks/usePhase3OptimizationStable';
 
 import FileInfo from './FileInfo';
-import AudioErrorAlert from './AudioErrorAlert';
-import ConnectionErrorAlert from './ConnectionErrorAlert';
+import AudioErrorAlert from './ErrorAlert/AudioErrorAlert';
+import ConnectionErrorAlert from './ErrorAlert/ConnectionErrorAlert';
 import FileUploadSection from './FileUploadSection';
 
 import { 

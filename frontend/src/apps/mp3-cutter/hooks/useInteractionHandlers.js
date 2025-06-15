@@ -30,7 +30,6 @@ export const useInteractionHandlers = ({
 
   const handleCanvasMouseDown = useCallback((e) => {
     if (!canvasRef.current || duration <= 0) return;
-    historySavedRef.current = false;
     cachedRectRef.current = canvasRef.current.getBoundingClientRect();
     const x = e.clientX - cachedRectRef.current.left;
     const manager = interactionManagerRef.current;
@@ -51,6 +50,14 @@ export const useInteractionHandlers = ({
       isHandleEvent: e.isHandleEvent || false,
       handleType: e.handleType || null
     });
+    // Only reset historySavedRef when a real drag or selection is about to start
+    if (
+      result.action === 'startDrag' ||
+      (result.action === 'pendingJump' && result.regionDragPotential) ||
+      result.action === 'createSelection'
+    ) {
+      historySavedRef.current = false;
+    }
     if (result.action === 'startDrag') setIsDragging(result.handle);
     else if (result.action === 'pendingJump' && result.regionDragPotential) setIsDragging('region-potential');
     else if (result.action === 'createSelection') {
