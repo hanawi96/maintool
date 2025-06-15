@@ -1,3 +1,5 @@
+
+
 import { useCallback, useRef } from 'react';
 
 // 🎯 **60FPS OPTIMIZED INTERACTION HANDLERS**
@@ -34,8 +36,10 @@ export const useInteractionHandlers = ({
   // 🆕 **AUDIO CONTEXT**: Receive from parent instead of creating locally
   audioContext // Full audio context with isInverted
 }) => {
-  // 🔥 **PERFORMANCE REF**: Throttling reference
-  const lastMouseTimeRef = useRef(0);
+  // 🔥 **PERFORMANCE REF**: (Đã thay bằng requestAnimationFrame, không cần lastMouseTimeRef nữa)
+
+  // Cache bounding rect for current interaction
+  const cachedRectRef = useRef(null);
   
   // 🆕 **HISTORY TRACKING**: Prevent duplicate history saves
   const historySavedRef = useRef(false);
@@ -46,17 +50,20 @@ export const useInteractionHandlers = ({
   // 🎯 **OPTIMIZED MOUSE DOWN** - Minimal logic for 60fps
   const handleCanvasMouseDown = useCallback((e) => {
     if (!canvasRef.current || duration <= 0) return;
-    
+
     // 🆕 **RESET HISTORY TRACKING**: Reset for new interaction
     historySavedRef.current = false;
-    
+
+    // Cache rect for this interaction
     const rect = canvasRef.current.getBoundingClientRect();
+    cachedRectRef.current = rect;
+
     const x = e.clientX - rect.left;
     const eventInfo = {
       isHandleEvent: e.isHandleEvent || false,
       handleType: e.handleType || null
     };
-    
+
     const manager = interactionManagerRef.current;
     if (manager && canvasRef.current) {
       const globalDragCallback = (result) => {
@@ -71,10 +78,10 @@ export const useInteractionHandlers = ({
         if (result.startTime !== undefined) handleStartTimeChange(result.startTime);
         if (result.endTime !== undefined) handleEndTimeChange(result.endTime);
       };
-      
+
       manager.setupGlobalDragContext(rect, canvasRef.current.width, duration, startTime, endTime, audioContext, globalDragCallback);
     }
-    
+
     const result = manager.handleMouseDown(x, canvasRef.current.width, duration, startTime, endTime, eventInfo);
     
     // 🚀 **IMMEDIATE PROCESSING** - No delays for 60fps
@@ -95,29 +102,33 @@ export const useInteractionHandlers = ({
     }
   }, [canvasRef, duration, startTime, endTime, setStartTime, setEndTime, setIsDragging, interactionManagerRef, audioContext, saveState, fadeIn, fadeOut, handleStartTimeChange, handleEndTimeChange]);
 
-  // 🎯 **OPTIMIZED MOUSE MOVE**
-  const handleCanvasMouseMove = useCallback((e) => {
-    const now = performance.now();
-    if (now - lastMouseTimeRef.current < 16) return; // 60fps limit
-    lastMouseTimeRef.current = now;
-    
-    if (!canvasRef.current || duration <= 0) return;
-    
-    const rect = canvasRef.current.getBoundingClientRect();
+  // 🎯 **OPTIMIZED MOUSE MOVE with requestAnimationFrame**
+  const rafIdRef = useRef(null);
+  const latestEventRef = useRef(null);
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const processMouseMove = useCallback(() => {
+    const e = latestEventRef.current;
+    if (!e || !canvasRef.current || duration <= 0) return;
+
+    // Dùng cached rect nếu có, nếu không thì fallback lấy lại (trường hợp hiếm)
+    const rect = cachedRectRef.current || canvasRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
-    
+
     const manager = interactionManagerRef.current;
     const result = manager.handleMouseMove(x, canvasRef.current.width, duration, startTime, endTime, audioContext);
-      switch (result.action) {
-            case 'updateRegion':
-        // 🆕 **USE ENHANCED HANDLERS**: Use enhanced handlers for proper cursor positioning
+    switch (result.action) {
+      case 'updateRegion':
         if (result.isRegionDrag) {
-          // 🎯 **REGION DRAG**: Only update start/end times, don't call enhanced handlers
-          // This avoids cursor jumping to endTime - 3 in normal mode
-          if (result.startTime !== undefined) setStartTime(result.startTime);
-          if (result.endTime !== undefined) setEndTime(result.endTime);
+          // Batch setState để tránh render 2 lần liên tiếp
+          if (result.startTime !== undefined && result.endTime !== undefined) {
+            setStartTime(result.startTime);
+            setEndTime(result.endTime);
+          } else {
+            if (result.startTime !== undefined) setStartTime(result.startTime);
+            if (result.endTime !== undefined) setEndTime(result.endTime);
+          }
         } else {
-          // 🎯 **HANDLE DRAG**: Use enhanced handlers for proper cursor positioning
           if (result.startTime !== undefined) handleStartTimeChange(result.startTime);
           if (result.endTime !== undefined) handleEndTimeChange(result.endTime);
         }
@@ -126,13 +137,18 @@ export const useInteractionHandlers = ({
         setHoveredHandle(result.handle);
         break;
       default:
-        // No action needed for other cases
         break;
     }
-    
-    // 🎯 **CURSOR UPDATE**: Set hovered handle based on cursor
     setHoveredHandle(result.cursor === 'ew-resize' && result.handle ? result.handle : null);
+    rafIdRef.current = null;
   }, [canvasRef, duration, startTime, endTime, setHoveredHandle, interactionManagerRef, audioContext, handleStartTimeChange, handleEndTimeChange, setStartTime, setEndTime]);
+
+  const handleCanvasMouseMove = useCallback((e) => {
+    latestEventRef.current = e;
+    if (rafIdRef.current === null) {
+      rafIdRef.current = window.requestAnimationFrame(processMouseMove);
+    }
+  }, [processMouseMove]);
 
   // 🎯 **OPTIMIZED MOUSE UP**
   const handleCanvasMouseUp = useCallback(() => {
