@@ -78,11 +78,12 @@ export class AudioSyncManager {
         // 🎯 **NORMAL MODE**: Cursor at start handle position
         targetTime = newTime;
       }
-    } else if (handleType === 'end' && this.preferences.endHandleOffset > 0) {
+    } else if (handleType === 'end') {
       if (isInverted) {
         // 🆕 **INVERT MODE - END HANDLE**: Cursor luôn ở end point khi drag handle right
         targetTime = newTime;
-      } else {
+        console.log(`🎯 [InvertMode-EndHandle] Sync cursor to end point: ${targetTime.toFixed(2)}s`);
+      } else if (this.preferences.endHandleOffset > 0) {
         // 🔥 **NORMAL MODE - INTELLIGENT REGION SIZE CHECK**: Calculate region duration
         const regionDuration = newTime - startTime;
         
@@ -94,7 +95,8 @@ export class AudioSyncManager {
           const proposedTime = newTime - this.preferences.endHandleOffset;
           targetTime = Math.max(startTime, proposedTime); // ✅ Never go before startTime
         }
-      }    } else if (handleType === 'region') {
+      }
+    } else if (handleType === 'region') {
       if (isInverted) {
         // 🆕 **INVERT MODE - REGION**: Cursor 3s before start of region
         targetTime = Math.max(0, startTime - 3);
@@ -326,7 +328,8 @@ export class AudioSyncManager {
       if (isInverted) {
         // 🆕 **INVERT MODE - END HANDLE**: Cursor luôn ở end point khi drag handle right
         targetTime = newTime;
-      } else {
+        console.log(`🎯 [InvertMode-EndHandle] RealTime sync cursor to end point: ${targetTime.toFixed(2)}s`);
+      } else if (this.preferences.endHandleOffset > 0) {
         // 🔥 **NORMAL MODE - INTELLIGENT REGION SIZE CHECK**: Calculate region duration
         const regionDuration = newTime - startTime;
         
@@ -338,7 +341,8 @@ export class AudioSyncManager {
           const proposedTime = newTime - this.preferences.endHandleOffset;
           targetTime = Math.max(startTime, proposedTime); // ✅ Never go before startTime
         }
-      }    } else if (handleType === 'region') {
+      }
+    } else if (handleType === 'region') {
       if (isInverted) {
         // 🆕 **INVERT MODE - REGION DRAG**: Cursor 3s before start of region
         targetTime = Math.max(0, startTime - 3);

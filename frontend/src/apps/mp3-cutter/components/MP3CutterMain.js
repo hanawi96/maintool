@@ -371,21 +371,28 @@ const MP3CutterMain = React.memo(() => {
     // 1. Update end time first
     originalHandleEndTimeChange(newEndTime);
     
-    // 2. Jump main cursor based on invert mode
-    let targetCursorTime;
-    if (isInverted) {
-      // 🆕 **INVERT MODE**: Jump cursor 3s before start point (same as start handle)
-      targetCursorTime = Math.max(0, startTime - 3);
+    // 🆕 **SMART CURSOR LOGIC**: Only jump cursor for manual time selector changes, not drag operations
+    // During drag operations, AudioSyncManager handles cursor positioning
+    if (!isDragging) {
+      // 2. Jump main cursor based on invert mode (only for manual time selector changes)
+      let targetCursorTime;
+      if (isInverted) {
+        // 🆕 **INVERT MODE**: Jump cursor 3s before start point (same as start handle)
+        targetCursorTime = Math.max(0, startTime - 3);
+      } else {
+        // 🎯 **NORMAL MODE**: Jump cursor 3s before new end point, but not before start time
+        targetCursorTime = Math.max(startTime, newEndTime - 3);
+      }
+      
+      // 3. Jump main cursor to calculated position
+      jumpToTime(targetCursorTime);
+      console.log(`🎯 [EndTimeChange] Manual cursor jump to ${targetCursorTime.toFixed(2)}s (isInverted: ${isInverted})`);
     } else {
-      // 🎯 **NORMAL MODE**: Jump cursor 3s before new end point, but not before start time
-      targetCursorTime = Math.max(startTime, newEndTime - 3);
+      console.log(`🚫 [EndTimeChange] Skipping cursor jump during drag - letting AudioSyncManager handle it (isInverted: ${isInverted})`);
     }
     
-    // 3. Jump main cursor to calculated position
-    jumpToTime(targetCursorTime);
-    
     // No need to change play state - if it was playing, it continues; if paused, stays paused
-  }, [originalHandleEndTimeChange, jumpToTime, startTime, isInverted]);
+  }, [originalHandleEndTimeChange, jumpToTime, startTime, isInverted, isDragging]);
 
   // 🆕 **UPDATE REFS**: Update refs với enhanced handlers
   useEffect(() => {

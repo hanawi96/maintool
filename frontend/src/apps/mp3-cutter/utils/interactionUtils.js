@@ -425,7 +425,8 @@ export class InteractionManager {
         // 🆕 **DELAY CURSOR MOVEMENT**: Store pending jump thay vì jump ngay để tránh shock khi drag
         this.pendingJumpTime = smartAction.seekTime;
         this.hasPendingJump = true;
-        this.pendingJumpBlockedByInvert = smartAction.blockedByInvertMode || false; // 🆕 **TRACK INVERT BLOCK**: Track if jump is blocked by invert mode
+        // 🆕 **INVERT MODE CURSOR JUMP**: Allow cursor jumps in invert mode, only block handle updates
+        this.pendingJumpBlockedByInvert = false; // 🔄 **ALWAYS ALLOW CURSOR JUMP**: Never block cursor jumps
         
         // 🆕 **REGION DRAG POTENTIAL**: Check if this click can potentially become region drag
         if (smartAction.regionDragPotential && this.smartClickManager.preferences.enableRegionDrag) {
@@ -443,7 +444,7 @@ export class InteractionManager {
           time: smartAction.seekTime,
           regionDragPotential: smartAction.regionDragPotential || false,
           pendingJumpTime: this.pendingJumpTime, // 🆕 **PASS PENDING TIME**: For debugging
-          blockedByInvertMode: smartAction.blockedByInvertMode || false // 🆕 **PASS INVERT BLOCK FLAG**: For UI to handle
+          blockedByInvertMode: false // 🔄 **NEVER BLOCK CURSOR JUMP**: Always allow cursor jumps
         };
         
       case CLICK_ACTIONS.UPDATE_START:
@@ -520,10 +521,32 @@ export class InteractionManager {
         };
           case CLICK_ACTIONS.NO_ACTION:
       default:
+        // 🆕 **REGION DRAG POTENTIAL**: Even with NO_ACTION, check for region drag potential
+        if (smartAction.regionDragPotential && this.smartClickManager.preferences.enableRegionDrag) {
+          // 🔧 **SETUP REGION DRAG**: Setup region drag potential even when cursor jump is blocked
+          const clickTime = positionToTime(x, canvasWidth, duration);
+          this.regionDragStartTime = clickTime;
+          this.regionDragOffset = clickTime - startTime; // Calculate offset from region start
+          this.state = INTERACTION_STATES.DRAGGING; // Enable drag state
+          this.activeHandle = null; // No handle, but region drag potential
+          this.isDraggingRegion = false; // Will be activated on mouse move
+          this.isDraggingConfirmed = false; // Require confirmation
+          
+          console.log(`🔧 [InvertMode-RegionDrag] Setup region drag potential at ${clickTime.toFixed(2)}s (offset: ${this.regionDragOffset.toFixed(2)}s)`);
+          
+          return {
+            action: 'startDrag',
+            handle: null,
+            reason: `${smartAction.reason} - Region drag potential enabled`,
+            blockedByInvertMode: smartAction.blockedByInvertMode || false,
+            regionDragPotential: true
+          };
+        }
+        
         return {
           action: 'none',
           reason: smartAction.reason,
-          blockedByInvertMode: smartAction.blockedByInvertMode || false // 🆕 **INVERT MODE FLAG**: Pass through the flag
+          blockedByInvertMode: smartAction.blockedByInvertMode || false
         };
     }
   }

@@ -198,18 +198,26 @@ export const useInteractionHandlers = ({
     
     // 🔄 **PENDING ACTIONS**: Handle pending actions only if not already handled by drag completion
     if (result.saveHistory && !historySavedRef.current) {
-      console.log(`💾 [History] Pending handle update - saving history (SINGLE save)`);
+      console.log(`💾 [History] Pending handle update - checking if save needed (isInvertMode: ${isInvertMode})`);
       historySavedRef.current = true;
       // 🔄 **IMMEDIATE SAVE**: Save immediately without timeout
       if (isInvertMode) {
-        // In invert mode, no handle changes occurred, just save current state
-        saveState({ startTime, endTime, fadeIn, fadeOut, isInverted: true });
+        // 🛡️ **INVERT MODE HISTORY LOGIC**: Only save if there were actual region changes
+        // In invert mode, cursor jumps don't change region selection, so no history needed
+        if (result.executePendingHandleUpdate && result.pendingHandleUpdate !== null) {
+          // This shouldn't happen in invert mode, but if it does, don't save
+          console.log(`🚫 [InvertMode] Skipping history save - no region changes in invert mode`);
+        } else {
+          // Pure cursor jump in invert mode - no history save needed
+          console.log(`🚫 [InvertMode] Skipping history save - cursor jump only, no region changes`);
+        }
       } else {
         // Normal mode: save with potential handle changes
         const finalStartTime = result.executePendingHandleUpdate && result.pendingHandleUpdate?.type === 'start'
           ? result.pendingHandleUpdate.newTime : startTime;
         const finalEndTime = result.executePendingHandleUpdate && result.pendingHandleUpdate?.type === 'end'
           ? result.pendingHandleUpdate.newTime : endTime;
+        console.log(`💾 [NormalMode] Saving history with changes: start=${finalStartTime.toFixed(2)}s, end=${finalEndTime.toFixed(2)}s`);
         saveState({ startTime: finalStartTime, endTime: finalEndTime, fadeIn, fadeOut, isInverted: false });
       }
     } else if (result.saveHistory && historySavedRef.current) {

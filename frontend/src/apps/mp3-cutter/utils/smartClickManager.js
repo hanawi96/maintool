@@ -127,15 +127,15 @@ export class SmartClickManager {
         actionDetails.cursor = 'ew-resize';
         actionDetails.reason = 'Dragging end handle';
         break;      case CLICK_ZONES.INSIDE_SELECTION:
-        // 🛡️ **INVERT MODE LOGIC**: Allow region drag but block cursor jump
+        // 🛡️ **INVERT MODE LOGIC**: Block cursor jump in inactive region, but allow region drag
         if (isInverted) {
-          // 🎯 **ENABLE REGION DRAG ONLY**: No cursor jump, but allow potential region drag
-          actionDetails.action = CLICK_ACTIONS.JUMP_TO_TIME; // Use same action but will be blocked in mouse up
-          actionDetails.seekTime = clickTime;
+          // 🚫 **NO CURSOR JUMP**: In invert mode, old region is inactive - no cursor jump
+          actionDetails.action = CLICK_ACTIONS.NO_ACTION; // Block cursor jump completely
+          actionDetails.seekTime = null; // No seek time
           actionDetails.cursor = 'grab'; // Show grab cursor to indicate draggable
-          actionDetails.reason = 'INVERT MODE: Region drag enabled, cursor jump blocked';
-          actionDetails.blockedByInvertMode = true; // 🆕 **FLAG**: Mark cursor jump as blocked
-          actionDetails.regionDragPotential = true; // 🔧 **ENABLE REGION DRAG**: Allow region drag
+          actionDetails.reason = 'INVERT MODE: Old region is inactive, cursor jump blocked';
+          actionDetails.regionDragPotential = true; // 🔧 **ENABLE REGION DRAG**: Still allow region drag
+          console.log(`🚫 [InvertMode-InsideSelection] Blocking cursor jump in inactive region at ${clickTime.toFixed(2)}s`);
           break;
         }
         
@@ -149,6 +149,15 @@ export class SmartClickManager {
         // 🆕 **REGION DRAG POTENTIAL**: Mark để có thể trigger region drag khi có movement
         actionDetails.regionDragPotential = true; // 🔧 **ENABLE REGION DRAG**: Flag để interactionManager biết có thể drag region
         break;case CLICK_ZONES.BEFORE_START:
+        // 🛡️ **INVERT MODE LOGIC**: In invert mode, only allow cursor jump, no handle updates
+        if (isInverted) {
+          actionDetails.action = CLICK_ACTIONS.JUMP_TO_TIME;
+          actionDetails.seekTime = clickTime;
+          actionDetails.cursor = 'pointer';
+          actionDetails.reason = 'INVERT MODE: Cursor jump allowed, handle update blocked';
+          break;
+        }
+        
         // 🎯 **SMART LOGIC**: Check if this should be handle update or cursor jump
         if (this.preferences.enableSmartUpdate && this.shouldAllowHandleUpdate(clickZone, clickTime, startTime, endTime, duration, isActualClick)) {
           // 🔧 **HANDLE UPDATE**: Update start handle position
@@ -164,6 +173,15 @@ export class SmartClickManager {
           actionDetails.reason = `Jumping to ${clickTime.toFixed(2)}s (before selection)`;
         }
         break;      case CLICK_ZONES.AFTER_END:
+        // 🛡️ **INVERT MODE LOGIC**: In invert mode, only allow cursor jump, no handle updates
+        if (isInverted) {
+          actionDetails.action = CLICK_ACTIONS.JUMP_TO_TIME;
+          actionDetails.seekTime = clickTime;
+          actionDetails.cursor = 'pointer';
+          actionDetails.reason = 'INVERT MODE: Cursor jump allowed, handle update blocked';
+          break;
+        }
+        
         // 🎯 **SMART LOGIC**: Check if this should be handle update or cursor jump
         if (this.preferences.enableSmartUpdate && this.shouldAllowHandleUpdate(clickZone, clickTime, startTime, endTime, duration, isActualClick)) {
           // 🔧 **HANDLE UPDATE**: Update end handle position
