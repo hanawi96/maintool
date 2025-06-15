@@ -1,146 +1,81 @@
-// 🔄 **WAVEFORM SYSTEM SWITCHER** - Easy toggle between old and new systems
-import React from 'react';
-
-// 🔄 **IMPORT ORIGINAL SYSTEM ONLY**
+import React, { useState } from 'react';
 import OriginalWaveform from './index'; // Original system
 
-// 🎯 **SYSTEM FLAGS** - Easy way to enable/disable features
-const WAVEFORM_FEATURES = {
-  USE_HYBRID_SYSTEM: false, // 🔧 **DISABLE HYBRID**: Use original system to prevent double loading
+// All config flags here
+const DEFAULT_FEATURES = {
+  USE_HYBRID_SYSTEM: false,
   SHOW_PERFORMANCE_BADGE: true,
   ENABLE_CACHE: true,
   USE_WEB_WORKERS: true,
   DEBUG_MODE: false
 };
+let WAVEFORM_FEATURES = { ...DEFAULT_FEATURES };
 
-// 🔄 **SMART WAVEFORM COMPONENT** - Automatically chooses best system
 const SmartWaveform = (props) => {
-  // 🎯 **FEATURE DETECTION**: Check if hybrid features are supported
-  const isHybridSupported = () => {
+  // Detect feature support (if needed for hybrid in tương lai)
+  const isHybridSupported = React.useMemo(() => {
     try {
-      // Check for required features
-      const hasWorkers = typeof Worker !== 'undefined';
-      const hasOffscreenCanvas = typeof OffscreenCanvas !== 'undefined';
-      const hasIndexedDB = typeof indexedDB !== 'undefined';
-      
-      if (WAVEFORM_FEATURES.DEBUG_MODE) {
-        console.log('🔍 [SmartWaveform] Feature detection:', {
-          hasWorkers,
-          hasOffscreenCanvas,
-          hasIndexedDB,
-          hybridEnabled: WAVEFORM_FEATURES.USE_HYBRID_SYSTEM
-        });
-      }
-      
-      // Hybrid system works even without all features (graceful fallback)
+      // Always true for fallback (giống logic cũ)
       return true;
-    } catch (error) {
-      console.warn('⚠️ [SmartWaveform] Feature detection failed:', error);
+    } catch {
       return false;
     }
-  };
+  }, []);
 
-  // 🎯 **SYSTEM SELECTION**: Choose which system to use
-  const useHybridSystem = WAVEFORM_FEATURES.USE_HYBRID_SYSTEM && isHybridSupported();
-  
-  if (WAVEFORM_FEATURES.DEBUG_MODE) {
-    console.log('🎯 [SmartWaveform] System selection:', {
-      useHybridSystem,
-      reason: useHybridSystem ? 'Hybrid system enabled and supported' : 'Using original system'
-    });
-  }
-
-  // 🔧 **FORCE ORIGINAL SYSTEM**: Always use original system to prevent double loading
+  // Always force original system
   return <OriginalWaveform {...props} />;
 };
 
-// 🔧 **SYSTEM CONTROL FUNCTIONS** - For debugging and testing
+// Control API for outside use
 export const WaveformSystemControl = {
-  // 🎯 **ENABLE/DISABLE HYBRID SYSTEM**
-  setHybridEnabled: (enabled) => {
-    WAVEFORM_FEATURES.USE_HYBRID_SYSTEM = enabled;
-    console.log('🔄 [WaveformSystemControl] Hybrid system:', enabled ? 'ENABLED' : 'DISABLED');
-  },
-
-  // 🎯 **TOGGLE PERFORMANCE BADGE**
-  setPerformanceBadgeEnabled: (enabled) => {
-    WAVEFORM_FEATURES.SHOW_PERFORMANCE_BADGE = enabled;
-    console.log('🔄 [WaveformSystemControl] Performance badge:', enabled ? 'ENABLED' : 'DISABLED');
-  },
-
-  // 🎯 **ENABLE/DISABLE DEBUG MODE**
-  setDebugMode: (enabled) => {
-    WAVEFORM_FEATURES.DEBUG_MODE = enabled;
-    console.log('🔄 [WaveformSystemControl] Debug mode:', enabled ? 'ENABLED' : 'DISABLED');
-  },
-
-  // 🎯 **GET CURRENT CONFIG**
+  setHybridEnabled: (enabled) => { WAVEFORM_FEATURES.USE_HYBRID_SYSTEM = enabled; },
+  setPerformanceBadgeEnabled: (enabled) => { WAVEFORM_FEATURES.SHOW_PERFORMANCE_BADGE = enabled; },
+  setDebugMode: (enabled) => { WAVEFORM_FEATURES.DEBUG_MODE = enabled; },
   getConfig: () => ({ ...WAVEFORM_FEATURES }),
-
-  // 🎯 **RESET TO DEFAULTS**
-  resetToDefaults: () => {
-    WAVEFORM_FEATURES.USE_HYBRID_SYSTEM = true;
-    WAVEFORM_FEATURES.SHOW_PERFORMANCE_BADGE = true;
-    WAVEFORM_FEATURES.ENABLE_CACHE = true;
-    WAVEFORM_FEATURES.USE_WEB_WORKERS = true;
-    WAVEFORM_FEATURES.DEBUG_MODE = false;
-    console.log('🔄 [WaveformSystemControl] Reset to defaults');
-  }
+  resetToDefaults: () => { WAVEFORM_FEATURES = { ...DEFAULT_FEATURES }; }
 };
 
-// 🎯 **DEBUG PANEL COMPONENT** - For testing during development
+// Debug panel (only appears if DEBUG_MODE true)
 export const WaveformDebugPanel = () => {
-  const [config, setConfig] = React.useState(WAVEFORM_FEATURES);
+  const [config, setConfig] = useState({ ...WAVEFORM_FEATURES });
 
+  // Sync config with global flags
   const updateConfig = (key, value) => {
     WAVEFORM_FEATURES[key] = value;
     setConfig({ ...WAVEFORM_FEATURES });
   };
 
-  if (!WAVEFORM_FEATURES.DEBUG_MODE) {
-    return null;
-  }
+  React.useEffect(() => {
+    setConfig({ ...WAVEFORM_FEATURES });
+  }, [WAVEFORM_FEATURES.DEBUG_MODE]); // Refresh when debug mode flag flips
+
+  if (!config.DEBUG_MODE) return null;
 
   return (
     <div className="fixed bottom-4 right-4 bg-white p-4 rounded-lg shadow-lg border border-gray-200 z-50">
       <h3 className="font-bold text-sm mb-2">🔧 Waveform Debug Panel</h3>
       <div className="space-y-2 text-xs">
-        <label className="flex items-center">
-          <input
-            type="checkbox"
-            checked={config.USE_HYBRID_SYSTEM}
-            onChange={(e) => updateConfig('USE_HYBRID_SYSTEM', e.target.checked)}
-            className="mr-2"
-          />
-          Use Hybrid System
-        </label>
-        <label className="flex items-center">
-          <input
-            type="checkbox"
-            checked={config.SHOW_PERFORMANCE_BADGE}
-            onChange={(e) => updateConfig('SHOW_PERFORMANCE_BADGE', e.target.checked)}
-            className="mr-2"
-          />
-          Show Performance Badge
-        </label>
-        <label className="flex items-center">
-          <input
-            type="checkbox"
-            checked={config.USE_WEB_WORKERS}
-            onChange={(e) => updateConfig('USE_WEB_WORKERS', e.target.checked)}
-            className="mr-2"
-          />
-          Use Web Workers
-        </label>
-        <label className="flex items-center">
-          <input
-            type="checkbox"
-            checked={config.ENABLE_CACHE}
-            onChange={(e) => updateConfig('ENABLE_CACHE', e.target.checked)}
-            className="mr-2"
-          />
-          Enable Cache
-        </label>
+        {Object.entries(DEFAULT_FEATURES).map(([key, defaultValue]) => (
+          <label className="flex items-center" key={key}>
+            <input
+              type="checkbox"
+              checked={!!config[key]}
+              onChange={e => updateConfig(key, e.target.checked)}
+              className="mr-2"
+              disabled={key === 'DEBUG_MODE'} // Don't toggle debug here to avoid locking yourself out
+            />
+            {key.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase())}
+          </label>
+        ))}
+        <button
+          onClick={() => {
+            WaveformSystemControl.resetToDefaults();
+            setConfig({ ...WAVEFORM_FEATURES });
+          }}
+          className="mt-2 text-xs bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded"
+        >
+          Reset to Defaults
+        </button>
       </div>
     </div>
   );
