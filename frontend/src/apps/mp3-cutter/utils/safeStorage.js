@@ -1,325 +1,183 @@
-/**
- * 🛡️ **ULTRA-SAFE STORAGE UTILITY**
- * Xử lý localStorage một cách an toàn, tránh mọi lỗi JSON parsing
- */
+// 🛡️ ULTRA-SAFE STORAGE UTILITY (Optimized)
+
+// 🎯 Check storage availability once
+const hasLocalStorage =
+  typeof window !== 'undefined' &&
+  typeof window.localStorage !== 'undefined';
+
+// 🎯 Validate key helper
+const validateKey = (key, action) => {
+  if (typeof key !== 'string' || !key) {
+    console.warn(`⚠️ [safeStorage] Invalid key for ${action}:`, key);
+    return false;
+  }
+  if (!hasLocalStorage) {
+    console.warn(`⚠️ [safeStorage] localStorage not available for ${action}`);
+    return false;
+  }
+  return true;
+};
 
 /**
- * 🔧 **SAFE GET ITEM** - Lấy dữ liệu từ localStorage an toàn
- * @param {string} key - Storage key
- * @param {any} defaultValue - Default value nếu không tìm thấy hoặc lỗi
- * @returns {any} - Parsed value hoặc default value
+ * 🔧 SAFE GET ITEM
  */
 export const safeGetItem = (key, defaultValue = null) => {
-  try {
-    // 🎯 VALIDATE INPUT
-    if (!key || typeof key !== 'string') {
-      console.warn('⚠️ [safeStorage] Invalid key provided:', key);
-      return defaultValue;
+  if (!validateKey(key, 'get')) return defaultValue;
+
+  const raw = localStorage.getItem(key);
+  if (raw == null || raw === '' || raw === 'undefined' || raw === 'null') {
+    if (raw === 'undefined' || raw === 'null') {
+      console.warn(`⚠️ [safeStorage] Key "${key}" contains literal "${raw}"; using default.`);
     }
-    
-    // 🎯 CHECK LOCALSTORAGE AVAILABILITY
-    if (typeof Storage === 'undefined' || !window.localStorage) {
-      console.warn('⚠️ [safeStorage] localStorage not available');
-      return defaultValue;
-    }
-    
-    // 🎯 GET RAW VALUE
-    const rawValue = localStorage.getItem(key);
-    
-    // 🎯 HANDLE NULL/UNDEFINED
-    if (rawValue === null || rawValue === undefined) {
-      return defaultValue;
-    }
-    
-    // 🎯 HANDLE EMPTY STRING
-    if (rawValue === '') {
-      return defaultValue;
-    }
-    
-    // 🎯 HANDLE LITERAL "undefined" STRING
-    if (rawValue === 'undefined') {
-      console.warn(`⚠️ [safeStorage] Key "${key}" contains literal "undefined" string, using default:`, defaultValue);
-      return defaultValue;
-    }
-    
-    // 🎯 HANDLE LITERAL "null" STRING
-    if (rawValue === 'null') {
-      console.warn(`⚠️ [safeStorage] Key "${key}" contains literal "null" string, using default:`, defaultValue);
-      return defaultValue;
-    }
-      // 🎯 TRY JSON PARSING (for complex data)
-    try {
-      const parsedValue = JSON.parse(rawValue);
-      // Successfully parsed JSON value
-      return parsedValue;
-    } catch (jsonError) {
-      // 🎯 FALLBACK: Return raw string value
-      // JSON parse failed, returning raw string
-      return rawValue;
-    }
-    
-  } catch (error) {
-    console.error(`❌ [safeStorage] Error getting item "${key}":`, error.message);
     return defaultValue;
   }
+
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return raw;
+  }
 };
 
 /**
- * 🔧 **SAFE SET ITEM** - Lưu dữ liệu vào localStorage an toàn
- * @param {string} key - Storage key
- * @param {any} value - Value to store
- * @returns {boolean} - Success status
+ * 🔧 SAFE SET ITEM
  */
 export const safeSetItem = (key, value) => {
+  if (!validateKey(key, 'set')) return false;
+
+  if (value === undefined) {
+    console.warn(`⚠️ [safeStorage] Undefined value for "${key}"; removing item.`);
+    return safeRemoveItem(key);
+  }
+
+  let toStore;
+  if (typeof value === 'string') {
+    toStore = value;
+  } else {
+    try {
+      toStore = JSON.stringify(value);
+    } catch (err) {
+      console.error(`❌ [safeStorage] Serialize failed for "${key}":`, err.message);
+      return false;
+    }
+  }
+
   try {
-    // 🎯 VALIDATE INPUT
-    if (!key || typeof key !== 'string') {
-      console.warn('⚠️ [safeStorage] Invalid key provided for set:', key);
-      return false;
-    }
-    
-    // 🎯 CHECK LOCALSTORAGE AVAILABILITY
-    if (typeof Storage === 'undefined' || !window.localStorage) {
-      console.warn('⚠️ [safeStorage] localStorage not available for set');
-      return false;
-    }
-    
-    // 🎯 HANDLE UNDEFINED VALUE
-    if (value === undefined) {
-      console.warn(`⚠️ [safeStorage] Attempting to store undefined value for "${key}", removing item instead`);
-      return safeRemoveItem(key);
-    }
-    
-    // 🎯 SERIALIZE VALUE
-    let serializedValue;
-    if (typeof value === 'string') {
-      serializedValue = value;
-    } else {
-      try {
-        serializedValue = JSON.stringify(value);
-      } catch (jsonError) {
-        console.error(`❌ [safeStorage] Failed to serialize value for "${key}":`, jsonError.message);
-        return false;
-      }
-    }
-    
-    // 🎯 STORE VALUE
-    localStorage.setItem(key, serializedValue);
+    localStorage.setItem(key, toStore);
     return true;
-    
-  } catch (error) {
-    console.error(`❌ [safeStorage] Error setting item "${key}":`, error.message);
-    
-    // 🎯 HANDLE QUOTA EXCEEDED
-    if (error.name === 'QuotaExceededError') {
-      console.warn('⚠️ [safeStorage] localStorage quota exceeded, attempting cleanup...');
-      // Có thể implement cleanup logic here nếu cần
+  } catch (err) {
+    console.error(`❌ [safeStorage] Error setting "${key}":`, err.message);
+    if (err.name === 'QuotaExceededError') {
+      console.warn('⚠️ [safeStorage] Quota exceeded.');
     }
-    
     return false;
   }
 };
 
 /**
- * 🔧 **SAFE REMOVE ITEM** - Xóa item từ localStorage an toàn
- * @param {string} key - Storage key
- * @returns {boolean} - Success status
+ * 🔧 SAFE REMOVE ITEM
  */
 export const safeRemoveItem = (key) => {
+  if (!validateKey(key, 'remove')) return false;
   try {
-    // 🎯 VALIDATE INPUT
-    if (!key || typeof key !== 'string') {
-      console.warn('⚠️ [safeStorage] Invalid key provided for remove:', key);
-      return false;
-    }
-    
-    // 🎯 CHECK LOCALSTORAGE AVAILABILITY
-    if (typeof Storage === 'undefined' || !window.localStorage) {
-      console.warn('⚠️ [safeStorage] localStorage not available for remove');
-      return false;
-    }
-    
     localStorage.removeItem(key);
     return true;
-    
-  } catch (error) {
-    console.error(`❌ [safeStorage] Error removing item "${key}":`, error.message);
+  } catch (err) {
+    console.error(`❌ [safeStorage] Remove failed for "${key}":`, err.message);
     return false;
   }
 };
 
 /**
- * 🔧 **SAFE CLEAR** - Xóa toàn bộ localStorage an toàn
- * @returns {boolean} - Success status
+ * 🔧 SAFE CLEAR
  */
 export const safeClear = () => {
+  if (!hasLocalStorage) {
+    console.warn('⚠️ [safeStorage] localStorage not available for clear');
+    return false;
+  }
   try {
-    // 🎯 CHECK LOCALSTORAGE AVAILABILITY
-    if (typeof Storage === 'undefined' || !window.localStorage) {
-      console.warn('⚠️ [safeStorage] localStorage not available for clear');
-      return false;
-    }
-      localStorage.clear();
-    // Successfully cleared all localStorage
+    localStorage.clear();
     return true;
-    
-  } catch (error) {
-    console.error('❌ [safeStorage] Error clearing localStorage:', error.message);
+  } catch (err) {
+    console.error('❌ [safeStorage] Clear failed:', err.message);
     return false;
   }
 };
 
 /**
- * 🔧 **GET STORAGE INFO** - Lấy thông tin về localStorage usage
- * @returns {object} - Storage information
+ * 🔧 GET STORAGE INFO
  */
 export const getStorageInfo = () => {
-  try {
-    // 🎯 CHECK LOCALSTORAGE AVAILABILITY
-    if (typeof Storage === 'undefined' || !window.localStorage) {
-      return { available: false, error: 'localStorage not supported' };
-    }
-    
-    // 🎯 COUNT ITEMS
-    const itemCount = localStorage.length;
-    const items = [];
-    
-    for (let i = 0; i < itemCount; i++) {
-      const key = localStorage.key(i);
-      if (key) {
-        const value = localStorage.getItem(key);
-        items.push({
-          key,
-          size: value ? value.length : 0,
-          type: typeof safeGetItem(key)
-        });
-      }
-    }
-    
-    // 🎯 CALCULATE TOTAL SIZE (approximate)
-    const totalSize = items.reduce((sum, item) => sum + item.size, 0);
-    
-    const info = {
-      available: true,
-      itemCount,
-      totalSize,
-      items: items.sort((a, b) => b.size - a.size), // Sort by size descending
-      maxSize: 5 * 1024 * 1024, // Approximate 5MB limit
-      usagePercent: Math.round((totalSize / (5 * 1024 * 1024)) * 100)
-    };
-    
-    return info;
-    
-  } catch (error) {
-    console.error('❌ [safeStorage] Error getting storage info:', error.message);
-    return { available: false, error: error.message };
+  if (!hasLocalStorage) {
+    return { available: false, error: 'localStorage not supported' };
   }
-};
 
-/**
- * 🎯 **MP3 CUTTER SPECIFIC HELPERS**
- */
+  const count = localStorage.length;
+  const items = Array.from({ length: count }, (_, i) => {
+    const key = localStorage.key(i);
+    const raw = key ? localStorage.getItem(key) : null;
+    return key
+      ? { key, size: raw?.length || 0, type: typeof safeGetItem(key) }
+      : null;
+  }).filter(Boolean);
 
-/**
- * 🔧 **GET AUTO RETURN SETTING** - Lấy setting auto-return an toàn
- * @returns {boolean} - Auto return enabled status
- */
-export const getAutoReturnSetting = () => {
-  const value = safeGetItem('mp3cutter_auto_return', 'true'); // Default true
-  
-  // 🎯 HANDLE VARIOUS FORMATS
-  if (typeof value === 'boolean') {
-    return value;
-  }
-  
-  if (typeof value === 'string') {
-    const lowercaseValue = value.toLowerCase().trim();
-    return lowercaseValue !== 'false' && lowercaseValue !== '0' && lowercaseValue !== 'no';
-  }
-  
-  // 🎯 FALLBACK
-  return true; // Default to enabled
-};
+  const totalSize = items.reduce((sum, { size }) => sum + size, 0);
+  const maxSize = 5 * 1024 * 1024;
 
-/**
- * 🔧 **SET AUTO RETURN SETTING** - Lưu setting auto-return an toàn
- * @param {boolean} enabled - Enable auto-return
- * @returns {boolean} - Success status
- */
-export const setAutoReturnSetting = (enabled) => {
-  if (typeof enabled !== 'boolean') {
-    console.warn('⚠️ [safeStorage] Invalid auto-return value, must be boolean:', enabled);
-    return false;
-  }
-    const success = safeSetItem('mp3cutter_auto_return', enabled);
-  
-  if (success) {
-    // Auto-return setting updated
-  }
-  
-  return success;
-};
-
-/**
- * 🔧 **GET USER PREFERENCES** - Lấy tất cả preferences an toàn
- * @returns {object} - User preferences object
- */
-export const getUserPreferences = () => {
   return {
-    autoReturn: getAutoReturnSetting(),
-    // Có thể thêm các preferences khác ở đây
+    available: true,
+    itemCount: count,
+    totalSize,
+    items: items.sort((a, b) => b.size - a.size),
+    maxSize,
+    usagePercent: Math.round((totalSize / maxSize) * 100),
   };
 };
 
 /**
- * 🧹 **CLEANUP UNDEFINED VALUES** - Remove any localStorage entries with "undefined" values
- * @returns {number} - Number of cleaned entries
+ * 🔧 CLEANUP UNDEFINED VALUES
  */
 export const cleanupUndefinedValues = () => {
-  try {
-    if (typeof Storage === 'undefined' || !window.localStorage) {
-      console.warn('⚠️ [cleanupUndefinedValues] localStorage not available');
-      return 0;
+  if (!hasLocalStorage) return 0;
+
+  const toRemove = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    const val = key ? localStorage.getItem(key) : null;
+    if (val == null || val === '' || val === 'undefined' || val === 'null') {
+      toRemove.push(key);
     }
-    
-    let cleanedCount = 0;
-    const keysToRemove = [];
-    
-    // 🔍 Scan all localStorage keys
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key) {
-        const value = localStorage.getItem(key);
-          // 🎯 Check for problematic values
-        if (value === 'undefined' || value === 'null' || value === '' || !value) {
-          keysToRemove.push(key);
-          // Marked for removal: problematic value
-        }
-      }
-    }
-      // 🗑️ Remove problematic entries
-    keysToRemove.forEach(key => {
-      localStorage.removeItem(key);
-      cleanedCount++;
-      // Removed problematic entry
-    });
-    
-    if (cleanedCount > 0) {
-      // Cleaned problematic localStorage entries
-    } else {
-      // No problematic entries found - localStorage is clean
-    }
-    
-    return cleanedCount;
-    
-  } catch (error) {
-    console.error('❌ [cleanupUndefinedValues] Error during cleanup:', error.message);
-    return 0;
   }
+
+  toRemove.forEach(k => localStorage.removeItem(k));
+  return toRemove.length;
 };
 
-// 🎯 **GLOBAL DEBUG FUNCTIONS** - Để debug localStorage issues
-if (typeof window !== 'undefined') {
+// 🎯 MP3 CUTTER HELPERS
+
+/**
+ * Auto-return setting
+ */
+export const getAutoReturnSetting = () => {
+  const val = safeGetItem('mp3cutter_auto_return', true);
+  if (typeof val === 'boolean') return val;
+  if (typeof val === 'string') {
+    const v = val.trim().toLowerCase();
+    return !['false', '0', 'no'].includes(v);
+  }
+  return true;
+};
+
+export const setAutoReturnSetting = (enable) =>
+  typeof enable === 'boolean' && safeSetItem('mp3cutter_auto_return', enable);
+
+export const getUserPreferences = () => ({
+  autoReturn: getAutoReturnSetting(),
+});
+
+// ⚙️ Debug interface
+if (hasLocalStorage) {
   window.mp3CutterStorageDebug = {
     getInfo: getStorageInfo,
     clear: safeClear,
@@ -327,7 +185,6 @@ if (typeof window !== 'undefined') {
     set: safeSetItem,
     remove: safeRemoveItem,
     getAutoReturn: getAutoReturnSetting,
-    setAutoReturn: setAutoReturnSetting
+    setAutoReturn: setAutoReturnSetting,
   };
-  
-} 
+}
