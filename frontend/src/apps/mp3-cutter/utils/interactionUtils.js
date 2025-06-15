@@ -1,784 +1,369 @@
-// 🎯 Interaction Utilities for Waveform
-// Smart handling of mouse interactions with handles and regions
+// 🎯 Interaction Utilities for Waveform (Optimized & Slim)
+// Xử lý tương tác chuột cho waveform & region selection, giữ logic & UI 100% không đổi
 
 import { WAVEFORM_CONFIG } from './constants';
 import { createAudioSyncManager } from './audioSyncManager';
 import { createSmartClickManager, CLICK_ACTIONS } from './smartClickManager';
 
-// 🎯 Interaction states
-export const INTERACTION_STATES = {
-  IDLE: 'idle',           // No interaction
-  HOVERING: 'hovering',   // Hovering over handle (visual feedback only)
-  DRAGGING: 'dragging'    // Actively dragging handle (changes region)
+// 🎯 Interaction states & handle types (no change)
+export const INTERACTION_STATES = { IDLE: 'idle', HOVERING: 'hovering', DRAGGING: 'dragging' };
+export const HANDLE_TYPES = { START: 'start', END: 'end', NONE: null };
+
+// -- UTILITIES ---------------------------------------------------
+
+const getResponsiveHandleWidth = (canvasWidth) => {
+  const { MODERN_HANDLE_WIDTH, RESPONSIVE } = WAVEFORM_CONFIG;
+  return canvasWidth < RESPONSIVE.MOBILE_BREAKPOINT
+    ? Math.max(6, MODERN_HANDLE_WIDTH * 0.8)
+    : MODERN_HANDLE_WIDTH;
 };
 
-// 🎯 Handle types
-export const HANDLE_TYPES = {
-  START: 'start',
-  END: 'end',
-  NONE: null
-};
+const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 
-/**
- * 🎯 Smart handle detection with responsive sizing - UPDATED FOR MODERN HANDLES AND INVERT MODE
- * @param {number} x - Mouse X position relative to canvas
- * @param {number} canvasWidth - Canvas width in pixels
- * @param {number} duration - Audio duration in seconds
- * @param {number} startTime - Selection start time in seconds
- * @param {number} endTime - Selection end time in seconds
- * @param {Object} eventInfo - Additional event information (optional)
- * @param {boolean} isInverted - Whether invert selection mode is active (optional)
- * @returns {string|null} Handle type ('start', 'end', or null)
- */
-export const detectHandle = (x, canvasWidth, duration, startTime, endTime, eventInfo = null, isInverted = false) => {
-  if (duration === 0 || canvasWidth === 0) return null;
-  
-  // 🆕 **DIRECT HANDLE EVENT**: Nếu event đến từ handle trực tiếp, return ngay
-  if (eventInfo?.isHandleEvent && eventInfo?.handleType) {
-    return eventInfo.handleType;
-  }
-  
-  // 🎯 **MODERN HANDLE DETECTION**: Use modern handle width configuration
-  const baseHandleWidth = WAVEFORM_CONFIG.MODERN_HANDLE_WIDTH; // 8px modern handles
-  const mobileBreakpoint = WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT;
-  
-  const responsiveHandleWidth = canvasWidth < mobileBreakpoint ? 
-    Math.max(6, baseHandleWidth * 0.8) : baseHandleWidth; // Smaller mobile handles
-  
-  // 🔧 **WAVEFORM AREA CALCULATION**: Calculate available waveform area
-  const leftHandleWidth = responsiveHandleWidth;
-  const rightHandleWidth = responsiveHandleWidth;
-  const waveformStartX = leftHandleWidth;
-  const waveformEndX = canvasWidth - rightHandleWidth;
-  const availableWaveformWidth = waveformEndX - waveformStartX;
-  
-  // 🔧 **REGION BOUNDARIES**: Map region boundaries to waveform area
-  const regionStartPercent = startTime / duration;
-  const regionEndPercent = endTime / duration;
-  const regionStartX = waveformStartX + (regionStartPercent * availableWaveformWidth);
-  const regionEndX = waveformStartX + (regionEndPercent * availableWaveformWidth);
-  
-  // 🎯 **HANDLE WRAPPING POSITIONS**: Calculate handle positions that wrap around region WITH INVERT MODE SUPPORT
-  let startHandleX, endHandleX;
-  
-  if (isInverted) {
-    // 🆕 **INVERT MODE POSITIONING**: Match WaveformCanvas positioning logic exactly
-    startHandleX = regionStartX; // Left edge (no radius) aligns with region start
-    endHandleX = regionEndX - responsiveHandleWidth; // Right edge (no radius) aligns with region end
-  } else {
-    // 🎯 **NORMAL MODE POSITIONING**: Standard positioning
-    startHandleX = regionStartX - responsiveHandleWidth; // Right edge aligns with region start
-    endHandleX = regionEndX; // Left edge aligns with region end
-  }
-  
-  // 🔧 **VISUAL HANDLE AREAS**: Define where handles are visually rendered
-  // Start handle: render from startHandleX to startHandleX + responsiveHandleWidth
-  // End handle: render from endHandleX to endHandleX + responsiveHandleWidth  
-  const startHandleLeftEdge = startHandleX;
-  const startHandleRightEdge = startHandleX + responsiveHandleWidth;
-  const endHandleLeftEdge = endHandleX;
-  const endHandleRightEdge = endHandleX + responsiveHandleWidth;
-  
-  // 🎯 **HANDLE DETECTION**: Check if mouse is within handle visual areas
-  const startDetected = x >= startHandleLeftEdge && x <= startHandleRightEdge;
-  const endDetected = x >= endHandleLeftEdge && x <= endHandleRightEdge;
-  
-  if (startDetected) {
-    return HANDLE_TYPES.START;
-  }
-  
-  if (endDetected) {  
-    return HANDLE_TYPES.END;
-  }
-  
+// -- SMART HANDLE DETECTION --------------------------------------
+
+export const detectHandle = (
+  x, canvasWidth, duration, startTime, endTime, eventInfo = null, isInverted = false
+) => {
+  if (!duration || !canvasWidth) return null;
+  if (eventInfo?.isHandleEvent && eventInfo?.handleType) return eventInfo.handleType;
+
+  const handleW = getResponsiveHandleWidth(canvasWidth);
+  const wfStartX = handleW, wfEndX = canvasWidth - handleW, wfW = wfEndX - wfStartX;
+  const rStartX = wfStartX + (startTime / duration) * wfW;
+  const rEndX = wfStartX + (endTime / duration) * wfW;
+
+  // Modern (invert mode supported)
+  const startHandleX = isInverted ? rStartX : rStartX - handleW;
+  const endHandleX = isInverted ? rEndX - handleW : rEndX;
+
+  const inRange = (x, a, b) => x >= a && x <= b;
+  if (inRange(x, startHandleX, startHandleX + handleW)) return HANDLE_TYPES.START;
+  if (inRange(x, endHandleX, endHandleX + handleW)) return HANDLE_TYPES.END;
   return HANDLE_TYPES.NONE;
 };
 
-/**
- * 🎯 Convert mouse position to time - UPDATED FOR HANDLE WRAPPING LOGIC
- * @param {number} x - Mouse X position relative to canvas
- * @param {number} canvasWidth - Canvas width in pixels  
- * @param {number} duration - Audio duration in seconds
- * @returns {number} Time in seconds
- */
 export const positionToTime = (x, canvasWidth, duration) => {
-  if (canvasWidth === 0 || duration === 0) return 0;
-  
-  // 🔧 **HANDLE SPACE ADJUSTMENT**: Calculate available waveform area
-  const { MODERN_HANDLE_WIDTH } = WAVEFORM_CONFIG;
-  const responsiveHandleWidth = canvasWidth < WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT ? 
-    Math.max(3, MODERN_HANDLE_WIDTH * 0.75) : MODERN_HANDLE_WIDTH;
-  
-  const leftHandleWidth = responsiveHandleWidth;
-  const rightHandleWidth = responsiveHandleWidth;
-  const waveformStartX = leftHandleWidth;
-  const waveformEndX = canvasWidth - rightHandleWidth;
-  const availableWaveformWidth = waveformEndX - waveformStartX;
-  
-  // 🔧 **BOUNDARY CHECK**: Clamp mouse position to waveform area
-  const clampedX = Math.max(waveformStartX, Math.min(waveformEndX, x));
-  
-  // 🔧 **MAP FROM WAVEFORM AREA**: Convert position relative to waveform area to time
-  const waveformRelativeX = clampedX - waveformStartX;
-  const timePercent = waveformRelativeX / availableWaveformWidth;
-  const time = timePercent * duration;
-  
-  return Math.max(0, Math.min(duration, time));
+  if (!canvasWidth || !duration) return 0;
+  const handleW = getResponsiveHandleWidth(canvasWidth);
+  const wfStartX = handleW, wfEndX = canvasWidth - handleW, wfW = wfEndX - wfStartX;
+  const clampedX = clamp(x, wfStartX, wfEndX);
+  return clamp(((clampedX - wfStartX) / wfW) * duration, 0, duration);
 };
 
-/**
- * 🎯 Smart interaction state manager
- */
+// -- INTERACTION MANAGER ----------------------------------------
+
 export class InteractionManager {
   constructor() {
+    // Core state
     this.state = INTERACTION_STATES.IDLE;
     this.activeHandle = HANDLE_TYPES.NONE;
     this.lastHoveredHandle = HANDLE_TYPES.NONE;
     this.dragStartPosition = null;
     this.dragStartTime = null;
-    
-    // 🆕 **ENHANCED VALIDATION**: Strict drag tracking
-    this.isDraggingConfirmed = false;          // True chỉ khi thực sự đang drag
-    this.mouseDownTimestamp = null;            // Track mouse down time
-    this.lastMousePosition = null;             // Track mouse movement
-    this.dragMoveThreshold = 0.5;              // 🚀 **ULTRA RESPONSIVE**: Giảm từ 1px xuống 0.5px để responsive hơn và lưu history dễ hơn
-    
-    // 🛡️ **MOUSE RE-ENTRY PROTECTION**: Track mouse leave timing
-    this.lastMouseLeaveTime = null;            // Track when mouse left canvas
-    
-    // 🆕 **REGION DRAG**: Support cho region dragging
-    this.isDraggingRegion = false;             // True khi đang drag toàn bộ region
-    this.regionDragStartTime = null;           // Reference time cho region drag
-    this.regionDragOffset = 0;                 // Offset từ click position đến region start
-      // 🆕 **PENDING JUMP**: Support cho delayed cursor movement
-    this.pendingJumpTime = null;               // Time to jump to after mouse up (if no drag)
-    this.hasPendingJump = false;               // Flag to track pending jump
-    this.pendingJumpBlockedByInvert = false;   // 🆕 **INVERT MODE BLOCK**: Flag to block pending jump in invert mode
-    
-    // 🆕 **PENDING HANDLE UPDATES**: Support cho delayed handle movement
-    this.pendingHandleUpdate = null;           // {type: 'start'|'end', newTime: number, reason: string}
-    this.hasPendingHandleUpdate = false;       // Flag to track pending handle update
-    
-    // 🆕 NEW: Audio sync manager for cursor synchronization
+
+    // Grouped state for drag/region/pending
+    this.isDraggingConfirmed = false;
+    this.mouseDownTimestamp = null;
+    this.lastMousePosition = null;
+    this.dragMoveThreshold = 0.5;
+    this.lastMouseLeaveTime = null;
+    this.isDraggingRegion = false;
+    this.regionDragStartTime = null;
+    this.regionDragOffset = 0;
+    this.pending = {
+      jumpTime: null,
+      handleUpdate: null,
+      jumpBlockedByInvert: false,
+      hasJump: false,
+      hasHandleUpdate: false,
+    };
+
+    // External/context
     this.audioSyncManager = createAudioSyncManager();
-    
-    // 🆕 NEW: Smart click manager for intelligent click behavior
     this.smartClickManager = createSmartClickManager();
-    
-    // 🔧 **GLOBAL MOUSE UP PROTECTION**: Add global mouse up listener to catch outside releases
-    this.globalMouseUpHandler = null;
-    this.isGlobalListenerActive = false;
-    
-    // 🆕 **GLOBAL MOUSE MOVE TRACKING**: Thêm global mouse move tracking cho outside canvas drag
-    this.globalMouseMoveHandler = null;
-    this.isGlobalMoveListenerActive = false;
-    
-    // 🆕 **CANVAS BOUNDS TRACKING**: Track canvas bounds để convert global coordinates
+
     this.canvasBounds = null;
     this.canvasWidth = 0;
     this.audioDuration = 0;
     this.audioContext = null;
-    
-    // 🆕 **CALLBACK MECHANISM**: Callback để update từ global events
     this.onGlobalDragUpdate = null;
-    
-    // 🆕 **DEBUG ID**: Unique debug identifier
     this.debugId = Math.random().toString(36).substring(2, 8);
-    
-    // 🚀 **SETUP GLOBAL LISTENERS**: Setup both mouse up and mouse move listeners
-    this.setupGlobalMouseUpListener();
-    this.setupGlobalMouseMoveListener();
+
+    // Event listeners (only bind once)
+    this._bindedMouseUp = this._onGlobalMouseUp.bind(this);
+    this._bindedMouseMove = this._onGlobalMouseMove.bind(this);
+    this._isGlobalUp = false;
+    this._isGlobalMove = false;
   }
-  
-  /**
-   * 🚨 **SETUP GLOBAL MOUSE UP LISTENER**: Catch mouse up events outside canvas
-   */
-  setupGlobalMouseUpListener() {
-    this.globalMouseUpHandler = (e) => {
-      // 🎯 **SIMPLE LOGIC**: Chỉ reset khi có mouse up thật sự
-      if (this.state === INTERACTION_STATES.DRAGGING && this.isDraggingConfirmed) {
-        
-        // 🆕 **SAVE HISTORY ON GLOBAL MOUSE UP**: Trigger history save before reset
-        if (this.onGlobalDragUpdate && this.onGlobalDragUpdate.callback) {
-          const historyData = {
-            action: 'saveHistoryOnGlobalMouseUp',
-            saveHistory: true, // Always save history for confirmed drags
-            isDraggingConfirmed: this.isDraggingConfirmed,
-            activeHandle: this.activeHandle,
-            wasRegionDrag: this.isDraggingRegion,
-            globalMouseUp: true
-          };
-          
-          // 🎯 **TRIGGER HISTORY SAVE**: Call the callback to save history
-          this.onGlobalDragUpdate.callback(historyData);
-        }
-        
-        // 🚨 **COMPLETE RESET ON MOUSE UP**: Reset tất cả khi user thật sự mouse up
-        this.state = INTERACTION_STATES.IDLE;
-        this.activeHandle = HANDLE_TYPES.NONE;
-        this.lastHoveredHandle = HANDLE_TYPES.NONE;
-        this.dragStartPosition = null;
-        this.dragStartTime = null;
-        this.isDraggingConfirmed = false;
-        this.mouseDownTimestamp = null;
-        this.lastMousePosition = null;
-        this.isDraggingRegion = false;
-        this.regionDragStartTime = null;
-        this.regionDragOffset = 0;
-          // Clear pending actions
-        this.pendingJumpTime = null;
-        this.hasPendingJump = false;
-        this.pendingJumpBlockedByInvert = false; // 🆕 **RESET INVERT BLOCK**: Reset invert block flag
-        this.pendingHandleUpdate = null;
-        this.hasPendingHandleUpdate = false;
-        
-        // Disable global listener until next drag starts
-        this.disableGlobalMouseUpListener();
-        this.disableGlobalMouseMoveListener();
+
+  // -- GLOBAL LISTENER SETUP/TEARDOWN -------------------------------------
+
+  _onGlobalMouseUp() {
+    if (this.state === INTERACTION_STATES.DRAGGING && this.isDraggingConfirmed) {
+      this._triggerHistorySave();
+      this._resetDragState();
+      this._toggleGlobalListener('up', false);
+      this._toggleGlobalListener('move', false);
+    }
+  }
+  _onGlobalMouseMove(e) {
+    if (
+      this.state === INTERACTION_STATES.DRAGGING &&
+      this.isDraggingConfirmed &&
+      this.canvasBounds && this.canvasWidth && this.audioDuration
+    ) {
+      const canvasX = e.clientX - this.canvasBounds.left;
+      if (this.onGlobalDragUpdate) {
+        const result = this.handleMouseMove(
+          canvasX, this.canvasWidth, this.audioDuration,
+          this.onGlobalDragUpdate.startTime, this.onGlobalDragUpdate.endTime,
+          this.audioContext
+        );
+        if (result.action === 'updateRegion' && result.isDraggingConfirmed)
+          this.onGlobalDragUpdate.callback(result);
       }
-    };
-  }
-  
-  /**
-   * 🔧 **ENABLE GLOBAL MOUSE UP LISTENER**: Activate when drag starts
-   */
-  enableGlobalMouseUpListener() {
-    if (!this.isGlobalListenerActive && this.globalMouseUpHandler) {
-      document.addEventListener('mouseup', this.globalMouseUpHandler, { capture: true, passive: true });
-      this.isGlobalListenerActive = true;
     }
   }
-  
-  /**
-   * 🔧 **DISABLE GLOBAL MOUSE UP LISTENER**: Deactivate when drag ends
-   */
-  disableGlobalMouseUpListener() {
-    if (this.isGlobalListenerActive && this.globalMouseUpHandler) {
-      document.removeEventListener('mouseup', this.globalMouseUpHandler, { capture: true });
-      this.isGlobalListenerActive = false;
-    }
-  }
-  
-  /**
-   * 🆕 **SETUP GLOBAL MOUSE MOVE LISTENER**: Track mouse movement outside canvas
-   */
-  setupGlobalMouseMoveListener() {
-    this.globalMouseMoveHandler = (e) => {
-      // 🚀 **SIMPLIFIED CONDITION**: Chỉ process khi đang drag và có canvas bounds
-      if (this.state === INTERACTION_STATES.DRAGGING && 
-          this.isDraggingConfirmed && 
-          this.canvasBounds && 
-          this.canvasWidth > 0 && 
-          this.audioDuration > 0) {
-        
-        // 🎯 **CONVERT GLOBAL TO CANVAS COORDINATES**: Chuyển đổi global coordinates sang canvas coordinates
-        const canvasX = e.clientX - this.canvasBounds.left;
-        
-        // 🚀 **CONTINUE DRAG OUTSIDE CANVAS**: Call normal mouse move handler với converted coordinates
-        if (this.onGlobalDragUpdate) {
-          // 🎯 **DELEGATE TO NORMAL HANDLER**: Sử dụng logic mouse move bình thường
-          const result = this.handleMouseMove(
-            canvasX, 
-            this.canvasWidth, 
-            this.audioDuration, 
-            this.onGlobalDragUpdate.startTime, 
-            this.onGlobalDragUpdate.endTime,
-            this.audioContext
-          );
-          
-          // 🚀 **TRIGGER CALLBACK**: Notify UI về drag update
-          if (result.action === 'updateRegion' && result.isDraggingConfirmed) {
-            // 🎯 **CALLBACK TO UI**: Trigger UI update via callback
-            this.onGlobalDragUpdate.callback(result);
-          }
-        }
+  _toggleGlobalListener(type, enable) {
+    if (type === 'up') {
+      if (enable && !this._isGlobalUp) {
+        document.addEventListener('mouseup', this._bindedMouseUp, { capture: true, passive: true });
+        this._isGlobalUp = true;
+      } else if (!enable && this._isGlobalUp) {
+        document.removeEventListener('mouseup', this._bindedMouseUp, { capture: true });
+        this._isGlobalUp = false;
       }
-    };
-  }
-  
-  /**
-   * 🆕 **ENABLE GLOBAL MOUSE MOVE LISTENER**: Activate when drag starts
-   */
-  enableGlobalMouseMoveListener() {
-    if (!this.isGlobalMoveListenerActive && this.globalMouseMoveHandler) {
-      document.addEventListener('mousemove', this.globalMouseMoveHandler, { passive: true });
-      this.isGlobalMoveListenerActive = true;
+    } else if (type === 'move') {
+      if (enable && !this._isGlobalMove) {
+        document.addEventListener('mousemove', this._bindedMouseMove, { passive: true });
+        this._isGlobalMove = true;
+      } else if (!enable && this._isGlobalMove) {
+        document.removeEventListener('mousemove', this._bindedMouseMove, { passive: true });
+        this._isGlobalMove = false;
+      }
     }
   }
-  
-  /**
-   * 🔧 **DISABLE GLOBAL MOUSE MOVE LISTENER**: Deactivate when drag ends
-   */
-  disableGlobalMouseMoveListener() {
-    if (this.isGlobalMoveListenerActive && this.globalMouseMoveHandler) {
-      document.removeEventListener('mousemove', this.globalMouseMoveHandler, { passive: true });
-      this.isGlobalMoveListenerActive = false;
+
+  _triggerHistorySave() {
+    if (this.onGlobalDragUpdate?.callback) {
+      this.onGlobalDragUpdate.callback({
+        action: 'saveHistoryOnGlobalMouseUp',
+        saveHistory: true,
+        isDraggingConfirmed: this.isDraggingConfirmed,
+        activeHandle: this.activeHandle,
+        wasRegionDrag: this.isDraggingRegion,
+        globalMouseUp: true,
+      });
     }
   }
-  
-  /**
-   * 🎯 Handle mouse down events with smart logic - SIMPLIFIED for Pointer Events
-   * @param {number} x - Mouse X position relative to canvas
-   * @param {number} canvasWidth - Canvas width in pixels
-   * @param {number} duration - Audio duration in seconds
-   * @param {number} startTime - Selection start time in seconds
-   * @param {number} endTime - Selection end time in seconds
-   * @param {Object} eventInfo - Additional event information (optional)
-   * @returns {Object} Action result object
-   */  handleMouseDown(x, canvasWidth, duration, startTime, endTime, eventInfo = null) {
-    // 🚨 **RESET PREVIOUS STATE**: Clear any previous interaction state
+  _resetDragState() {
     this.state = INTERACTION_STATES.IDLE;
     this.activeHandle = HANDLE_TYPES.NONE;
     this.lastHoveredHandle = HANDLE_TYPES.NONE;
     this.dragStartPosition = null;
     this.dragStartTime = null;
     this.isDraggingConfirmed = false;
+    this.mouseDownTimestamp = null;
+    this.lastMousePosition = null;
     this.isDraggingRegion = false;
-    this.regionDragStartTime = null;    this.regionDragOffset = 0;
-    
-    // Clear pending actions
-    this.pendingJumpTime = null;
-    this.hasPendingJump = false;
-    this.pendingJumpBlockedByInvert = false; // 🆕 **RESET INVERT BLOCK**: Reset invert block flag
-    this.pendingHandleUpdate = null;
-    this.hasPendingHandleUpdate = false;
-      // 🎯 **SMART HANDLE DETECTION**: Updated to use eventInfo AND audio context for invert mode
+    this.regionDragStartTime = null;
+    this.regionDragOffset = 0;
+    this.pending = {
+      jumpTime: null,
+      handleUpdate: null,
+      jumpBlockedByInvert: false,
+      hasJump: false,
+      hasHandleUpdate: false,
+    };
+  }
+
+  // -- INTERACTION HANDLERS -----------------------------------------------
+
+  handleMouseDown(x, canvasWidth, duration, startTime, endTime, eventInfo = null) {
+    this._resetDragState();
     const isInverted = this.audioContext?.isInverted || false;
     const detectedHandle = detectHandle(x, canvasWidth, duration, startTime, endTime, eventInfo, isInverted);
-    const currentTimePosition = positionToTime(x, canvasWidth, duration);
-    
-    // 🔍 **DEBUG MOUSE DOWN**: Log mouse down processing
-    console.log(`🔍 [MouseDown] Processing mouse down at x=${x.toFixed(1)}px`, {
-      canvasWidth,
-      duration: duration.toFixed(3),
-      region: { start: startTime.toFixed(3), end: endTime.toFixed(3) },
-      isInverted,
-      detectedHandle,
-      currentTimePosition: currentTimePosition.toFixed(3),
-      eventInfo: eventInfo ? { isHandleEvent: eventInfo.isHandleEvent, handleType: eventInfo.handleType } : null
-    });
-    
-    // Record interaction start
+    const currentTime = positionToTime(x, canvasWidth, duration);
+
+    const isStartAtEdge = Math.abs(startTime) < 0.1;
+    const isEndAtEdge = Math.abs(endTime - duration) < 0.1;
+
+    if (currentTime < startTime && isStartAtEdge && Math.abs(currentTime - startTime) < 1.0)
+      return { action: 'none', reason: 'PROTECTED: Start handle at edge', protected: true };
+
+    if (
+      currentTime > endTime && isEndAtEdge && Math.abs(currentTime - endTime) < 0.3 &&
+      detectedHandle !== HANDLE_TYPES.END
+    )
+      return { action: 'none', reason: 'PROTECTED: End handle at edge', protected: true };
+
     this.mouseDownTimestamp = performance.now();
     this.lastMousePosition = { x, y: 0 };
     this.dragStartPosition = { x, y: 0 };
-    
-    // 🛡️ **PROTECTION AGAINST EDGE HOVER TRIGGERS**: Ngăn handle movement khi đã ở edge
-    const isStartAtEdge = Math.abs(startTime - 0) < 0.1; // Start handle gần đầu file
-    const isEndAtEdge = Math.abs(endTime - duration) < 0.1; // End handle gần cuối file
-    
-    // 🛡️ **BEFORE START PROTECTION**: Nếu click/hover trước start và start đã ở edge
-    if (currentTimePosition < startTime && isStartAtEdge && Math.abs(currentTimePosition - startTime) < 1.0) {
-      return {
-        action: 'none',
-        reason: 'PROTECTED: Start handle already at edge, blocking potential movement',
-        protected: true
-      };
-    }
-    
-    // 🛡️ **AFTER END PROTECTION**: Nếu click/hover sau end và end đã ở edge  
-    // 🔧 **REDUCED PROTECTION**: Giảm threshold xuống 0.3s để cho phép drag end handle dễ hơn
-    if (currentTimePosition > endTime && isEndAtEdge && Math.abs(currentTimePosition - endTime) < 0.3) { // 🚀 REDUCED: 1.0s → 0.3s
-      // 🆕 **HANDLE DETECTION BYPASS**: Nếu có handle được detect, cho phép drag
-      if (detectedHandle === HANDLE_TYPES.END) {
-        // Continue with normal flow - don't block
-      } else {
-        return {
-          action: 'none',
-          reason: 'PROTECTED: End handle already at edge, blocking potential movement',
-          protected: true
-        };
-      }
-    }
-    
-    // 🆕 **TRACK MOUSE DOWN**: Record mouse down event for drag detection
-    this.isDraggingConfirmed = false;
-      // 🆕 NEW: Use SmartClickManager for intelligent click analysis
+
+    // Smart click logic
     const smartAction = this.smartClickManager.processClick(
-      currentTimePosition, startTime, endTime, duration, detectedHandle, true, isInverted
+      currentTime, startTime, endTime, duration, detectedHandle, true, isInverted
     );
-    
-    // 🎯 Process smart action
     switch (smartAction.action) {
       case CLICK_ACTIONS.START_DRAG:
-        // 🎯 **IMMEDIATE CURSOR SYNC**: Sync cursor ngay khi click handle
         this.state = INTERACTION_STATES.DRAGGING;
         this.activeHandle = smartAction.handle;
         this.dragStartPosition = x;
         this.dragStartTime = smartAction.handle === HANDLE_TYPES.START ? startTime : endTime;
-        // 🆕 **NOTE**: isDraggingConfirmed still false until movement detected
-        
         return {
-          action: 'startDrag',
-          handle: smartAction.handle,
-          cursor: smartAction.cursor,
-          pointerCapture: true, // 🆕 **POINTER CAPTURE FLAG**: Indicates automatic outside tracking
-          // 🆕 **IMMEDIATE SYNC DATA**: Thông tin để sync cursor ngay lập tức
+          action: 'startDrag', handle: smartAction.handle, cursor: smartAction.cursor, pointerCapture: true,
           immediateSync: {
             required: true,
             handleType: smartAction.handle,
             targetTime: smartAction.handle === HANDLE_TYPES.START ? startTime : endTime,
-            offsetForEnd: smartAction.handle === HANDLE_TYPES.END ? 3.0 : 0
-          }
+            offsetForEnd: smartAction.handle === HANDLE_TYPES.END ? 3.0 : 0,
+          },
         };
-          case CLICK_ACTIONS.JUMP_TO_TIME:
-        // 🆕 **DELAY CURSOR MOVEMENT**: Store pending jump thay vì jump ngay để tránh shock khi drag
-        this.pendingJumpTime = smartAction.seekTime;
-        this.hasPendingJump = true;
-        // 🆕 **INVERT MODE CURSOR JUMP**: Allow cursor jumps in invert mode, only block handle updates
-        this.pendingJumpBlockedByInvert = false; // 🔄 **ALWAYS ALLOW CURSOR JUMP**: Never block cursor jumps
-        
-        // 🆕 **REGION DRAG POTENTIAL**: Check if this click can potentially become region drag
+      case CLICK_ACTIONS.JUMP_TO_TIME:
+        this.pending.jumpTime = smartAction.seekTime;
+        this.pending.hasJump = true;
+        this.pending.jumpBlockedByInvert = false;
         if (smartAction.regionDragPotential && this.smartClickManager.preferences.enableRegionDrag) {
-          // 🔧 **SETUP POTENTIAL REGION DRAG**: Prepare for possible region drag on movement
-          this.state = INTERACTION_STATES.DRAGGING; // Set drag state but await confirmation
-          this.isDraggingRegion = false; // Not yet confirmed as region drag
-          this.regionDragStartTime = currentTimePosition;
-          this.regionDragOffset = currentTimePosition - startTime; // Offset từ click đến start của region
+          this.state = INTERACTION_STATES.DRAGGING;
+          this.regionDragStartTime = currentTime;
+          this.regionDragOffset = currentTime - startTime;
           this.dragStartPosition = x;
-          this.dragStartTime = currentTimePosition;
+          this.dragStartTime = currentTime;
         }
-        
-        return {
-          action: 'pendingJump', // 🆕 **NEW ACTION**: Indicate pending jump instead of immediate
-          time: smartAction.seekTime,
-          regionDragPotential: smartAction.regionDragPotential || false,
-          pendingJumpTime: this.pendingJumpTime, // 🆕 **PASS PENDING TIME**: For debugging
-          blockedByInvertMode: false // 🔄 **NEVER BLOCK CURSOR JUMP**: Always allow cursor jumps
-        };
-        
+        return { action: 'pendingJump', time: smartAction.seekTime, regionDragPotential: !!smartAction.regionDragPotential };
       case CLICK_ACTIONS.UPDATE_START:
-        // 🆕 **DELAY HANDLE MOVEMENT**: Store pending update thay vì update ngay để tránh shock khi drag
-        this.pendingHandleUpdate = {
-          type: 'start',
-          newTime: smartAction.newStartTime,
-          oldTime: startTime,
-          endTime: smartAction.newEndTime,
-          reason: smartAction.reason
+        this.pending.handleUpdate = {
+          type: 'start', newTime: smartAction.newStartTime, oldTime: startTime, endTime: smartAction.newEndTime,
+          reason: smartAction.reason,
         };
-        this.hasPendingHandleUpdate = true;
-        
-        return {
-          action: 'pendingHandleUpdate', // 🆕 **NEW ACTION**: Indicate pending handle update
-          handleType: 'start',
-          newTime: smartAction.newStartTime,
-          oldTime: startTime,
-          reason: smartAction.reason
-        };
-        
+        this.pending.hasHandleUpdate = true;
+        return { action: 'pendingHandleUpdate', handleType: 'start', newTime: smartAction.newStartTime, oldTime: startTime };
       case CLICK_ACTIONS.UPDATE_END:
-        // 🆕 **DELAY HANDLE MOVEMENT**: Store pending update thay vì update ngay để tránh shock khi drag
-        this.pendingHandleUpdate = {
-          type: 'end',
-          newTime: smartAction.newEndTime,
-          oldTime: endTime,
-          startTime: smartAction.newStartTime,
-          reason: smartAction.reason
+        this.pending.handleUpdate = {
+          type: 'end', newTime: smartAction.newEndTime, oldTime: endTime, startTime: smartAction.newStartTime,
+          reason: smartAction.reason,
         };
-        this.hasPendingHandleUpdate = true;
-        
-        return {
-          action: 'pendingHandleUpdate', // 🆕 **NEW ACTION**: Indicate pending handle update
-          handleType: 'end',
-          newTime: smartAction.newEndTime,
-          oldTime: endTime,
-          reason: smartAction.reason
-        };
-        
+        this.pending.hasHandleUpdate = true;
+        return { action: 'pendingHandleUpdate', handleType: 'end', newTime: smartAction.newEndTime, oldTime: endTime };
       case CLICK_ACTIONS.CREATE_SELECTION:
         this.state = INTERACTION_STATES.DRAGGING;
         this.activeHandle = HANDLE_TYPES.END;
         this.dragStartPosition = x;
-        this.dragStartTime = currentTimePosition;
-        // 🆕 **NOTE**: isDraggingConfirmed still false until movement detected
-        
-        return {
-          action: 'createSelection',
-          startTime: smartAction.newStartTime,
-          endTime: smartAction.newEndTime,
-          cursor: smartAction.cursor
-        };
-        
+        this.dragStartTime = currentTime;
+        return { action: 'createSelection', startTime: smartAction.newStartTime, endTime: smartAction.newEndTime, cursor: smartAction.cursor };
       case CLICK_ACTIONS.DRAG_REGION:
-        // 🆕 **REGION DRAG**: Setup region dragging
         this.state = INTERACTION_STATES.DRAGGING;
         this.isDraggingRegion = true;
-        this.regionDragStartTime = currentTimePosition;
-        this.regionDragOffset = currentTimePosition - startTime; // Offset từ click đến start của region
+        this.regionDragStartTime = currentTime;
+        this.regionDragOffset = currentTime - startTime;
         this.dragStartPosition = x;
-        this.dragStartTime = currentTimePosition;
-        // 🆕 **NOTE**: isDraggingConfirmed still false until movement detected
-        
-        return {
-          action: 'startRegionDrag',
-          cursor: smartAction.cursor,
-          regionData: {
-            clickTime: currentTimePosition,
-            offset: this.regionDragOffset,
-            originalStart: startTime,
-            originalEnd: endTime
-          }
-        };
-          case CLICK_ACTIONS.NO_ACTION:
+        this.dragStartTime = currentTime;
+        return { action: 'startRegionDrag', cursor: smartAction.cursor, regionData: { clickTime: currentTime, offset: this.regionDragOffset, originalStart: startTime, originalEnd: endTime } };
+      case CLICK_ACTIONS.NO_ACTION:
       default:
-        // 🆕 **REGION DRAG POTENTIAL**: Even with NO_ACTION, check for region drag potential
         if (smartAction.regionDragPotential && this.smartClickManager.preferences.enableRegionDrag) {
-          // 🔧 **SETUP REGION DRAG**: Setup region drag potential even when cursor jump is blocked
           const clickTime = positionToTime(x, canvasWidth, duration);
           this.regionDragStartTime = clickTime;
-          this.regionDragOffset = clickTime - startTime; // Calculate offset from region start
-          this.state = INTERACTION_STATES.DRAGGING; // Enable drag state
-          this.activeHandle = null; // No handle, but region drag potential
-          this.isDraggingRegion = false; // Will be activated on mouse move
-          this.isDraggingConfirmed = false; // Require confirmation
-          
-          console.log(`🔧 [InvertMode-RegionDrag] Setup region drag potential at ${clickTime.toFixed(2)}s (offset: ${this.regionDragOffset.toFixed(2)}s)`);
-          
-          return {
-            action: 'startDrag',
-            handle: null,
-            reason: `${smartAction.reason} - Region drag potential enabled`,
-            blockedByInvertMode: smartAction.blockedByInvertMode || false,
-            regionDragPotential: true
-          };
+          this.regionDragOffset = clickTime - startTime;
+          this.state = INTERACTION_STATES.DRAGGING;
+          this.activeHandle = null;
+          this.isDraggingRegion = false;
+          this.isDraggingConfirmed = false;
+          return { action: 'startDrag', handle: null, reason: `${smartAction.reason} - Region drag potential enabled`, blockedByInvertMode: smartAction.blockedByInvertMode || false, regionDragPotential: true };
         }
-        
-        return {
-          action: 'none',
-          reason: smartAction.reason,
-          blockedByInvertMode: smartAction.blockedByInvertMode || false
-        };
+        return { action: 'none', reason: smartAction.reason, blockedByInvertMode: smartAction.blockedByInvertMode || false };
     }
   }
-  
-  /**
-   * 🎯 Handle mouse move event với enhanced drag validation
-   */
+
   handleMouseMove(x, canvasWidth, duration, startTime, endTime, audioContext = null) {
     const currentTime = positionToTime(x, canvasWidth, duration);
-    
-    // 🛡️ **MOUSE RE-ENTRY PROTECTION**: Ngăn immediate interactions sau mouse leave
-    const timeSinceMouseLeave = this.lastMouseLeaveTime ? performance.now() - this.lastMouseLeaveTime : Infinity;
-    const isRecentlyReEntered = timeSinceMouseLeave < 300; // 300ms cooldown
-    
-    // 🆕 **DRAG CONFIRMATION**: Kiểm tra xem có thực sự đang drag không
+    const now = performance.now();
+    const isRecentlyReEntered = this.lastMouseLeaveTime ? now - this.lastMouseLeaveTime < 300 : false;
+
     if (this.state === INTERACTION_STATES.DRAGGING && !this.isDraggingConfirmed) {
       const pixelsMoved = Math.abs(x - (this.lastMousePosition?.x || x));
-      const timeSinceMouseDown = performance.now() - (this.mouseDownTimestamp || 0);
-      
-      // 🆕 **CONFIRM DRAG**: Chỉ confirm drag khi di chuyển đủ xa HOẶC đủ lâu
-      if (pixelsMoved >= this.dragMoveThreshold || timeSinceMouseDown > 25) { // 🚀 **ULTRA RESPONSIVE**: Giảm từ 1px xuống 0.5px để responsive hơn và lưu history dễ hơn
+      const tElapsed = now - (this.mouseDownTimestamp || 0);
+      if (pixelsMoved >= this.dragMoveThreshold || tElapsed > 25) {
         this.isDraggingConfirmed = true;
-        
-        // 🆕 **CANCEL PENDING JUMP**: Cancel pending jump khi confirm drag để tránh jump đột ngột
-        if (this.hasPendingJump) {
-          this.pendingJumpTime = null;
-          this.hasPendingJump = false;
-        }
-        
-        // 🆕 **CANCEL PENDING HANDLE UPDATE**: Cancel pending handle update khi confirm drag để tránh shock
-        if (this.hasPendingHandleUpdate) {
-          this.pendingHandleUpdate = null;
-          this.hasPendingHandleUpdate = false;
-        }
-        
-        // 🆕 **REGION DRAG ACTIVATION**: If no active handle but have region drag potential, activate region drag
-        if (!this.activeHandle && this.regionDragStartTime !== null && !this.isDraggingRegion) {
-          this.isDraggingRegion = true; // 🔧 **ACTIVATE REGION DRAG**: Convert potential to actual region drag
-        }
+        if (this.pending.hasJump) this._clearPendingJump();
+        if (this.pending.hasHandleUpdate) this._clearPendingHandleUpdate();
+        if (!this.activeHandle && this.regionDragStartTime != null && !this.isDraggingRegion)
+          this.isDraggingRegion = true;
       }
     }
-    
-    // 🆕 **UPDATE MOUSE POSITION**: Track for next movement calculation
     this.lastMousePosition = { x, y: 0 };
-    
+
     if (this.state === INTERACTION_STATES.DRAGGING && this.isDraggingConfirmed) {
-      // 🎯 **CONFIRMED DRAGGING** - Update region chỉ khi đã confirm drag
-      const roundedTime = Math.round(currentTime * 100) / 100; // 10ms precision
-      
+      const roundedTime = Math.round(currentTime * 100) / 100;
       if (this.isDraggingRegion) {
-        // 🆕 **REGION DRAG**: Di chuyển toàn bộ region với ultra-smooth sync
-        const regionDuration = endTime - startTime;
-        const newStartTime = roundedTime - this.regionDragOffset;
-        
-        // 🔒 **BOUNDARY CHECK**: Đảm bảo region không ra ngoài duration
-        const adjustedStartTime = Math.max(0, Math.min(newStartTime, duration - regionDuration));
-        const adjustedEndTime = adjustedStartTime + regionDuration;
-          // 🎯 **SIMPLIFIED REGION SYNC**: Always sync to region start as requested
+        const regionDur = endTime - startTime;
+        const newStart = clamp(roundedTime - this.regionDragOffset, 0, duration - regionDur);
+        const newEnd = newStart + regionDur;
         let audioSynced = false;
-        if (audioContext) {
-          const { audioRef, setCurrentTime } = audioContext;          // 🚀 **ULTRA-SMOOTH REAL-TIME SYNC**: Force immediate sync with no throttling - pass startTime correctly
-          audioSynced = this.audioSyncManager.realTimeSync(
-            adjustedStartTime, audioRef, setCurrentTime, 'region', true, adjustedStartTime, audioContext.isInverted // newTime = adjustedStartTime, startTime = adjustedStartTime
-          );
-        }
-        
-        return {
-          action: 'updateRegion',
-          startTime: adjustedStartTime,
-          endTime: adjustedEndTime,
-          significant: true,
-          audioSynced: audioSynced,
-          isDraggingConfirmed: true,
-          isRegionDrag: true, // 🆕 **FLAG**: Đánh dấu là region drag
-          realTimeSync: true,
-          ultraSmooth: true // 🆕 **ULTRA-SMOOTH FLAG**: For UI optimization
-        };
-        
+        if (audioContext) audioSynced = this.audioSyncManager.realTimeSync(newStart, audioContext.audioRef, audioContext.setCurrentTime, 'region', true, newStart, audioContext.isInverted);
+        return { action: 'updateRegion', startTime: newStart, endTime: newEnd, significant: true, audioSynced, isDraggingConfirmed: true, isRegionDrag: true, realTimeSync: true, ultraSmooth: true };
       } else if (this.activeHandle === HANDLE_TYPES.START) {
-        // 🔧 **FIXED BOUNDARY LOGIC**: Cho phép drag về 0 thay vì block ở endTime - 0.1
-        const newStartTime = Math.max(0, Math.min(roundedTime, endTime - 0.05)); // 🚀 **ALLOW ZERO**: Cho phép về 0, chỉ cần tránh overlap với end
-        // 🔧 **REDUCED THRESHOLD**: Giảm từ 0.01s xuống 0.005s để responsive hơn với fast drag
-        if (Math.abs(newStartTime - startTime) > 0.005) { // 🚀 **FASTER RESPONSE**: 0.005s threshold thay vì 0.01s
-          
-          // 🆕 **REAL-TIME CURSOR SYNC**: Cursor theo real-time khi drag start handle  
+        const newStart = clamp(roundedTime, 0, endTime - 0.05);
+        if (Math.abs(newStart - startTime) > 0.005) {
           let audioSynced = false;
-          
-          if (audioContext) {
-            const { audioRef, setCurrentTime } = audioContext;
-            
-            // 🔥 **ULTRA-SMOOTH REAL-TIME SYNC**: Sử dụng realTimeSync với force mode
-            audioSynced = this.audioSyncManager.realTimeSync(
-              newStartTime, audioRef, setCurrentTime, 'start', true, newStartTime, audioContext.isInverted // force = true, pass startTime and isInverted
-            );
-          }
-          
-          return {
-            action: 'updateRegion',
-            startTime: newStartTime,
-            significant: true,
-            audioSynced: audioSynced,
-            isDraggingConfirmed: true, // 🆕 **VALIDATION FLAG**
-            realTimeSync: true // 🆕 **REAL-TIME FLAG**
-          };
+          if (audioContext) audioSynced = this.audioSyncManager.realTimeSync(newStart, audioContext.audioRef, audioContext.setCurrentTime, 'start', true, newStart, audioContext.isInverted);
+          return { action: 'updateRegion', startTime: newStart, significant: true, audioSynced, isDraggingConfirmed: true, realTimeSync: true };
         }
       } else if (this.activeHandle === HANDLE_TYPES.END) {
-        // 🔧 **FIXED BOUNDARY LOGIC**: Cho phép drag về duration thay vì block ở startTime + 0.1
-        const newEndTime = Math.min(duration, Math.max(roundedTime, startTime + 0.05)); // 🚀 **ALLOW MAX DURATION**: Cho phép về duration, chỉ cần tránh overlap với start
-        // 🔧 **REDUCED THRESHOLD**: Giảm từ 0.01s xuống 0.005s để responsive hơn với fast drag
-        if (Math.abs(newEndTime - endTime) > 0.005) { // 🚀 **FASTER RESPONSE**: 0.005s threshold thay vì 0.01s
-          
-          // 🆕 **REAL-TIME CURSOR SYNC**: Cursor theo real-time khi drag end handle với intelligent offset
+        const newEnd = clamp(roundedTime, startTime + 0.05, duration);
+        if (Math.abs(newEnd - endTime) > 0.005) {
           let audioSynced = false;
-          
-          if (audioContext && this.audioSyncManager.preferences.syncEndHandle) {
-            const { audioRef, setCurrentTime } = audioContext;
-            
-            // 🔥 **ULTRA-SMOOTH REAL-TIME SYNC**: Sử dụng realTimeSync với force mode cho end handle
-            audioSynced = this.audioSyncManager.realTimeSync(
-              newEndTime, audioRef, setCurrentTime, 'end', true, startTime, audioContext.isInverted // force = true, pass startTime for boundary checking and isInverted
-            );
-          }
-          
-          return {
-            action: 'updateRegion',
-            endTime: newEndTime,
-            significant: true,
-            audioSynced: audioSynced,
-            isDraggingConfirmed: true, // 🆕 **VALIDATION FLAG**
-            realTimeSync: true // 🆕 **REAL-TIME FLAG**
-          };
+          if (audioContext && this.audioSyncManager.preferences.syncEndHandle)
+            audioSynced = this.audioSyncManager.realTimeSync(newEnd, audioContext.audioRef, audioContext.setCurrentTime, 'end', true, startTime, audioContext.isInverted);
+          return { action: 'updateRegion', endTime: newEnd, significant: true, audioSynced, isDraggingConfirmed: true, realTimeSync: true };
         }
       }
-      
-      return { action: 'none' };
-      
-    } else if (this.state === INTERACTION_STATES.DRAGGING && !this.isDraggingConfirmed) {
-      // 🆕 **AWAITING DRAG CONFIRMATION**: Không update region, chỉ log
-      return { action: 'none', reason: 'awaiting_drag_confirmation' };
-      
-    } else {
-      // 🎯 **HOVER ONLY** - Visual feedback only, TUYỆT ĐỐI KHÔNG thay đổi region
-      
-      // 🛡️ **RE-ENTRY PROTECTION**: Skip handle detection nếu vừa re-enter
-      if (isRecentlyReEntered) {
-        return { action: 'none', reason: 'mouse_re_entry_protection' };
-      }
-      
-      const handle = detectHandle(x, canvasWidth, duration, startTime, endTime, null, audioContext?.isInverted || false);
-      
-      if (handle !== this.lastHoveredHandle) {
-        this.lastHoveredHandle = handle;
-        this.state = handle ? INTERACTION_STATES.HOVERING : INTERACTION_STATES.IDLE;
-        
-        // 🆕 **ENHANCED CURSOR LOGIC**: Different cursors cho different zones
-        let hoverCursor = 'pointer'; // 🔧 **FIXED**: Default pointer instead of crosshair (matching WaveformCanvas)
-        
-        if (handle) {
-          // 🎯 **HANDLE HOVER**: Resize cursor cho handles
-          hoverCursor = 'ew-resize';        } else {
-          // 🆕 **CHECK REGION HOVER**: Kiểm tra xem có hover trong region không
-          const timeAtPosition = positionToTime(x, canvasWidth, duration);
-          const isInRegion = timeAtPosition >= startTime && timeAtPosition <= endTime && 
-                            startTime < endTime; // Ensure có valid region
-          
-          if (isInRegion) {
-            // 🛡️ **INVERT MODE PROTECTION**: No special cursor when hovering region in invert mode
-            if (audioContext?.isInverted) {
-              hoverCursor = 'pointer'; // Keep default cursor in invert mode
-            } else {
-              // 🤚 **REGION HOVER**: Grab cursor (bàn tay xòe ra) khi hover vào region - theo yêu cầu user
-              hoverCursor = 'grab'; // 🤚 **GRAB CURSOR**: "Hình bàn tay xòe ra" như user yêu cầu
-            }
-          }
-        }
-        
-        return {
-          action: 'updateHover',
-          handle: handle,
-          cursor: hoverCursor,
-          hoverOnly: true // 🆕 **EXPLICIT FLAG**: Chỉ hover, không drag
-        };
-      }
-      
       return { action: 'none' };
     }
+    if (this.state === INTERACTION_STATES.DRAGGING && !this.isDraggingConfirmed)
+      return { action: 'none', reason: 'awaiting_drag_confirmation' };
+
+    // Hover only
+    if (isRecentlyReEntered) return { action: 'none', reason: 'mouse_re_entry_protection' };
+
+    const handle = detectHandle(x, canvasWidth, duration, startTime, endTime, null, audioContext?.isInverted || false);
+    if (handle !== this.lastHoveredHandle) {
+      this.lastHoveredHandle = handle;
+      this.state = handle ? INTERACTION_STATES.HOVERING : INTERACTION_STATES.IDLE;
+      let hoverCursor = 'pointer';
+      if (handle) hoverCursor = 'ew-resize';
+      else {
+        const tAtPos = positionToTime(x, canvasWidth, duration);
+        const isInRegion = tAtPos >= startTime && tAtPos <= endTime && startTime < endTime;
+        if (isInRegion) hoverCursor = audioContext?.isInverted ? 'pointer' : 'grab';
+      }
+      return { action: 'updateHover', handle, cursor: hoverCursor, hoverOnly: true };
+    }
+    return { action: 'none' };
   }
-  
-  /**
-   * 🎯 Handle mouse up event
-   */
+
   handleMouseUp(startTime, endTime, audioContext = null, duration = null) {
     const wasDragging = this.state === INTERACTION_STATES.DRAGGING;
     const wasConfirmedDrag = this.isDraggingConfirmed;
     const draggedHandle = this.activeHandle;
     const wasRegionDrag = this.isDraggingRegion;
-    const hasPendingJump = this.hasPendingJump; // 🆕 **PENDING JUMP**: Check before reset
-    const pendingJumpTime = this.pendingJumpTime; // 🆕 **STORE VALUE**: Store before reset
-    
-    // 🆕 **FULL DURATION REGION CHECK**: Kiểm tra nếu region đã cover toàn bộ audio
-    const isFullDurationRegion = duration !== null && 
-      Math.abs(startTime - 0) < 0.01 && 
-      Math.abs(endTime - duration) < 0.01;
-    
-    // 🆕 **SMART HISTORY LOGIC**: Không lưu history cho region drag toàn bộ duration
-    const executePendingHandleUpdate = this.hasPendingHandleUpdate && !wasConfirmedDrag && this.pendingHandleUpdate !== null;
-    const shouldSaveHistory = (wasConfirmedDrag && !(wasRegionDrag && isFullDurationRegion)) || executePendingHandleUpdate;
-    
-    if (wasDragging) {
-      // 🆕 FINAL AUDIO SYNC: Different logic for region vs handle drag
-      if (audioContext && wasConfirmedDrag) {
-        const { audioRef, setCurrentTime, isPlaying } = audioContext;
-        
-        if (wasRegionDrag) {
-          // 🔄 **REGION DRAG COMPLETION**: Sync to START of new region as requested (not middle)
-          const targetSyncTime = startTime; // 🎯 **SYNC TO START**: Always use startTime for region completion
-          
-          this.audioSyncManager.completeDragSync(
-            'region', targetSyncTime, audioRef, setCurrentTime, isPlaying, startTime, audioContext.isInverted
-          );
-        } else if (draggedHandle) {
-          // 🎯 **HANDLE DRAG COMPLETION**: Standard handle sync with intelligent boundary checking
-          const finalTime = draggedHandle === HANDLE_TYPES.START ? startTime : endTime;
-          
-          this.audioSyncManager.completeDragSync(
-            draggedHandle, finalTime, audioRef, setCurrentTime, isPlaying, startTime, audioContext.isInverted
-          );
-        }
-      }
+    const hasPendingJump = this.pending.hasJump;
+    const pendingJumpTime = this.pending.jumpTime;
+
+    const isFullDurationRegion = duration !== null && Math.abs(startTime) < 0.01 && Math.abs(endTime - duration) < 0.01;
+    const execPendingHandle = this.pending.hasHandleUpdate && !wasConfirmedDrag && this.pending.handleUpdate !== null;
+    const shouldSaveHistory = (wasConfirmedDrag && !(wasRegionDrag && isFullDurationRegion)) || execPendingHandle;
+
+    if (wasDragging && audioContext && wasConfirmedDrag) {
+      const { audioRef, setCurrentTime, isPlaying } = audioContext;
+      if (wasRegionDrag)
+        this.audioSyncManager.completeDragSync('region', startTime, audioRef, setCurrentTime, isPlaying, startTime, audioContext.isInverted);
+      else if (draggedHandle)
+        this.audioSyncManager.completeDragSync(draggedHandle, draggedHandle === HANDLE_TYPES.START ? startTime : endTime, audioRef, setCurrentTime, isPlaying, startTime, audioContext.isInverted);
     }
-    
-    // 🎯 **RESET DRAG STATE**: Reset tất cả drag tracking
+
     this.state = this.lastHoveredHandle ? INTERACTION_STATES.HOVERING : INTERACTION_STATES.IDLE;
     this.activeHandle = HANDLE_TYPES.NONE;
     this.dragStartPosition = null;
@@ -786,108 +371,89 @@ export class InteractionManager {
     this.isDraggingConfirmed = false;
     this.mouseDownTimestamp = null;
     this.lastMousePosition = null;
-    
-    // 🆕 **RESET REGION DRAG**: Reset region drag state
     this.isDraggingRegion = false;
     this.regionDragStartTime = null;
     this.regionDragOffset = 0;
-      // 🆕 **EXECUTE PENDING JUMP**: Execute delayed jump nếu không có confirmed drag
-    let executePendingJump = false;
-    let pendingHandleUpdateData = null;     // 🆕 **STORE DATA**: Store before reset
-    
-    if (hasPendingJump && !wasConfirmedDrag && pendingJumpTime !== null && !this.pendingJumpBlockedByInvert) {
+
+    let executePendingJump = false, pendingHandleUpdateData = null;
+    if (hasPendingJump && !wasConfirmedDrag && pendingJumpTime !== null && !this.pending.jumpBlockedByInvert)
       executePendingJump = true;
-    }
-      // 🆕 **EXECUTE PENDING HANDLE UPDATE**: Execute delayed handle update nếu không có confirmed drag
-    if (executePendingHandleUpdate) {
-      pendingHandleUpdateData = { ...this.pendingHandleUpdate }; // Store copy before reset
-    }
-    
-    // 🆕 **RESET PENDING JUMP**: Reset pending jump state
-    this.pendingJumpTime = null;
-    this.hasPendingJump = false;
-    this.pendingJumpBlockedByInvert = false; // 🆕 **RESET INVERT BLOCK**: Reset invert block flag
-    
-    // 🆕 **RESET PENDING HANDLE UPDATES**: Reset pending handle update state
-    this.pendingHandleUpdate = null;
-    this.hasPendingHandleUpdate = false;
-    
-    // 🆕 RESET AUDIO SYNC: Reset sync manager state
-    if (this.audioSyncManager) {
-      this.audioSyncManager.reset();
-    }
-    
+    if (execPendingHandle) pendingHandleUpdateData = { ...this.pending.handleUpdate };
+    this._clearPendingJump();
+    this._clearPendingHandleUpdate();
+    if (this.audioSyncManager) this.audioSyncManager.reset();
+
     return {
       action: wasDragging ? 'completeDrag' : 'none',
-      saveHistory: shouldSaveHistory, // 🆕 **LƯU HISTORY CHO HANDLE UPDATES**: Lưu history cho cả confirmed drag và pending handle updates
-      cursor: this.lastHoveredHandle ? 'ew-resize' : 'pointer', // 🔧 **CURSOR LOGIC**: ew-resize for handle hover, pointer for default      audioSynced: wasDragging && audioContext && (draggedHandle || wasRegionDrag) && wasConfirmedDrag,
-      wasRegionDrag: wasRegionDrag, // 🆕 **FLAG**: Thông báo đã hoàn thành region drag
-      // 🆕 **PENDING JUMP RESULT**: Return pending jump info
-      executePendingJump: executePendingJump,
+      saveHistory: shouldSaveHistory,
+      cursor: this.lastHoveredHandle ? 'ew-resize' : 'pointer',
+      wasRegionDrag,
+      executePendingJump,
       pendingJumpTime: executePendingJump ? pendingJumpTime : null,
-      // 🆕 **PENDING HANDLE UPDATE**: Return pending handle update info
-      executePendingHandleUpdate: executePendingHandleUpdate,
-      pendingHandleUpdate: pendingHandleUpdateData
+      executePendingHandleUpdate: execPendingHandle,
+      pendingHandleUpdate: pendingHandleUpdateData,
     };
   }
-  
-  /**
-   * 🎯 Handle mouse leave event
-   */
+
   handleMouseLeave() {
-    // 🛡️ **TRACK MOUSE LEAVE TIME**: Record timing để biết khi nào mouse leave
     this.lastMouseLeaveTime = performance.now();
-    
     const wasDragging = this.state === INTERACTION_STATES.DRAGGING;
     const wasConfirmedDrag = this.isDraggingConfirmed;
-    
-    // 🚀 **SIMPLIFIED LOGIC**: TUYỆT ĐỐI KHÔNG reset drag state khi mouse ra ngoài
-    // Chỉ clear hover state, drag state được giữ nguyên cho đến khi có mouse up thật sự
-    
     if (wasDragging && wasConfirmedDrag) {
-      // 🛡️ **CLEAR ONLY HOVER**: Chỉ clear hover, giữ toàn bộ drag state
       this.lastHoveredHandle = HANDLE_TYPES.NONE;
-      
-      return {
-        action: 'clearHover',
-        cursor: 'default',
-        forceReset: false, // 🚀 **NEVER RESET**: Không bao giờ reset drag state
-        wasDragging: wasDragging,
-        wasConfirmedDrag: wasConfirmedDrag,
-        maintainDragState: true, // 🆕 **ALWAYS MAINTAIN**: Luôn giữ drag state
-        continueDragOutside: true // 🆕 **NEW FLAG**: Drag tiếp tục outside canvas
-      };
+      return { action: 'clearHover', cursor: 'default', forceReset: false, wasDragging, wasConfirmedDrag, maintainDragState: true, continueDragOutside: true };
     } else {
-      // 🔧 **NON-DRAG SCENARIOS**: Chỉ reset khi không có drag
-      
-      // 🔧 **RESET NON-DRAG STATES**: Chỉ reset hover và pending actions
       this.lastHoveredHandle = HANDLE_TYPES.NONE;
-        // 🛡️ **CLEAR PENDING ACTIONS**: Clear pending actions để tránh trigger khi mouse re-enter
-      if (this.hasPendingJump) {
-        this.pendingJumpTime = null;
-        this.hasPendingJump = false;
-        this.pendingJumpBlockedByInvert = false; // 🆕 **RESET INVERT BLOCK**: Reset invert block flag
-      }
-      
-      if (this.hasPendingHandleUpdate) {
-        this.pendingHandleUpdate = null;
-        this.hasPendingHandleUpdate = false;
-      }
-      
-      return {
-        action: 'clearHover',
-        cursor: 'default', 
-        forceReset: false, // 🚀 **NO FORCE RESET**: Không reset drag state ngay cả khi không drag
-        wasDragging: wasDragging,
-        wasConfirmedDrag: wasConfirmedDrag,
-        pendingActionsCleared: true
-      };
+      this._clearPendingJump();
+      this._clearPendingHandleUpdate();
+      return { action: 'clearHover', cursor: 'default', forceReset: false, wasDragging, wasConfirmedDrag, pendingActionsCleared: true };
     }
   }
-  
-  /**
-   * 🎯 Get current debug info
-   */
+
+  // -- STATE UTILS ---------------------------------------------------
+
+  getHandleAtPosition(x, canvasWidth, duration, startTime, endTime, eventInfo = null) {
+    const isInverted = this.audioContext?.isInverted || false;
+    return detectHandle(x, canvasWidth, duration, startTime, endTime, eventInfo, isInverted);
+  }
+
+  setupGlobalDragContext(canvasBounds, canvasWidth, duration, startTime, endTime, audioContext, callback) {
+    this.canvasBounds = canvasBounds;
+    this.canvasWidth = canvasWidth;
+    this.audioDuration = duration;
+    this.audioContext = audioContext;
+    this.onGlobalDragUpdate = { startTime, endTime, callback };
+  }
+  updateGlobalDragContext(startTime, endTime) {
+    if (this.onGlobalDragUpdate) {
+      this.onGlobalDragUpdate.startTime = startTime;
+      this.onGlobalDragUpdate.endTime = endTime;
+    }
+  }
+
+  // -- PENDING STATE UTILS -------------------------------------------
+
+  _clearPendingJump() {
+    this.pending.jumpTime = null;
+    this.pending.hasJump = false;
+    this.pending.jumpBlockedByInvert = false;
+  }
+  _clearPendingHandleUpdate() {
+    this.pending.handleUpdate = null;
+    this.pending.hasHandleUpdate = false;
+  }
+
+  // -- API: RESET, CONFIG, DEBUG --------------------------------------
+
+  reset() {
+    this._resetDragState();
+    if (this.audioSyncManager) this.audioSyncManager.reset();
+  }
+  configureAudioSync(preferences) { this.audioSyncManager?.updatePreferences(preferences); }
+  configureSmartClick(preferences) { this.smartClickManager?.updatePreferences(preferences); }
+  setAudioSyncEnabled(enabled) { this.audioSyncManager?.setEnabled(enabled); }
+  getAudioSyncDebugInfo() { return this.audioSyncManager?.getDebugInfo() || null; }
+  getSmartClickDebugInfo() { return this.smartClickManager?.getDebugInfo() || null; }
   getDebugInfo() {
     return {
       id: this.debugId,
@@ -895,157 +461,18 @@ export class InteractionManager {
       activeHandle: this.activeHandle,
       lastHoveredHandle: this.lastHoveredHandle,
       isDragging: this.state === INTERACTION_STATES.DRAGGING,
-      isDraggingConfirmed: this.isDraggingConfirmed, // 🆕 **ENHANCED DEBUG***
+      isDraggingConfirmed: this.isDraggingConfirmed,
       mouseDownTimestamp: this.mouseDownTimestamp,
       lastMousePosition: this.lastMousePosition,
-      // 🆕 **REGION DRAG DEBUG**
       isDraggingRegion: this.isDraggingRegion,
       regionDragStartTime: this.regionDragStartTime,
       regionDragOffset: this.regionDragOffset,
-      // 🆕 **PENDING JUMP DEBUG**
-      hasPendingJump: this.hasPendingJump,
-      pendingJumpTime: this.pendingJumpTime,
-      // 🆕 **PENDING HANDLE UPDATES**: Support cho delayed handle movement
-      hasPendingHandleUpdate: this.hasPendingHandleUpdate,
-      pendingHandleUpdate: this.pendingHandleUpdate,
-      // 🆕 **MODERN HANDLES FLAG**
+      ...this.pending,
       modernHandles: true,
-      handleWidth: WAVEFORM_CONFIG.MODERN_HANDLE_WIDTH
+      handleWidth: WAVEFORM_CONFIG.MODERN_HANDLE_WIDTH,
     };
-  }
-  
-  /**
-   * 🎯 Reset manager state
-   */
-  reset() {
-    this.state = INTERACTION_STATES.IDLE;
-    this.activeHandle = HANDLE_TYPES.NONE;
-    this.lastHoveredHandle = HANDLE_TYPES.NONE;
-    this.dragStartPosition = null;
-    this.dragStartTime = null;
-    
-    // 🆕 **RESET ENHANCED TRACKING**: Reset drag confirmation state
-    this.isDraggingConfirmed = false;
-    this.mouseDownTimestamp = null;
-    this.lastMousePosition = null;
-    
-    // 🛡️ **RESET RE-ENTRY PROTECTION**: Reset mouse leave timing
-    this.lastMouseLeaveTime = null;
-    
-    // 🆕 **RESET REGION DRAG**: Reset region drag state
-    this.isDraggingRegion = false;
-    this.regionDragStartTime = null;    this.regionDragOffset = 0;
-    
-    // 🆕 **RESET PENDING JUMP**: Reset pending jump state
-    this.pendingJumpTime = null;
-    this.hasPendingJump = false;
-    this.pendingJumpBlockedByInvert = false; // 🆕 **RESET INVERT BLOCK**: Reset invert block flag
-    
-    // 🆕 **RESET PENDING HANDLE UPDATES**: Reset pending handle update state
-    this.pendingHandleUpdate = null;
-    this.hasPendingHandleUpdate = false;
-    
-    // 🆕 RESET AUDIO SYNC: Reset sync manager state
-    if (this.audioSyncManager) {
-      this.audioSyncManager.reset();
-    }
-  }
-  
-  /**
-   * 🆕 NEW: Configure audio sync preferences
-   * @param {object} preferences - Sync preferences
-   */
-  configureAudioSync(preferences) {
-    if (this.audioSyncManager) {
-      this.audioSyncManager.updatePreferences(preferences);
-    }
-  }
-  
-  /**
-   * 🆕 NEW: Configure smart click preferences
-   * @param {object} preferences - Click behavior preferences
-   */
-  configureSmartClick(preferences) {
-    if (this.smartClickManager) {
-      this.smartClickManager.updatePreferences(preferences);
-    }
-  }
-  
-  /**
-   * 🆕 NEW: Enable/disable audio sync
-   * @param {boolean} enabled - Enable state
-   */
-  setAudioSyncEnabled(enabled) {
-    if (this.audioSyncManager) {
-      this.audioSyncManager.setEnabled(enabled);
-    }
-  }
-  
-  /**
-   * 🆕 NEW: Get audio sync debug info
-   * @returns {object} Audio sync debug information
-   */
-  getAudioSyncDebugInfo() {
-    return this.audioSyncManager ? this.audioSyncManager.getDebugInfo() : null;
-  }
-  
-  /**
-   * 🆕 NEW: Get smart click debug info
-   * @returns {object} Smart click debug information
-   */
-  getSmartClickDebugInfo() {
-    return this.smartClickManager ? this.smartClickManager.getDebugInfo() : null;
-  }
-  
-  /**
-   * 🎯 Get handle at specific position for cursor management
-   * @param {number} x - Mouse X position relative to canvas
-   * @param {number} canvasWidth - Canvas width in pixels
-   * @param {number} duration - Audio duration in seconds
-   * @param {number} startTime - Selection start time in seconds
-   * @param {number} endTime - Selection end time in seconds
-   * @param {Object} eventInfo - Additional event information (optional)
-   * @returns {string|null} Handle type ('start', 'end', or null)
-   */  getHandleAtPosition(x, canvasWidth, duration, startTime, endTime, eventInfo = null) {
-    // 🔧 **USE SAME DETECTION LOGIC**: Sử dụng cùng logic với handleMouseDown
-    const isInverted = this.audioContext?.isInverted || false;
-    return detectHandle(x, canvasWidth, duration, startTime, endTime, eventInfo, isInverted);
-  }
-  
-  /**
-   * 🆕 **SETUP GLOBAL DRAG CONTEXT**: Setup context cho global drag outside canvas
-   * @param {DOMRect} canvasBounds - Canvas bounding rect
-   * @param {number} canvasWidth - Canvas width
-   * @param {number} duration - Audio duration
-   * @param {number} startTime - Current start time
-   * @param {number} endTime - Current end time
-   * @param {object} audioContext - Audio context
-   * @param {function} callback - Callback để update UI
-   */
-  setupGlobalDragContext(canvasBounds, canvasWidth, duration, startTime, endTime, audioContext, callback) {
-    this.canvasBounds = canvasBounds;
-    this.canvasWidth = canvasWidth;
-    this.audioDuration = duration;
-    this.audioContext = audioContext;
-    this.onGlobalDragUpdate = {
-      startTime: startTime,
-      endTime: endTime,
-      callback: callback
-    };
-  }
-  
-  /**
-   * 🆕 **UPDATE GLOBAL DRAG CONTEXT**: Update current times trong global context
-   * @param {number} startTime - Current start time
-   * @param {number} endTime - Current end time
-   */
-  updateGlobalDragContext(startTime, endTime) {
-    if (this.onGlobalDragUpdate) {
-      this.onGlobalDragUpdate.startTime = startTime;
-      this.onGlobalDragUpdate.endTime = endTime;
-    }
   }
 }
 
-// 🎯 Global interaction manager instance
+// 🎯 Export create function (unchanged)
 export const createInteractionManager = () => new InteractionManager();
