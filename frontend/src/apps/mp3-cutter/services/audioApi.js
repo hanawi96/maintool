@@ -251,7 +251,7 @@ export const audioApi = {
   // 🎯 ENHANCED: Cut audio by fileId with comprehensive error handling and WebSocket support
   async cutAudioByFileId(params) {
 
-    const cutUrl = `${API_BASE_URL}${API_ENDPOINTS.CUT_BY_FILE_ID}`;
+    const cutUrl = `${API_BASE_URL}${API_ENDPOINTS.CUT_BY_FILEID}`;
     
     // 🆕 **ADD SESSION ID**: Add sessionId để backend có thể track progress
     const requestBody = {
@@ -259,7 +259,9 @@ export const audioApi = {
       sessionId: params.sessionId || `cut-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`
     };
 
-    
+    console.log('🎯 [cutAudioByFileId] Request URL:', cutUrl);
+    console.log('🎯 [cutAudioByFileId] Request body:', requestBody);
+
     let response;
     try {
       response = await fetch(cutUrl, {

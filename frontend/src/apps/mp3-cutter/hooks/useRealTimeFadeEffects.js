@@ -514,8 +514,7 @@ export const useRealTimeFadeEffects = () => {
   
   // 🆕 **REAL-TIME DEBUG UTILITY**: Function để force log current state
   const logRealTimeState = useCallback(() => {
-    const debugInfo = getConnectionDebugInfo();
-
+    // Debug info available via getConnectionDebugInfo() if needed
   }, [getConnectionDebugInfo]);
   
   // 🆕 **GLOBAL DEBUG UTILITY**: Expose debug function to window for troubleshooting
@@ -558,6 +557,18 @@ export const useRealTimeFadeEffects = () => {
       connectionStateRef.current = 'disconnected';
     };
   }, []);
+  
+  // 🎯 **APPLY FADE**: Apply fade effect based on current time and config
+  const applyFadeEffect = useCallback((currentTime, config) => {
+    if (!audioContextRef.current || !gainNodeRef.current || !config) return;
+    
+    const fadeMultiplier = calculateFadeMultiplier(currentTime, config);
+    const newGainValue = fadeMultiplier;
+    
+    // 🔥 **INSTANT GAIN UPDATE**: Apply gain immediately for real-time effect
+    gainNodeRef.current.gain.setValueAtTime(newGainValue, audioContextRef.current.currentTime);
+    
+  }, [calculateFadeMultiplier]);
   
   return {
     // 🎯 **PUBLIC API**

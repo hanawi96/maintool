@@ -158,10 +158,12 @@ const ArrowTimeInput = React.memo(({ value, onChange, label, max, min = 0, isSta
       newValue = normalizedValue;
     }
     
-    // 🔥 **DEBUG LOG**: Log manual edits với deciseconds detail để verify precision
-    const oldDs = Math.round(normalizedValue * 10);
-    const newDs = Math.round(newValue * 10);
+    // 🚀 **OPTIMIZED DEBUG**: Chỉ log essential info khi cần debug
+    if (Math.random() < 0.1) { // 10% sampling để giảm noise
+      console.log(`⬆️ [ArrowTimeInput] ${label} UP: ${normalizedValue.toFixed(1)}s → ${newValue.toFixed(1)}s (+0.1s)`);
+    }
     
+    // ⚡ **INSTANT CHANGE**: Call onChange ngay lập tức
     onChange(newValue);
     setIsEditing(false);
   }, [tempValue, onChange, normalizedValue, max, min, label, formattedTime]);
@@ -286,7 +288,7 @@ const CompactTimeSelector = React.memo(({
         <label className="text-sm font-medium text-slate-600">Start:</label>
         <ArrowTimeInput
           value={startTime}
-          onChange={onStartTimeChange}
+          onChange={(newTime) => onStartTimeChange(newTime)}
           label="start time"
           max={Math.max(0, endTime - 0.1)} // Ensure start < end với 0.1s spacing
           min={0}
@@ -300,7 +302,7 @@ const CompactTimeSelector = React.memo(({
         <label className="text-sm font-medium text-slate-600">End:</label>
         <ArrowTimeInput
           value={endTime}
-          onChange={onEndTimeChange}
+          onChange={(newTime) => onEndTimeChange(newTime)}
           label="end time"
           max={duration}
           min={Math.min(duration, startTime + 0.1)} // Ensure end > start với 0.1s spacing
