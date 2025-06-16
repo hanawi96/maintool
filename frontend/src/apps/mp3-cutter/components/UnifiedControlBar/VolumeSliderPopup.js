@@ -11,7 +11,7 @@ const VolumeSliderPopup = ({
   buttonRef = null
 }) => {
   const popupRef = useRef(null);
-  const { position, isPositioned } = usePopupPosition(isVisible, buttonRef, popupRef, 300, 180);
+  const { position, isPositioned } = usePopupPosition(isVisible, buttonRef, popupRef, 300, 200);
 
   useEffect(() => {
     if (!isVisible) return;
@@ -35,7 +35,9 @@ const VolumeSliderPopup = ({
   if (!isVisible) return null;
 
   const isMuted = value === 0;
-  const percent = value * 100;
+  const isBoost = value > 1;
+  const percent = (value / 2) * 100; // Convert 0-2 range to 0-100% for slider visual
+  const displayPercent = value * 100; // Display actual percentage
 
   return createPortal(
     <div
@@ -58,10 +60,10 @@ const VolumeSliderPopup = ({
           {isMuted ? (
             <VolumeX className="w-4 h-4 text-red-600" />
           ) : (
-            <Volume2 className="w-4 h-4 text-blue-600" />
+            <Volume2 className={`w-4 h-4 ${isBoost ? 'text-orange-600' : 'text-blue-600'}`} />
           )}
           <span className="text-sm font-medium text-slate-800">
-            Volume Control
+            Volume Control {isBoost && <span className="text-orange-600 font-bold">BOOST</span>}
           </span>
         </div>
         <button
@@ -74,24 +76,24 @@ const VolumeSliderPopup = ({
       </div>
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <span className="text-lg font-mono font-semibold text-slate-700">
-            {Math.round(value * 100)}%
+          <span className={`text-lg font-mono font-semibold ${isBoost ? 'text-orange-700' : 'text-slate-700'}`}>
+            {Math.round(displayPercent)}%
           </span>
           <span className="text-xs text-slate-500">
-            0-100%
+            0-200%
           </span>
         </div>
         <div className="flex items-center gap-2">
           <input
             type="range"
             min="0"
-            max="1"
-            step="0.02"
+            max="2"
+            step="0.05"
             value={value}
             onChange={handleSliderChange}
             className="flex-1 h-2 bg-slate-200 rounded-full appearance-none cursor-pointer volume-popup-slider"
             style={{
-              background: `linear-gradient(to right, #6366f1 0%, #6366f1 ${percent}%, #e2e8f0 ${percent}%, #e2e8f0 100%)`
+              background: `linear-gradient(to right, ${isBoost ? '#ea580c' : '#6366f1'} 0%, ${isBoost ? '#ea580c' : '#6366f1'} ${percent}%, #e2e8f0 ${percent}%, #e2e8f0 100%)`
             }}
           />
           <button
@@ -108,17 +110,32 @@ const VolumeSliderPopup = ({
             { label: '25%', value: 0.25 },
             { label: '50%', value: 0.5 },
             { label: '75%', value: 0.75 },
-            { label: '100%', value: 1.0 }
+            { label: '100%', value: 1.0 },
+            { label: '150%', value: 1.5 },
+            { label: '200%', value: 2.0 }
           ].map(({ label, value: presetValue }) => (
             <button
               key={label}
               onClick={() => onChange(presetValue)}
-              className={`px-2 py-1.5 text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg transition-colors ${label === '100%' ? 'col-span-2' : ''}`}
+              className={`px-2 py-1.5 text-xs rounded-lg transition-colors ${
+                presetValue > 1 
+                  ? 'bg-orange-100 hover:bg-orange-200 text-orange-700'
+                  : presetValue === 1
+                  ? 'bg-green-100 hover:bg-green-200 text-green-700'
+                  : 'bg-blue-100 hover:bg-blue-200 text-blue-700'
+              }`}
             >
               {label}
             </button>
           ))}
         </div>
+        {isBoost && (
+          <div className="bg-orange-50 border border-orange-200 rounded-lg p-2">
+            <p className="text-xs text-orange-700">
+              ⚠️ Volume boost may cause audio distortion at high levels
+            </p>
+          </div>
+        )}
       </div>
     </div>,
     document.body

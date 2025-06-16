@@ -173,7 +173,7 @@ const MP3CutterMain = React.memo(() => {
   const {
     isPlaying, currentTime, duration, volume, playbackRate,
     togglePlayPause, jumpToTime, updateVolume, updatePlaybackRate,
-    audioRef, setCurrentTime, setDuration, setIsPlaying
+    audioRef, setCurrentTime, setDuration, setIsPlaying, setMasterVolumeSetter
   } = useAudioPlayer();
   
   // Pitch shift hook (no longer creates its own audio context)
@@ -186,7 +186,8 @@ const MP3CutterMain = React.memo(() => {
   const { saveState, undo, redo, canUndo, canRedo, historyIndex, historyLength } = useHistory();
   const { 
     connectAudioElement, updateFadeConfig, setFadeActive, isWebAudioSupported,
-    insertPitchNode, removePitchNode, audioContext: fadeAudioContext, isConnected: audioConnected
+    insertPitchNode, removePitchNode, audioContext: fadeAudioContext, isConnected: audioConnected,
+    setMasterVolume, getMasterVolume
   } = useRealTimeFadeEffects();
   const { isReady: isWorkerReady, isSupported: isWorkerSupported, metrics: workerMetrics, preloadCriticalComponents } = useWebWorkerPreloader();
   const { scheduleIdlePreload } = useIdleCallbackPreloader();
@@ -287,9 +288,19 @@ const MP3CutterMain = React.memo(() => {
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !audioFile?.url || !isWebAudioSupported) return;
-    const t = setTimeout(() => connectAudioElement(audio), 100);
+    const t = setTimeout(() => {
+      connectAudioElement(audio).then(() => {
+        // Initialize master volume system after Web Audio is connected
+        if (setMasterVolumeSetter && setMasterVolume) {
+          setMasterVolumeSetter(setMasterVolume);
+          // Set initial volume to current volume value
+          setMasterVolume(volume);
+          console.log('Master volume system connected, initial volume:', volume);
+        }
+      });
+    }, 100);
     return () => clearTimeout(t);
-  }, [audioFile?.url, audioRef, connectAudioElement, isWebAudioSupported]);
+  }, [audioFile?.url, audioRef, connectAudioElement, isWebAudioSupported, setMasterVolumeSetter, setMasterVolume, volume]);
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !isWebAudioSupported) return;

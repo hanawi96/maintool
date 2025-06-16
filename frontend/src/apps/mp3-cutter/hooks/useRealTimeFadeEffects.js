@@ -3,7 +3,8 @@ import { useRef, useCallback, useEffect, useState } from 'react';
 export const useRealTimeFadeEffects = () => {
   const audioContextRef = useRef(null);
   const sourceNodeRef = useRef(null);
-  const gainNodeRef = useRef(null);
+  const masterGainNodeRef = useRef(null);
+  const fadeGainNodeRef = useRef(null);
   const analyserNodeRef = useRef(null);
   const isConnectedRef = useRef(false);
   const connectionStateRef = useRef('disconnected');
@@ -16,6 +17,9 @@ export const useRealTimeFadeEffects = () => {
   // Pitch shift integration
   const pitchNodeRef = useRef(null);
   const hasPitchNodeRef = useRef(false);
+  
+  // Master volume state
+  const masterVolumeRef = useRef(1.0);
 
   const [fadeConfig, setFadeConfig] = useState({
     fadeIn: 0, fadeOut: 0, startTime: 0, endTime: 0, isActive: false
@@ -30,37 +34,44 @@ export const useRealTimeFadeEffects = () => {
       if (ctx.state === 'suspended') await ctx.resume();
       if (!audioElement || !audioElement.src) return false;
       if (!sourceNodeRef.current) sourceNodeRef.current = ctx.createMediaElementSource(audioElement);
-      if (!gainNodeRef.current) gainNodeRef.current = ctx.createGain();
+      if (!masterGainNodeRef.current) {
+        masterGainNodeRef.current = ctx.createGain();
+        masterGainNodeRef.current.gain.value = 1.0;
+      }
+      if (!fadeGainNodeRef.current) {
+        fadeGainNodeRef.current = ctx.createGain();
+        fadeGainNodeRef.current.gain.value = 1.0;
+      }
       if (!analyserNodeRef.current) {
         analyserNodeRef.current = ctx.createAnalyser();
         analyserNodeRef.current.fftSize = 256;
       }
       if (!isConnectedRef.current) {
-        // Basic audio chain: source -> gain -> analyser -> destination
-        sourceNodeRef.current.connect(gainNodeRef.current);
-        gainNodeRef.current.connect(analyserNodeRef.current);
+        sourceNodeRef.current.connect(masterGainNodeRef.current);
+        masterGainNodeRef.current.connect(fadeGainNodeRef.current);
+        fadeGainNodeRef.current.connect(analyserNodeRef.current);
         analyserNodeRef.current.connect(ctx.destination);
         isConnectedRef.current = true;
         connectionStateRef.current = 'connected';
       }
-      return !!(gainNodeRef.current && gainNodeRef.current.gain);
+      return !!(masterGainNodeRef.current && fadeGainNodeRef.current);
     } catch {
       connectionStateRef.current = 'error';
       return false;
     }
   }, []);
 
-  // Insert pitch node between source and gain
+  // Insert pitch node between source and master gain
   const insertPitchNode = useCallback((pitchNode) => {
-    if (!pitchNode || !sourceNodeRef.current || !gainNodeRef.current || hasPitchNodeRef.current) return false;
+    if (!pitchNode || !sourceNodeRef.current || !masterGainNodeRef.current || hasPitchNodeRef.current) return false;
     
     try {
-      // Disconnect source -> gain
-      sourceNodeRef.current.disconnect(gainNodeRef.current);
+      // Disconnect source -> masterGain
+      sourceNodeRef.current.disconnect(masterGainNodeRef.current);
       
-      // Connect: source -> pitch -> gain
+      // Connect: source -> pitch -> masterGain
       sourceNodeRef.current.connect(pitchNode);
-      pitchNode.connect(gainNodeRef.current);
+      pitchNode.connect(masterGainNodeRef.current);
       
       pitchNodeRef.current = pitchNode;
       hasPitchNodeRef.current = true;
@@ -71,7 +82,7 @@ export const useRealTimeFadeEffects = () => {
       console.error('Failed to insert pitch node:', error);
       // Fallback: restore original connection
       try {
-        sourceNodeRef.current.connect(gainNodeRef.current);
+        sourceNodeRef.current.connect(masterGainNodeRef.current);
       } catch (e) {
         console.error('Failed to restore connection:', e);
       }
@@ -81,15 +92,15 @@ export const useRealTimeFadeEffects = () => {
 
   // Remove pitch node from chain
   const removePitchNode = useCallback(() => {
-    if (!pitchNodeRef.current || !sourceNodeRef.current || !gainNodeRef.current || !hasPitchNodeRef.current) return;
+    if (!pitchNodeRef.current || !sourceNodeRef.current || !masterGainNodeRef.current || !hasPitchNodeRef.current) return;
     
     try {
-      // Disconnect: source -x- pitch -x- gain
+      // Disconnect: source -x- pitch -x- masterGain
       sourceNodeRef.current.disconnect(pitchNodeRef.current);
-      pitchNodeRef.current.disconnect(gainNodeRef.current);
+      pitchNodeRef.current.disconnect(masterGainNodeRef.current);
       
-      // Direct connect: source -> gain
-      sourceNodeRef.current.connect(gainNodeRef.current);
+      // Direct connect: source -> masterGain
+      sourceNodeRef.current.connect(masterGainNodeRef.current);
       
       pitchNodeRef.current = null;
       hasPitchNodeRef.current = false;
@@ -121,7 +132,7 @@ export const useRealTimeFadeEffects = () => {
   }, []);
 
   const startFadeAnimation = useCallback((audioElement) => {
-    if (isAnimatingRef.current || !gainNodeRef.current) return;
+    if (isAnimatingRef.current || !fadeGainNodeRef.current) return;
     isAnimatingRef.current = true;
     currentAudioElementRef.current = audioElement;
     const animate = (ts) => {
@@ -131,10 +142,10 @@ export const useRealTimeFadeEffects = () => {
       }
       lastUpdateTimeRef.current = ts;
       const el = currentAudioElementRef.current;
-      if (!el || !gainNodeRef.current) return;
+      if (!el || !fadeGainNodeRef.current) return;
       const t = el.currentTime || 0;
       const cfg = fadeConfigRef.current;
-      gainNodeRef.current.gain.value = calculateFadeMultiplier(t, cfg);
+      fadeGainNodeRef.current.gain.value = calculateFadeMultiplier(t, cfg);
       if (isAnimatingRef.current && (cfg.isActive || (!el.paused && el.currentTime >= 0)))
         animationFrameRef.current = requestAnimationFrame(animate);
       else {
@@ -153,8 +164,8 @@ export const useRealTimeFadeEffects = () => {
       cancelAnimationFrame(animationFrameRef.current);
       animationFrameRef.current = null;
     }
-    if (gainNodeRef.current && gainNodeRef.current.gain)
-      gainNodeRef.current.gain.value = 1.0;
+    if (fadeGainNodeRef.current && fadeGainNodeRef.current.gain)
+      fadeGainNodeRef.current.gain.value = 1.0;
   }, []);
 
   const updateFadeConfig = useCallback((cfg) => {
@@ -162,8 +173,8 @@ export const useRealTimeFadeEffects = () => {
     const isActive = ((fadeIn > 0 || fadeOut > 0) || isInverted) && startTime < endTime;
     fadeConfigRef.current = { fadeIn, fadeOut, startTime, endTime, isActive, isInverted, duration };
     setFadeConfig(fadeConfigRef.current);
-    if (!isActive && gainNodeRef.current && gainNodeRef.current.gain)
-      gainNodeRef.current.gain.value = 1.0;
+    if (!isActive && fadeGainNodeRef.current && fadeGainNodeRef.current.gain)
+      fadeGainNodeRef.current.gain.value = 1.0;
   }, []);
 
   useEffect(() => { fadeConfigRef.current = fadeConfig; }, [fadeConfig]);
@@ -187,12 +198,27 @@ export const useRealTimeFadeEffects = () => {
     }
   }, [startFadeAnimation, stopFadeAnimation]);
 
+  // Master volume control (0-2.0 for 200% boost)
+  const setMasterVolume = useCallback((volume) => {
+    const clampedVolume = Math.max(0, Math.min(2.0, volume));
+    masterVolumeRef.current = clampedVolume;
+    
+    if (masterGainNodeRef.current && masterGainNodeRef.current.gain) {
+      masterGainNodeRef.current.gain.value = clampedVolume;
+      console.log(`Master volume set to: ${(clampedVolume * 100).toFixed(0)}%`);
+    }
+  }, []);
+
+  const getMasterVolume = useCallback(() => {
+    return masterVolumeRef.current;
+  }, []);
+
   useEffect(() => () => {
     isAnimatingRef.current = false;
     if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
     if (audioContextRef.current && audioContextRef.current.state !== 'closed')
       audioContextRef.current.close();
-    audioContextRef.current = null; sourceNodeRef.current = null; gainNodeRef.current = null; analyserNodeRef.current = null;
+    audioContextRef.current = null; sourceNodeRef.current = null; masterGainNodeRef.current = null; fadeGainNodeRef.current = null; analyserNodeRef.current = null;
     isConnectedRef.current = false; connectionStateRef.current = 'disconnected';
     pitchNodeRef.current = null; hasPitchNodeRef.current = false;
   }, []);
@@ -209,7 +235,12 @@ export const useRealTimeFadeEffects = () => {
     removePitchNode,
     audioContext: audioContextRef.current,
     sourceNode: sourceNodeRef.current,
-    gainNode: gainNodeRef.current,
-    isConnected: connectionStateRef.current === 'connected'
+    masterGainNode: masterGainNodeRef.current,
+    fadeGainNode: fadeGainNodeRef.current,
+    isConnected: connectionStateRef.current === 'connected',
+
+    // Master volume control
+    setMasterVolume,
+    getMasterVolume
   };
 };

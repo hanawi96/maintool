@@ -256,13 +256,15 @@ const UnifiedControlBar = React.memo(({
                 ? 'bg-slate-200 border border-slate-400'
                 : volume === 0
                 ? 'bg-red-100 hover:bg-red-200 border border-red-300'
-                : 'bg-slate-100 hover:bg-slate-200'
+                : volume > 1
+                ? 'bg-orange-100 hover:bg-orange-200 border border-orange-300'
+                : 'bg-blue-100 hover:bg-blue-200 border border-blue-300'
             }`}
-            title={`Volume: ${Math.round(volume * 100)}% - Click to adjust`}>
+            title={`Volume: ${Math.round(volume * 100)}% - Click to adjust${volume > 1 ? ' (BOOST)' : ''}`}>
             {volume === 0
               ? <VolumeX className="w-4 h-4 text-red-600 group-hover:text-red-700" />
-              : <Volume2 className="w-4 h-4 text-blue-600 group-hover:text-blue-700" />}
-            {volume !== 0 && <div className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full" style={{ opacity: volume }}></div>}
+              : <Volume2 className={`w-4 h-4 ${volume > 1 ? 'text-orange-600 group-hover:text-orange-700' : 'text-blue-600 group-hover:text-blue-700'}`} />}
+            {volume !== 0 && <div className={`absolute -top-1 -right-1 w-2 h-2 rounded-full ${volume > 1 ? 'bg-orange-500' : 'bg-blue-500'}`} style={{ opacity: Math.min(1, volume) }}></div>}
           </button>
 
           {/* 11. Speed */}

@@ -1,16 +1,22 @@
 import { useState, useRef, useCallback } from 'react';
 
 /**
- * Audio Player Hook - Siêu nhẹ, sync tối ưu, không đổi logic
+ * Audio Player Hook - Enhanced with master volume support (0-2.0 range)
  */
 export const useAudioPlayer = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [volume, setVolume] = useState(1);
+  const [volume, setVolume] = useState(1); // Master volume 0-2.0 (200% boost)
   const [playbackRate, setPlaybackRate] = useState(1);
 
   const audioRef = useRef(null);
+  const masterVolumeSetterRef = useRef(null); // Will be set from useRealTimeFadeEffects
+
+  // Set master volume setter from Web Audio API
+  const setMasterVolumeSetter = useCallback((setterFn) => {
+    masterVolumeSetterRef.current = setterFn;
+  }, []);
 
   // Phát/tạm dừng audio, sync với state
   const togglePlayPause = useCallback(() => {
@@ -40,10 +46,20 @@ export const useAudioPlayer = () => {
     setCurrentTime(newTime);
   }, [duration]);
 
-  // Cập nhật volume
+  // Cập nhật master volume (0-2.0 range for 200% boost)
   const updateVolume = useCallback((v) => {
-    setVolume(v);
-    if (audioRef.current) audioRef.current.volume = v;
+    const clampedVolume = Math.max(0, Math.min(2.0, v));
+    setVolume(clampedVolume);
+    
+    // Keep HTML audio element volume at 1.0, let Web Audio API handle the gain
+    if (audioRef.current) {
+      audioRef.current.volume = 1.0;
+    }
+    
+    // Use Web Audio API master gain for volume control
+    if (masterVolumeSetterRef.current) {
+      masterVolumeSetterRef.current(clampedVolume);
+    }
   }, []);
 
   // Cập nhật tốc độ phát
@@ -57,5 +73,6 @@ export const useAudioPlayer = () => {
     isPlaying, currentTime, duration, volume, playbackRate,
     togglePlayPause, jumpToTime, updateVolume, updatePlaybackRate,
     audioRef, setCurrentTime, setDuration, setIsPlaying,
+    setMasterVolumeSetter, // New: for Web Audio integration
   };
 };
