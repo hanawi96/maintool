@@ -13,6 +13,7 @@ import { useFileUpload } from '../hooks/useFileUpload';
 import { useRealTimeFadeEffects } from '../hooks/useRealTimeFadeEffects';
 import { useInteractionHandlers } from '../hooks/useInteractionHandlers';
 import { useTimeChangeHandlers } from '../hooks/useTimeChangeHandlers';
+import { usePitchShift } from '../hooks/usePitchShift';
 
 import { 
   useProgressivePreloader, useNetworkAwarePreloader, 
@@ -174,12 +175,19 @@ const MP3CutterMain = React.memo(() => {
     togglePlayPause, jumpToTime, updateVolume, updatePlaybackRate,
     audioRef, setCurrentTime, setDuration, setIsPlaying
   } = useAudioPlayer();
+  
+  // Pitch shift hook (no longer creates its own audio context)
+  const { pitchValue, updatePitch, setPitchNode, clearPitchNode, getPitchNode } = usePitchShift();
+
   const {
     waveformData, startTime, endTime, isDragging, hoveredHandle, generateWaveform,
     setStartTime, setEndTime, setIsDragging, setHoveredHandle, canvasRef, isGenerating, enhancedFeatures
   } = useEnhancedWaveform();
   const { saveState, undo, redo, canUndo, canRedo, historyIndex, historyLength } = useHistory();
-  const { connectAudioElement, updateFadeConfig, setFadeActive, isWebAudioSupported } = useRealTimeFadeEffects();
+  const { 
+    connectAudioElement, updateFadeConfig, setFadeActive, isWebAudioSupported,
+    insertPitchNode, removePitchNode, audioContext: fadeAudioContext, isConnected: audioConnected
+  } = useRealTimeFadeEffects();
   const { isReady: isWorkerReady, isSupported: isWorkerSupported, metrics: workerMetrics, preloadCriticalComponents } = useWebWorkerPreloader();
   const { scheduleIdlePreload } = useIdleCallbackPreloader();
   const { addToCache: addComponentToCache } = useAdvancedComponentCache();
@@ -423,6 +431,46 @@ const MP3CutterMain = React.memo(() => {
     }
   }, [workerMetrics.totalPreloaded, workerMetrics.loadedComponents, isWorkerReady, addComponentToCache]);
 
+  // Add pitch change handler with auto-integration
+  const handlePitchChange = useCallback(async (newPitch) => {
+    updatePitch(newPitch);
+    
+    // Auto-manage pitch node insertion/removal
+    if (fadeAudioContext && audioConnected) {
+      if (newPitch !== 0) {
+        if (pitchValue === 0) {
+          // Initialize and insert pitch worklet (first time)
+          try {
+            await fadeAudioContext.audioWorklet.addModule('./soundtouch-worklet.js');
+            const pitchNode = new AudioWorkletNode(fadeAudioContext, 'soundtouch-processor');
+            pitchNode.parameters.get('pitchSemitones').value = newPitch;
+            pitchNode.parameters.get('tempo').value = 1.0;
+            pitchNode.parameters.get('rate').value = 1.0;
+            
+            if (insertPitchNode(pitchNode)) {
+              setPitchNode(pitchNode);
+              console.log('Pitch node inserted with value:', newPitch);
+            }
+          } catch (error) {
+            console.warn('Failed to create pitch node:', error);
+          }
+        } else {
+          // Update existing pitch node
+          const currentPitchNode = getPitchNode();
+          if (currentPitchNode) {
+            currentPitchNode.parameters.get('pitchSemitones').value = newPitch;
+            console.log('Pitch updated to:', newPitch);
+          }
+        }
+      } else if (newPitch === 0 && pitchValue !== 0) {
+        // Remove pitch processing
+        removePitchNode();
+        clearPitchNode();
+        console.log('Pitch node removed');
+      }
+    }
+  }, [updatePitch, fadeAudioContext, audioConnected, insertPitchNode, removePitchNode, pitchValue, setPitchNode, clearPitchNode, getPitchNode]);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-pink-50">
       <div className="container mx-auto px-6 py-6">
@@ -468,11 +516,13 @@ const MP3CutterMain = React.memo(() => {
               isPlaying={isPlaying}
               volume={volume}
               playbackRate={playbackRate}
+              pitch={pitchValue}
               onTogglePlayPause={togglePlayPause}
               onJumpToStart={handleJumpToStart}
               onJumpToEnd={handleJumpToEnd}
               onVolumeChange={updateVolume}
               onSpeedChange={updatePlaybackRate}
+              onPitchChange={handlePitchChange}
               startTime={startTime}
               endTime={endTime}
               duration={duration}
@@ -520,6 +570,7 @@ const MP3CutterMain = React.memo(() => {
                   fadeIn={fadeIn}
                   fadeOut={fadeOut}
                   playbackRate={playbackRate}
+                  pitch={pitchValue}
                   isInverted={isInverted}
                   normalizeVolume={normalizeVolume}
                   onNormalizeVolumeChange={setNormalizeVolume}

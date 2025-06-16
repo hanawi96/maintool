@@ -48,14 +48,18 @@ export const validateCutParams = (req, res, next) => {
 
 export const validateFileId = (req, res, next) => {
   const { fileId } = req.body;
+  
   if (!fileId || typeof fileId !== 'string') {
     return errorRes(res, 'FileId is required and must be a string');
   }
-  // Basic validation for file ID format (alphanumeric with underscores)
-  if (!/^[a-zA-Z0-9_]+$/.test(fileId)) {
-    return errorRes(res, 'Invalid fileId format');
+  
+  // Accept all common filename characters (letters, numbers, dots, dashes, underscores)
+  // Allow extensions and typical upload filename patterns
+  if (!/^[a-zA-Z0-9._-]+$/.test(fileId.trim())) {
+    return errorRes(res, `Invalid fileId format: ${fileId}`);
   }
-  req.fileId = fileId;
+  
+  req.fileId = fileId.trim();
   next();
 };
 
@@ -76,6 +80,49 @@ export const validateWaveformParams = (req, res, next) => {
     return errorRes(res, 'Invalid samples count. Must be between 100 and 10000');
   }
   req.waveformParams = { samples: sampleCount };
+  next();
+};
+
+// New validation for cut by file ID (no audioInfo required)
+export const validateCutParamsById = (req, res, next) => {
+  const { startTime, endTime, fadeIn = 0, fadeOut = 0, playbackRate = 1, pitch = 0 } = req.body;
+  
+  // Parse parameters
+  const start = parseParam(startTime);
+  const end = parseParam(endTime);
+  const rate = parseParam(playbackRate, 1);
+  const pitchSemitones = parseParam(pitch, 0);
+  
+  // Basic validation
+  if (start >= end) {
+    return errorRes(res, 'Invalid time range: startTime must be less than endTime');
+  }
+  if (start < 0) {
+    return errorRes(res, 'Invalid startTime: must be >= 0');
+  }
+  if (!isValidRate(rate)) {
+    return errorRes(res, 'Invalid playback rate. Must be between 0.25x and 4x');
+  }
+  
+  // Validate pitch range (typically -24 to +24 semitones)
+  if (pitchSemitones < -24 || pitchSemitones > 24) {
+    return errorRes(res, 'Invalid pitch: must be between -24 and +24 semitones');
+  }
+  
+  req.cutParams = { 
+    startTime: start, 
+    endTime: end, 
+    fadeIn: parseParam(fadeIn), 
+    fadeOut: parseParam(fadeOut), 
+    playbackRate: rate,
+    pitch: pitchSemitones,
+    outputFormat: req.body.outputFormat || 'mp3',
+    quality: req.body.quality || 'medium',
+    isInverted: Boolean(req.body.isInverted),
+    normalizeVolume: Boolean(req.body.normalizeVolume),
+    sessionId: req.body.sessionId
+  };
+  
   next();
 };
 

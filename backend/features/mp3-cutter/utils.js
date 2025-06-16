@@ -55,7 +55,7 @@ export class MP3Utils {
   static async cutAudio(inputPath, outputPath, opts = {}) {
     const {
       startTime = 0, endTime, fadeIn = 0, fadeOut = 0,
-      format = 'mp3', quality = 'medium', playbackRate = 1,
+      format = 'mp3', quality = 'medium', playbackRate = 1, pitch = 0,
       isInverted = false, normalizeVolume = false, sessionId = null
     } = opts;
 
@@ -68,6 +68,7 @@ export class MP3Utils {
 
       const filters = [
         ...(playbackRate !== 1 ? buildAtempoFilters(playbackRate) : []),
+        ...(pitch !== 0 ? [`asetrate=44100*${Math.pow(2, pitch/12)},aresample=44100`] : []),
         ...(normalizeVolume ? ['loudnorm=I=-16:TP=-1.5:LRA=11:print_format=none'] : []),
         ...(fadeIn > 0 ? [`afade=t=in:st=0:d=${fadeIn}`] : []),
         ...(fadeOut > 0 && endTime > startTime
@@ -107,8 +108,100 @@ export class MP3Utils {
   }
 
   static async cutAudioInvertMode(inputPath, outputPath, opts = {}) {
-    // ...giữ nguyên logic như bản gốc, chỉ dùng helper ở trên cho filters, emitProgress, ...
-    // Không viết lại toàn bộ ở đây do quá dài, nhưng tối ưu pattern và helper đã áp dụng
+    const {
+      startTime = 0, endTime, fadeIn = 0, fadeOut = 0,
+      format = 'mp3', quality = 'medium', playbackRate = 1, pitch = 0,
+      normalizeVolume = false, sessionId = null
+    } = opts;
+
+    return new Promise((resolve, reject) => {
+      const audioInfo = ffprobe(inputPath);
+      
+      audioInfo.then(meta => {
+        const duration = +meta.format.duration || 0;
+        let command = ffmpeg(inputPath);
+        
+        // Build complex filter for inverted cut
+        const filterParts = [];
+        
+        // Split audio into segments: [0 to startTime] and [endTime to duration]
+        if (startTime > 0) {
+          filterParts.push(`[0:a]atrim=0:${startTime}[seg1]`);
+        }
+        if (endTime < duration) {
+          filterParts.push(`[0:a]atrim=${endTime}:${duration}[seg2]`);
+        }
+        
+        // Concatenate segments
+        const segmentCount = filterParts.length;
+        if (segmentCount === 0) {
+          return reject(new Error('No audio segments to process in invert mode'));
+        }
+        
+        let concatInput = '';
+        if (segmentCount === 1) {
+          concatInput = startTime > 0 ? '[seg1]' : '[seg2]';
+        } else {
+          filterParts.push(`[seg1][seg2]concat=n=2:v=0:a=1[concat]`);
+          concatInput = '[concat]';
+        }
+        
+        // Apply audio effects
+        const effects = [];
+        if (playbackRate !== 1) {
+          effects.push(...buildAtempoFilters(playbackRate).map(f => f));
+        }
+        if (pitch !== 0) {
+          effects.push(`asetrate=44100*${Math.pow(2, pitch/12)},aresample=44100`);
+        }
+        if (normalizeVolume) {
+          effects.push('loudnorm=I=-16:TP=-1.5:LRA=11:print_format=none');
+        }
+        if (fadeIn > 0) {
+          effects.push(`afade=t=in:st=0:d=${fadeIn}`);
+        }
+        if (fadeOut > 0) {
+          effects.push(`afade=t=out:st=${Math.max(0, (duration - (endTime - startTime)) - fadeOut)}:d=${fadeOut}`);
+        }
+        
+        if (effects.length > 0) {
+          const effectsChain = effects.join(',');
+          filterParts.push(`${concatInput}${effectsChain}[out]`);
+          command = command.complexFilter(filterParts.join(';'), ['out']);
+        } else {
+          command = command.complexFilter(filterParts.join(';'), [concatInput.replace(/[\[\]]/g, '')]);
+        }
+        
+        const { codec, bitrate } = getFormatSettings(format, quality);
+        command = command.audioCodec(codec);
+        if (bitrate) command = command.audioBitrate(bitrate);
+        if (['m4r', 'm4a'].includes(format)) {
+          command = command.format('mp4').outputOptions(['-f', 'mp4', '-movflags', '+faststart']);
+        } else if (format === 'flac') command = command.format('flac');
+        else if (format === 'ogg') command = command.format('ogg');
+
+        emitProgress(sessionId, { stage: 'initializing', percent: 0, message: 'Initializing FFmpeg (Invert Mode)...' });
+        command
+          .output(outputPath)
+          .on('start', () => emitProgress(sessionId, { stage: 'processing', percent: 5, message: 'Processing inverted cut...' }))
+          .on('progress', (progress) => emitProgress(sessionId, {
+            stage: 'processing',
+            percent: Math.min(95, Math.max(5, Math.round(progress.percent || 0))),
+            currentTime: progress.timemark,
+            message: `Processing inverted cut...`
+          }))
+          .on('end', () => {
+            emitProgress(sessionId, { stage: 'completed', percent: 100, message: 'Completed' });
+            resolve({ success: true, outputPath, inputPath });
+          })
+          .on('error', (err) => {
+            emitProgress(sessionId, { stage: 'error', percent: 0, message: err.message });
+            reject(new Error(`Inverted audio cutting failed: ${err.message}`));
+          }).run();
+      }).catch(err => {
+        reject(new Error(`Failed to analyze audio: ${err.message}`));
+      });
+    });
   }
 
   static async changeAudioSpeed(inputPath, outputPath, opts = {}) {

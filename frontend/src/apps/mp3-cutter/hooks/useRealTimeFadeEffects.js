@@ -12,6 +12,10 @@ export const useRealTimeFadeEffects = () => {
   const lastUpdateTimeRef = useRef(0);
   const isAnimatingRef = useRef(false);
   const currentAudioElementRef = useRef(null);
+  
+  // Pitch shift integration
+  const pitchNodeRef = useRef(null);
+  const hasPitchNodeRef = useRef(false);
 
   const [fadeConfig, setFadeConfig] = useState({
     fadeIn: 0, fadeOut: 0, startTime: 0, endTime: 0, isActive: false
@@ -32,6 +36,7 @@ export const useRealTimeFadeEffects = () => {
         analyserNodeRef.current.fftSize = 256;
       }
       if (!isConnectedRef.current) {
+        // Basic audio chain: source -> gain -> analyser -> destination
         sourceNodeRef.current.connect(gainNodeRef.current);
         gainNodeRef.current.connect(analyserNodeRef.current);
         analyserNodeRef.current.connect(ctx.destination);
@@ -42,6 +47,56 @@ export const useRealTimeFadeEffects = () => {
     } catch {
       connectionStateRef.current = 'error';
       return false;
+    }
+  }, []);
+
+  // Insert pitch node between source and gain
+  const insertPitchNode = useCallback((pitchNode) => {
+    if (!pitchNode || !sourceNodeRef.current || !gainNodeRef.current || hasPitchNodeRef.current) return false;
+    
+    try {
+      // Disconnect source -> gain
+      sourceNodeRef.current.disconnect(gainNodeRef.current);
+      
+      // Connect: source -> pitch -> gain
+      sourceNodeRef.current.connect(pitchNode);
+      pitchNode.connect(gainNodeRef.current);
+      
+      pitchNodeRef.current = pitchNode;
+      hasPitchNodeRef.current = true;
+      
+      console.log('Pitch node inserted successfully');
+      return true;
+    } catch (error) {
+      console.error('Failed to insert pitch node:', error);
+      // Fallback: restore original connection
+      try {
+        sourceNodeRef.current.connect(gainNodeRef.current);
+      } catch (e) {
+        console.error('Failed to restore connection:', e);
+      }
+      return false;
+    }
+  }, []);
+
+  // Remove pitch node from chain
+  const removePitchNode = useCallback(() => {
+    if (!pitchNodeRef.current || !sourceNodeRef.current || !gainNodeRef.current || !hasPitchNodeRef.current) return;
+    
+    try {
+      // Disconnect: source -x- pitch -x- gain
+      sourceNodeRef.current.disconnect(pitchNodeRef.current);
+      pitchNodeRef.current.disconnect(gainNodeRef.current);
+      
+      // Direct connect: source -> gain
+      sourceNodeRef.current.connect(gainNodeRef.current);
+      
+      pitchNodeRef.current = null;
+      hasPitchNodeRef.current = false;
+      
+      console.log('Pitch node removed successfully');
+    } catch (error) {
+      console.error('Failed to remove pitch node:', error);
     }
   }, []);
 
@@ -139,6 +194,7 @@ export const useRealTimeFadeEffects = () => {
       audioContextRef.current.close();
     audioContextRef.current = null; sourceNodeRef.current = null; gainNodeRef.current = null; analyserNodeRef.current = null;
     isConnectedRef.current = false; connectionStateRef.current = 'disconnected';
+    pitchNodeRef.current = null; hasPitchNodeRef.current = false;
   }, []);
 
   return {
@@ -146,6 +202,14 @@ export const useRealTimeFadeEffects = () => {
     updateFadeConfig,
     setFadeActive,
     fadeConfig,
-    isWebAudioSupported: !!(window.AudioContext || window.webkitAudioContext)
+    isWebAudioSupported: !!(window.AudioContext || window.webkitAudioContext),
+    
+    // Pitch shift integration
+    insertPitchNode,
+    removePitchNode,
+    audioContext: audioContextRef.current,
+    sourceNode: sourceNodeRef.current,
+    gainNode: gainNodeRef.current,
+    isConnected: connectionStateRef.current === 'connected'
   };
 };

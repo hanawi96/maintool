@@ -14,6 +14,7 @@ const CutDownload = ({
   fadeIn,
   fadeOut,
   playbackRate = 1,
+  pitch = 0,
   isInverted = false,
   normalizeVolume = false,
   onNormalizeVolumeChange,
@@ -119,6 +120,7 @@ const CutDownload = ({
         outputFormat: outputFormat || 'mp3',
         fadeIn: fadeIn || 0, fadeOut: fadeOut || 0,
         playbackRate,
+        pitch,
         isInverted,
         normalizeVolume,
         quality: 'high',
@@ -137,6 +139,7 @@ const CutDownload = ({
         duration: result.data?.output?.duration || result.output?.duration || (endTime - startTime),
         fileSize: result.data?.output?.size || result.output?.size,
         playbackRate: cutParams.playbackRate,
+        pitch: cutParams.pitch,
         outputFormat: cutParams.outputFormat,
         processedAt: new Date().toISOString(),
         sessionId
@@ -158,7 +161,7 @@ const CutDownload = ({
     } finally {
       setIsProcessing(false);
     }
-  }, [audioFile, startTime, endTime, fadeIn, fadeOut, playbackRate, isInverted, normalizeVolume, outputFormat, clearProgress, activeRegionDuration, startProgressSession]);
+  }, [audioFile, startTime, endTime, fadeIn, fadeOut, playbackRate, pitch, isInverted, normalizeVolume, outputFormat, clearProgress, activeRegionDuration, startProgressSession]);
 
   const handleDownload = useCallback(async () => {
     if (!processedFile)
@@ -167,8 +170,9 @@ const CutDownload = ({
     try {
       const downloadUrl = audioApi.getDownloadUrl(processedFile.filename);
       const speedSuffix = processedFile.playbackRate !== 1 ? `_${processedFile.playbackRate}x` : '';
+      const pitchSuffix = processedFile.pitch !== 0 ? `_${processedFile.pitch > 0 ? '+' : ''}${processedFile.pitch}st` : '';
       const timestamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
-      const downloadFilename = `cut_audio${speedSuffix}_${timestamp}.${processedFile.outputFormat || 'mp3'}`;
+      const downloadFilename = `cut_audio${speedSuffix}${pitchSuffix}_${timestamp}.${processedFile.outputFormat || 'mp3'}`;
 
       const link = document.createElement('a');
       link.href = downloadUrl;
@@ -227,6 +231,7 @@ const CutDownload = ({
             <div>Duration: {formatTimeUnified(activeRegionDuration)}</div>
             <div>Speed: {playbackRate !== 1 ? `${playbackRate}x` : 'Normal'}</div>
             <div>Format: {outputFormat?.toUpperCase() || 'MP3'}</div>
+            <div>Pitch: {pitch !== 0 ? `${pitch > 0 ? '+' : ''}${pitch} semitones` : 'Normal'}</div>
             <div>Mode: {isInverted ? 'Invert (Remove)' : 'Normal (Keep)'}</div>
             <div>Volume: {normalizeVolume ? 'Normalized' : 'Original'}</div>
           </div>
@@ -281,6 +286,7 @@ const CutDownload = ({
           <div className="text-green-600 text-sm space-y-1 mb-3">
             <div>✅ Duration: {formatTimeUnified(processedFile.duration)}</div>
             <div>✅ Speed: {processedFile.playbackRate !== 1 ? `${processedFile.playbackRate}x` : 'Normal'}</div>
+            <div>✅ Pitch: {processedFile.pitch !== 0 ? `${processedFile.pitch > 0 ? '+' : ''}${processedFile.pitch} semitones` : 'Normal'}</div>
             <div>✅ Format: {processedFile.outputFormat?.toUpperCase()}</div>
             <div>✅ Volume: {normalizeVolume ? 'Normalized' : 'Original'}</div>
             {processedFile.fileSize && (

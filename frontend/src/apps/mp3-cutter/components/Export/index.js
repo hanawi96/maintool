@@ -11,6 +11,7 @@ const Export = ({
   fadeIn, 
   fadeOut,
   playbackRate = 1,
+  pitch = 0,
   isInverted = false,
   normalizeVolume = false,
   onNormalizeVolumeChange,
@@ -31,6 +32,7 @@ const Export = ({
           fadeIn={fadeIn}
           fadeOut={fadeOut}
           playbackRate={playbackRate}
+          pitch={pitch}
           isInverted={isInverted}
           normalizeVolume={normalizeVolume}
           onNormalizeVolumeChange={onNormalizeVolumeChange}

@@ -8,6 +8,7 @@ import {
   validateCutParams,
   validateWaveformParams,
   validateFileId,
+  validateCutParamsById,
   validateSpeedParams
 } from './validation.js';
 
@@ -46,6 +47,7 @@ router.post('/cut',
  */
 router.post('/cut-by-fileid',
   validateFileId,
+  validateCutParamsById,
   MP3Controller.cutByFileId
 );
 
