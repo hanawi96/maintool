@@ -1,6 +1,6 @@
 import React, { useCallback, useRef, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Volume2, VolumeX, X } from 'lucide-react';
+import { Volume2, VolumeX, X, RotateCcw } from 'lucide-react';
 
 const VolumeSliderPopup = ({ 
   value = 1,
@@ -80,11 +80,7 @@ const VolumeSliderPopup = ({
 
   // 🎯 **OPTIMIZED HANDLERS**: Đơn giản hóa logic
   const handleSliderChange = useCallback((e) => onChange(parseFloat(e.target.value)), [onChange]);
-
-  // 🔇 **MUTE TOGGLE**: Toggle mute/unmute
-  const handleMuteToggle = useCallback(() => {
-    onChange(value === 0 ? 1 : 0);
-  }, [value, onChange]);
+  const handleReset = useCallback(() => onChange(1.0), [onChange]);
 
   if (!isVisible) return null;
 
@@ -144,32 +140,32 @@ const VolumeSliderPopup = ({
           </div>
 
           {/* 🎚️ **SLIDER**: Main slider control */}
-          <input
-            type="range"
-            min="0"
-            max="1"
-            step="0.02"
-            value={value}
-            onChange={handleSliderChange}
-            className="w-full h-2 bg-slate-200 rounded-full appearance-none cursor-pointer volume-popup-slider"
-            style={{
-              background: `linear-gradient(to right, #6366f1 0%, #6366f1 ${percent}%, #e2e8f0 ${percent}%, #e2e8f0 100%)`
-            }}
-          />
+          <div className="flex items-center gap-2">
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.02"
+              value={value}
+              onChange={handleSliderChange}
+              className="flex-1 h-2 bg-slate-200 rounded-full appearance-none cursor-pointer volume-popup-slider"
+              style={{
+                background: `linear-gradient(to right, #6366f1 0%, #6366f1 ${percent}%, #e2e8f0 ${percent}%, #e2e8f0 100%)`
+              }}
+            />
+            <button
+              onClick={handleReset}
+              className="p-1.5 hover:bg-blue-100 text-blue-600 hover:text-blue-700 rounded-lg transition-colors flex-shrink-0"
+              title="Reset to 100%"
+            >
+              <RotateCcw className="w-3 h-3" />
+            </button>
+          </div>
 
           {/* ⚡ **QUICK ACTIONS**: Preset buttons */}
           <div className="flex items-center gap-2">
-            <button
-              onClick={handleMuteToggle}
-              className={`px-3 py-1.5 text-xs ${
-                isMuted 
-                  ? 'bg-red-100 hover:bg-red-200 text-red-700' 
-                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-              } rounded-lg transition-colors flex-1`}
-            >
-              {isMuted ? 'Unmute' : 'Mute'}
-            </button>
             {[
+              { label: '0%', value: 0 },
               { label: '25%', value: 0.25 },
               { label: '50%', value: 0.5 },
               { label: '75%', value: 0.75 },
@@ -178,7 +174,11 @@ const VolumeSliderPopup = ({
               <button
                 key={label}
                 onClick={() => onChange(presetValue)}
-                className="px-3 py-1.5 text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg transition-colors flex-1"
+                className={`px-3 py-1.5 text-xs ${
+                  value === presetValue
+                    ? 'bg-blue-200 text-blue-800 border border-blue-400'
+                    : 'bg-blue-100 hover:bg-blue-200 text-blue-700'
+                } rounded-lg transition-colors flex-1`}
               >
                 {label}
               </button>

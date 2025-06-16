@@ -46,4 +46,37 @@ export const validateCutParams = (req, res, next) => {
   next();
 };
 
+export const validateFileId = (req, res, next) => {
+  const { fileId } = req.body;
+  if (!fileId || typeof fileId !== 'string') {
+    return errorRes(res, 'FileId is required and must be a string');
+  }
+  // Basic validation for file ID format (alphanumeric with underscores)
+  if (!/^[a-zA-Z0-9_]+$/.test(fileId)) {
+    return errorRes(res, 'Invalid fileId format');
+  }
+  req.fileId = fileId;
+  next();
+};
+
+export const validateSpeedParams = (req, res, next) => {
+  const { playbackRate = 1 } = req.body;
+  const rate = parseParam(playbackRate, 1);
+  if (!isValidRate(rate)) {
+    return errorRes(res, 'Invalid playback rate. Must be between 0.25x and 4x');
+  }
+  req.speedParams = { playbackRate: rate };
+  next();
+};
+
+export const validateWaveformParams = (req, res, next) => {
+  const { samples = 1000 } = req.body;
+  const sampleCount = parseInt(samples);
+  if (isNaN(sampleCount) || sampleCount < 100 || sampleCount > 10000) {
+    return errorRes(res, 'Invalid samples count. Must be between 100 and 10000');
+  }
+  req.waveformParams = { samples: sampleCount };
+  next();
+};
+
 // ...Các validate khác giữ nguyên logic, gom helper dùng chung

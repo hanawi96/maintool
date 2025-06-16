@@ -1,6 +1,6 @@
 import React, { useCallback, useRef, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Zap, X } from 'lucide-react';
+import { Zap, X, RotateCcw } from 'lucide-react';
 
 const SpeedSliderPopup = ({ 
   value = 1,
@@ -80,11 +80,7 @@ const SpeedSliderPopup = ({
 
   // 🎯 **OPTIMIZED HANDLERS**: Đơn giản hóa logic
   const handleSliderChange = useCallback((e) => onChange(parseFloat(e.target.value)), [onChange]);
-
-  // 🔄 **RESET SPEED**: Reset về 1x
-  const handleResetSpeed = useCallback(() => {
-    onChange(1.0);
-  }, [onChange]);
+  const handleReset = useCallback(() => onChange(1.0), [onChange]);
 
   if (!isVisible) return null;
 
@@ -139,37 +135,36 @@ const SpeedSliderPopup = ({
           </div>
 
           {/* 🎚️ **SLIDER**: Main slider control */}
-          <input
-            type="range"
-            min="0.5"
-            max="2"
-            step="0.05"
-            value={value}
-            onChange={handleSliderChange}
-            className="w-full h-2 bg-slate-200 rounded-full appearance-none cursor-pointer speed-popup-slider"
-            style={{
-              background: `linear-gradient(to right, #8b5cf6 0%, #8b5cf6 ${percent}%, #e2e8f0 ${percent}%, #e2e8f0 100%)`
-            }}
-          />
+          <div className="flex items-center gap-2">
+            <input
+              type="range"
+              min="0.5"
+              max="2"
+              step="0.05"
+              value={value}
+              onChange={handleSliderChange}
+              className="flex-1 h-2 bg-slate-200 rounded-full appearance-none cursor-pointer speed-popup-slider"
+              style={{
+                background: `linear-gradient(to right, #8b5cf6 0%, #8b5cf6 ${percent}%, #e2e8f0 ${percent}%, #e2e8f0 100%)`
+              }}
+            />
+            <button
+              onClick={handleReset}
+              className="p-1.5 hover:bg-purple-100 text-purple-600 hover:text-purple-700 rounded-lg transition-colors flex-shrink-0"
+              title="Reset to 1.0x"
+            >
+              <RotateCcw className="w-3 h-3" />
+            </button>
+          </div>
 
           {/* ⚡ **QUICK ACTIONS**: Preset buttons */}
           <div className="flex items-center gap-2">
-            <button
-              onClick={handleResetSpeed}
-              className={`px-3 py-1.5 text-xs ${
-                value === 1.0 
-                  ? 'bg-purple-100 hover:bg-purple-200 text-purple-700 border border-purple-300' 
-                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-              } rounded-lg transition-colors flex-1`}
-            >
-              1.0x
-            </button>
             {[
               { label: '0.5x', value: 0.5 },
               { label: '0.75x', value: 0.75 },
-              { label: '1.25x', value: 1.25 },
+              { label: '1x', value: 1.0 },
               { label: '1.5x', value: 1.5 },
-              { label: '2.0x', value: 2.0 }
+              { label: '2x', value: 2.0 }
             ].map(({ label, value: presetValue }) => (
               <button
                 key={label}

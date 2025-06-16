@@ -1,6 +1,6 @@
 import React, { useCallback, useRef, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { TrendingUp, TrendingDown, X } from 'lucide-react';
+import { TrendingUp, TrendingDown, X, RotateCcw } from 'lucide-react';
 import { FADE_CONFIG } from '../../utils/constants';
 
 const FadeSliderPopup = ({ 
@@ -100,6 +100,7 @@ const FadeSliderPopup = ({
 
   // 🎯 **OPTIMIZED HANDLERS**: Đơn giản hóa logic
   const handleSliderChange = useCallback((e) => onChange(parseFloat(e.target.value)), [onChange]);
+  const handleReset = useCallback(() => onChange(0), [onChange]);
 
   if (!isVisible) return null;
 
@@ -158,18 +159,27 @@ const FadeSliderPopup = ({
           </div>
 
           {/* 🎚️ **SLIDER**: Main slider control */}
-          <input
-            type="range"
-            min={FADE_CONFIG.MIN_DURATION}
-            max={FADE_CONFIG.MAX_DURATION}
-            step={FADE_CONFIG.STEP}
-            value={value}
-            onChange={handleSliderChange}
-            className={`w-full h-2 bg-slate-200 rounded-full appearance-none cursor-pointer fade-popup-slider-${type}`}
-            style={{
-              background: `linear-gradient(to right, ${bgColorHex} 0%, ${bgColorHex} ${percent}%, #e2e8f0 ${percent}%, #e2e8f0 100%)`
-            }}
-          />
+          <div className="flex items-center gap-2">
+            <input
+              type="range"
+              min={FADE_CONFIG.MIN_DURATION}
+              max={FADE_CONFIG.MAX_DURATION}
+              step={FADE_CONFIG.STEP}
+              value={value}
+              onChange={handleSliderChange}
+              className={`flex-1 h-2 bg-slate-200 rounded-full appearance-none cursor-pointer fade-popup-slider-${type}`}
+              style={{
+                background: `linear-gradient(to right, ${bgColorHex} 0%, ${bgColorHex} ${percent}%, #e2e8f0 ${percent}%, #e2e8f0 100%)`
+              }}
+            />
+            <button
+              onClick={handleReset}
+              className={`p-1.5 hover:bg-${colorClass}-100 text-${colorClass}-600 hover:text-${colorClass}-700 rounded-lg transition-colors flex-shrink-0`}
+              title="Reset to 0"
+            >
+              <RotateCcw className="w-3 h-3" />
+            </button>
+          </div>
 
           {/* ⚡ **QUICK ACTIONS**: Preset buttons */}
           <div className="flex items-center gap-2">

@@ -128,6 +128,65 @@ export class MP3Utils {
     });
   }
 
+  // Alias for service compatibility
+  static async changeSpeed(inputPath, outputPath, opts = {}) {
+    return this.changeAudioSpeed(inputPath, outputPath, opts);
+  }
+
+  static async generateWaveform(filePath, samples = 1000) {
+    return new Promise((resolve, reject) => {
+      const waveformData = [];
+      
+      ffmpeg(filePath)
+        .audioFilters(`aresample=8000,volume=1.0`)
+        .format('f32le')
+        .output('-')
+        .on('error', (err) => reject(new Error(`Waveform generation failed: ${err.message}`)))
+        .on('end', () => {
+          // Simple waveform generation - for production should use more sophisticated method
+          const targetSamples = Math.min(samples, waveformData.length);
+          const downsampledData = [];
+          const step = Math.max(1, Math.floor(waveformData.length / targetSamples));
+          
+          for (let i = 0; i < waveformData.length; i += step) {
+            const chunk = waveformData.slice(i, i + step);
+            const avg = chunk.reduce((sum, val) => sum + Math.abs(val), 0) / chunk.length;
+            downsampledData.push(avg || 0);
+          }
+          
+          resolve({
+            samples: downsampledData.slice(0, samples),
+            sampleRate: 8000,
+            duration: downsampledData.length / 8000,
+            peaks: Math.max(...downsampledData)
+          });
+        })
+        .pipe()
+        .on('data', (chunk) => {
+          // Convert buffer to float32 values
+          for (let i = 0; i < chunk.length; i += 4) {
+            const value = chunk.readFloatLE(i);
+            if (!isNaN(value)) waveformData.push(value);
+          }
+        });
+    });
+  }
+
+  static generateOutputFilename(originalFilename, operation, format) {
+    const name = path.parse(originalFilename).name;
+    const timestamp = Date.now();
+    const random = Math.random().toString(36).substr(2, 6);
+    return `${name}_${operation}_${timestamp}_${random}.${format}`;
+  }
+
+  static async ensureDirectory(dirPath) {
+    try {
+      await fs.access(dirPath);
+    } catch {
+      await fs.mkdir(dirPath, { recursive: true });
+    }
+  }
+
   // ...Các hàm còn lại giữ nguyên, format lại code style, dùng helper chung
-  // (getMimeType, generateWaveform, ensureDirectory, formatTime, ...)
+  // (getMimeType, ensureDirectory, formatTime, ...)
 }

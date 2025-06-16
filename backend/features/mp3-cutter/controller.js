@@ -16,9 +16,49 @@ export class MP3Controller {
     try { success(res, await MP3Service.processUpload(req.file, req.audioInfo), 'Audio file uploaded successfully'); }
     catch (e) { fail(res, e); }
   }
+  
   static async cut(req, res) {
     try { success(res, await MP3Service.cutAudio(req.file, req.audioInfo, req.cutParams), 'Audio cut successfully'); }
     catch (e) { fail(res, e); }
   }
-  // ...Các method còn lại tương tự
+  
+  static async cutByFileId(req, res) {
+    try { success(res, await MP3Service.cutAudioByFileId(req.fileId, req.cutParams), 'Audio cut successfully'); }
+    catch (e) { fail(res, e); }
+  }
+  
+  static async changeSpeedByFileId(req, res) {
+    try { success(res, await MP3Service.changeSpeedByFileId(req.fileId, req.speedParams), 'Audio speed changed successfully'); }
+    catch (e) { fail(res, e); }
+  }
+  
+  static async waveform(req, res) {
+    try { success(res, await MP3Service.generateWaveform(req.file, req.audioInfo, req.waveformParams), 'Waveform generated successfully'); }
+    catch (e) { fail(res, e); }
+  }
+  
+  static async download(req, res) {
+    try { await MP3Service.downloadFile(req.params.filename, res); }
+    catch (e) { fail(res, e); }
+  }
+  
+  static async healthCheck(req, res) {
+    try { success(res, await MP3Service.getHealthStatus(), 'Service is healthy'); }
+    catch (e) { fail(res, e); }
+  }
+  
+  static async getSupportedFormats(req, res) {
+    try { success(res, await MP3Service.getSupportedFormats(), 'Supported formats retrieved'); }
+    catch (e) { fail(res, e); }
+  }
+  
+  static async getStats(req, res) {
+    try { success(res, await MP3Service.getStats(), 'Statistics retrieved'); }
+    catch (e) { fail(res, e); }
+  }
+  
+  static async debugFiles(req, res) {
+    try { success(res, await MP3Service.debugFiles(), 'Debug information retrieved'); }
+    catch (e) { fail(res, e); }
+  }
 }
