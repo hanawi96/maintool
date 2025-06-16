@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Zap, RotateCcw, RotateCw, Repeat, Shuffle, TrendingUp, TrendingDown
+  Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Zap, RotateCcw, RotateCw, Repeat, Shuffle, TrendingUp, TrendingDown, Music
 } from 'lucide-react';
 import CompactTimeSelector from './CompactTimeSelector';
 import { getAutoReturnSetting, setAutoReturnSetting } from '../../utils/safeStorage';
@@ -8,11 +8,12 @@ import '../../styles/UnifiedControlBar.css';
 import FadeSliderPopup from './FadeSliderPopup';
 import VolumeSliderPopup from './VolumeSliderPopup';
 import SpeedSliderPopup from './SpeedSliderPopup';
+import PitchSliderPopup from './PitchSliderPopup';
 
-const popupList = ['fadeIn', 'fadeOut', 'volume', 'speed'];
+const popupList = ['fadeIn', 'fadeOut', 'volume', 'speed', 'pitch'];
 
 const UnifiedControlBar = React.memo(({
-  isPlaying, volume, playbackRate, onTogglePlayPause, onJumpToStart, onJumpToEnd, onVolumeChange, onSpeedChange,
+  isPlaying, volume, playbackRate, pitch = 0, onTogglePlayPause, onJumpToStart, onJumpToEnd, onVolumeChange, onSpeedChange, onPitchChange,
   startTime, endTime, duration, onStartTimeChange, onEndTimeChange,
   onInvertSelection, isInverted = false,
   fadeIn = 0, fadeOut = 0, onFadeInToggle, onFadeOutToggle, onFadeInChange, onFadeOutChange,
@@ -29,6 +30,7 @@ const UnifiedControlBar = React.memo(({
     fadeOut: useRef(null),
     volume: useRef(null),
     speed: useRef(null),
+    pitch: useRef(null),
   };
   // Logic condition
   const canEditRegion = !disabled && duration > 0 && startTime < endTime;
@@ -117,6 +119,13 @@ const UnifiedControlBar = React.memo(({
       onClose: () => closePopup('speed'),
       isVisible: popupState === 'speed',
       buttonRef: refs.speed
+    },
+    pitch: {
+      value: pitch,
+      onChange: onPitchChange,
+      onClose: () => closePopup('pitch'),
+      isVisible: popupState === 'pitch',
+      buttonRef: refs.pitch
     },
   };
 
@@ -265,7 +274,24 @@ const UnifiedControlBar = React.memo(({
             {playbackRate !== 1 && <div className="absolute -top-1 -right-1 w-2 h-2 bg-purple-500 rounded-full"></div>}
           </button>
 
-          {/* 12. Time Selector */}
+          {/* 12. Pitch */}
+          <button
+            ref={refs.pitch}
+            onClick={() => togglePopup('pitch')}
+            disabled={disabled}
+            className={`relative p-2 rounded-lg group ${
+              popupState === 'pitch'
+                ? 'bg-slate-200 border border-slate-400'
+                : pitch !== 0
+                ? 'bg-teal-100 hover:bg-teal-200 border border-teal-300'
+                : 'bg-slate-100 hover:bg-slate-200'
+            }`}
+            title={`Pitch: ${pitch > 0 ? '+' : ''}${pitch.toFixed(1)}st - Click to adjust`}>
+            <Music className="w-4 h-4 text-teal-600 group-hover:text-teal-700" />
+            {pitch !== 0 && <div className="absolute -top-1 -right-1 w-2 h-2 bg-teal-500 rounded-full"></div>}
+          </button>
+
+          {/* 13. Time Selector */}
           <div className="ml-auto">
             <CompactTimeSelector
               startTime={startTime}
@@ -283,6 +309,7 @@ const UnifiedControlBar = React.memo(({
       <FadeSliderPopup {...popupProps.fadeOut} />
       <VolumeSliderPopup {...popupProps.volume} />
       <SpeedSliderPopup {...popupProps.speed} />
+      <PitchSliderPopup {...popupProps.pitch} />
     </>
   );
 });
