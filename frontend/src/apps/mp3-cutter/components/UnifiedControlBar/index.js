@@ -175,9 +175,13 @@ const UnifiedControlBar = React.memo(({
           {/* 5. Undo */}
           <button
             onClick={onUndo} disabled={!canUndo || disabled}
-            className="p-2 bg-slate-100 hover:bg-slate-200 border-slate-300 disabled:opacity-40 rounded-lg transition-colors relative group"
+            className={`relative p-2 rounded-lg transition-colors group ${
+              canUndo
+                ? 'bg-indigo-100 hover:bg-indigo-200 border border-indigo-300'
+                : 'bg-slate-100 hover:bg-slate-200 disabled:opacity-40'
+            }`}
             title="Undo">
-            <RotateCcw className="w-4 h-4 text-slate-700" />
+            <RotateCcw className={`w-4 h-4 ${canUndo ? 'text-indigo-700' : 'text-slate-700'}`} />
             {historyIndex > 0 &&
               <span className="absolute -top-1 -right-1 bg-indigo-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center text-[10px]">{historyIndex}</span>}
           </button>
@@ -185,9 +189,13 @@ const UnifiedControlBar = React.memo(({
           {/* 6. Redo */}
           <button
             onClick={onRedo} disabled={!canRedo || disabled}
-            className="p-2 bg-slate-100 hover:bg-slate-200 border-slate-300 disabled:opacity-40 rounded-lg transition-colors relative group"
+            className={`relative p-2 rounded-lg transition-colors group ${
+              canRedo
+                ? 'bg-purple-100 hover:bg-purple-200 border border-purple-300'
+                : 'bg-slate-100 hover:bg-slate-200 disabled:opacity-40'
+            }`}
             title="Redo">
-            <RotateCw className="w-4 h-4 text-slate-700" />
+            <RotateCw className={`w-4 h-4 ${canRedo ? 'text-purple-700' : 'text-slate-700'}`} />
             {canRedo &&
               <span className="absolute -top-1 -right-1 bg-purple-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center text-[10px]">
                 {historyLength - 1 - historyIndex}
