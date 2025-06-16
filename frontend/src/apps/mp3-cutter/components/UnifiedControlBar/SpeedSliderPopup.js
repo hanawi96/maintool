@@ -108,11 +108,7 @@ const SpeedSliderPopup = ({
             <button
               key={label}
               onClick={() => onChange(presetValue)}
-              className={`px-3 py-1.5 text-xs ${
-                value === presetValue
-                  ? 'bg-purple-200 text-purple-800 border border-purple-400'
-                  : 'bg-purple-100 hover:bg-purple-200 text-purple-700'
-              } rounded-lg transition-colors flex-1`}
+              className="px-3 py-1.5 text-xs bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-lg transition-colors flex-1"
             >
               {label}
             </button>

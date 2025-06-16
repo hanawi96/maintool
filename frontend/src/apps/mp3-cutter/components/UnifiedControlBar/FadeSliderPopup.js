@@ -106,10 +106,10 @@ const FadeSliderPopup = ({
         </div>
         <div className="flex items-center gap-2">
           {[
-            { label: 'Off', value: 0, color: 'slate' },
             { label: '1s', value: 1.0, color: colorClass },
             { label: '3s', value: 3.0, color: colorClass },
-            { label: '5s', value: 5.0, color: colorClass }
+            { label: '5s', value: 5.0, color: colorClass },
+            { label: '7s', value: 7.0, color: colorClass }
           ].map(({ label, value: presetValue, color }) => (
             <button
               key={label}

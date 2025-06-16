@@ -113,11 +113,7 @@ const VolumeSliderPopup = ({
             <button
               key={label}
               onClick={() => onChange(presetValue)}
-              className={`px-2 py-1.5 text-xs ${
-                value === presetValue
-                  ? 'bg-blue-200 text-blue-800 border border-blue-400'
-                  : 'bg-blue-100 hover:bg-blue-200 text-blue-700'
-              } rounded-lg transition-colors ${label === '100%' ? 'col-span-2' : ''}`}
+              className={`px-2 py-1.5 text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg transition-colors ${label === '100%' ? 'col-span-2' : ''}`}
             >
               {label}
             </button>
