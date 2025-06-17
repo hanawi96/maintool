@@ -9,7 +9,7 @@ import FadeSliderPopup from './FadeSliderPopup';
 import VolumeSliderPopup from './VolumeSliderPopup';
 import SpeedSliderPopup from './SpeedSliderPopup';
 import PitchSliderPopup from './PitchSliderPopup';
-import EqualizerSliderPopup from './EqualizerSliderPopup';
+import EqualizerPopup from './EqualizerPopup';
 
 const popupList = ['fadeIn', 'fadeOut', 'volume', 'speed', 'pitch'];
 
@@ -335,7 +335,7 @@ const UnifiedControlBar = React.memo(({
       <VolumeSliderPopup {...popupProps.volume} />
       <SpeedSliderPopup {...popupProps.speed} />
       <PitchSliderPopup {...popupProps.pitch} />
-      <EqualizerSliderPopup {...popupProps.equalizer} />
+      <EqualizerPopup {...popupProps.equalizer} />
     </>
   );
 });

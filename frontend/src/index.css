@@ -1225,3 +1225,158 @@ html body div.bg-white\/70.backdrop-blur-sm {
   outline: none;
   box-shadow: none;
 }
+
+/* 🎚️ Vertical Equalizer Slider Styles - For EqualizerPopup component */
+.vertical-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  outline: none;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  border-radius: 8px;
+}
+
+.vertical-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 20px;
+  width: 14px;
+  border-radius: 6px;
+  background: #ffffff;
+  border: 2px solid #06b6d4;
+  box-shadow: 0 2px 6px rgba(6, 182, 212, 0.3);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  will-change: transform, box-shadow;
+}
+
+.vertical-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+  box-shadow: 0 3px 8px rgba(6, 182, 212, 0.4);
+}
+
+.vertical-slider::-webkit-slider-thumb:active {
+  transform: scale(1.15);
+  transition: all 0.1s ease;
+}
+
+.vertical-slider::-moz-range-thumb {
+  -moz-appearance: none;
+  appearance: none;
+  height: 20px;
+  width: 14px;
+  border-radius: 6px;
+  background: #ffffff;
+  border: 2px solid #06b6d4;
+  box-shadow: 0 2px 6px rgba(6, 182, 212, 0.3);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  will-change: transform;
+}
+
+.vertical-slider::-moz-range-thumb:hover {
+  transform: scale(1.1);
+}
+
+.vertical-slider::-moz-range-track {
+  width: 6px;
+  border-radius: 3px;
+  border: none;
+  outline: none;
+  background: transparent;
+}
+
+.vertical-slider::-webkit-slider-track {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  border: none;
+  outline: none;
+  border-radius: 3px;
+  height: 6px;
+}
+
+/* Focus states - no border effects */
+.vertical-slider:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+.vertical-slider:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+/* 📱 **MOBILE RESPONSIVE STYLES** - Enhanced mobile experience for popups */
+
+/* Mobile slider thumb adjustments */
+@media (max-width: 768px) {
+  .speed-popup-slider::-webkit-slider-thumb,
+  .volume-popup-slider::-webkit-slider-thumb,
+  .pitch-popup-slider::-webkit-slider-thumb,
+  .fade-popup-slider-in::-webkit-slider-thumb,
+  .fade-popup-slider-out::-webkit-slider-thumb {
+    height: 16px;
+    width: 16px;
+    border-width: 1.5px;
+  }
+
+  .speed-popup-slider::-moz-range-thumb,
+  .volume-popup-slider::-moz-range-thumb,
+  .pitch-popup-slider::-moz-range-thumb,
+  .fade-popup-slider-in::-moz-range-thumb,
+  .fade-popup-slider-out::-moz-range-thumb {
+    height: 16px;
+    width: 16px;
+    border-width: 1.5px;
+  }
+
+  /* Mobile vertical slider adjustments */
+  .vertical-slider::-webkit-slider-thumb {
+    height: 16px;
+    width: 12px;
+    border-width: 1.5px;
+  }
+
+  .vertical-slider::-moz-range-thumb {
+    height: 16px;
+    width: 12px;
+    border-width: 1.5px;
+  }
+
+  /* Mobile touch targets - increase tap area */
+  .vertical-slider {
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+
+  /* Mobile popup spacing adjustments */
+  .fixed[style*="zIndex: 9999999"] {
+    margin: 0 !important;
+  }
+}
+
+/* Touch device optimizations */
+@media (hover: none) and (pointer: coarse) {
+  /* Increase touch targets for mobile */
+  .speed-popup-slider::-webkit-slider-thumb,
+  .volume-popup-slider::-webkit-slider-thumb,
+  .pitch-popup-slider::-webkit-slider-thumb,
+  .fade-popup-slider-in::-webkit-slider-thumb,
+  .fade-popup-slider-out::-webkit-slider-thumb,
+  .vertical-slider::-webkit-slider-thumb {
+    transform: scale(1.2);
+  }
+
+  /* Remove hover effects on touch devices */
+  .speed-popup-slider::-webkit-slider-thumb:hover,
+  .volume-popup-slider::-webkit-slider-thumb:hover,
+  .pitch-popup-slider::-webkit-slider-thumb:hover,
+  .fade-popup-slider-in::-webkit-slider-thumb:hover,
+  .fade-popup-slider-out::-webkit-slider-thumb:hover,
+  .vertical-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.2) !important;
+    box-shadow: inherit !important;
+  }
+}

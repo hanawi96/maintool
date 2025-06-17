@@ -13,9 +13,10 @@ const FadeSliderPopup = ({
   buttonRef = null
 }) => {
   const popupRef = useRef(null);
-  const { position, isPositioned } = usePopupPosition(isVisible, buttonRef, popupRef, 300, 140);
+  const { position, responsive, ready } = usePopupPosition(isVisible, buttonRef, popupRef, 5);
+  const { screenSize, maxWidth } = responsive;
+  const isMobile = screenSize === 'mobile';
 
-  // Click outside to close
   useEffect(() => {
     if (!isVisible) return;
     const handleClickOutside = (event) => {
@@ -36,7 +37,6 @@ const FadeSliderPopup = ({
   const handleReset = useCallback(() => onChange(0), [onChange]);
 
   if (!isVisible) return null;
-
   const isIn = type === 'in';
   const Icon = isIn ? TrendingUp : TrendingDown;
   const colorClass = isIn ? 'emerald' : 'orange';
@@ -46,23 +46,20 @@ const FadeSliderPopup = ({
   return createPortal(
     <div
       ref={popupRef}
-      className="fixed bg-white/98 backdrop-blur-md border border-slate-300/60 rounded-2xl shadow-2xl p-4 pointer-events-auto"
+      className={`fixed bg-white/98 backdrop-blur-md border border-slate-300/60 rounded-2xl shadow-2xl pointer-events-auto ${isMobile ? 'p-3' : 'p-4'}`}
       style={{
-        top: `${position.top}px`,
-        left: `${position.left}px`,
-        width: `${position.width}px`,
+        top: ready ? `${position.top}px` : undefined,
+        left: ready ? `${position.left}px` : undefined,
+        width: '100%',
+        maxWidth: `${maxWidth}px`,
         zIndex: 9999999,
-        boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25),0 0 0 1px rgba(0,0,0,0.05)',
-        transform: 'translateZ(0)',
-        willChange: 'transform, opacity',
-        opacity: isPositioned ? 1 : 0,
-        visibility: isPositioned ? 'visible' : 'hidden'
+        display: ready ? undefined : 'none'
       }}
     >
-      <div className="flex items-center justify-between mb-3">
+      <div className={`flex items-center justify-between ${isMobile ? 'mb-2' : 'mb-3'}`}>
         <div className="flex items-center gap-2">
           <Icon className={`w-4 h-4 text-${colorClass}-600`} />
-          <span className="text-sm font-medium text-slate-800">
+          <span className={`font-medium text-slate-800 ${isMobile ? 'text-xs' : 'text-sm'}`}>
             Fade {isIn ? 'In' : 'Out'}
           </span>
         </div>
@@ -76,10 +73,10 @@ const FadeSliderPopup = ({
       </div>
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <span className="text-lg font-mono font-semibold text-slate-700">
+          <span className={`font-mono font-semibold text-slate-700 ${isMobile ? 'text-base' : 'text-lg'}`}>
             {value.toFixed(1)}s
           </span>
-          <span className="text-xs text-slate-500">
+          <span className={`text-slate-500 ${isMobile ? 'text-[10px]' : 'text-xs'}`}>
             0-{FADE_CONFIG.MAX_DURATION}s
           </span>
         </div>
@@ -104,22 +101,34 @@ const FadeSliderPopup = ({
             <RotateCcw className="w-3 h-3" />
           </button>
         </div>
-        <div className="flex items-center gap-2">
+        <div className={`flex items-center gap-2 ${isMobile ? 'flex-wrap' : ''}`}>
           {[
             { label: '1s', value: 1.0, color: colorClass },
             { label: '3s', value: 3.0, color: colorClass },
             { label: '5s', value: 5.0, color: colorClass },
-            { label: '7s', value: 7.0, color: colorClass }
+            ...(isMobile ? [] : [{ label: '7s', value: 7.0, color: colorClass }])
           ].map(({ label, value: presetValue, color }) => (
             <button
               key={label}
               onClick={() => onChange(presetValue)}
-              className={`px-3 py-1.5 text-xs bg-${color}-100 hover:bg-${color}-200 text-${color}-700 rounded-lg transition-colors flex-1`}
+              className={`bg-${color}-100 hover:bg-${color}-200 text-${color}-700 rounded-lg transition-colors ${
+                isMobile ? 'px-2 py-1.5 text-[10px] flex-1' : 'px-3 py-1.5 text-xs flex-1'
+              }`}
             >
               {label}
             </button>
           ))}
         </div>
+        {isMobile && (
+          <div className="flex">
+            <button
+              onClick={() => onChange(7.0)}
+              className={`px-2 py-1.5 text-[10px] bg-${colorClass}-100 hover:bg-${colorClass}-200 text-${colorClass}-700 rounded-lg transition-colors flex-1`}
+            >
+              7s
+            </button>
+          </div>
+        )}
       </div>
     </div>,
     document.body
