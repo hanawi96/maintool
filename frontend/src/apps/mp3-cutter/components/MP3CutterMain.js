@@ -204,27 +204,24 @@ const MP3CutterMain = React.memo(() => {
   
   // 🎚️ Add local state to track current equalizer values for immediate visual feedback
   const [currentEqualizerValues, setCurrentEqualizerValues] = useState(Array(10).fill(0));
-
   const animationRef = useRef({ isPlaying: false, startTime: 0, endTime: 0 });
   const interactionManagerRef = useRef(null);
   const enhancedHandlersRef = useRef({});
-
+  const historySavedRef = useRef(false);
   const audioContext = useMemo(() => ({
     audioRef, setCurrentTime, jumpToTime, isPlaying, fadeIn, fadeOut, startTime, endTime, isInverted, updateFadeConfig
   }), [audioRef, setCurrentTime, jumpToTime, isPlaying, fadeIn, fadeOut, startTime, endTime, isInverted, updateFadeConfig]);
 
+  const { handleStartTimeChange: originalHandleStartTimeChange, handleEndTimeChange: originalHandleEndTimeChange, saveHistoryNow, cleanup: cleanupTimeHandlers } = useTimeChangeHandlers({
+    startTime, endTime, duration, fadeIn, fadeOut, setStartTime, setEndTime, saveState, historySavedRef, isDragging
+  });
   const {
-    handleCanvasMouseDown, handleCanvasMouseMove, handleCanvasMouseUp, handleCanvasMouseLeave, historySavedRef
-  } = useInteractionHandlers({
+    handleCanvasMouseDown, handleCanvasMouseMove, handleCanvasMouseUp, handleCanvasMouseLeave  } = useInteractionHandlers({
     canvasRef, duration, startTime, endTime, audioRef, isPlaying, fadeIn, fadeOut,
     isDragging, setStartTime, setEndTime, setIsDragging, setHoveredHandle, setCurrentTime,
     handleStartTimeChange: t => (enhancedHandlersRef.current.handleStartTimeChange ? enhancedHandlersRef.current.handleStartTimeChange(t) : setStartTime(t)),
     handleEndTimeChange: t => (enhancedHandlersRef.current.handleEndTimeChange ? enhancedHandlersRef.current.handleEndTimeChange(t) : setEndTime(t)),
-    jumpToTime, saveState, interactionManagerRef, audioContext
-  });
-
-  const { handleStartTimeChange: originalHandleStartTimeChange, handleEndTimeChange: originalHandleEndTimeChange, cleanup: cleanupTimeHandlers } = useTimeChangeHandlers({
-    startTime, endTime, duration, fadeIn, fadeOut, setStartTime, setEndTime, saveState, historySavedRef
+    jumpToTime, saveState, saveHistoryNow, historySavedRef, interactionManagerRef, audioContext
   });
 
   const handleStartTimeChange = useCallback((newStartTime) => {

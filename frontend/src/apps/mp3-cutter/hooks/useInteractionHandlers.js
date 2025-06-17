@@ -20,11 +20,12 @@ export const useInteractionHandlers = ({
   handleEndTimeChange,
   jumpToTime,
   saveState,
+  saveHistoryNow,
+  historySavedRef,
   interactionManagerRef,
   audioContext
 }) => {
   const cachedRectRef = useRef(null);
-  const historySavedRef = useRef(false);
   const rafIdRef = useRef(null);
   const latestEventRef = useRef(null);
 
@@ -64,39 +65,43 @@ export const useInteractionHandlers = ({
       setStartTime(result.startTime);
       setEndTime(result.endTime);
     }
-  }, [canvasRef, duration, startTime, endTime, setStartTime, setEndTime, setIsDragging, interactionManagerRef, audioContext, saveState, fadeIn, fadeOut, handleStartTimeChange, handleEndTimeChange]);
-
-  const processMouseMove = useCallback(() => {
+  }, [canvasRef, duration, startTime, endTime, setStartTime, setEndTime, setIsDragging, interactionManagerRef, audioContext, saveState, fadeIn, fadeOut, handleStartTimeChange, handleEndTimeChange, historySavedRef]);  const processMouseMove = useCallback(() => {
     const e = latestEventRef.current;
     if (!e || !canvasRef.current || duration <= 0) return;
     const rect = cachedRectRef.current || canvasRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const manager = interactionManagerRef.current;
     const result = manager.handleMouseMove(x, canvasRef.current.width, duration, startTime, endTime, audioContext);
-    if (result.action === 'updateRegion' && result.isRegionDrag) {
+    
+    // 🎯 During dragging, use setStartTime/setEndTime directly to avoid saving history
+    // History will be saved only on mouse up
+    if (result.action === 'updateRegion') {
       if (result.startTime !== undefined) setStartTime(result.startTime);
       if (result.endTime !== undefined) setEndTime(result.endTime);
-    } else {
-      if (result.startTime !== undefined) handleStartTimeChange(result.startTime);
-      if (result.endTime !== undefined) handleEndTimeChange(result.endTime);
     }
     if (result.action === 'hover' || result.cursor === 'ew-resize') setHoveredHandle(result.handle || null);
     rafIdRef.current = null;
-  }, [canvasRef, duration, startTime, endTime, setHoveredHandle, interactionManagerRef, audioContext, handleStartTimeChange, handleEndTimeChange, setStartTime, setEndTime]);
+  }, [canvasRef, duration, startTime, endTime, setHoveredHandle, interactionManagerRef, audioContext, setStartTime, setEndTime]);
 
   const handleCanvasMouseMove = useCallback((e) => {
     latestEventRef.current = e;
     if (!rafIdRef.current) rafIdRef.current = window.requestAnimationFrame(processMouseMove);
   }, [processMouseMove]);
-
   const handleCanvasMouseUp = useCallback(() => {
     const manager = interactionManagerRef.current;
     const result = manager.handleMouseUp(startTime, endTime, audioContext, duration);
+    const wasDragging = isDragging !== null; // Track if we were in a drag state
     setIsDragging(null);
-    if (result.saveHistory && !historySavedRef.current) {
+    
+    // If we were dragging, save history now that the drag is complete
+    if (wasDragging) {
+      saveHistoryNow();
+    } else if (result.saveHistory && !historySavedRef.current) {
+      // For non-drag actions that need history saving
       historySavedRef.current = true;
       saveState({ startTime, endTime, fadeIn, fadeOut, isInverted: audioContext?.isInverted || false });
     }
+    
     if (result.executePendingJump && result.pendingJumpTime !== null) {
       jumpToTime(result.pendingJumpTime);
       if (audioRef.current) {
@@ -117,18 +122,16 @@ export const useInteractionHandlers = ({
         else if (updateData.type === 'end') handleEndTimeChange(updateData.newTime);
       }
     }
-  }, [startTime, endTime, fadeIn, fadeOut, duration, saveState, setIsDragging, audioRef, setCurrentTime, jumpToTime, setStartTime, setEndTime, interactionManagerRef, audioContext, handleStartTimeChange, handleEndTimeChange]);
+  }, [startTime, endTime, fadeIn, fadeOut, duration, saveState, saveHistoryNow, isDragging, setIsDragging, audioRef, setCurrentTime, jumpToTime, setStartTime, setEndTime, interactionManagerRef, audioContext, handleStartTimeChange, handleEndTimeChange, historySavedRef]);
 
   const handleCanvasMouseLeave = useCallback(() => {
     const manager = interactionManagerRef.current;
     if (manager.handleMouseLeave().action === 'clearHover') setHoveredHandle(null);
   }, [setHoveredHandle, interactionManagerRef]);
-
   return {
     handleCanvasMouseDown,
     handleCanvasMouseMove,
     handleCanvasMouseUp,
-    handleCanvasMouseLeave,
-    historySavedRef
+    handleCanvasMouseLeave
   };
 };
