@@ -244,9 +244,7 @@ const UnifiedControlBar = React.memo(({
             title={`Fade Out: ${fadeOut > 0 ? `${fadeOut.toFixed(1)}s` : 'Click to adjust'}`}>
             <TrendingDown className={`w-4 h-4 ${fadeOut > 0 ? 'text-orange-700' : 'text-slate-700'} group-hover:text-orange-800`} />
             {fadeOut > 0 && <div className="absolute -top-1 -right-1 w-2 h-2 bg-orange-500 rounded-full"></div>}
-          </button>
-
-          {/* 10. Volume */}
+          </button>          {/* 10. Volume */}
           <button
             ref={refs.volume}
             onClick={() => togglePopup('volume')}
@@ -256,15 +254,17 @@ const UnifiedControlBar = React.memo(({
                 ? 'bg-slate-200 border border-slate-400'
                 : volume === 0
                 ? 'bg-red-100 hover:bg-red-200 border border-red-300'
-                : volume > 1
-                ? 'bg-orange-100 hover:bg-orange-200 border border-orange-300'
-                : 'bg-blue-100 hover:bg-blue-200 border border-blue-300'
+                : volume !== 1
+                ? volume > 1
+                  ? 'bg-orange-100 hover:bg-orange-200 border border-orange-300'
+                  : 'bg-blue-100 hover:bg-blue-200 border border-blue-300'
+                : 'bg-slate-100 hover:bg-slate-200'
             }`}
             title={`Volume: ${Math.round(volume * 100)}% - Click to adjust${volume > 1 ? ' (BOOST)' : ''}`}>
             {volume === 0
               ? <VolumeX className="w-4 h-4 text-red-600 group-hover:text-red-700" />
-              : <Volume2 className={`w-4 h-4 ${volume > 1 ? 'text-orange-600 group-hover:text-orange-700' : 'text-blue-600 group-hover:text-blue-700'}`} />}
-            {volume !== 0 && <div className={`absolute -top-1 -right-1 w-2 h-2 rounded-full ${volume > 1 ? 'bg-orange-500' : 'bg-blue-500'}`} style={{ opacity: Math.min(1, volume) }}></div>}
+              : <Volume2 className={`w-4 h-4 ${volume > 1 ? 'text-orange-600 group-hover:text-orange-700' : volume !== 1 ? 'text-blue-600 group-hover:text-blue-700' : 'text-slate-600 group-hover:text-slate-700'}`} />}
+            {volume !== 0 && volume !== 1 && <div className={`absolute -top-1 -right-1 w-2 h-2 rounded-full ${volume > 1 ? 'bg-orange-500' : 'bg-blue-500'}`}></div>}
           </button>
 
           {/* 11. Speed */}

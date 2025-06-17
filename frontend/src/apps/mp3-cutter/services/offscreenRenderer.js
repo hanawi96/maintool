@@ -3,6 +3,43 @@
 
 import { WAVEFORM_CONFIG } from '../utils/constants';
 
+// Helper: get waveform color based on volume level with smooth transitions
+const getWaveformColor = (volume) => {
+  const volumePercent = volume * 100;
+  
+  if (volumePercent <= 100) {
+    return '#7c3aed'; // Purple for 0-100%
+  } else if (volumePercent <= 150) {
+    // Smooth transition from purple to orange (101-150%)
+    const ratio = (volumePercent - 100) / 50;
+    return interpolateColor('#7c3aed', '#f97316', ratio);
+  } else {
+    // Smooth transition from orange to red (151-200%)
+    const ratio = Math.min((volumePercent - 150) / 50, 1);
+    return interpolateColor('#f97316', '#ef4444', ratio);
+  }
+};
+
+// Helper: interpolate between two hex colors
+const interpolateColor = (color1, color2, ratio) => {
+  const hex1 = color1.replace('#', '');
+  const hex2 = color2.replace('#', '');
+  
+  const r1 = parseInt(hex1.substr(0, 2), 16);
+  const g1 = parseInt(hex1.substr(2, 2), 16);
+  const b1 = parseInt(hex1.substr(4, 2), 16);
+  
+  const r2 = parseInt(hex2.substr(0, 2), 16);
+  const g2 = parseInt(hex2.substr(2, 2), 16);
+  const b2 = parseInt(hex2.substr(4, 2), 16);
+  
+  const r = Math.round(r1 + (r2 - r1) * ratio);
+  const g = Math.round(g1 + (g2 - g1) * ratio);
+  const b = Math.round(b1 + (b2 - b1) * ratio);
+  
+  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+};
+
 export class OffscreenWaveformRenderer {
   constructor() {
     this.offscreenCanvas = null;
@@ -61,11 +98,10 @@ export class OffscreenWaveformRenderer {
       endTime: options.endTime ?? 100,
       duration: options.duration ?? 100,
       fadeIn: options.fadeIn ?? 0,
-      fadeOut: options.fadeOut ?? 0,
-      isInverted: options.isInverted ?? false,
+      fadeOut: options.fadeOut ?? 0,      isInverted: options.isInverted ?? false,
       style: {
         backgroundColor: options.backgroundColor ?? 'transparent',
-        waveformColor: options.waveformColor ?? '#7c3aed',
+        waveformColor: options.waveformColor ?? getWaveformColor(options.volume ?? 1),
         selectionColor: options.selectionColor ?? 'rgba(139, 92, 246, 0.15)'
       }
     };
@@ -105,10 +141,9 @@ export class OffscreenWaveformRenderer {
       duration: options.duration ?? 100,
       fadeIn: options.fadeIn ?? 0,
       fadeOut: options.fadeOut ?? 0,
-      isInverted: options.isInverted ?? false,
-      style: {
+      isInverted: options.isInverted ?? false,      style: {
         backgroundColor: options.backgroundColor ?? 'transparent',
-        waveformColor: options.waveformColor ?? '#7c3aed',
+        waveformColor: options.waveformColor ?? getWaveformColor(options.volume ?? 1),
         selectionColor: options.selectionColor ?? 'rgba(139, 92, 246, 0.15)'
       }
     }, ctx);

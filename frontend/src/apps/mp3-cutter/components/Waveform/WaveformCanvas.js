@@ -22,6 +22,43 @@ const getWaveformArea = (width) => {
   };
 };
 
+// Helper: get waveform color based on volume level with smooth transitions
+const getWaveformColor = (volume) => {
+  const volumePercent = volume * 100;
+  
+  if (volumePercent <= 100) {
+    return '#7c3aed'; // Purple for 0-100%
+  } else if (volumePercent <= 150) {
+    // Smooth transition from purple to orange (101-150%)
+    const ratio = (volumePercent - 100) / 50;
+    return interpolateColor('#7c3aed', '#f97316', ratio);
+  } else {
+    // Smooth transition from orange to red (151-200%)
+    const ratio = Math.min((volumePercent - 150) / 50, 1);
+    return interpolateColor('#f97316', '#ef4444', ratio);
+  }
+};
+
+// Helper: interpolate between two hex colors
+const interpolateColor = (color1, color2, ratio) => {
+  const hex1 = color1.replace('#', '');
+  const hex2 = color2.replace('#', '');
+  
+  const r1 = parseInt(hex1.substr(0, 2), 16);
+  const g1 = parseInt(hex1.substr(2, 2), 16);
+  const b1 = parseInt(hex1.substr(4, 2), 16);
+  
+  const r2 = parseInt(hex2.substr(0, 2), 16);
+  const g2 = parseInt(hex2.substr(2, 2), 16);
+  const b2 = parseInt(hex2.substr(4, 2), 16);
+  
+  const r = Math.round(r1 + (r2 - r1) * ratio);
+  const g = Math.round(g1 + (g2 - g1) * ratio);
+  const b = Math.round(b1 + (b2 - b1) * ratio);
+  
+  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+};
+
 const WaveformCanvas = React.memo(({
   canvasRef,
   waveformData = [],
@@ -43,12 +80,11 @@ const WaveformCanvas = React.memo(({
   onMouseMove,
   onMouseUp,
   onMouseLeave
-}) => {
-  // Cache ref for static gray/purple canvas
+}) => {  // Cache ref for static gray/dynamic canvas
   const backgroundCacheRef = useRef(null);
-  const purpleWaveformCacheRef = useRef(null);
+  const dynamicWaveformCacheRef = useRef(null);
   const lastCacheKey = useRef(null);
-  const lastPurpleCacheKey = useRef(null);
+  const lastDynamicCacheKey = useRef(null);
 
   // Tooltip, cursor, waveform render hooks
   const {
@@ -182,16 +218,15 @@ const WaveformCanvas = React.memo(({
       canvas.height = WAVEFORM_CONFIG.HEIGHT;
     }
   }, [canvasRef, renderData]);
-
   // ----- CACHE KEYS -----
   const generateCacheKey = useCallback((data, width) =>
     data?.waveformData ? `${data.waveformData.length}-${data.containerWidth || width}-${data.mode || 'default'}` : null,
     []
-  );
-  const generatePurpleCacheKey = useCallback((data, width) => {
+  );  const generateDynamicCacheKey = useCallback((data, width) => {
     if (!data?.waveformData) return null;
     const v = data.volume ?? 1;
-    return `purple-${data.waveformData.length}-${data.containerWidth || width}-${data.mode || 'default'}-${Math.round(v * 100)}-${Math.round((data.fadeIn || 0) * 10)}-${Math.round((data.fadeOut || 0) * 10)}-${Math.round((data.startTime || 0) * 10)}-${Math.round((data.endTime || 0) * 10)}-${data.isInverted || false}`;
+    const colorKey = Math.round(v * 5000); // Higher precision for 2% steps (0.02 * 5000 = 100)
+    return `dynamic-${data.waveformData.length}-${data.containerWidth || width}-${data.mode || 'default'}-${colorKey}-${Math.round((data.fadeIn || 0) * 10)}-${Math.round((data.fadeOut || 0) * 10)}-${Math.round((data.startTime || 0) * 10)}-${Math.round((data.endTime || 0) * 10)}-${data.isInverted || false}`;
   }, []);
 
   // ----- BACKGROUND CANVAS CACHE -----
@@ -217,10 +252,8 @@ const WaveformCanvas = React.memo(({
       ctx.fillRect(Math.floor(x), centerY - h, barW, h * 2);
     }
     return createImageBitmap(bgCanvas);
-  }, []);
-
-  // ----- PURPLE WAVEFORM CACHE -----
-  const createPurpleWaveformCache = useCallback(async (
+  }, []);  // ----- DYNAMIC WAVEFORM CACHE (color changes with volume) -----
+  const createDynamicWaveformCache = useCallback(async (
     waveformData, width, height, containerWidth, volume, fadeIn, fadeOut, startTime, endTime, duration
   ) => {
     const { startX, areaWidth } = getWaveformArea(width);
@@ -228,7 +261,7 @@ const WaveformCanvas = React.memo(({
     canvas.width = width; canvas.height = height;
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     ctx.imageSmoothingEnabled = false;
-    ctx.fillStyle = '#7c3aed';
+    ctx.fillStyle = getWaveformColor(volume);
     const centerY = height / 2, FLAT_BAR = 1, MAX_PX = 65;
     const vol = Math.max(0, Math.min(1, volume));
     const barW = areaWidth / waveformData.length;
@@ -286,9 +319,8 @@ const WaveformCanvas = React.memo(({
       ctx.globalAlpha = Math.max(0.30, currentVolume);
       ctx.drawImage(backgroundCacheRef.current, 0, 0);
       ctx.globalAlpha = 1;
-    }
-    // 2. Active (purple) region
-    if (startTime < endTime && duration > 0 && purpleWaveformCacheRef.current) {
+    }    // 2. Active (dynamic color) region
+    if (startTime < endTime && duration > 0 && dynamicWaveformCacheRef.current) {
       ctx.save();
       if (isInverted) {
         // Before selection
@@ -296,7 +328,7 @@ const WaveformCanvas = React.memo(({
           ctx.beginPath();
           ctx.rect(startX, 0, (startTime / duration) * areaWidth, height);
           ctx.clip();
-          ctx.drawImage(purpleWaveformCacheRef.current, 0, 0);
+          ctx.drawImage(dynamicWaveformCacheRef.current, 0, 0);
           ctx.restore(); ctx.save();
         }
         // After selection
@@ -304,14 +336,14 @@ const WaveformCanvas = React.memo(({
           ctx.beginPath();
           ctx.rect(startX + (endTime / duration) * areaWidth, 0, ((1 - endTime / duration) * areaWidth), height);
           ctx.clip();
-          ctx.drawImage(purpleWaveformCacheRef.current, 0, 0);
+          ctx.drawImage(dynamicWaveformCacheRef.current, 0, 0);
         }
       } else {
         ctx.beginPath();
         ctx.rect(startX + (startTime / duration) * areaWidth, 0, ((endTime - startTime) / duration) * areaWidth, height);
         ctx.clip();
-        ctx.drawImage(purpleWaveformCacheRef.current, 0, 0);
-      }      ctx.restore();
+        ctx.drawImage(dynamicWaveformCacheRef.current, 0, 0);
+      }ctx.restore();
       // 3. Selection overlay
       ctx.fillStyle = 'rgba(139,92,246,0.15)';
       ctx.fillRect(startX + (startTime / duration) * areaWidth, 0, ((endTime - startTime) / duration) * areaWidth, height);
@@ -323,9 +355,8 @@ const WaveformCanvas = React.memo(({
   useEffect(() => {
     let mounted = true;
     if (!renderData?.waveformData || !canvasRef.current) return;
-    const canvas = canvasRef.current;
-    const cacheKey = generateCacheKey(renderData, containerWidth);
-    const purpleKey = generatePurpleCacheKey(renderData, containerWidth);
+    const canvas = canvasRef.current;    const cacheKey = generateCacheKey(renderData, containerWidth);
+    const dynamicKey = generateDynamicCacheKey(renderData, containerWidth);
 
     const updateCaches = async () => {
       let needsRedraw = false;
@@ -337,9 +368,9 @@ const WaveformCanvas = React.memo(({
         lastCacheKey.current = cacheKey;
         needsRedraw = true;
       }
-      if (purpleKey && purpleKey !== lastPurpleCacheKey.current) {
-        purpleWaveformCacheRef.current?.close?.();
-        purpleWaveformCacheRef.current = await createPurpleWaveformCache(
+      if (dynamicKey && dynamicKey !== lastDynamicCacheKey.current) {
+        dynamicWaveformCacheRef.current?.close?.();
+        dynamicWaveformCacheRef.current = await createDynamicWaveformCache(
           renderData.waveformData, canvas.width, canvas.height, containerWidth,
           renderData.volume ?? 1,
           renderData.fadeIn,
@@ -348,14 +379,14 @@ const WaveformCanvas = React.memo(({
           renderData.endTime,
           renderData.duration
         );
-        lastPurpleCacheKey.current = purpleKey;
+        lastDynamicCacheKey.current = dynamicKey;
         needsRedraw = true;
       }
       if (needsRedraw && mounted) requestRedraw(drawWaveform);
     };
     updateCaches();
     return () => { mounted = false };
-  }, [renderData, containerWidth, canvasRef, createBackgroundCache, createPurpleWaveformCache, requestRedraw, drawWaveform, generateCacheKey, generatePurpleCacheKey]);
+  }, [renderData, containerWidth, canvasRef, createBackgroundCache, createDynamicWaveformCache, requestRedraw, drawWaveform, generateCacheKey, generateDynamicCacheKey]);
 
   // ----- REDRAW CONTROL (minimize effect triggers) -----
   useEffect(() => {
@@ -422,13 +453,12 @@ const WaveformCanvas = React.memo(({
       }
     };
   }, [canvasRef, duration, currentTime, hoverTooltip, isDragging, containerWidth, renderData]);
-
   // ----- CLEANUP IMAGEBITMAP -----
   useEffect(() => () => {
     backgroundCacheRef.current?.close?.();
     backgroundCacheRef.current = null;
-    purpleWaveformCacheRef.current?.close?.();
-    purpleWaveformCacheRef.current = null;
+    dynamicWaveformCacheRef.current?.close?.();
+    dynamicWaveformCacheRef.current = null;
   }, []);
 
   // ----- RENDER -----

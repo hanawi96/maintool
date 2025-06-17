@@ -81,13 +81,12 @@ const VolumeSliderPopup = ({
           <span className="text-xs text-slate-500">
             0-200%
           </span>
-        </div>
-        <div className="flex items-center gap-2">
+        </div>        <div className="flex items-center gap-2">
           <input
             type="range"
             min="0"
             max="2"
-            step="0.05"
+            step="0.02"
             value={value}
             onChange={handleSliderChange}
             className="flex-1 h-2 bg-slate-200 rounded-full appearance-none cursor-pointer volume-popup-slider"

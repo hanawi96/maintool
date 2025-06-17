@@ -46,6 +46,41 @@ function renderWaveform(renderData) {
 
 // ---- Draw bars (main waveform) ----
 
+function getWaveformColor(volume) {
+  const volumePercent = volume * 100;
+  
+  if (volumePercent <= 100) {
+    return '#7c3aed'; // Purple for 0-100%
+  } else if (volumePercent <= 150) {
+    // Smooth transition from purple to orange (101-150%)
+    const ratio = (volumePercent - 100) / 50;
+    return interpolateColor('#7c3aed', '#f97316', ratio);
+  } else {
+    // Smooth transition from orange to red (151-200%)
+    const ratio = Math.min((volumePercent - 150) / 50, 1);
+    return interpolateColor('#f97316', '#ef4444', ratio);
+  }
+}
+
+function interpolateColor(color1, color2, ratio) {
+  const hex1 = color1.replace('#', '');
+  const hex2 = color2.replace('#', '');
+  
+  const r1 = parseInt(hex1.substr(0, 2), 16);
+  const g1 = parseInt(hex1.substr(2, 2), 16);
+  const b1 = parseInt(hex1.substr(4, 2), 16);
+  
+  const r2 = parseInt(hex2.substr(0, 2), 16);
+  const g2 = parseInt(hex2.substr(2, 2), 16);
+  const b2 = parseInt(hex2.substr(4, 2), 16);
+  
+  const r = Math.round(r1 + (r2 - r1) * ratio);
+  const g = Math.round(g1 + (g2 - g1) * ratio);
+  const b = Math.round(b1 + (b2 - b1) * ratio);
+  
+  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+}
+
 function drawBars(ctx, data, width, height, volume, startTime, endTime, duration, fadeIn, fadeOut, isInverted) {
   const centerY = height / 2, baseHeight = 2, maxHeight = height * 0.8;
   const barCount = data.length, barWidth = width / barCount;
@@ -58,11 +93,9 @@ function drawBars(ctx, data, width, height, volume, startTime, endTime, duration
     let rawHeight = baseHeight + (value * maxHeight * vMul);
     const fadeMul = getFadeMul(i, barTime, barCount, duration, startTime, endTime, fadeIn, fadeOut, isInverted);
     rawHeight = baseHeight + (rawHeight - baseHeight) * fadeMul;
-    const barHeight = Math.max(1, rawHeight);
-
-    // Selection logic (invert mode = outside region, else = inside)
+    const barHeight = Math.max(1, rawHeight);    // Selection logic (invert mode = outside region, else = inside)
     let sel = isInverted ? (barTime < startTime || barTime > endTime) : (barTime >= startTime && barTime <= endTime);
-    const color = sel ? '#7c3aed' : '#e2e8f0';
+    const color = sel ? getWaveformColor(volume) : '#e2e8f0';
     if (color !== lastFill) ctx.fillStyle = lastFill = color;
 
     const x = i * barWidth;
