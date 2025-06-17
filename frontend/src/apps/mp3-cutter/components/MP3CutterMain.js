@@ -192,7 +192,6 @@ const MP3CutterMain = React.memo(() => {
   const { isReady: isWorkerReady, isSupported: isWorkerSupported, metrics: workerMetrics, preloadCriticalComponents } = useWebWorkerPreloader();
   const { scheduleIdlePreload } = useIdleCallbackPreloader();
   const { addToCache: addComponentToCache } = useAdvancedComponentCache();
-
   const [fadeIn, setFadeIn] = useState(0), [fadeOut, setFadeOut] = useState(0);
   const [outputFormat, setOutputFormat] = useState('mp3');
   const [normalizeVolume, setNormalizeVolume] = useState(false);
@@ -202,6 +201,9 @@ const MP3CutterMain = React.memo(() => {
   const [fileValidation, setFileValidation] = useState(null);
   const [compatibilityReport, setCompatibilityReport] = useState(null);
   const [isInverted, setIsInverted] = useState(false);
+  
+  // 🎚️ Add local state to track current equalizer values for immediate visual feedback
+  const [currentEqualizerValues, setCurrentEqualizerValues] = useState(Array(10).fill(0));
 
   const animationRef = useRef({ isPlaying: false, startTime: 0, endTime: 0 });
   const interactionManagerRef = useRef(null);
@@ -500,31 +502,46 @@ const MP3CutterMain = React.memo(() => {
       case 'band':
         const { index, value } = data;
         updateEqualizerBand(index, value);
+        // 🎚️ Update local state immediately for visual indicators
+        setCurrentEqualizerValues(prev => {
+          const newValues = [...prev];
+          newValues[index] = value;
+          return newValues;
+        });
         console.log(`🎚️ EQ Band ${index}: ${value > 0 ? '+' : ''}${value.toFixed(1)}dB`);
         break;
       
       case 'preset':
         updateEqualizerValues(data.values);
+        // 🎚️ Update local state immediately for visual indicators  
+        setCurrentEqualizerValues([...data.values]);
         console.log('🎚️ EQ Preset applied:', data.name);
         break;
       
       case 'reset':
         resetEqualizer();
+        // 🎚️ Update local state immediately for visual indicators
+        setCurrentEqualizerValues(Array(10).fill(0));
         console.log('🎚️ EQ Reset');
         break;
       
       default:
         console.warn('⚠️ Unknown equalizer change type:', type);
     }
-  }, [isEqualizerConnected, updateEqualizerBand, updateEqualizerValues, resetEqualizer]);
-  // 🎚️ Function to get current equalizer state for export
+  }, [isEqualizerConnected, updateEqualizerBand, updateEqualizerValues, resetEqualizer, setCurrentEqualizerValues]);  // 🎚️ Function to get current equalizer state for export
   const getCurrentEqualizerState = useCallback(() => {
+    // 🎚️ Prioritize local state for immediate visual feedback, fallback to Web Audio API values
+    if (currentEqualizerValues.some(v => v !== 0)) {
+      return currentEqualizerValues;
+    }
+    
     if (!isEqualizerConnected || !getEqualizerState) {
       return null;
     }
     const eqState = getEqualizerState();
-    return eqState?.gains || null;
-  }, [isEqualizerConnected, getEqualizerState]);
+    // Return just the gain values as an array for visual indicators and export
+    return eqState?.bands ? eqState.bands.map(band => band.gain) : null;
+  }, [currentEqualizerValues, isEqualizerConnected, getEqualizerState]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-pink-50">
@@ -574,10 +591,10 @@ const MP3CutterMain = React.memo(() => {
               onTogglePlayPause={togglePlayPause}
               onJumpToStart={handleJumpToStart}
               onJumpToEnd={handleJumpToEnd}
-              onVolumeChange={updateVolume}
-              onSpeedChange={updatePlaybackRate}
+              onVolumeChange={updateVolume}              onSpeedChange={updatePlaybackRate}
               onPitchChange={handlePitchChange}
               onEqualizerChange={handleEqualizerChange}
+              equalizerState={getCurrentEqualizerState()} // 🎚️ Pass current EQ state for visual indicators
               startTime={startTime}
               endTime={endTime}
               duration={duration}

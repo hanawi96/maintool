@@ -20,7 +20,8 @@ const UnifiedControlBar = React.memo(({
   fadeIn = 0, fadeOut = 0, onFadeInToggle, onFadeOutToggle, onFadeInChange, onFadeOutChange,
   canUndo, canRedo, onUndo, onRedo, historyIndex, historyLength,
   disabled = false,
-  onEqualizerChange = null // 🎚️ New prop for realtime equalizer updates
+  onEqualizerChange = null, // 🎚️ New prop for realtime equalizer updates
+  equalizerState = null // 🎚️ Current equalizer state for visual indicators
 }) => {
   // Auto-return loop state
   const [autoReturnEnabled, setAutoReturnEnabled] = useState(() => getAutoReturnSetting());
@@ -33,9 +34,22 @@ const UnifiedControlBar = React.memo(({
     speed: useRef(null),
     pitch: useRef(null),
     equalizer: useRef(null),
-  };
-  // Logic condition
+  };  // Logic condition
   const canEditRegion = !disabled && duration > 0 && startTime < endTime;
+
+  // 🎚️ Check if equalizer has non-default values
+  const isEqualizerActive = equalizerState && Array.isArray(equalizerState) && 
+    equalizerState.some(value => value !== 0);
+
+  // 🎚️ Debug log for equalizer state (only when it changes)
+  useEffect(() => {
+    console.log('🎚️ Equalizer Button State Debug:', {
+      equalizerState,
+      isArray: Array.isArray(equalizerState),
+      isActive: isEqualizerActive,
+      hasNonZeroValues: equalizerState ? equalizerState.some(v => v !== 0) : false
+    });
+  }, [equalizerState, isEqualizerActive]);
 
   // Auto-return logic
   const toggleAutoReturn = useCallback(() => {
@@ -303,9 +317,7 @@ const UnifiedControlBar = React.memo(({
             title={`Pitch: ${pitch > 0 ? '+' : ''}${pitch.toFixed(1)}st - Click to adjust`}>
             <Music className="w-4 h-4 text-teal-600 group-hover:text-teal-700" />
             {pitch !== 0 && <div className="absolute -top-1 -right-1 w-2 h-2 bg-teal-500 rounded-full"></div>}
-          </button>
-
-          {/* 13. Equalizer */}
+          </button>          {/* 13. Equalizer */}
           <button
             ref={refs.equalizer}
             onClick={() => togglePopup('equalizer')}
@@ -313,10 +325,13 @@ const UnifiedControlBar = React.memo(({
             className={`relative p-2 rounded-lg group ${
               popupState === 'equalizer'
                 ? 'bg-slate-200 border border-slate-400'
+                : isEqualizerActive
+                ? 'bg-cyan-100 hover:bg-cyan-200 border border-cyan-300'
                 : 'bg-slate-100 hover:bg-slate-200'
             }`}
             title="Equalizer - Click to adjust frequency bands">
-            <Sliders className="w-4 h-4 text-cyan-600 group-hover:text-cyan-700" />
+            <Sliders className={`w-4 h-4 ${isEqualizerActive ? 'text-cyan-700' : 'text-cyan-600'} group-hover:text-cyan-700`} />
+            {isEqualizerActive && <div className="absolute -top-1 -right-1 w-2 h-2 bg-cyan-500 rounded-full"></div>}
           </button>
 
           {/* 14. Time Selector */}
