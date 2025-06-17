@@ -28,6 +28,26 @@ function buildAtempoFilters(rate) {
   if (Math.abs(r - 1) > 0.01) filters.push(`atempo=${r.toFixed(3)}`);
   return filters;
 }
+
+// 🎚️ Build equalizer filter string from EQ values array
+function buildEqualizerFilter(equalizerValues) {
+  if (!equalizerValues || !Array.isArray(equalizerValues) || equalizerValues.length !== 10) {
+    return null;
+  }
+  
+  // FFmpeg equalizer frequencies (Hz) - standard 10-band EQ
+  const frequencies = [60, 170, 310, 600, 1000, 3000, 6000, 12000, 14000, 16000];
+  
+  const eqParts = equalizerValues.map((gain, index) => {
+    if (gain === 0) return null; // Skip bands with 0dB gain
+    return `equalizer=f=${frequencies[index]}:t=1:w=2:g=${gain.toFixed(1)}`;
+  }).filter(Boolean);
+  
+  if (eqParts.length === 0) return null;
+  
+  // For multiple EQ bands, chain them together
+  return eqParts.join(',');
+}
 function getFormatSettings(format, quality) {
   const preset = MP3_CONFIG.QUALITY_PRESETS[quality]?.[format];
   if (!preset) throw new Error(`Unsupported format/quality: ${format}/${quality}`);
@@ -50,12 +70,12 @@ export class MP3Utils {
         channelLayout: audio.channel_layout || 'unknown'
       };
     } catch (e) { throw new Error(`Failed to get audio info: ${e.message}`); }
-  }
-  static async cutAudio(inputPath, outputPath, opts = {}) {
+  }  static async cutAudio(inputPath, outputPath, opts = {}) {
     const {
       startTime = 0, endTime, fadeIn = 0, fadeOut = 0,
       format = 'mp3', quality = 'medium', playbackRate = 1, pitch = 0,
       volume = 1, // Thêm volume parameter
+      equalizer = null, // 🎚️ Add equalizer parameter
       isInverted = false, normalizeVolume = false, sessionId = null
     } = opts;
 
@@ -64,8 +84,7 @@ export class MP3Utils {
     console.log('📍 Paths:', {
       input: inputPath,
       output: outputPath
-    });
-    console.log('⚙️ FFmpeg Options:', {
+    });    console.log('⚙️ FFmpeg Options:', {
       startTime: `${startTime}s`,
       endTime: endTime ? `${endTime}s` : 'Not set',
       duration: endTime ? `${endTime - startTime}s` : 'Full duration',
@@ -74,6 +93,7 @@ export class MP3Utils {
       pitch: `${pitch} semitones`,
       fadeIn: `${fadeIn}s`,
       fadeOut: `${fadeOut}s`,
+      equalizer: equalizer ? `10-band EQ applied` : 'No EQ',
       format: format,
       quality: quality,
       normalizeVolume: normalizeVolume,
@@ -87,8 +107,11 @@ export class MP3Utils {
       if (startTime > 0) command = command.seekInput(startTime);
       if (endTime && endTime > startTime) command = command.duration(endTime - startTime);      // 🎯 Build filters with proper pitch handling
       const pitchRatio = Math.pow(2, pitch/12);
+      const eqFilter = buildEqualizerFilter(equalizer);
+      
       const filters = [
         ...(volume !== 1 ? [`volume=${volume}`] : []), // Volume filter
+        ...(eqFilter ? [eqFilter] : []), // 🎚️ Equalizer filter
         ...(playbackRate !== 1 ? buildAtempoFilters(playbackRate) : []), // Speed filter
         ...(pitch !== 0 ? [
           `asetrate=44100*${pitchRatio}`, // Change pitch (this also changes tempo)
@@ -140,12 +163,12 @@ export class MP3Utils {
           reject(new Error(`Audio cutting failed: ${err.message}`));
         }).run();
     });
-  }
-  static async cutAudioInvertMode(inputPath, outputPath, opts = {}) {
+  }  static async cutAudioInvertMode(inputPath, outputPath, opts = {}) {
     const {
       startTime = 0, endTime, fadeIn = 0, fadeOut = 0,
       format = 'mp3', quality = 'medium', playbackRate = 1, pitch = 0,
       volume = 1, // 🎯 Add missing volume parameter
+      equalizer = null, // 🎚️ Add equalizer parameter
       normalizeVolume = false, sessionId = null
     } = opts;
 
@@ -180,9 +203,13 @@ export class MP3Utils {
           filterParts.push(`[seg1][seg2]concat=n=2:v=0:a=1[concat]`);
           concatInput = '[concat]';
         }        // Apply audio effects
+        const eqFilter = buildEqualizerFilter(equalizer);
         const effects = [];
         if (volume !== 1) {
           effects.push(`volume=${volume}`); // 🎯 Add volume effect for invert mode
+        }
+        if (eqFilter) {
+          effects.push(eqFilter); // 🎚️ Add equalizer effect for invert mode
         }
         if (playbackRate !== 1) {
           effects.push(...buildAtempoFilters(playbackRate).map(f => f));
@@ -241,14 +268,14 @@ export class MP3Utils {
         reject(new Error(`Failed to analyze audio: ${err.message}`));
       });
     });
-  }
-  static async changeAudioSpeed(inputPath, outputPath, opts = {}) {
+  }  static async changeAudioSpeed(inputPath, outputPath, opts = {}) {
     const { 
       playbackRate = 1, 
       volume = 1, 
       pitch = 0, 
       fadeIn = 0, 
       fadeOut = 0, 
+      equalizer = null, // 🎚️ Add equalizer parameter
       normalizeVolume = false,
       format = 'mp3', 
       quality = 'medium' 
@@ -259,22 +286,23 @@ export class MP3Utils {
     console.log('📍 Paths:', {
       input: inputPath,
       output: outputPath
-    });
-    console.log('⚡ Speed Change Options:', {
+    });    console.log('⚡ Speed Change Options:', {
       playbackRate: `${playbackRate}x (${playbackRate * 100}%)`,
       volume: `${volume * 100}% (${volume}x)`,
       pitch: `${pitch} semitones`,
       fadeIn: `${fadeIn}s`,
       fadeOut: `${fadeOut}s`,
+      equalizer: equalizer ? `10-band EQ applied` : 'No EQ',
       normalizeVolume: normalizeVolume,
       format: format,
       quality: quality
-    });
-
-    return new Promise((resolve, reject) => {
+    });    return new Promise((resolve, reject) => {
       let command = ffmpeg(inputPath);
-        const filters = [
+      const eqFilter = buildEqualizerFilter(equalizer);
+      
+      const filters = [
         ...(volume !== 1 ? [`volume=${volume}`] : []), // Thêm volume filter
+        ...(eqFilter ? [eqFilter] : []), // 🎚️ Equalizer filter
         ...buildAtempoFilters(playbackRate),
         ...(pitch !== 0 ? [
           `asetrate=44100*${Math.pow(2, pitch/12)}`,

@@ -1,4 +1,5 @@
 import { useRef, useCallback, useEffect, useState } from 'react';
+import { useEqualizerRealtime } from './useEqualizerRealtime';
 
 export const useRealTimeFadeEffects = () => {
   const audioContextRef = useRef(null);
@@ -17,6 +18,16 @@ export const useRealTimeFadeEffects = () => {
   // Pitch shift integration
   const pitchNodeRef = useRef(null);
   const hasPitchNodeRef = useRef(false);
+  // 🎚️ Equalizer integration
+  const {
+    connectEqualizer,
+    disconnectEqualizer,
+    updateEqualizerBand,
+    updateEqualizerValues,
+    resetEqualizer,
+    isConnected: isEqualizerConnected,
+    getEqualizerState
+  } = useEqualizerRealtime();
   
   // Master volume state
   const masterVolumeRef = useRef(1.0);
@@ -24,7 +35,6 @@ export const useRealTimeFadeEffects = () => {
   const [fadeConfig, setFadeConfig] = useState({
     fadeIn: 0, fadeOut: 0, startTime: 0, endTime: 0, isActive: false
   });
-
   const initializeWebAudio = useCallback(async (audioElement) => {
     try {
       connectionStateRef.current = 'connecting';
@@ -50,21 +60,26 @@ export const useRealTimeFadeEffects = () => {
       if (!analyserNodeRef.current) {
         analyserNodeRef.current = ctx.createAnalyser();
         analyserNodeRef.current.fftSize = 256;
-      }
-      if (!isConnectedRef.current) {
-        sourceNodeRef.current.connect(masterGainNodeRef.current);
+      }      if (!isConnectedRef.current) {
+        // 🎚️ Connect equalizer chain: Source → [EQ] → MasterGain → FadeGain → Analyser → Destination
+        const eqConnected = connectEqualizer(ctx, sourceNodeRef.current, masterGainNodeRef.current);
+        if (!eqConnected) {
+          // Fallback to direct connection if EQ fails
+          console.log('🔗 EQ connection failed, using direct connection');
+          sourceNodeRef.current.connect(masterGainNodeRef.current);
+        } else {
+          console.log('🎚️ EQ connected successfully');
+        }
+        
         masterGainNodeRef.current.connect(fadeGainNodeRef.current);
-        fadeGainNodeRef.current.connect(analyserNodeRef.current);
-        analyserNodeRef.current.connect(ctx.destination);
-        isConnectedRef.current = true;
+        fadeGainNodeRef.current.connect(analyserNodeRef.current);        analyserNodeRef.current.connect(ctx.destination);        isConnectedRef.current = true;
         connectionStateRef.current = 'connected';
-      }
-      return !!(masterGainNodeRef.current && fadeGainNodeRef.current);
+      }return !!(masterGainNodeRef.current && fadeGainNodeRef.current);
     } catch {
       connectionStateRef.current = 'error';
       return false;
     }
-  }, []);
+  }, [connectEqualizer]);
 
   // Insert pitch node between source and master gain
   const insertPitchNode = useCallback((pitchNode) => {
@@ -249,17 +264,17 @@ export const useRealTimeFadeEffects = () => {
   const getMasterVolume = useCallback(() => {
     return masterVolumeRef.current;
   }, []);
-
   useEffect(() => () => {
     isAnimatingRef.current = false;
-    if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+    if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);    // 🧹 Cleanup equalizer first
+    disconnectEqualizer();
+    
     if (audioContextRef.current && audioContextRef.current.state !== 'closed')
       audioContextRef.current.close();
     audioContextRef.current = null; sourceNodeRef.current = null; masterGainNodeRef.current = null; fadeGainNodeRef.current = null; analyserNodeRef.current = null;
     isConnectedRef.current = false; connectionStateRef.current = 'disconnected';
     pitchNodeRef.current = null; hasPitchNodeRef.current = false;
-  }, []);
-
+  }, [disconnectEqualizer]);
   return {
     connectAudioElement,
     updateFadeConfig,
@@ -278,6 +293,12 @@ export const useRealTimeFadeEffects = () => {
 
     // Master volume control
     setMasterVolume,
-    getMasterVolume
+    getMasterVolume,
+      // 🎚️ Equalizer control
+    updateEqualizerBand,
+    updateEqualizerValues,
+    resetEqualizer,
+    isEqualizerConnected, // Use from equalizer hook
+    getEqualizerState
   };
 };

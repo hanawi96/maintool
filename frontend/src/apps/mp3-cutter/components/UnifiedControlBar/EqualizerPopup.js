@@ -6,7 +6,8 @@ import usePopupPosition from './usePopupPosition';
 const EqualizerPopup = ({
   onClose,
   isVisible = false,
-  buttonRef = null
+  buttonRef = null,
+  onEqualizerChange = null // 🎚️ Callback for realtime EQ updates
 }) => {
   const popupRef = useRef(null);
   const { position, responsive, ready } = usePopupPosition(isVisible, buttonRef, popupRef, 5);
@@ -43,20 +44,33 @@ const EqualizerPopup = ({
       clearTimeout(timeoutId);
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isVisible, onClose, buttonRef]);
-
-  const handleSliderChange = (index, value) => {
+  }, [isVisible, onClose, buttonRef]);  const handleSliderChange = (index, value) => {
     const newValues = [...eqValues];
     newValues[index] = parseFloat(value);
     setEqValues(newValues);
+    
+    // 🎚️ Real-time EQ update - instant parameter change
+    if (onEqualizerChange) {
+      onEqualizerChange('band', { index, value: parseFloat(value) });
+    }
   };
-
   const handlePresetSelect = (presetName) => {
-    setEqValues([...presets[presetName]]);
+    const newValues = [...presets[presetName]];
+    setEqValues(newValues);
+    
+    // 🎚️ Batch update all EQ bands for smooth preset change
+    if (onEqualizerChange) {
+      onEqualizerChange('preset', { name: presetName, values: newValues });
+    }
   };
-
   const handleReset = () => {
-    setEqValues(Array(10).fill(0));
+    const resetValues = Array(10).fill(0);
+    setEqValues(resetValues);
+    
+    // 🎚️ Reset all EQ bands to flat
+    if (onEqualizerChange) {
+      onEqualizerChange('reset');
+    }
   };
 
   if (!isVisible) return null;

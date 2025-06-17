@@ -16,6 +16,7 @@ const CutDownload = ({
   playbackRate = 1,
   pitch = 0,
   volume = 1, // 🎯 Add volume prop
+  equalizer = null, // 🎚️ Add equalizer prop
   isInverted = false,
   normalizeVolume = false,
   onNormalizeVolumeChange,
@@ -121,19 +122,29 @@ const CutDownload = ({
         playbackRate,
         pitch,
         volume, // 🎯 Add volume parameter
+        equalizer, // 🎚️ Add equalizer parameter
         isInverted,
         normalizeVolume,
         quality: 'high',
         sessionId
-      };
-
-      // 🎯 Debug log for volume parameter
+      };      // 🎯 Debug log for volume parameter
       console.log('🔊 Frontend Volume Debug:', {
         volume: volume,
         volumeType: typeof volume,
         volumePercent: `${Math.round(volume * 100)}%`,
         noteToUser: volume !== 1 ? 'Volume adjustment will be applied to exported audio' : 'No volume adjustment (100%)'
       });
+
+      // 🎚️ Debug log for equalizer parameter
+      if (equalizer) {
+        console.log('🎚️ Frontend Equalizer Debug:', {
+          equalizer: equalizer,
+          isArray: Array.isArray(equalizer),
+          length: equalizer?.length,
+          hasAdjustments: equalizer?.some(v => v !== 0),
+          noteToUser: 'Equalizer settings will be applied to exported audio'
+        });
+      }
 
       const result = await audioApi.cutAudioByFileId(cutParams);
 
@@ -170,7 +181,7 @@ const CutDownload = ({
     } finally {
       setIsProcessing(false);
     }
-  }, [audioFile, startTime, endTime, fadeIn, fadeOut, playbackRate, pitch, volume, isInverted, normalizeVolume, outputFormat, clearProgress, activeRegionDuration, startProgressSession]);
+  }, [audioFile, startTime, endTime, fadeIn, fadeOut, playbackRate, pitch, volume, equalizer, isInverted, normalizeVolume, outputFormat, clearProgress, activeRegionDuration, startProgressSession]);
 
   const handleDownload = useCallback(async () => {
     if (!processedFile)

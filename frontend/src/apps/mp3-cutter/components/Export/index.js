@@ -13,6 +13,7 @@ const Export = ({
   playbackRate = 1,
   pitch = 0,
   volume = 1, // 🎯 Add volume prop
+  equalizer = null, // 🎚️ Add equalizer prop
   isInverted = false,
   normalizeVolume = false,
   onNormalizeVolumeChange,
@@ -34,6 +35,7 @@ const Export = ({
           playbackRate={playbackRate}
           pitch={pitch}
           volume={volume} // 🎯 Pass volume prop
+          equalizer={equalizer} // 🎚️ Pass equalizer prop
           isInverted={isInverted}
           normalizeVolume={normalizeVolume}
           onNormalizeVolumeChange={onNormalizeVolumeChange}

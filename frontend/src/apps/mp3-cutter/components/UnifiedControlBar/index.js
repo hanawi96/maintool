@@ -19,7 +19,8 @@ const UnifiedControlBar = React.memo(({
   onInvertSelection, isInverted = false,
   fadeIn = 0, fadeOut = 0, onFadeInToggle, onFadeOutToggle, onFadeInChange, onFadeOutChange,
   canUndo, canRedo, onUndo, onRedo, historyIndex, historyLength,
-  disabled = false
+  disabled = false,
+  onEqualizerChange = null // 🎚️ New prop for realtime equalizer updates
 }) => {
   // Auto-return loop state
   const [autoReturnEnabled, setAutoReturnEnabled] = useState(() => getAutoReturnSetting());
@@ -126,11 +127,11 @@ const UnifiedControlBar = React.memo(({
       onClose: () => closePopup('pitch'),
       isVisible: popupState === 'pitch',
       buttonRef: refs.pitch
-    },
-    equalizer: {
+    },    equalizer: {
       onClose: () => closePopup('equalizer'),
       isVisible: popupState === 'equalizer',
-      buttonRef: refs.equalizer
+      buttonRef: refs.equalizer,
+      onEqualizerChange: onEqualizerChange // 🎚️ Pass equalizer callback
     },
   };
 

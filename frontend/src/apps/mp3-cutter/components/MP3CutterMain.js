@@ -183,11 +183,11 @@ const MP3CutterMain = React.memo(() => {
     waveformData, startTime, endTime, isDragging, hoveredHandle, generateWaveform,
     setStartTime, setEndTime, setIsDragging, setHoveredHandle, canvasRef, isGenerating, enhancedFeatures
   } = useEnhancedWaveform();
-  const { saveState, undo, redo, canUndo, canRedo, historyIndex, historyLength } = useHistory();
-  const { 
+  const { saveState, undo, redo, canUndo, canRedo, historyIndex, historyLength } = useHistory();  const { 
     connectAudioElement, updateFadeConfig, setFadeActive, isWebAudioSupported,
     insertPitchNode, removePitchNode, audioContext: fadeAudioContext, isConnected: audioConnected,
-    setMasterVolume, getMasterVolume
+    setMasterVolume,
+    updateEqualizerBand, updateEqualizerValues, resetEqualizer, isEqualizerConnected, getEqualizerState
   } = useRealTimeFadeEffects();
   const { isReady: isWorkerReady, isSupported: isWorkerSupported, metrics: workerMetrics, preloadCriticalComponents } = useWebWorkerPreloader();
   const { scheduleIdlePreload } = useIdleCallbackPreloader();
@@ -284,12 +284,15 @@ const MP3CutterMain = React.memo(() => {
     setAudioError(null);
   }, [audioFile?.url, audioFile?.name, audioRef, setAudioError]);
   useEffect(() => { animationRef.current = { isPlaying, startTime, endTime }; }, [isPlaying, startTime, endTime]);
-
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !audioFile?.url || !isWebAudioSupported) return;
     const t = setTimeout(() => {
-      connectAudioElement(audio).then(() => {
+      console.log('🔌 Attempting Web Audio connection...');
+      connectAudioElement(audio).then((connected) => {
+        console.log('🔌 Web Audio connection result:', connected);
+        console.log('🎚️ Equalizer connected:', isEqualizerConnected);
+        
         // Initialize master volume system after Web Audio is connected
         // 🎯 VOLUME ARCHITECTURE NOTE:
         // - HTML5 audio element volume stays at 1.0 (never changed)
@@ -300,12 +303,12 @@ const MP3CutterMain = React.memo(() => {
           setMasterVolumeSetter(setMasterVolume);
           // Set initial volume to current volume value
           setMasterVolume(volume);
-          console.log('Master volume system connected, initial volume:', volume);
+          console.log('🔊 Master volume system connected, initial volume:', volume);
         }
       });
     }, 100);
     return () => clearTimeout(t);
-  }, [audioFile?.url, audioRef, connectAudioElement, isWebAudioSupported, setMasterVolumeSetter, setMasterVolume, volume]);
+  }, [audioFile?.url, audioRef, connectAudioElement, isWebAudioSupported, setMasterVolumeSetter, setMasterVolume, volume, isEqualizerConnected]);
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !isWebAudioSupported) return;
@@ -446,7 +449,6 @@ const MP3CutterMain = React.memo(() => {
       });
     }
   }, [workerMetrics.totalPreloaded, workerMetrics.loadedComponents, isWorkerReady, addComponentToCache]);
-
   // Add pitch change handler with auto-integration
   const handlePitchChange = useCallback(async (newPitch) => {
     updatePitch(newPitch);
@@ -485,7 +487,44 @@ const MP3CutterMain = React.memo(() => {
         console.log('Pitch node removed');
       }
     }
-  }, [updatePitch, fadeAudioContext, audioConnected, insertPitchNode, removePitchNode, pitchValue, setPitchNode, clearPitchNode, getPitchNode]);
+  }, [updatePitch, fadeAudioContext, audioConnected, insertPitchNode, removePitchNode, pitchValue, setPitchNode, clearPitchNode, getPitchNode]);  // 🎚️ Add equalizer change handler for real-time updates
+  const handleEqualizerChange = useCallback((type, data) => {
+    console.log('🎚️ EQ Change Request:', { type, data, isConnected: isEqualizerConnected });
+    
+    if (!isEqualizerConnected) {
+      console.warn('🚫 Equalizer not connected, ignoring change request');
+      return;
+    }
+
+    switch (type) {
+      case 'band':
+        const { index, value } = data;
+        updateEqualizerBand(index, value);
+        console.log(`🎚️ EQ Band ${index}: ${value > 0 ? '+' : ''}${value.toFixed(1)}dB`);
+        break;
+      
+      case 'preset':
+        updateEqualizerValues(data.values);
+        console.log('🎚️ EQ Preset applied:', data.name);
+        break;
+      
+      case 'reset':
+        resetEqualizer();
+        console.log('🎚️ EQ Reset');
+        break;
+      
+      default:
+        console.warn('⚠️ Unknown equalizer change type:', type);
+    }
+  }, [isEqualizerConnected, updateEqualizerBand, updateEqualizerValues, resetEqualizer]);
+  // 🎚️ Function to get current equalizer state for export
+  const getCurrentEqualizerState = useCallback(() => {
+    if (!isEqualizerConnected || !getEqualizerState) {
+      return null;
+    }
+    const eqState = getEqualizerState();
+    return eqState?.gains || null;
+  }, [isEqualizerConnected, getEqualizerState]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-pink-50">
@@ -527,8 +566,7 @@ const MP3CutterMain = React.memo(() => {
               onMouseMove={handleCanvasMouseMove}
               onMouseUp={handleCanvasMouseUp}
               onMouseLeave={handleCanvasMouseLeave}
-            />
-            <UnifiedControlBarLazy
+            />            <UnifiedControlBarLazy
               isPlaying={isPlaying}
               volume={volume}
               playbackRate={playbackRate}
@@ -539,6 +577,7 @@ const MP3CutterMain = React.memo(() => {
               onVolumeChange={updateVolume}
               onSpeedChange={updatePlaybackRate}
               onPitchChange={handlePitchChange}
+              onEqualizerChange={handleEqualizerChange}
               startTime={startTime}
               endTime={endTime}
               duration={duration}
@@ -587,6 +626,7 @@ const MP3CutterMain = React.memo(() => {
                   playbackRate={playbackRate}
                   pitch={pitchValue}
                   volume={volume} // 🎯 Pass volume prop
+                  equalizer={getCurrentEqualizerState()} // 🎚️ Pass equalizer state
                   isInverted={isInverted}
                   normalizeVolume={normalizeVolume}
                   onNormalizeVolumeChange={setNormalizeVolume}

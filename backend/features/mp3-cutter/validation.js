@@ -85,7 +85,7 @@ export const validateWaveformParams = (req, res, next) => {
 
 // New validation for cut by file ID (no audioInfo required)
 export const validateCutParamsById = (req, res, next) => {
-  const { startTime, endTime, fadeIn = 0, fadeOut = 0, playbackRate = 1, pitch = 0, volume = 1 } = req.body;
+  const { startTime, endTime, fadeIn = 0, fadeOut = 0, playbackRate = 1, pitch = 0, volume = 1, equalizer } = req.body;
   
   // 🎯 Debug log for received parameters
   console.log('\n🔍 BACKEND VALIDATION DEBUG:');
@@ -95,6 +95,15 @@ export const validateCutParamsById = (req, res, next) => {
     volumeType: typeof volume,
     volumeDefault: volume === 1 ? 'Using default' : 'Custom value'
   });
+  
+  // 🎚️ Debug log for equalizer parameters
+  if (equalizer) {
+    console.log('🎚️ Equalizer from req.body:', {
+      equalizer: equalizer,
+      isArray: Array.isArray(equalizer),
+      length: equalizer?.length
+    });
+  }
   
   // Parse parameters
   const start = parseParam(startTime);
@@ -124,6 +133,25 @@ export const validateCutParamsById = (req, res, next) => {
     return errorRes(res, 'Invalid pitch: must be between -24 and +24 semitones');
   }
   
+  // 🎚️ Validate equalizer parameters
+  let validatedEqualizer = null;
+  if (equalizer) {
+    if (!Array.isArray(equalizer) || equalizer.length !== 10) {
+      return errorRes(res, 'Invalid equalizer: must be an array of 10 values');
+    }
+    
+    // Validate each EQ band value (-20dB to +20dB)
+    for (let i = 0; i < equalizer.length; i++) {
+      const value = parseFloat(equalizer[i]);
+      if (isNaN(value) || value < -20 || value > 20) {
+        return errorRes(res, `Invalid equalizer band ${i}: must be between -20dB and +20dB`);
+      }
+    }
+    
+    validatedEqualizer = equalizer.map(v => parseFloat(v));
+    console.log('🎚️ Validated equalizer:', validatedEqualizer);
+  }
+  
   req.cutParams = { 
     startTime: start, 
     endTime: end, 
@@ -132,6 +160,7 @@ export const validateCutParamsById = (req, res, next) => {
     playbackRate: rate,
     pitch: pitchSemitones,
     volume: volumeLevel, // 🎯 Add volume to cutParams
+    equalizer: validatedEqualizer, // 🎚️ Add equalizer to cutParams
     outputFormat: req.body.outputFormat || 'mp3',
     quality: req.body.quality || 'medium',
     isInverted: Boolean(req.body.isInverted),
