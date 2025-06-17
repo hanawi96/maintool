@@ -1147,23 +1147,25 @@ html body div.bg-white\/70.backdrop-blur-sm {
 /* 🎚️ Equalizer Slider Styles - Vertical sliders with cyan theme */
 .eq-slider {
   -webkit-appearance: slider-vertical;
+  -moz-appearance: none;
   appearance: none;
   outline: none;
-  transition: background 0.1s ease;
+  background: transparent;
   border: none;
   will-change: background;
   touch-action: none;
+  transition: background 0.1s ease;
 }
 
 .eq-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  height: 12px;
-  width: 16px;
-  border-radius: 2px;
+  height: 18px;
+  width: 18px;
+  border-radius: 50%;
   background: #ffffff;
   border: 2px solid #06b6d4;
-  box-shadow: 0 1px 4px rgba(6, 182, 212, 0.3);
+  box-shadow: 0 2px 6px rgba(6, 182, 212, 0.3);
   cursor: pointer;
   transition: all 0.15s ease;
   will-change: transform, box-shadow;
@@ -1171,7 +1173,7 @@ html body div.bg-white\/70.backdrop-blur-sm {
 
 .eq-slider::-webkit-slider-thumb:hover {
   transform: scale(1.1);
-  box-shadow: 0 2px 6px rgba(6, 182, 212, 0.4);
+  box-shadow: 0 3px 8px rgba(6, 182, 212, 0.4);
 }
 
 .eq-slider::-webkit-slider-thumb:active {
@@ -1180,12 +1182,14 @@ html body div.bg-white\/70.backdrop-blur-sm {
 }
 
 .eq-slider::-moz-range-thumb {
-  height: 12px;
-  width: 16px;
-  border-radius: 2px;
+  -moz-appearance: none;
+  appearance: none;
+  height: 18px;
+  width: 18px;
+  border-radius: 50%;
   background: #ffffff;
   border: 2px solid #06b6d4;
-  box-shadow: 0 1px 4px rgba(6, 182, 212, 0.3);
+  box-shadow: 0 2px 6px rgba(6, 182, 212, 0.3);
   cursor: pointer;
   transition: all 0.15s ease;
   will-change: transform;
@@ -1198,6 +1202,15 @@ html body div.bg-white\/70.backdrop-blur-sm {
 .eq-slider::-moz-range-track {
   width: 4px;
   border-radius: 2px;
+  border: none;
+  outline: none;
+  background: transparent;
+}
+
+.eq-slider::-webkit-slider-track {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
   border: none;
   outline: none;
 }
