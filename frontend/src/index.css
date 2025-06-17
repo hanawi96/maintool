@@ -939,13 +939,14 @@ html body div.bg-white\/70.backdrop-blur-sm {
   box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
 }
 
-/* 🎯 Volume Popup Slider Styles - Blue theme */
+/* 🎯 Volume Popup Slider Styles - Dynamic color theme */
 .volume-popup-slider {
   -webkit-appearance: none;
   appearance: none;
   outline: none;
   transition: all 0.2s ease;
   border: none;
+  --slider-color: #7c3aed; /* Default purple, will be updated by JavaScript */
 }
 
 .volume-popup-slider::-webkit-slider-thumb {
@@ -955,15 +956,15 @@ html body div.bg-white\/70.backdrop-blur-sm {
   width: 18px;
   border-radius: 50%;
   background: #ffffff;
-  border: 2px solid #6366f1;
-  box-shadow: 0 2px 6px rgba(99, 102, 241, 0.3);
+  border: 2px solid var(--slider-color);
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--slider-color) 30%, transparent);
   cursor: pointer;
   transition: all 0.3s ease;
 }
 
 .volume-popup-slider::-webkit-slider-thumb:hover {
   transform: scale(1.1);
-  box-shadow: 0 3px 8px rgba(99, 102, 241, 0.4);
+  box-shadow: 0 3px 8px color-mix(in srgb, var(--slider-color) 40%, transparent);
 }
 
 .volume-popup-slider::-webkit-slider-thumb:active {
@@ -975,8 +976,8 @@ html body div.bg-white\/70.backdrop-blur-sm {
   width: 18px;
   border-radius: 50%;
   background: #ffffff;
-  border: 2px solid #6366f1;
-  box-shadow: 0 2px 6px rgba(99, 102, 241, 0.3);
+  border: 2px solid var(--slider-color);
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--slider-color) 30%, transparent);
   cursor: pointer;
   transition: all 0.3s ease;
 }
@@ -992,10 +993,10 @@ html body div.bg-white\/70.backdrop-blur-sm {
   outline: none;
 }
 
-/* Focus states - subtle cho volume popup */
+/* Focus states - dynamic color */
 .volume-popup-slider:focus {
   outline: none;
-  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--slider-color) 20%, transparent);
 }
 
 /* 🎯 Speed Popup Slider Styles - Purple theme */

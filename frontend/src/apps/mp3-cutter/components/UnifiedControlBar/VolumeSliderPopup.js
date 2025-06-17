@@ -3,6 +3,43 @@ import { createPortal } from 'react-dom';
 import { Volume2, VolumeX, X, RotateCcw } from 'lucide-react';
 import usePopupPosition from './usePopupPosition';
 
+// Helper: get dynamic color based on volume level (same as waveform)
+const getVolumeColor = (volume) => {
+  const volumePercent = volume * 100;
+  
+  if (volumePercent <= 100) {
+    return '#7c3aed'; // Purple for 0-100%
+  } else if (volumePercent <= 150) {
+    // Smooth transition from purple to orange (101-150%)
+    const ratio = (volumePercent - 100) / 50;
+    return interpolateColor('#7c3aed', '#f97316', ratio);
+  } else {
+    // Smooth transition from orange to red (151-200%)
+    const ratio = Math.min((volumePercent - 150) / 50, 1);
+    return interpolateColor('#f97316', '#ef4444', ratio);
+  }
+};
+
+// Helper: interpolate between two hex colors
+const interpolateColor = (color1, color2, ratio) => {
+  const hex1 = color1.replace('#', '');
+  const hex2 = color2.replace('#', '');
+  
+  const r1 = parseInt(hex1.substr(0, 2), 16);
+  const g1 = parseInt(hex1.substr(2, 2), 16);
+  const b1 = parseInt(hex1.substr(4, 2), 16);
+  
+  const r2 = parseInt(hex2.substr(0, 2), 16);
+  const g2 = parseInt(hex2.substr(2, 2), 16);
+  const b2 = parseInt(hex2.substr(4, 2), 16);
+  
+  const r = Math.round(r1 + (r2 - r1) * ratio);
+  const g = Math.round(g1 + (g2 - g1) * ratio);
+  const b = Math.round(b1 + (b2 - b1) * ratio);
+  
+  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+};
+
 const VolumeSliderPopup = ({
   value = 1,
   onChange,
@@ -33,11 +70,11 @@ const VolumeSliderPopup = ({
   const handleReset = useCallback(() => onChange(1.0), [onChange]);
 
   if (!isVisible) return null;
-
   const isMuted = value === 0;
   const isBoost = value > 1;
   const percent = (value / 2) * 100; // Convert 0-2 range to 0-100% for slider visual
   const displayPercent = value * 100; // Display actual percentage
+  const dynamicColor = getVolumeColor(value); // Get dynamic color based on volume
 
   return createPortal(
     <div
@@ -54,14 +91,14 @@ const VolumeSliderPopup = ({
         opacity: isPositioned ? 1 : 0,
         visibility: isPositioned ? 'visible' : 'hidden'
       }}
-    >
-      <div className="flex items-center justify-between mb-3">
+    >      <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           {isMuted ? (
             <VolumeX className="w-4 h-4 text-red-600" />
           ) : (
-            <Volume2 className={`w-4 h-4 ${isBoost ? 'text-orange-600' : 'text-blue-600'}`} />
-          )}          <span className="text-sm font-medium text-slate-800">
+            <Volume2 className="w-4 h-4" style={{ color: dynamicColor }} />
+          )}
+          <span className="text-sm font-medium text-slate-800">
             Volume Control
           </span>
         </div>
@@ -91,7 +128,8 @@ const VolumeSliderPopup = ({
             onChange={handleSliderChange}
             className="flex-1 h-2 bg-slate-200 rounded-full appearance-none cursor-pointer volume-popup-slider"
             style={{
-              background: `linear-gradient(to right, ${isBoost ? '#ea580c' : '#6366f1'} 0%, ${isBoost ? '#ea580c' : '#6366f1'} ${percent}%, #e2e8f0 ${percent}%, #e2e8f0 100%)`
+              background: `linear-gradient(to right, ${dynamicColor} 0%, ${dynamicColor} ${percent}%, #e2e8f0 ${percent}%, #e2e8f0 100%)`,
+              '--slider-color': dynamicColor
             }}
           />
           <button
@@ -100,7 +138,7 @@ const VolumeSliderPopup = ({
             title="Reset to 100%"
           >
             <RotateCcw className="w-3 h-3" />
-          </button>        </div>        <div className="grid grid-cols-5 gap-1.5">
+          </button>        </div><div className="grid grid-cols-5 gap-1.5">
           {[
             { label: '25%', value: 0.25 },
             { label: '50%', value: 0.5 },
