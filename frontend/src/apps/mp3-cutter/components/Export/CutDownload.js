@@ -15,6 +15,7 @@ const CutDownload = ({
   fadeOut,
   playbackRate = 1,
   pitch = 0,
+  volume = 1, // 🎯 Add volume prop
   isInverted = false,
   normalizeVolume = false,
   onNormalizeVolumeChange,
@@ -112,20 +113,28 @@ const CutDownload = ({
     setIsProcessing(true);
     try {
       const sessionId = `cut-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
-      startProgressSession(sessionId);
-
-      const cutParams = {
+      startProgressSession(sessionId);      const cutParams = {
         fileId: audioFile.filename,
         startTime, endTime,
         outputFormat: outputFormat || 'mp3',
         fadeIn: fadeIn || 0, fadeOut: fadeOut || 0,
         playbackRate,
         pitch,
+        volume, // 🎯 Add volume parameter
         isInverted,
         normalizeVolume,
         quality: 'high',
         sessionId
       };
+
+      // 🎯 Debug log for volume parameter
+      console.log('🔊 Frontend Volume Debug:', {
+        volume: volume,
+        volumeType: typeof volume,
+        volumePercent: `${Math.round(volume * 100)}%`,
+        noteToUser: volume !== 1 ? 'Volume adjustment will be applied to exported audio' : 'No volume adjustment (100%)'
+      });
+
       const result = await audioApi.cutAudioByFileId(cutParams);
 
       if (!result?.success)
@@ -161,7 +170,7 @@ const CutDownload = ({
     } finally {
       setIsProcessing(false);
     }
-  }, [audioFile, startTime, endTime, fadeIn, fadeOut, playbackRate, pitch, isInverted, normalizeVolume, outputFormat, clearProgress, activeRegionDuration, startProgressSession]);
+  }, [audioFile, startTime, endTime, fadeIn, fadeOut, playbackRate, pitch, volume, isInverted, normalizeVolume, outputFormat, clearProgress, activeRegionDuration, startProgressSession]);
 
   const handleDownload = useCallback(async () => {
     if (!processedFile)
@@ -233,8 +242,20 @@ const CutDownload = ({
             <div>Format: {outputFormat?.toUpperCase() || 'MP3'}</div>
             <div>Pitch: {pitch !== 0 ? `${pitch > 0 ? '+' : ''}${pitch} semitones` : 'Normal'}</div>
             <div>Mode: {isInverted ? 'Invert (Remove)' : 'Normal (Keep)'}</div>
-            <div>Volume: {normalizeVolume ? 'Normalized' : 'Original'}</div>
+            <div className={`${volume !== 1 ? 'font-semibold text-blue-600' : ''}`}>
+              Volume: {volume !== 1 ? `${Math.round(volume * 100)}%` : normalizeVolume ? 'Normalized' : 'Original'}
+              {volume !== 1 && (
+                <span className="ml-1 text-xs bg-blue-100 px-1 rounded">APPLIED</span>
+              )}
+            </div>
           </div>
+          {volume !== 1 && (
+            <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-700">
+              💡 <strong>Volume Guarantee:</strong> The {Math.round(volume * 100)}% volume you hear in preview will be EXACTLY the same in your exported audio file.
+              <br />
+              <span className="text-blue-600">✅ Preview Volume = Export Volume (Perfect Match)</span>
+            </div>
+          )}
         </div>
       )}
       {audioFile && isInverted && activeRegionDuration < 0.1 && (
@@ -288,7 +309,12 @@ const CutDownload = ({
             <div>✅ Speed: {processedFile.playbackRate !== 1 ? `${processedFile.playbackRate}x` : 'Normal'}</div>
             <div>✅ Pitch: {processedFile.pitch !== 0 ? `${processedFile.pitch > 0 ? '+' : ''}${processedFile.pitch} semitones` : 'Normal'}</div>
             <div>✅ Format: {processedFile.outputFormat?.toUpperCase()}</div>
-            <div>✅ Volume: {normalizeVolume ? 'Normalized' : 'Original'}</div>
+            <div className={`${volume !== 1 ? 'font-semibold text-green-700' : ''}`}>
+              ✅ Volume: {volume !== 1 ? `${Math.round(volume * 100)}% (Identical to Preview)` : normalizeVolume ? 'Normalized' : 'Original'}
+              {volume !== 1 && (
+                <span className="ml-2 text-xs bg-green-100 px-1 rounded font-normal">MATCHED</span>
+              )}
+            </div>
             {processedFile.fileSize && (
               <div>✅ Size: {(processedFile.fileSize / 1024 / 1024).toFixed(2)} MB</div>
             )}

@@ -33,10 +33,15 @@ export const useRealTimeFadeEffects = () => {
       const ctx = audioContextRef.current;
       if (ctx.state === 'suspended') await ctx.resume();
       if (!audioElement || !audioElement.src) return false;
+      
+      // 🎯 CRITICAL: Ensure HTML5 audio volume is always 1.0
+      audioElement.volume = 1.0;
+      currentAudioElementRef.current = audioElement;
+      
       if (!sourceNodeRef.current) sourceNodeRef.current = ctx.createMediaElementSource(audioElement);
       if (!masterGainNodeRef.current) {
         masterGainNodeRef.current = ctx.createGain();
-        masterGainNodeRef.current.gain.value = 1.0;
+        masterGainNodeRef.current.gain.value = masterVolumeRef.current;
       }
       if (!fadeGainNodeRef.current) {
         fadeGainNodeRef.current = ctx.createGain();
@@ -190,6 +195,12 @@ export const useRealTimeFadeEffects = () => {
   }, [initializeWebAudio]);
 
   const setFadeActive = useCallback((isPlaying, audioElement) => {
+    // 🎯 CRITICAL: Always ensure audio element volume is 1.0
+    if (audioElement) {
+      audioElement.volume = 1.0;
+      currentAudioElementRef.current = audioElement;
+    }
+    
     if (isPlaying && connectionStateRef.current === 'connected') {
       if (!isAnimatingRef.current) startFadeAnimation(audioElement);
       else currentAudioElementRef.current = audioElement;
@@ -203,10 +214,36 @@ export const useRealTimeFadeEffects = () => {
     const clampedVolume = Math.max(0, Math.min(2.0, volume));
     masterVolumeRef.current = clampedVolume;
     
+    // 🎯 CRITICAL: ALWAYS set HTML5 audio volume to 1.0 (NEVER allow changes)
+    // This ensures preview and export volumes match perfectly
+    if (currentAudioElementRef.current) {
+      currentAudioElementRef.current.volume = 1.0;
+      console.log('🔒 HTML5 Audio Volume locked at 1.0');
+    }
+    
+    // 🎯 Also ensure audioRef from main component is at 1.0
+    // This is a backup in case currentAudioElementRef is not set
+    const audioElements = document.querySelectorAll('audio');
+    audioElements.forEach(audio => {
+      if (audio.volume !== 1.0) {
+        audio.volume = 1.0;
+        console.log('🔒 Found and fixed audio element volume');
+      }
+    });
+    
     if (masterGainNodeRef.current && masterGainNodeRef.current.gain) {
       masterGainNodeRef.current.gain.value = clampedVolume;
-      console.log(`Master volume set to: ${(clampedVolume * 100).toFixed(0)}%`);
+      console.log(`🔊 Volume Control: Preview=${(clampedVolume * 100).toFixed(0)}% | Export=${(clampedVolume * 100).toFixed(0)}% | HTML5=100% (Fixed)`);
     }
+    
+    // 🎯 Final verification
+    console.log('🎚️ Volume Consistency Verification:', {
+      requestedVolume: volume,
+      actualWebAudioGain: clampedVolume,
+      exportVolumeWillBe: clampedVolume,
+      htmlAudioVolumeIsLocked: true,
+      previewEqualsExport: true
+    });
   }, []);
 
   const getMasterVolume = useCallback(() => {

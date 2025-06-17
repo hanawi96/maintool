@@ -85,13 +85,23 @@ export const validateWaveformParams = (req, res, next) => {
 
 // New validation for cut by file ID (no audioInfo required)
 export const validateCutParamsById = (req, res, next) => {
-  const { startTime, endTime, fadeIn = 0, fadeOut = 0, playbackRate = 1, pitch = 0 } = req.body;
+  const { startTime, endTime, fadeIn = 0, fadeOut = 0, playbackRate = 1, pitch = 0, volume = 1 } = req.body;
+  
+  // 🎯 Debug log for received parameters
+  console.log('\n🔍 BACKEND VALIDATION DEBUG:');
+  console.log('📥 Received req.body:', req.body);
+  console.log('🔊 Volume from req.body:', {
+    volume: volume,
+    volumeType: typeof volume,
+    volumeDefault: volume === 1 ? 'Using default' : 'Custom value'
+  });
   
   // Parse parameters
   const start = parseParam(startTime);
   const end = parseParam(endTime);
   const rate = parseParam(playbackRate, 1);
   const pitchSemitones = parseParam(pitch, 0);
+  const volumeLevel = parseParam(volume, 1); // 🎯 Add volume parsing
   
   // Basic validation
   if (start >= end) {
@@ -102,6 +112,11 @@ export const validateCutParamsById = (req, res, next) => {
   }
   if (!isValidRate(rate)) {
     return errorRes(res, 'Invalid playback rate. Must be between 0.25x and 4x');
+  }
+  
+  // 🎯 Validate volume range (0-2.0 for 200% boost)
+  if (volumeLevel < 0 || volumeLevel > 2.0) {
+    return errorRes(res, 'Invalid volume: must be between 0% and 200%');
   }
   
   // Validate pitch range (typically -24 to +24 semitones)
@@ -116,6 +131,7 @@ export const validateCutParamsById = (req, res, next) => {
     fadeOut: parseParam(fadeOut), 
     playbackRate: rate,
     pitch: pitchSemitones,
+    volume: volumeLevel, // 🎯 Add volume to cutParams
     outputFormat: req.body.outputFormat || 'mp3',
     quality: req.body.quality || 'medium',
     isInverted: Boolean(req.body.isInverted),

@@ -30,14 +30,52 @@ export class MP3Service {
       uploadedAt: new Date().toISOString()
     };
   }
-  
-  static async cutAudio(file, audioInfo, cutParams) {
+    static async cutAudio(file, audioInfo, cutParams) {
+    // 🎯 Log thông số cut audio từ frontend
+    console.log('\n=== CUT AUDIO PARAMETERS ===');
+    console.log('📁 File:', {
+      originalName: file.originalname,
+      filename: file.filename,
+      size: `${(file.size / 1024 / 1024).toFixed(2)} MB`,
+      mimetype: file.mimetype
+    });
+    console.log('🎵 Audio Info:', {
+      duration: `${audioInfo.duration}s (${Math.floor(audioInfo.duration / 60)}:${Math.floor(audioInfo.duration % 60).toString().padStart(2, '0')})`,
+      format: audioInfo.format,
+      bitrate: audioInfo.bitrate,
+      sampleRate: audioInfo.sampleRate,
+      channels: audioInfo.channels
+    });
+    console.log('✂️ Cut Parameters:', {
+      startTime: `${cutParams.startTime}s`,
+      endTime: `${cutParams.endTime}s`,
+      duration: `${cutParams.endTime - cutParams.startTime}s`,
+      volume: `${(cutParams.volume || 1) * 100}%`,
+      speed: `${(cutParams.playbackRate || 1) * 100}%`,
+      pitch: `${cutParams.pitch || 0} semitones`,
+      fadeIn: `${cutParams.fadeIn || 0}s`,
+      fadeOut: `${cutParams.fadeOut || 0}s`,
+      normalizeVolume: cutParams.normalizeVolume || false,
+      isInverted: cutParams.isInverted || false
+    });
+    console.log('==============================\n');
+
     const outputFilename = MP3Utils.generateOutputFilename(file.filename, 'cut', 'mp3');
     const outputPath = path.resolve(MP3_CONFIG.PATHS.PROCESSED, outputFilename);
     await MP3Utils.ensureDirectory(MP3_CONFIG.PATHS.PROCESSED);
     await MP3Utils.cutAudio(file.path, outputPath, { ...cutParams, format: 'mp3', quality: 'medium' });
     const outputStats = await fs.stat(outputPath);
     scheduleCleanup(outputPath, MP3_CONFIG.CLEANUP.PROCESSED_FILE_TTL);
+
+    // 🎯 Log kết quả sau khi cut
+    console.log('✅ CUT AUDIO RESULT:');
+    console.log('📤 Output:', {
+      filename: outputFilename,
+      size: `${(outputStats.size / 1024 / 1024).toFixed(2)} MB`,
+      expectedDuration: `${cutParams.endTime - cutParams.startTime}s`
+    });
+    console.log('===========================\n');
+
     return {
       input: { filename: file.filename, originalName: file.originalname, duration: audioInfo.duration },
       output: { filename: outputFilename, duration: cutParams.endTime - cutParams.startTime, size: outputStats.size },
@@ -46,16 +84,50 @@ export class MP3Service {
       processedAt: new Date().toISOString()
     };
   }
-  
-  static async cutAudioByFileId(fileId, cutParams) {
+    static async cutAudioByFileId(fileId, cutParams) {
     const inputPath = path.resolve(MP3_CONFIG.PATHS.UPLOADS, fileId);
     const audioInfo = await MP3Utils.getAudioInfo(inputPath);
+
+    // 🎯 Log thông số cut audio by file ID
+    console.log('\n=== CUT AUDIO BY FILE ID ===');
+    console.log('📁 File ID:', fileId);
+    console.log('🎵 Audio Info:', {
+      duration: `${audioInfo.duration}s (${Math.floor(audioInfo.duration / 60)}:${Math.floor(audioInfo.duration % 60).toString().padStart(2, '0')})`,
+      format: audioInfo.format,
+      bitrate: audioInfo.bitrate,
+      sampleRate: audioInfo.sampleRate,
+      channels: audioInfo.channels
+    });
+    console.log('✂️ Cut Parameters:', {
+      startTime: `${cutParams.startTime}s`,
+      endTime: `${cutParams.endTime}s`,
+      duration: `${cutParams.endTime - cutParams.startTime}s`,
+      volume: `${(cutParams.volume || 1) * 100}%`,
+      speed: `${(cutParams.playbackRate || 1) * 100}%`,
+      pitch: `${cutParams.pitch || 0} semitones`,
+      fadeIn: `${cutParams.fadeIn || 0}s`,
+      fadeOut: `${cutParams.fadeOut || 0}s`,
+      normalizeVolume: cutParams.normalizeVolume || false,
+      isInverted: cutParams.isInverted || false
+    });
+    console.log('============================\n');
+
     const outputFilename = MP3Utils.generateOutputFilename(fileId, 'cut', 'mp3');
     const outputPath = path.resolve(MP3_CONFIG.PATHS.PROCESSED, outputFilename);
     await MP3Utils.ensureDirectory(MP3_CONFIG.PATHS.PROCESSED);
     await MP3Utils.cutAudio(inputPath, outputPath, { ...cutParams, format: 'mp3', quality: 'medium' });
     const outputStats = await fs.stat(outputPath);
     scheduleCleanup(outputPath, MP3_CONFIG.CLEANUP.PROCESSED_FILE_TTL);
+
+    // 🎯 Log kết quả sau khi cut by file ID
+    console.log('✅ CUT BY FILE ID RESULT:');
+    console.log('📤 Output:', {
+      filename: outputFilename,
+      size: `${(outputStats.size / 1024 / 1024).toFixed(2)} MB`,
+      expectedDuration: `${cutParams.endTime - cutParams.startTime}s`
+    });
+    console.log('==============================\n');
+
     return {
       input: { fileId, duration: audioInfo.duration },
       output: { filename: outputFilename, duration: cutParams.endTime - cutParams.startTime, size: outputStats.size },
@@ -64,16 +136,48 @@ export class MP3Service {
       processedAt: new Date().toISOString()
     };
   }
-  
-  static async changeSpeedByFileId(fileId, speedParams) {
+    static async changeSpeedByFileId(fileId, speedParams) {
     const inputPath = path.resolve(MP3_CONFIG.PATHS.UPLOADS, fileId);
     const audioInfo = await MP3Utils.getAudioInfo(inputPath);
+
+    // 🎯 Log thông số change speed
+    console.log('\n=== CHANGE SPEED BY FILE ID ===');
+    console.log('📁 File ID:', fileId);
+    console.log('🎵 Audio Info:', {
+      duration: `${audioInfo.duration}s (${Math.floor(audioInfo.duration / 60)}:${Math.floor(audioInfo.duration % 60).toString().padStart(2, '0')})`,
+      format: audioInfo.format,
+      bitrate: audioInfo.bitrate,
+      sampleRate: audioInfo.sampleRate,
+      channels: audioInfo.channels
+    });
+    console.log('⚡ Speed Parameters:', {
+      originalSpeed: '100%',
+      newSpeed: `${(speedParams.playbackRate || 1) * 100}%`,
+      volume: `${(speedParams.volume || 1) * 100}%`,
+      pitch: `${speedParams.pitch || 0} semitones`,
+      fadeIn: `${speedParams.fadeIn || 0}s`,
+      fadeOut: `${speedParams.fadeOut || 0}s`,
+      normalizeVolume: speedParams.normalizeVolume || false,
+      expectedNewDuration: `${(audioInfo.duration / (speedParams.playbackRate || 1)).toFixed(2)}s`
+    });
+    console.log('===============================\n');
+
     const outputFilename = MP3Utils.generateOutputFilename(fileId, 'speed', 'mp3');
     const outputPath = path.resolve(MP3_CONFIG.PATHS.PROCESSED, outputFilename);
     await MP3Utils.ensureDirectory(MP3_CONFIG.PATHS.PROCESSED);
     await MP3Utils.changeSpeed(inputPath, outputPath, { ...speedParams, format: 'mp3', quality: 'medium' });
     const outputStats = await fs.stat(outputPath);
     scheduleCleanup(outputPath, MP3_CONFIG.CLEANUP.PROCESSED_FILE_TTL);
+
+    // 🎯 Log kết quả sau khi change speed
+    console.log('✅ CHANGE SPEED RESULT:');
+    console.log('📤 Output:', {
+      filename: outputFilename,
+      size: `${(outputStats.size / 1024 / 1024).toFixed(2)} MB`,
+      expectedDuration: `${(audioInfo.duration / (speedParams.playbackRate || 1)).toFixed(2)}s`
+    });
+    console.log('============================\n');
+
     return {
       input: { fileId, duration: audioInfo.duration },
       output: { filename: outputFilename, duration: audioInfo.duration / speedParams.playbackRate, size: outputStats.size },

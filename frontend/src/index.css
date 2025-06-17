@@ -999,13 +999,15 @@ html body div.bg-white\/70.backdrop-blur-sm {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--slider-color) 20%, transparent);
 }
 
-/* 🎯 Speed Popup Slider Styles - Purple theme */
+/* 🎯 Speed Popup Slider Styles - Purple theme with smooth precision */
 .speed-popup-slider {
   -webkit-appearance: none;
   appearance: none;
   outline: none;
-  transition: all 0.2s ease;
+  transition: background 0.1s ease;
   border: none;
+  will-change: background;
+  touch-action: none; /* Prevent scroll on mobile */
 }
 
 .speed-popup-slider::-webkit-slider-thumb {
@@ -1018,7 +1020,8 @@ html body div.bg-white\/70.backdrop-blur-sm {
   border: 2px solid #8b5cf6;
   box-shadow: 0 2px 6px rgba(139, 92, 246, 0.3);
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all 0.15s ease;
+  will-change: transform, box-shadow;
 }
 
 .speed-popup-slider::-webkit-slider-thumb:hover {
@@ -1028,6 +1031,7 @@ html body div.bg-white\/70.backdrop-blur-sm {
 
 .speed-popup-slider::-webkit-slider-thumb:active {
   transform: scale(1.15);
+  transition: all 0.1s ease; /* Faster response when dragging */
 }
 
 .speed-popup-slider::-moz-range-thumb {
@@ -1038,7 +1042,8 @@ html body div.bg-white\/70.backdrop-blur-sm {
   border: 2px solid #8b5cf6;
   box-shadow: 0 2px 6px rgba(139, 92, 246, 0.3);
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all 0.15s ease;
+  will-change: transform;
 }
 
 .speed-popup-slider::-moz-range-thumb:hover {

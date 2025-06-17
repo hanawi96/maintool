@@ -12,6 +12,7 @@ const Export = ({
   fadeOut,
   playbackRate = 1,
   pitch = 0,
+  volume = 1, // 🎯 Add volume prop
   isInverted = false,
   normalizeVolume = false,
   onNormalizeVolumeChange,
@@ -23,8 +24,7 @@ const Export = ({
         <Scissors className="w-4 h-4" />
         Export Audio
       </h3>
-        <div className="space-y-3">
-        <CutDownload
+        <div className="space-y-3">        <CutDownload
           audioFile={audioFile}
           startTime={startTime}
           endTime={endTime}
@@ -33,6 +33,7 @@ const Export = ({
           fadeOut={fadeOut}
           playbackRate={playbackRate}
           pitch={pitch}
+          volume={volume} // 🎯 Pass volume prop
           isInverted={isInverted}
           normalizeVolume={normalizeVolume}
           onNormalizeVolumeChange={onNormalizeVolumeChange}

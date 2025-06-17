@@ -291,6 +291,11 @@ const MP3CutterMain = React.memo(() => {
     const t = setTimeout(() => {
       connectAudioElement(audio).then(() => {
         // Initialize master volume system after Web Audio is connected
+        // 🎯 VOLUME ARCHITECTURE NOTE:
+        // - HTML5 audio element volume stays at 1.0 (never changed)
+        // - Web Audio API gain node handles preview volume (0-2.0 range)  
+        // - Export volume uses same value as Web Audio gain for consistency
+        // - This ensures preview volume = export volume (no more mismatch!)
         if (setMasterVolumeSetter && setMasterVolume) {
           setMasterVolumeSetter(setMasterVolume);
           // Set initial volume to current volume value
@@ -571,8 +576,7 @@ const MP3CutterMain = React.memo(() => {
                   disabled={!audioFile}
                 />
               </div>
-              <div className="export-controls">
-                <ExportPanelLazy
+              <div className="export-controls">                <ExportPanelLazy
                   outputFormat={outputFormat}
                   onFormatChange={setOutputFormat}
                   audioFile={audioFile}
@@ -582,6 +586,7 @@ const MP3CutterMain = React.memo(() => {
                   fadeOut={fadeOut}
                   playbackRate={playbackRate}
                   pitch={pitchValue}
+                  volume={volume} // 🎯 Pass volume prop
                   isInverted={isInverted}
                   normalizeVolume={normalizeVolume}
                   onNormalizeVolumeChange={setNormalizeVolume}

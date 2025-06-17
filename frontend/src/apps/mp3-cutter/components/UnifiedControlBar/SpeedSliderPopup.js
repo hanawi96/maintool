@@ -29,7 +29,11 @@ const SpeedSliderPopup = ({
     };
   }, [isVisible, onClose, buttonRef]);
 
-  const handleSliderChange = useCallback((e) => onChange(parseFloat(e.target.value)), [onChange]);
+  const handleSliderChange = useCallback((e) => {
+    const newValue = parseFloat(e.target.value);
+    // Immediate visual feedback
+    onChange(newValue);
+  }, [onChange]);
   const handleReset = useCallback(() => onChange(1.0), [onChange]);
 
   if (!isVisible) return null;
@@ -67,11 +71,11 @@ const SpeedSliderPopup = ({
           <X className="w-4 h-4 text-slate-500" />
         </button>
       </div>
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
+      <div className="space-y-3">        <div className="flex items-center justify-between">
           <span className="text-lg font-mono font-semibold text-slate-700">
-            {value.toFixed(1)}x
-          </span>          <span className="text-xs text-slate-500">
+            {value.toFixed(2)}x
+          </span>
+          <span className="text-xs text-slate-500">
             0.5x-3.0x
           </span>
         </div>
@@ -79,13 +83,15 @@ const SpeedSliderPopup = ({
             type="range"
             min="0.5"
             max="3"
-            step="0.05"
+            step="0.01"
             value={value}
             onChange={handleSliderChange}
             className="flex-1 h-2 bg-slate-200 rounded-full appearance-none cursor-pointer speed-popup-slider"
             style={{
-              background: `linear-gradient(to right, #8b5cf6 0%, #8b5cf6 ${percent}%, #e2e8f0 ${percent}%, #e2e8f0 100%)`
+              background: `linear-gradient(to right, #8b5cf6 0%, #8b5cf6 ${percent}%, #e2e8f0 ${percent}%, #e2e8f0 100%)`,
+              willChange: 'background'
             }}
+            draggable={false}
           />
           <button
             onClick={handleReset}
