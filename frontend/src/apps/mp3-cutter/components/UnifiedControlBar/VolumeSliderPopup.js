@@ -61,9 +61,8 @@ const VolumeSliderPopup = ({
             <VolumeX className="w-4 h-4 text-red-600" />
           ) : (
             <Volume2 className={`w-4 h-4 ${isBoost ? 'text-orange-600' : 'text-blue-600'}`} />
-          )}
-          <span className="text-sm font-medium text-slate-800">
-            Volume Control {isBoost && <span className="text-orange-600 font-bold">BOOST</span>}
+          )}          <span className="text-sm font-medium text-slate-800">
+            Volume Control
           </span>
         </div>
         <button
@@ -102,14 +101,10 @@ const VolumeSliderPopup = ({
             title="Reset to 100%"
           >
             <RotateCcw className="w-3 h-3" />
-          </button>
-        </div>
-        <div className="grid grid-cols-3 gap-1.5">
+          </button>        </div>        <div className="grid grid-cols-5 gap-1.5">
           {[
-            { label: '0%', value: 0 },
             { label: '25%', value: 0.25 },
             { label: '50%', value: 0.5 },
-            { label: '75%', value: 0.75 },
             { label: '100%', value: 1.0 },
             { label: '150%', value: 1.5 },
             { label: '200%', value: 2.0 }

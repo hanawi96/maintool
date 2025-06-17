@@ -34,7 +34,7 @@ const SpeedSliderPopup = ({
 
   if (!isVisible) return null;
 
-  const percent = ((value - 0.5) / 1.5) * 100;
+  const percent = ((value - 0.5) / 2.5) * 100;
 
   return createPortal(
     <div
@@ -71,16 +71,14 @@ const SpeedSliderPopup = ({
         <div className="flex items-center justify-between">
           <span className="text-lg font-mono font-semibold text-slate-700">
             {value.toFixed(1)}x
-          </span>
-          <span className="text-xs text-slate-500">
-            0.5x-2.0x
+          </span>          <span className="text-xs text-slate-500">
+            0.5x-3.0x
           </span>
         </div>
-        <div className="flex items-center gap-2">
-          <input
+        <div className="flex items-center gap-2">          <input
             type="range"
             min="0.5"
-            max="2"
+            max="3"
             step="0.05"
             value={value}
             onChange={handleSliderChange}
@@ -96,14 +94,13 @@ const SpeedSliderPopup = ({
           >
             <RotateCcw className="w-3 h-3" />
           </button>
-        </div>
-        <div className="flex items-center gap-2">
+        </div>        <div className="flex items-center gap-2">
           {[
             { label: '0.5x', value: 0.5 },
-            { label: '0.75x', value: 0.75 },
             { label: '1x', value: 1.0 },
             { label: '1.5x', value: 1.5 },
-            { label: '2x', value: 2.0 }
+            { label: '2x', value: 2.0 },
+            { label: '3x', value: 3.0 }
           ].map(({ label, value: presetValue }) => (
             <button
               key={label}
