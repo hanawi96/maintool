@@ -292,9 +292,16 @@ const WaveformCanvas = React.memo(({
         }
         return f;
       }
-    };
-    for (let i = 0; i < waveformData.length; i++) {
+    };    for (let i = 0; i < waveformData.length; i++) {
       let h = FLAT_BAR + ((FLAT_BAR + (MAX_PX * waveformData[i]) - FLAT_BAR) * vol);
+      
+      // 🎯 Tăng chiều cao 20% khi volume từ 101% đến 200%
+      if (volume > 1) {
+        const volumePercent = volume * 100;
+        const heightBoost = Math.min((volumePercent - 100) / 100, 1) * 0.2; // 0-20% boost
+        h = h * (1 + heightBoost);
+      }
+      
       if (fadeIn > 0 || fadeOut > 0) h = FLAT_BAR + (h - FLAT_BAR) * fadeMultiplier(i);
       const x = startX + (i * barW);
       ctx.fillRect(Math.floor(x), centerY - h, barW, h * 2);

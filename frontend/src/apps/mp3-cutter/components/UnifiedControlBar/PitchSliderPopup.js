@@ -77,8 +77,7 @@ const PitchSliderPopup = ({
             -12 to +12 semitones
           </span>
         </div>
-        <div className="flex items-center gap-2">
-          <input
+        <div className="flex items-center gap-2">          <input
             type="range"
             min="-12"
             max="12"
@@ -87,8 +86,10 @@ const PitchSliderPopup = ({
             onChange={handleSliderChange}
             className="flex-1 h-2 bg-slate-200 rounded-full appearance-none cursor-pointer pitch-popup-slider"
             style={{
-              background: `linear-gradient(to right, #14b8a6 0%, #14b8a6 ${percent}%, #e2e8f0 ${percent}%, #e2e8f0 100%)`
+              background: `linear-gradient(to right, #14b8a6 0%, #14b8a6 ${percent}%, #e2e8f0 ${percent}%, #e2e8f0 100%)`,
+              willChange: 'background'
             }}
+            draggable={false}
           />
           <button
             onClick={handleReset}

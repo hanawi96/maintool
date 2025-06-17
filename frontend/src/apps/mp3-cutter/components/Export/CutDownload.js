@@ -241,19 +241,15 @@ const CutDownload = ({
             <div>Speed: {playbackRate !== 1 ? `${playbackRate}x` : 'Normal'}</div>
             <div>Format: {outputFormat?.toUpperCase() || 'MP3'}</div>
             <div>Pitch: {pitch !== 0 ? `${pitch > 0 ? '+' : ''}${pitch} semitones` : 'Normal'}</div>
-            <div>Mode: {isInverted ? 'Invert (Remove)' : 'Normal (Keep)'}</div>
-            <div className={`${volume !== 1 ? 'font-semibold text-blue-600' : ''}`}>
+            <div>Mode: {isInverted ? 'Invert (Remove)' : 'Normal (Keep)'}</div>            <div className={`${volume !== 1 ? 'font-semibold text-blue-600' : ''}`}>
               Volume: {volume !== 1 ? `${Math.round(volume * 100)}%` : normalizeVolume ? 'Normalized' : 'Original'}
               {volume !== 1 && (
                 <span className="ml-1 text-xs bg-blue-100 px-1 rounded">APPLIED</span>
               )}
             </div>
-          </div>
-          {volume !== 1 && (
-            <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-700">
-              💡 <strong>Volume Guarantee:</strong> The {Math.round(volume * 100)}% volume you hear in preview will be EXACTLY the same in your exported audio file.
-              <br />
-              <span className="text-blue-600">✅ Preview Volume = Export Volume (Perfect Match)</span>
+          </div>          {volume > 1 && (
+            <div className="mt-2 p-2 bg-orange-50 border border-orange-200 rounded text-xs text-orange-700">
+              ⚠️ <strong>Volume boost may cause audio distortion at high levels</strong>
             </div>
           )}
         </div>

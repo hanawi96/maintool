@@ -91,9 +91,19 @@ function drawBars(ctx, data, width, height, volume, startTime, endTime, duration
     const value = data[i];
     const barTime = (i / barCount) * duration;
     let rawHeight = baseHeight + (value * maxHeight * vMul);
+    
+    // 🎯 Tăng chiều cao 20% khi volume từ 101% đến 200%
+    if (volume > 1) {
+      const volumePercent = volume * 100;
+      const heightBoost = Math.min((volumePercent - 100) / 100, 1) * 0.2; // 0-20% boost
+      rawHeight = rawHeight * (1 + heightBoost);
+    }
+    
     const fadeMul = getFadeMul(i, barTime, barCount, duration, startTime, endTime, fadeIn, fadeOut, isInverted);
     rawHeight = baseHeight + (rawHeight - baseHeight) * fadeMul;
-    const barHeight = Math.max(1, rawHeight);    // Selection logic (invert mode = outside region, else = inside)
+    const barHeight = Math.max(1, rawHeight);
+
+    // Selection logic (invert mode = outside region, else = inside)
     let sel = isInverted ? (barTime < startTime || barTime > endTime) : (barTime >= startTime && barTime <= endTime);
     const color = sel ? getWaveformColor(volume) : '#e2e8f0';
     if (color !== lastFill) ctx.fillStyle = lastFill = color;

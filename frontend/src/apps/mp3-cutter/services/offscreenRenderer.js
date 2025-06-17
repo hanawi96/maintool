@@ -208,11 +208,18 @@ export class OffscreenWaveformRenderer {
 
     ctx.save();
     let lastStyle = null;
-    const batch = 200;
-    for (let i = 0; i < waveformData.length; i++) {
+    const batch = 200;    for (let i = 0; i < waveformData.length; i++) {
       const value = waveformData[i];
       const time = (i / waveformData.length) * duration;
       let h = absBarH * value;
+      
+      // 🎯 Tăng chiều cao 20% khi volume từ 101% đến 200%
+      if (volume > 1) {
+        const volumePercent = volume * 100;
+        const heightBoost = Math.min((volumePercent - 100) / 100, 1) * 0.2; // 0-20% boost
+        h = h * (1 + heightBoost);
+      }
+      
       if (fadeIn > 0 || fadeOut > 0)
         h = FLAT_PX + (h - FLAT_PX) * fadeMultiplier(i);
 
