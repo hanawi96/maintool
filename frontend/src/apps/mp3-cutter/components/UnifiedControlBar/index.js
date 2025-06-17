@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Zap, RotateCcw, RotateCw, Repeat, Shuffle, TrendingUp, TrendingDown, Music
+  Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Zap, RotateCcw, RotateCw, Repeat, Shuffle, TrendingUp, TrendingDown, Music, Sliders
 } from 'lucide-react';
 import CompactTimeSelector from './CompactTimeSelector';
 import { getAutoReturnSetting, setAutoReturnSetting } from '../../utils/safeStorage';
@@ -9,6 +9,7 @@ import FadeSliderPopup from './FadeSliderPopup';
 import VolumeSliderPopup from './VolumeSliderPopup';
 import SpeedSliderPopup from './SpeedSliderPopup';
 import PitchSliderPopup from './PitchSliderPopup';
+import EqualizerSliderPopup from './EqualizerSliderPopup';
 
 const popupList = ['fadeIn', 'fadeOut', 'volume', 'speed', 'pitch'];
 
@@ -23,14 +24,14 @@ const UnifiedControlBar = React.memo(({
   // Auto-return loop state
   const [autoReturnEnabled, setAutoReturnEnabled] = useState(() => getAutoReturnSetting());
   // Popup state
-  const [popupState, setPopupState] = useState('');
-  // Button refs
+  const [popupState, setPopupState] = useState('');  // Button refs
   const refs = {
     fadeIn: useRef(null),
     fadeOut: useRef(null),
     volume: useRef(null),
     speed: useRef(null),
     pitch: useRef(null),
+    equalizer: useRef(null),
   };
   // Logic condition
   const canEditRegion = !disabled && duration > 0 && startTime < endTime;
@@ -119,13 +120,17 @@ const UnifiedControlBar = React.memo(({
       onClose: () => closePopup('speed'),
       isVisible: popupState === 'speed',
       buttonRef: refs.speed
-    },
-    pitch: {
+    },    pitch: {
       value: pitch,
       onChange: onPitchChange,
       onClose: () => closePopup('pitch'),
       isVisible: popupState === 'pitch',
       buttonRef: refs.pitch
+    },
+    equalizer: {
+      onClose: () => closePopup('equalizer'),
+      isVisible: popupState === 'equalizer',
+      buttonRef: refs.equalizer
     },
   };
 
@@ -282,9 +287,7 @@ const UnifiedControlBar = React.memo(({
             title={`Speed: ${playbackRate.toFixed(1)}x - Click to adjust`}>
             <Zap className="w-4 h-4 text-purple-600 group-hover:text-purple-700" />
             {playbackRate !== 1 && <div className="absolute -top-1 -right-1 w-2 h-2 bg-purple-500 rounded-full"></div>}
-          </button>
-
-          {/* 12. Pitch */}
+          </button>          {/* 12. Pitch */}
           <button
             ref={refs.pitch}
             onClick={() => togglePopup('pitch')}
@@ -301,7 +304,21 @@ const UnifiedControlBar = React.memo(({
             {pitch !== 0 && <div className="absolute -top-1 -right-1 w-2 h-2 bg-teal-500 rounded-full"></div>}
           </button>
 
-          {/* 13. Time Selector */}
+          {/* 13. Equalizer */}
+          <button
+            ref={refs.equalizer}
+            onClick={() => togglePopup('equalizer')}
+            disabled={disabled}
+            className={`relative p-2 rounded-lg group ${
+              popupState === 'equalizer'
+                ? 'bg-slate-200 border border-slate-400'
+                : 'bg-slate-100 hover:bg-slate-200'
+            }`}
+            title="Equalizer - Click to adjust frequency bands">
+            <Sliders className="w-4 h-4 text-cyan-600 group-hover:text-cyan-700" />
+          </button>
+
+          {/* 14. Time Selector */}
           <div className="ml-auto">
             <CompactTimeSelector
               startTime={startTime}
@@ -312,14 +329,13 @@ const UnifiedControlBar = React.memo(({
             />
           </div>
         </div>
-      </div>
-
-      {/* Popups */}
+      </div>      {/* Popups */}
       <FadeSliderPopup {...popupProps.fadeIn} />
       <FadeSliderPopup {...popupProps.fadeOut} />
       <VolumeSliderPopup {...popupProps.volume} />
       <SpeedSliderPopup {...popupProps.speed} />
       <PitchSliderPopup {...popupProps.pitch} />
+      <EqualizerSliderPopup {...popupProps.equalizer} />
     </>
   );
 });
