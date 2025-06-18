@@ -5,6 +5,7 @@ import { formatTimeUnified } from '../../utils/timeFormatter';
 import { useWebSocketProgress } from '../../hooks/useCutProgress';
 import FormatPresets from './FormatSelector';
 import ProgressIndicator from './ProgressIndicator';
+import CloudUploadPanel from './CloudUploadPanel';
 
 const CutDownload = ({
   audioFile,
@@ -352,8 +353,18 @@ const CutDownload = ({
                 )}
               </button>
             </div>
-          </div>
-        </div>
+          </div>        </div>      )}
+      
+      {/* 🌤️ Cloud Upload Panel - Chỉ hiển thị khi đã cut audio thành công */}
+      {processedFile && !processingError && (
+        <CloudUploadPanel 
+          processedFile={processedFile}
+          isEnabled={true}
+          onUploadComplete={(serviceId, result) => {
+            console.log(`Upload completed to ${serviceId}:`, result);
+          }}
+          className="mt-4"
+        />
       )}
     </div>
   );

@@ -41,15 +41,7 @@ const UnifiedControlBar = React.memo(({
   const isEqualizerActive = equalizerState && Array.isArray(equalizerState) && 
     equalizerState.some(value => value !== 0);
 
-  // 🎚️ Debug log for equalizer state (only when it changes)
-  useEffect(() => {
-    console.log('🎚️ Equalizer Button State Debug:', {
-      equalizerState,
-      isArray: Array.isArray(equalizerState),
-      isActive: isEqualizerActive,
-      hasNonZeroValues: equalizerState ? equalizerState.some(v => v !== 0) : false
-    });
-  }, [equalizerState, isEqualizerActive]);
+
 
   // Auto-return logic
   const toggleAutoReturn = useCallback(() => {
