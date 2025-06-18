@@ -37,10 +37,9 @@ const PitchSliderPopup = ({
   if (!isVisible) return null;
   const percent = ((value + 12) / 24) * 100;
 
-  return createPortal(
-    <div
+  return createPortal(    <div
       ref={popupRef}
-      className={`fixed bg-white/98 backdrop-blur-md border border-slate-300/60 rounded-2xl shadow-2xl pointer-events-auto ${isMobile ? 'p-3' : 'p-4'}`}
+      className={`fixed bg-white border border-slate-300 rounded-2xl shadow-2xl pointer-events-auto ${isMobile ? 'p-3' : 'p-4'}`}
       style={{
         top: ready ? `${position.top}px` : undefined,
         left: ready ? `${position.left}px` : undefined,

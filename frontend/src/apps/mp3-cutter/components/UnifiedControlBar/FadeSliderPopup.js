@@ -43,10 +43,9 @@ const FadeSliderPopup = ({
   const bgColorHex = isIn ? '#10b981' : '#f59e0b';
   const percent = (value / FADE_CONFIG.MAX_DURATION) * 100;
 
-  return createPortal(
-    <div
+  return createPortal(    <div
       ref={popupRef}
-      className={`fixed bg-white/98 backdrop-blur-md border border-slate-300/60 rounded-2xl shadow-2xl pointer-events-auto ${isMobile ? 'p-3' : 'p-4'}`}
+      className={`fixed bg-white border border-slate-300 rounded-2xl shadow-2xl pointer-events-auto ${isMobile ? 'p-3' : 'p-4'}`}
       style={{
         top: ready ? `${position.top}px` : undefined,
         left: ready ? `${position.left}px` : undefined,
