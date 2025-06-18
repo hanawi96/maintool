@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { X, RotateCcw } from 'lucide-react';
+import { X, RotateCcw, Sliders } from 'lucide-react';
 import usePopupPosition from './usePopupPosition';
 
 const EqualizerPopup = ({
@@ -132,11 +132,10 @@ const EqualizerPopup = ({
         zIndex: 9999999,
         display: ready ? undefined : 'none'
       }}
-    >
-      {/* Header */}
+    >      {/* Header */}
       <div className={`flex items-center justify-between ${isMobile ? 'mb-3' : 'mb-4'}`}>
         <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-sm"></div>
+          <Sliders className="w-4 h-4 text-cyan-600" />
           <span className={`font-medium text-slate-800 ${isMobile ? 'text-xs' : 'text-sm'}`}>
             Equalizer Control
           </span>
