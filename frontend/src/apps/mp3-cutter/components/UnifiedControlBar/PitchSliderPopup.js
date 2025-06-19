@@ -31,8 +31,16 @@ const PitchSliderPopup = ({
     };
   }, [isVisible, onClose, buttonRef]);
 
-  const handleSliderChange = useCallback((e) => onChange(parseFloat(e.target.value)), [onChange]);
-  const handleReset = useCallback(() => onChange(0), [onChange]);
+  const handleSliderChange = useCallback((e) => {
+    const newValue = parseFloat(e.target.value);
+    console.log('🎵 PitchSlider: Value changed from', value, 'to', newValue);
+    onChange(newValue);
+  }, [onChange, value]);
+  
+  const handleReset = useCallback(() => {
+    console.log('🎵 PitchSlider: Reset to 0');
+    onChange(0);
+  }, [onChange]);
 
   if (!isVisible) return null;
   const percent = ((value + 12) / 24) * 100;
