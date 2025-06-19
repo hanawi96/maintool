@@ -80,7 +80,7 @@ export class MP3Utils {
     } = opts;
 
     // 🎯 Log chi tiết FFmpeg parameters
-    console.log('\n🔧 FFmpeg Processing Details:');
+    console.log('\n🔧 FFmpeg Processingg Details:');
     console.log('📍 Paths:', {
       input: inputPath,
       output: outputPath
