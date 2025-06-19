@@ -187,7 +187,8 @@ const MP3CutterMain = React.memo(() => {
     connectAudioElement, updateFadeConfig, setFadeActive, isWebAudioSupported,
     insertPitchNode, removePitchNode, audioContext: fadeAudioContext, isConnected: audioConnected,
     setMasterVolume,
-    updateEqualizerBand, updateEqualizerValues, resetEqualizer, isEqualizerConnected, getEqualizerState
+    updateEqualizerBand, updateEqualizerValues, resetEqualizer, isEqualizerConnected, getEqualizerState,
+    isWorkletPreloaded
   } = useRealTimeFadeEffects();
   const { isReady: isWorkerReady, isSupported: isWorkerSupported, metrics: workerMetrics, preloadCriticalComponents } = useWebWorkerPreloader();
   const { scheduleIdlePreload } = useIdleCallbackPreloader();
@@ -347,10 +348,15 @@ const MP3CutterMain = React.memo(() => {
         try {
           console.log('🎵 Main: Creating new pitch worklet...');
 
-          // Ensure worklet is loaded
-          await fadeAudioContext.audioWorklet.addModule('./soundtouch-worklet.js');
+          // Only load worklet if not already preloaded (prevents lag)
+          if (!isWorkletPreloaded()) {
+            console.log('🎵 Main: Loading worklet module...');
+            await fadeAudioContext.audioWorklet.addModule('./soundtouch-worklet.js');
+          } else {
+            console.log('🎵 Main: Using preloaded worklet (instant)');
+          }
           
-          // Create new pitch node
+          // Create new pitch node (this should be instant if worklet preloaded)
           const pitchNode = new AudioWorkletNode(fadeAudioContext, 'soundtouch-processor');
           
           // Set parameters
@@ -358,13 +364,21 @@ const MP3CutterMain = React.memo(() => {
           pitchNode.parameters.get('tempo').value = 1.0;
           pitchNode.parameters.get('rate').value = 1.0;
           
+          // Add debug listener to verify audio processing
+          pitchNode.port.onmessage = (event) => {
+            if (event.data.type === 'debug') {
+              console.log('🎵 Pitch worklet processing:', event.data);
+            }
+          };
+          
           console.log('🎵 Main: Pitch worklet created with params:', {
             pitch: newPitch,
             tempo: 1.0,
-            rate: 1.0
+            rate: 1.0,
+            nodeState: pitchNode.context.state
           });
           
-          // Insert into audio chain (this will now handle cleanup automatically)
+          // Insert into audio chain (now uses smooth insertion)
           if (insertPitchNode(pitchNode)) {
             setPitchNode(pitchNode);
             console.log('✅ Main: Pitch node inserted and active with value:', newPitch);
@@ -393,7 +407,7 @@ const MP3CutterMain = React.memo(() => {
         console.log('✅ Main: Pitch processing removed');
       }
     }
-  }, [updatePitch, fadeAudioContext, audioConnected, isEqualizerConnected, insertPitchNode, removePitchNode, setPitchNode, clearPitchNode, getPitchNode]);
+  }, [updatePitch, fadeAudioContext, audioConnected, isEqualizerConnected, insertPitchNode, removePitchNode, setPitchNode, clearPitchNode, getPitchNode, isWorkletPreloaded]);
   
   // 🎵 Apply pending pitch when audio connection is established
   useEffect(() => {

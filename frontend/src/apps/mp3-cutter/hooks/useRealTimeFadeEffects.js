@@ -18,6 +18,9 @@ export const useRealTimeFadeEffects = () => {
   // Pitch shift integration
   const pitchNodeRef = useRef(null);
   const hasPitchNodeRef = useRef(false);
+  // 🎵 Add worklet preloading state
+  const isWorkletLoadedRef = useRef(false);
+  const workletLoadingRef = useRef(false);
   // 🎚️ Equalizer integration
   const {
     connectEqualizer,
@@ -26,7 +29,8 @@ export const useRealTimeFadeEffects = () => {
     updateEqualizerValues,
     resetEqualizer,
     isConnected: isEqualizerConnected,
-    getEqualizerState
+    getEqualizerState,
+    getFirstEqualizerFilter
   } = useEqualizerRealtime();
     // Master volume state
   const masterVolumeRef = useRef(1.0);
@@ -55,44 +59,24 @@ export const useRealTimeFadeEffects = () => {
     }
   }, []);
 
-  // 🔧 Helper function to rebuild audio chain properly
-  const rebuildAudioChain = useCallback((ctx) => {
-    console.log('🔗 Rebuilding audio chain...');
+  // 🎵 Preload pitch worklet for smooth transitions - MOVED UP to avoid temporal dead zone
+  const preloadPitchWorklet = useCallback(async (ctx) => {
+    if (isWorkletLoadedRef.current || workletLoadingRef.current || !ctx) return true;
     
+    workletLoadingRef.current = true;
     try {
-      // Safely disconnect everything first to avoid conflicts
-      safeDisconnect(sourceNodeRef.current, 'Source node');
-      safeDisconnect(pitchNodeRef.current, 'Pitch node');
-      disconnectEqualizer();
-
-      // Determine the correct audio flow
-      let currentInput = sourceNodeRef.current;
-      let currentOutput = masterGainNodeRef.current;
-
-      // Step 1: Connect pitch if available
-      if (pitchNodeRef.current && hasPitchNodeRef.current) {
-        currentInput.connect(pitchNodeRef.current);
-        currentInput = pitchNodeRef.current;
-        console.log('🎵 Pitch node connected in chain');
-      }
-
-      // Step 2: Connect equalizer if available
-      const eqConnected = connectEqualizer(ctx, currentInput, currentOutput);
-      if (eqConnected) {
-        console.log('🎚️ Equalizer connected in chain');
-      } else {
-        // Fallback: direct connection if EQ fails
-        currentInput.connect(currentOutput);
-        console.log('🔗 Direct connection (EQ failed)');
-      }
-
-      console.log('✅ Audio chain rebuilt successfully');
+      console.log('🎵 Preloading pitch worklet...');
+      await ctx.audioWorklet.addModule('./soundtouch-worklet.js');
+      isWorkletLoadedRef.current = true;
+      console.log('✅ Pitch worklet preloaded successfully');
       return true;
     } catch (error) {
-      console.error('❌ Failed to rebuild audio chain:', error);
+      console.error('❌ Failed to preload pitch worklet:', error);
       return false;
+    } finally {
+      workletLoadingRef.current = false;
     }
-  }, [connectEqualizer, disconnectEqualizer, safeDisconnect]);
+  }, []);
 
   const initializeWebAudio = useCallback(async (audioElement) => {
     try {
@@ -140,6 +124,9 @@ export const useRealTimeFadeEffects = () => {
         connectionStateRef.current = 'connected';
         setIsConnectedState(true);
         console.log('✅ Audio chain fully connected, isConnected:', isConnectedRef.current);
+        
+        // 🎵 Preload pitch worklet in background for smooth pitch changes
+        await preloadPitchWorklet(ctx);
       } else {
         console.log('🔗 Audio already connected, skipping chain setup');
       }
@@ -150,7 +137,99 @@ export const useRealTimeFadeEffects = () => {
       setIsConnectedState(false);
       return false;
     }
-  }, [connectEqualizer]);
+  }, [connectEqualizer, preloadPitchWorklet]);
+
+  // 🎵 Ultra-smooth pitch node insertion - zero audio interruption - MOVED UP to avoid use-before-define
+  const ultraSmoothInsertPitchNode = useCallback((pitchNode) => {
+    console.log('🎵 Ultra-smooth pitch insertion starting (zero interruption)...');
+    
+    try {
+      const source = sourceNodeRef.current;
+      const masterGain = masterGainNodeRef.current;
+      
+      if (!source || !masterGain || !pitchNode) {
+        console.error('❌ Missing required nodes for ultra-smooth insertion');
+        return false;
+      }
+
+      // 🚀 ULTRA-SMOOTH: Only disconnect/reconnect source → no EQ disruption
+      console.log('🎵 Ultra-smooth: Disconnecting only source (EQ stays connected)');
+      safeDisconnect(source, 'Source (ultra-smooth)');
+      
+      // Connect: Source → Pitch
+      source.connect(pitchNode);
+      console.log('🎵 Ultra-smooth: Source → Pitch connected');
+      
+      // Connect: Pitch → existing EQ chain (if EQ connected) or direct to masterGain
+      if (isEqualizerConnected) {
+        console.log('🎵 Ultra-smooth: Connecting pitch to existing EQ chain...');
+        // Connect to existing first EQ filter - no EQ disruption
+        const firstEqFilter = getFirstEqualizerFilter();
+        if (firstEqFilter) {
+          pitchNode.connect(firstEqFilter);
+          console.log('🎵 Ultra-smooth: Pitch → EQ[0] → EQ[1]...EQ[n] → MasterGain (zero interruption)');
+        } else {
+          // EQ not properly connected, use direct connection
+          pitchNode.connect(masterGain);
+          console.log('🎵 Ultra-smooth: Pitch → MasterGain (direct, EQ filter unavailable)');
+        }
+      } else {
+        // No EQ connected, direct connection
+        pitchNode.connect(masterGain);
+        console.log('🎵 Ultra-smooth: Pitch → MasterGain (direct, no EQ)');
+      }
+      
+      console.log('✅ Ultra-smooth pitch insertion completed (zero interruption)');
+      return true;
+    } catch (error) {
+      console.error('❌ Ultra-smooth pitch insertion failed:', error);
+      return false;
+    }
+  }, [safeDisconnect, isEqualizerConnected, getFirstEqualizerFilter]);
+
+  // 🎵 Ultra-smooth pitch node removal - zero audio interruption
+  const ultraSmoothRemovePitchNode = useCallback(() => {
+    console.log('🎵 Ultra-smooth pitch removal starting (zero interruption)...');
+    
+    try {
+      const source = sourceNodeRef.current;
+      const masterGain = masterGainNodeRef.current;
+      const pitchNode = pitchNodeRef.current;
+      
+      if (!source || !masterGain || !pitchNode) {
+        console.log('🎵 Nothing to remove or missing nodes');
+        return true;
+      }
+
+      // 🚀 ULTRA-SMOOTH: Only disconnect/reconnect source → preserve EQ chain
+      console.log('🎵 Ultra-smooth: Disconnecting source from pitch (EQ preserved)');
+      safeDisconnect(source, 'Source (ultra-smooth removal)');
+      
+      // Disconnect pitch node completely
+      safeDisconnect(pitchNode, 'Pitch node (ultra-smooth removal)');
+      
+      // Reconnect source directly to existing EQ chain or masterGain
+      if (isEqualizerConnected) {
+        const firstEqFilter = getFirstEqualizerFilter();
+        if (firstEqFilter) {
+          source.connect(firstEqFilter);
+          console.log('🎵 Ultra-smooth: Source → EQ[0] → ...EQ[n] → MasterGain (pitch removed, zero interruption)');
+        } else {
+          source.connect(masterGain);
+          console.log('🎵 Ultra-smooth: Source → MasterGain (direct, EQ filter unavailable)');
+        }
+      } else {
+        source.connect(masterGain);
+        console.log('🎵 Ultra-smooth: Source → MasterGain (direct, no EQ)');
+      }
+      
+      console.log('✅ Ultra-smooth pitch removal completed (zero interruption)');
+      return true;
+    } catch (error) {
+      console.error('❌ Ultra-smooth pitch removal failed:', error);
+      return false;
+    }
+  }, [safeDisconnect, isEqualizerConnected, getFirstEqualizerFilter]);
 
   // Insert pitch node at the beginning of the chain
   const insertPitchNode = useCallback((pitchNode) => {
@@ -166,7 +245,7 @@ export const useRealTimeFadeEffects = () => {
     }
 
     try {
-      // 🔧 Simple approach: Clear old pitch reference and set new one
+      // Clear old pitch reference if exists
       if (hasPitchNodeRef.current || pitchNodeRef.current) {
         console.log('🎵 Clearing existing pitch node reference...');
         pitchNodeRef.current = null;
@@ -177,16 +256,15 @@ export const useRealTimeFadeEffects = () => {
       pitchNodeRef.current = pitchNode;
       hasPitchNodeRef.current = true;
       
-      // Rebuild the entire audio chain with pitch at the beginning
-      const ctx = audioContextRef.current;
-      if (rebuildAudioChain(ctx)) {
-        console.log('✅ Pitch node inserted successfully into audio chain');
+      // Use ultra-smooth insertion instead of full rebuild (zero audio interruption)
+      if (ultraSmoothInsertPitchNode(pitchNode)) {
+        console.log('✅ Pitch node inserted ultra-smoothly into audio chain (zero interruption)');
         return true;
       } else {
         // Rollback on failure
         pitchNodeRef.current = null;
         hasPitchNodeRef.current = false;
-        console.error('❌ Failed to rebuild audio chain with pitch node');
+        console.error('❌ Failed to ultra-smoothly insert pitch node');
         return false;
       }
     } catch (error) {
@@ -196,7 +274,7 @@ export const useRealTimeFadeEffects = () => {
       hasPitchNodeRef.current = false;
       return false;
     }
-  }, [rebuildAudioChain]);
+  }, [ultraSmoothInsertPitchNode]);
 
   // Remove pitch node from chain
   const removePitchNode = useCallback(() => {
@@ -208,21 +286,19 @@ export const useRealTimeFadeEffects = () => {
     }
     
     try {
-      // Clear pitch node references first
-      pitchNodeRef.current = null;
-      hasPitchNodeRef.current = false;
-      
-      // Rebuild audio chain without pitch
-      const ctx = audioContextRef.current;
-      if (rebuildAudioChain(ctx)) {
-        console.log('✅ Pitch node removed successfully from audio chain');
+      // Use smooth removal instead of full rebuild
+      if (ultraSmoothRemovePitchNode()) {
+        // Clear pitch node references after successful removal
+        pitchNodeRef.current = null;
+        hasPitchNodeRef.current = false;
+        console.log('✅ Pitch node removed smoothly from audio chain');
       } else {
-        console.error('❌ Failed to rebuild audio chain after removing pitch node');
+        console.error('❌ Failed to smoothly remove pitch node');
       }
     } catch (error) {
       console.error('❌ Failed to remove pitch node:', error);
     }
-  }, [rebuildAudioChain]);
+  }, [ultraSmoothRemovePitchNode]);
 
   const calculateFadeMultiplier = useCallback((currentTime, config) => {
     const { fadeIn, fadeOut, startTime, endTime, isInverted, duration = 0 } = config;
@@ -375,7 +451,11 @@ export const useRealTimeFadeEffects = () => {
     setIsConnectedState(false); // 🔧 Reset state
     pitchNodeRef.current = null; 
     hasPitchNodeRef.current = false;
+    // 🎵 Reset worklet state
+    isWorkletLoadedRef.current = false;
+    workletLoadingRef.current = false;
   }, [disconnectEqualizer]);
+
   return {
     connectAudioElement,
     updateFadeConfig,
@@ -401,6 +481,9 @@ export const useRealTimeFadeEffects = () => {
     updateEqualizerValues,
     resetEqualizer,
     isEqualizerConnected, // Use from equalizer hook
-    getEqualizerState
+    getEqualizerState,
+    
+    // 🎵 Pitch worklet state
+    isWorkletPreloaded: () => isWorkletLoadedRef.current
   };
 };

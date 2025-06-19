@@ -54,6 +54,13 @@ export const useEqualizerRealtime = () => {
    * Position: Source → [EQ Chain] → MasterGain → Output
    */
   const connectEqualizer = useCallback((audioContext, sourceNode, destinationNode) => {
+    console.log('🎚️ connectEqualizer called:', {
+      hasContext: !!audioContext,
+      hasSource: !!sourceNode,
+      hasDestination: !!destinationNode,
+      currentlyConnected: isConnectedRef.current
+    });
+    
     if (!audioContext || !sourceNode || !destinationNode) return false;
     if (isConnectedRef.current) {
       console.log('🎚️ EQ already connected, skipping');
@@ -159,6 +166,12 @@ export const useEqualizerRealtime = () => {
    * 🧹 Cleanup resources
    */
   const disconnectEqualizer = useCallback(() => {
+    console.log('🧹 disconnectEqualizer called, current state:', {
+      isCurrentlyConnected: isConnectedRef.current,
+      hasFilters: !!filtersRef.current,
+      filterCount: filtersRef.current?.length || 0
+    });
+    
     if (!isConnectedRef.current) {
       console.log('🎚️ EQ already disconnected');
       return;
@@ -185,6 +198,16 @@ export const useEqualizerRealtime = () => {
     } catch (error) {
       console.warn('❌ Error during equalizer cleanup:', error);
     }
+  }, []);
+
+  /**
+   * 🎯 Get first EQ filter for pitch insertion (ultra-smooth connection)
+   */
+  const getFirstEqualizerFilter = useCallback(() => {
+    if (!filtersRef.current || !isConnectedRef.current || filtersRef.current.length === 0) {
+      return null;
+    }
+    return filtersRef.current[0];
   }, []);
 
   /**
@@ -224,6 +247,7 @@ export const useEqualizerRealtime = () => {
       // State
     isConnected,
     getEqualizerState,
+    getFirstEqualizerFilter,
     
     // Configuration
     frequencies: EQ_CONFIG.frequencies,
