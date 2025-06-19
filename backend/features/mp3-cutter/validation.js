@@ -101,8 +101,12 @@ export const validateCutParamsById = (req, res, next) => {
     console.log('🎚️ Equalizer from req.body:', {
       equalizer: equalizer,
       isArray: Array.isArray(equalizer),
-      length: equalizer?.length
+      length: equalizer?.length,
+      values: equalizer,
+      hasNonZeroValues: Array.isArray(equalizer) ? equalizer.some(v => v !== 0) : false
     });
+  } else {
+    console.log('🎚️ No equalizer data received from frontend');
   }
   
   // Parse parameters

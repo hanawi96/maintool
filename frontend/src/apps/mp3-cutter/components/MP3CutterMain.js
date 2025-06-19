@@ -527,15 +527,19 @@ const MP3CutterMain = React.memo(() => {
   const getCurrentEqualizerState = useCallback(() => {
     // 🎚️ Prioritize local state for immediate visual feedback, fallback to Web Audio API values
     if (currentEqualizerValues.some(v => v !== 0)) {
+      console.log('🎚️ Frontend EQ Export State (Local):', currentEqualizerValues);
       return currentEqualizerValues;
     }
     
     if (!isEqualizerConnected || !getEqualizerState) {
+      console.log('🎚️ Frontend EQ Export State: No EQ data (not connected or no function)');
       return null;
     }
     const eqState = getEqualizerState();
     // Return just the gain values as an array for visual indicators and export
-    return eqState?.bands ? eqState.bands.map(band => band.gain) : null;
+    const eqValues = eqState?.bands ? eqState.bands.map(band => band.gain) : null;
+    console.log('🎚️ Frontend EQ Export State (Web Audio):', eqValues);
+    return eqValues;
   }, [currentEqualizerValues, isEqualizerConnected, getEqualizerState]);
 
   return (

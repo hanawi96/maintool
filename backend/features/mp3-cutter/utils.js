@@ -7,10 +7,14 @@ import { promisify } from 'util';
 import path from 'path';
 import fs from 'fs/promises';
 import { MP3_CONFIG, MIME_TYPES } from './constants.js';
+import { EQParameterConverter, EQCalibrationData } from './eq-converter.js';
 
 if (ffmpegPath) ffmpeg.setFfmpegPath(ffmpegPath);
 if (ffprobePath) ffmpeg.setFfprobePath(ffprobePath.path);
 const ffprobe = promisify(ffmpeg.ffprobe);
+
+// 🎚️ Initialize EQ converter with exact Web Audio API mapping
+const eqConverter = new EQParameterConverter();
 
 function emitProgress(sessionId, data) {
   if (sessionId && global.io) {
@@ -29,25 +33,91 @@ function buildAtempoFilters(rate) {
   return filters;
 }
 
-// 🎚️ Build equalizer filter string from EQ values array
+// 🎚️ NEW: Precise 10-band EQ filter builder with 1:1 Web Audio API mapping
 function buildEqualizerFilter(equalizerValues) {
+  console.log('🎚️ Backend buildEqualizerFilter called with:', {
+    equalizerValues,
+    isArray: Array.isArray(equalizerValues),
+    length: equalizerValues?.length,
+    hasNonZeroValues: Array.isArray(equalizerValues) ? equalizerValues.some(v => v !== 0) : false
+  });
+  
   if (!equalizerValues || !Array.isArray(equalizerValues) || equalizerValues.length !== 10) {
+    console.log('🎚️ Backend EQ Filter: Invalid or missing equalizer values - returning null');
     return null;
   }
   
-  // FFmpeg equalizer frequencies (Hz) - standard 10-band EQ
-  const frequencies = [60, 170, 310, 600, 1000, 3000, 6000, 12000, 14000, 16000];
-  
-  const eqParts = equalizerValues.map((gain, index) => {
-    if (gain === 0) return null; // Skip bands with 0dB gain
-    return `equalizer=f=${frequencies[index]}:t=1:w=2:g=${gain.toFixed(1)}`;
-  }).filter(Boolean);
-  
-  if (eqParts.length === 0) return null;
-  
-  // For multiple EQ bands, chain them together
-  return eqParts.join(',');
+  try {
+    // 🎯 Use precise EQ converter for exact Web Audio API mapping
+    const conversionResult = eqConverter.convertToFFmpeg(equalizerValues, {
+      skipZeroGains: true,
+      gainThreshold: 0.01,
+      useAccurateMapping: true
+    });
+    
+    if (!conversionResult.hasEQ) {
+      console.log('🎚️ Backend EQ Filter: All bands are near 0dB - returning null');
+      return null;
+    }
+    
+    console.log('🎚️ Backend EQ Filter Built (precise 10-band):', {
+      inputBands: equalizerValues,
+      activeFilters: conversionResult.totalFilters,
+      skippedFilters: conversionResult.skippedFilters,
+      filterString: conversionResult.filterString,
+      method: 'Exact 1:1 Web Audio API mapping',
+      frequencies: eqConverter.frequencies,
+      mappingDetails: conversionResult.activeFilters
+    });
+    
+    return conversionResult.filterString;
+    
+  } catch (error) {
+    console.error('❌ EQ conversion failed:', error.message);
+    
+    // 🔄 Fallback to legacy method if conversion fails
+    console.log('🔄 Falling back to legacy EQ method...');
+    return buildLegacyEqualizerFilter(equalizerValues);
+  }
 }
+
+// 🎚️ Legacy fallback EQ method (kept for emergency fallback)
+function buildLegacyEqualizerFilter(equalizerValues) {
+  console.log('🎚️ Using legacy EQ fallback method');
+  
+  // Check if all values are zero
+  const hasNonZeroValues = equalizerValues.some(v => Math.abs(v) > 0.1);
+  if (!hasNonZeroValues) {
+    console.log('🎚️ Legacy EQ Filter: All bands are 0dB - returning null');
+    return null;
+  }
+  
+  // Simple bass/treble approach as fallback
+  const bassGains = equalizerValues.slice(0, 4); // 60, 170, 310, 600 Hz
+  const trebleGains = equalizerValues.slice(5); // 3000, 6000, 12000, 14000, 16000 Hz
+  
+  const avgBass = bassGains.reduce((sum, gain) => sum + gain, 0) / bassGains.length;
+  const avgTreble = trebleGains.reduce((sum, gain) => sum + gain, 0) / trebleGains.length;
+  
+  const filters = [];
+  
+  if (Math.abs(avgBass) >= 0.1) {
+    filters.push(`bass=g=${avgBass.toFixed(1)}`);
+  }
+  
+  if (Math.abs(avgTreble) >= 0.1) {
+    filters.push(`treble=g=${avgTreble.toFixed(1)}`);
+  }
+  
+  if (filters.length > 0) {
+    const eqFilter = filters.join(',');
+    console.log('🎚️ Legacy EQ Filter Built:', eqFilter);
+    return eqFilter;
+  }
+  
+  return null;
+}
+
 function getFormatSettings(format, quality) {
   const preset = MP3_CONFIG.QUALITY_PRESETS[quality]?.[format];
   if (!preset) throw new Error(`Unsupported format/quality: ${format}/${quality}`);
@@ -94,6 +164,7 @@ export class MP3Utils {
       fadeIn: `${fadeIn}s`,
       fadeOut: `${fadeOut}s`,
       equalizer: equalizer ? `10-band EQ applied` : 'No EQ',
+      equalizerValues: equalizer || 'None',
       format: format,
       quality: quality,
       normalizeVolume: normalizeVolume,
@@ -159,6 +230,95 @@ export class MP3Utils {
           resolve({ success: true, outputPath, inputPath });
         })        .on('error', (err) => {
           console.log('❌ FFmpeg processing failed:', err.message);
+          console.log('🔍 FFmpeg Error Details:', {
+            error: err.message,
+            command: 'Cut with filters',
+            hasEqualizerFilter: !!eqFilter,
+            equalizerFilter: eqFilter || 'None',
+            allFilters: filters
+          });
+          
+          // 🎚️ Check if this is an equalizer filter error and retry with fallback
+          const isFilterError = err.message.includes('filter') || err.message.includes('Invalid argument') || err.message.includes('reinitializing');
+          if (isFilterError && eqFilter && equalizer) {
+            console.log('🔄 Retrying with fallback equalizer method...');
+            
+            // Build simplified bass/treble filter as fallback
+            const bassGains = equalizer.slice(0, 4); // 60, 170, 310, 600 Hz
+            const trebleGains = equalizer.slice(5); // 3000, 6000, 12000, 14000, 16000 Hz
+            const avgBass = bassGains.reduce((sum, gain) => sum + gain, 0) / bassGains.length;
+            const avgTreble = trebleGains.reduce((sum, gain) => sum + gain, 0) / trebleGains.length;
+            
+            const fallbackFilters = [];
+            if (Math.abs(avgBass) >= 0.1) {
+              fallbackFilters.push(`bass=g=${avgBass.toFixed(1)}`);
+            }
+            if (Math.abs(avgTreble) >= 0.1) {
+              fallbackFilters.push(`treble=g=${avgTreble.toFixed(1)}`);
+            }
+            
+            if (fallbackFilters.length > 0) {
+              console.log('🎚️ Using fallback EQ:', fallbackFilters.join(','));
+              
+              // Rebuild filters without the problematic equalizer, use fallback instead
+              const retryFilters = [
+                ...(volume !== 1 ? [`volume=${volume}`] : []),
+                ...fallbackFilters, // 🎚️ Use simple bass/treble fallback
+                ...(playbackRate !== 1 ? buildAtempoFilters(playbackRate) : []),
+                ...(pitch !== 0 ? [
+                  `asetrate=44100*${pitchRatio}`,
+                  `aresample=44100`,
+                  ...buildAtempoFilters(1/pitchRatio)
+                ] : []),
+                ...(normalizeVolume ? ['loudnorm=I=-16:TP=-1.5:LRA=11:print_format=none'] : []),
+                ...(fadeIn > 0 ? [`afade=t=in:st=0:d=${fadeIn}`] : []),
+                ...(fadeOut > 0 && endTime > startTime
+                  ? [`afade=t=out:st=${Math.max(0, endTime - startTime - fadeOut)}:d=${fadeOut}`]
+                  : [])
+              ].filter(Boolean);
+              
+              // Retry with fallback filters
+              let retryCommand = ffmpeg(inputPath);
+              if (startTime > 0) retryCommand = retryCommand.seekInput(startTime);
+              if (endTime && endTime > startTime) retryCommand = retryCommand.duration(endTime - startTime);
+              
+              if (retryFilters.length) retryCommand = retryCommand.audioFilters(retryFilters);
+              
+              retryCommand = retryCommand.audioCodec(codec);
+              if (bitrate) retryCommand = retryCommand.audioBitrate(bitrate);
+              if (['m4r', 'm4a'].includes(format)) {
+                retryCommand = retryCommand.format('mp4').outputOptions(['-f', 'mp4', '-movflags', '+faststart']);
+              } else if (format === 'flac') retryCommand = retryCommand.format('flac');
+              else if (format === 'ogg') retryCommand = retryCommand.format('ogg');
+              
+              console.log('🔄 Retrying FFmpeg with fallback EQ filters:', retryFilters);
+              
+              retryCommand
+                .output(outputPath)
+                .on('start', (commandLine) => {
+                  console.log('🚀 Retry FFmpeg Command:', commandLine);
+                  emitProgress(sessionId, { stage: 'processing', percent: 10, message: 'Retrying with fallback EQ...' });
+                })
+                .on('progress', (progress) => emitProgress(sessionId, {
+                  stage: 'processing',
+                  percent: Math.min(95, Math.max(10, Math.round(progress.percent || 0))),
+                  currentTime: progress.timemark,
+                  message: `Processing with fallback EQ...`
+                }))
+                .on('end', () => {
+                  console.log('✅ FFmpeg retry with fallback EQ completed successfully!\n');
+                  emitProgress(sessionId, { stage: 'completed', percent: 100, message: 'Completed with fallback EQ' });
+                  resolve({ success: true, outputPath, inputPath });
+                })
+                .on('error', (retryErr) => {
+                  console.log('❌ FFmpeg retry also failed:', retryErr.message);
+                  emitProgress(sessionId, { stage: 'error', percent: 0, message: retryErr.message });
+                  reject(new Error(`Audio cutting failed (retry also failed): ${retryErr.message}`));
+                }).run();
+              return; // Exit without rejecting, let retry handle it
+            }
+          }
+          
           emitProgress(sessionId, { stage: 'error', percent: 0, message: err.message });
           reject(new Error(`Audio cutting failed: ${err.message}`));
         }).run();
@@ -204,6 +364,11 @@ export class MP3Utils {
           concatInput = '[concat]';
         }        // Apply audio effects
         const eqFilter = buildEqualizerFilter(equalizer);
+        console.log('🎚️ Backend Invert Mode EQ Processing:', {
+          equalizerInput: equalizer,
+          eqFilterGenerated: eqFilter,
+          willApplyEQ: !!eqFilter
+        });
         const effects = [];
         if (volume !== 1) {
           effects.push(`volume=${volume}`); // 🎯 Add volume effect for invert mode
