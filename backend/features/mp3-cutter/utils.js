@@ -8,6 +8,8 @@ import path from 'path';
 import fs from 'fs/promises';
 import { MP3_CONFIG, MIME_TYPES } from './constants.js';
 import { EQParameterConverter, EQCalibrationData } from './eq-converter.js';
+import { VolumeParameterConverter } from './volume-converter.js';
+import { VolumeCorrection, VolumeCorrectionUtils } from './volume-correction.js';
 
 if (ffmpegPath) ffmpeg.setFfmpegPath(ffmpegPath);
 if (ffprobePath) ffmpeg.setFfprobePath(ffprobePath.path);
@@ -15,6 +17,10 @@ const ffprobe = promisify(ffmpeg.ffprobe);
 
 // 🎚️ Initialize EQ converter with exact Web Audio API mapping
 const eqConverter = new EQParameterConverter();
+// 🔊 Initialize Volume converter with exact Web Audio API mapping
+const volumeConverter = new VolumeParameterConverter();
+// 🔧 Initialize Volume correction system
+const volumeCorrection = new VolumeCorrection();
 
 function emitProgress(sessionId, data) {
   if (sessionId && global.io) {
@@ -180,8 +186,58 @@ export class MP3Utils {
       const pitchRatio = Math.pow(2, pitch/12);
       const eqFilter = buildEqualizerFilter(equalizer);
       
+      // 🔊 Convert volume using precise Web Audio API mapping with format correction
+      let volumeFilter = null;
+      
+      // 🔧 Check if format needs encoding compensation (lossy formats)
+      const needsEncodingCompensation = ['mp3', 'aac', 'ogg'].includes(format.toLowerCase());
+      
+      if (volume !== 1 || needsEncodingCompensation) {
+        try {
+          // 🔧 Apply smart volume correction for format-specific encoding loss
+          const correctedVolumeConversion = volumeCorrection.smartVolumeCorrection(volume, format, quality);
+          
+          if (correctedVolumeConversion.hasVolumeEffect) {
+            volumeFilter = correctedVolumeConversion.filterString;
+            console.log('🔊 Backend Volume Filter Built (with format correction):', {
+              webAudioGain: volume,
+              format: format,
+              quality: quality,
+              needsEncodingCompensation: needsEncodingCompensation,
+              uncorrectedGain: volume,
+              correctedGain: correctedVolumeConversion.correction?.correctedGain,
+              correctionFactor: correctedVolumeConversion.correction?.correctionFactor,
+              ffmpegFilter: volumeFilter,
+              percentage: `${correctedVolumeConversion.percentageValue}%`,
+              method: 'Smart Volume Correction with Format Compensation'
+            });
+          }
+        } catch (error) {
+          console.error('❌ Volume correction failed:', error.message);
+          
+          // 🔄 Fallback to basic volume conversion
+          if (volume !== 1) {
+            try {
+              const volumeConversion = volumeConverter.convertToFFmpeg(volume, {
+                precision: 3,
+                skipUnityGain: true
+              });
+              
+              if (volumeConversion.hasVolumeEffect) {
+                volumeFilter = volumeConversion.filterString;
+                console.log('🔄 Using fallback volume filter (no correction):', volumeFilter);
+              }
+            } catch (fallbackError) {
+              console.error('❌ Fallback volume conversion also failed:', fallbackError.message);
+              volumeFilter = `volume=${volume}`;
+              console.log('🔄 Using simple volume filter:', volumeFilter);
+            }
+          }
+        }
+      }
+      
       const filters = [
-        ...(volume !== 1 ? [`volume=${volume}`] : []), // Volume filter
+        ...(volumeFilter ? [volumeFilter] : []), // 🔊 Precise Volume filter
         ...(eqFilter ? [eqFilter] : []), // 🎚️ Equalizer filter
         ...(playbackRate !== 1 ? buildAtempoFilters(playbackRate) : []), // Speed filter
         ...(pitch !== 0 ? [
@@ -262,7 +318,7 @@ export class MP3Utils {
               
               // Rebuild filters without the problematic equalizer, use fallback instead
               const retryFilters = [
-                ...(volume !== 1 ? [`volume=${volume}`] : []),
+                ...(volumeFilter ? [volumeFilter] : []),
                 ...fallbackFilters, // 🎚️ Use simple bass/treble fallback
                 ...(playbackRate !== 1 ? buildAtempoFilters(playbackRate) : []),
                 ...(pitch !== 0 ? [
@@ -369,9 +425,52 @@ export class MP3Utils {
           eqFilterGenerated: eqFilter,
           willApplyEQ: !!eqFilter
         });
-        const effects = [];
+        
+        // 🔊 Convert volume using precise Web Audio API mapping with format correction (Invert Mode)
+        let volumeFilter = null;
         if (volume !== 1) {
-          effects.push(`volume=${volume}`); // 🎯 Add volume effect for invert mode
+          try {
+            // 🔧 Apply smart volume correction for format-specific encoding loss (Invert Mode)
+            const correctedVolumeConversion = volumeCorrection.smartVolumeCorrection(volume, format, quality);
+            
+            if (correctedVolumeConversion.hasVolumeEffect) {
+              volumeFilter = correctedVolumeConversion.filterString;
+              console.log('🔊 Backend Invert Mode Volume Filter Built (with correction):', {
+                webAudioGain: volume,
+                format: format,
+                quality: quality,
+                correctedGain: correctedVolumeConversion.correction?.correctedGain,
+                correctionFactor: correctedVolumeConversion.correction?.correctionFactor,
+                ffmpegFilter: volumeFilter,
+                percentage: `${correctedVolumeConversion.percentageValue}%`,
+                method: 'Smart Volume Correction (Invert Mode)'
+              });
+            }
+          } catch (error) {
+            console.error('❌ Invert Mode volume correction failed:', error.message);
+            
+            // 🔄 Fallback to basic volume conversion
+            try {
+              const volumeConversion = volumeConverter.convertToFFmpeg(volume, {
+                precision: 3,
+                skipUnityGain: true
+              });
+              
+              if (volumeConversion.hasVolumeEffect) {
+                volumeFilter = volumeConversion.filterString;
+                console.log('🔄 Invert Mode fallback volume filter (no correction):', volumeFilter);
+              }
+            } catch (fallbackError) {
+              console.error('❌ Invert Mode fallback volume conversion failed:', fallbackError.message);
+              volumeFilter = `volume=${volume}`;
+              console.log('🔄 Using simple volume filter in Invert Mode:', volumeFilter);
+            }
+          }
+        }
+        
+        const effects = [];
+        if (volumeFilter) {
+          effects.push(volumeFilter); // 🔊 Precise volume effect for invert mode
         }
         if (eqFilter) {
           effects.push(eqFilter); // 🎚️ Add equalizer effect for invert mode
@@ -465,8 +564,50 @@ export class MP3Utils {
       let command = ffmpeg(inputPath);
       const eqFilter = buildEqualizerFilter(equalizer);
       
+      // 🔊 Convert volume using precise Web Audio API mapping with format correction (Speed Change)
+      let volumeFilter = null;
+      if (volume !== 1) {
+        try {
+          // 🔧 Apply smart volume correction for format-specific encoding loss (Speed Change)
+          const correctedVolumeConversion = volumeCorrection.smartVolumeCorrection(volume, format, quality);
+          
+          if (correctedVolumeConversion.hasVolumeEffect) {
+            volumeFilter = correctedVolumeConversion.filterString;
+            console.log('🔊 Backend Speed Change Volume Filter Built (with correction):', {
+              webAudioGain: volume,
+              format: format,
+              quality: quality,
+              correctedGain: correctedVolumeConversion.correction?.correctedGain,
+              correctionFactor: correctedVolumeConversion.correction?.correctionFactor,
+              ffmpegFilter: volumeFilter,
+              percentage: `${correctedVolumeConversion.percentageValue}%`,
+              method: 'Smart Volume Correction (Speed Change)'
+            });
+          }
+        } catch (error) {
+          console.error('❌ Speed Change volume correction failed:', error.message);
+          
+          // 🔄 Fallback to basic volume conversion
+          try {
+            const volumeConversion = volumeConverter.convertToFFmpeg(volume, {
+              precision: 3,
+              skipUnityGain: true
+            });
+            
+            if (volumeConversion.hasVolumeEffect) {
+              volumeFilter = volumeConversion.filterString;
+              console.log('🔄 Speed Change fallback volume filter (no correction):', volumeFilter);
+            }
+          } catch (fallbackError) {
+            console.error('❌ Speed Change fallback volume conversion failed:', fallbackError.message);
+            volumeFilter = `volume=${volume}`;
+            console.log('🔄 Using simple volume filter in Speed Change:', volumeFilter);
+          }
+        }
+      }
+      
       const filters = [
-        ...(volume !== 1 ? [`volume=${volume}`] : []), // Thêm volume filter
+        ...(volumeFilter ? [volumeFilter] : []), // 🔊 Precise Volume filter
         ...(eqFilter ? [eqFilter] : []), // 🎚️ Equalizer filter
         ...buildAtempoFilters(playbackRate),
         ...(pitch !== 0 ? [
