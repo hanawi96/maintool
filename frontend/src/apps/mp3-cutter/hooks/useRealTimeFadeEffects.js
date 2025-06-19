@@ -35,6 +35,14 @@ export const useRealTimeFadeEffects = () => {
     fadeIn: 0, fadeOut: 0, startTime: 0, endTime: 0, isActive: false
   });
 
+  // 🔧 Add state to trigger re-renders when connection changes
+  const [isConnectedState, setIsConnectedState] = useState(false);
+  
+  // 🔧 Debug: Track connection state changes
+  useEffect(() => {
+    console.log('🔧 isConnectedState changed to:', isConnectedState);
+  }, [isConnectedState]);
+
   // 🔧 Helper function to safely disconnect audio nodes
   const safeDisconnect = useCallback((node, description = 'node') => {
     if (!node) return;
@@ -130,6 +138,7 @@ export const useRealTimeFadeEffects = () => {
         analyserNodeRef.current.connect(ctx.destination);
         isConnectedRef.current = true;
         connectionStateRef.current = 'connected';
+        setIsConnectedState(true);
         console.log('✅ Audio chain fully connected, isConnected:', isConnectedRef.current);
       } else {
         console.log('🔗 Audio already connected, skipping chain setup');
@@ -138,6 +147,7 @@ export const useRealTimeFadeEffects = () => {
       return !!(masterGainNodeRef.current && fadeGainNodeRef.current);
     } catch {
       connectionStateRef.current = 'error';
+      setIsConnectedState(false);
       return false;
     }
   }, [connectEqualizer]);
@@ -299,13 +309,13 @@ export const useRealTimeFadeEffects = () => {
       currentAudioElementRef.current = audioElement;
     }
     
-    if (isPlaying && connectionStateRef.current === 'connected') {
+    if (isPlaying && isConnectedState) {
       if (!isAnimatingRef.current) startFadeAnimation(audioElement);
       else currentAudioElementRef.current = audioElement;
     } else {
       if (isAnimatingRef.current) stopFadeAnimation();
     }
-  }, [startFadeAnimation, stopFadeAnimation]);
+  }, [startFadeAnimation, stopFadeAnimation, isConnectedState]);
 
   // Master volume control (0-2.0 for 200% boost)
   const setMasterVolume = useCallback((volume) => {
@@ -362,6 +372,7 @@ export const useRealTimeFadeEffects = () => {
     analyserNodeRef.current = null;
     isConnectedRef.current = false; 
     connectionStateRef.current = 'disconnected';
+    setIsConnectedState(false); // 🔧 Reset state
     pitchNodeRef.current = null; 
     hasPitchNodeRef.current = false;
   }, [disconnectEqualizer]);
@@ -379,7 +390,7 @@ export const useRealTimeFadeEffects = () => {
     sourceNode: sourceNodeRef.current,
     masterGainNode: masterGainNodeRef.current,
     fadeGainNode: fadeGainNodeRef.current,
-    isConnected: connectionStateRef.current === 'connected',
+    isConnected: isConnectedState,
 
     // Master volume control
     setMasterVolume,
