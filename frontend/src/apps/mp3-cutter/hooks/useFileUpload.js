@@ -46,7 +46,7 @@ export const useFileUpload = () => {
       }
       setUploadProgress(0);
       let userError = error.message;
-      if (/Network error/.test(error.message)) userError = 'Cannot connect to server. Please make sure the backend is running and try again.';
+      if (/Network error/.test(error.message)) userError = 'Cannot connect to server. Please make sure the backend is running and try again..';
       if (/413|too large/i.test(error.message)) userError = 'File is too large. Maximum size is 100MB.';
       if (/415|Unsupported/i.test(error.message)) userError = 'Unsupported audio format. Please upload MP3, WAV, AAC, OGG, FLAC, M4A, or WMA files.';
       if (/400/.test(error.message)) userError = 'Invalid audio file. Please check the file and try again.';
