@@ -177,7 +177,7 @@ const MP3CutterMain = React.memo(() => {
   } = useAudioPlayer();
   
   // Pitch shift hook (no longer creates its own audio context)
-  const { pitchValue, updatePitch, setPitchNode, clearPitchNode, getPitchNode } = usePitchShift();
+  const { pitchValue, updatePitch } = usePitchShift();
 
   const {
     waveformData, startTime, endTime, isDragging, hoveredHandle, generateWaveform,
@@ -185,10 +185,10 @@ const MP3CutterMain = React.memo(() => {
   } = useEnhancedWaveform();
   const { saveState, undo, redo, canUndo, canRedo, historyIndex, historyLength } = useHistory();  const { 
     connectAudioElement, updateFadeConfig, setFadeActive, isWebAudioSupported,
-    insertPitchNode, removePitchNode, audioContext: fadeAudioContext, isConnected: audioConnected,
+    setPitchValue,
+    audioContext: fadeAudioContext, isConnected: audioConnected,
     setMasterVolume,
-    updateEqualizerBand, updateEqualizerValues, resetEqualizer, isEqualizerConnected, getEqualizerState,
-    isWorkletPreloaded
+    updateEqualizerBand, updateEqualizerValues, resetEqualizer, isEqualizerConnected, getEqualizerState
   } = useRealTimeFadeEffects();
   const { isReady: isWorkerReady, isSupported: isWorkerSupported, metrics: workerMetrics, preloadCriticalComponents } = useWebWorkerPreloader();
   const { scheduleIdlePreload } = useIdleCallbackPreloader();
@@ -314,109 +314,29 @@ const MP3CutterMain = React.memo(() => {
     return () => clearTimeout(t);
   }, [audioFile?.url, audioRef, connectAudioElement, isWebAudioSupported, setMasterVolumeSetter, setMasterVolume, volume]);
   
-  // Add pitch change handler with auto-integration - MOVED UP to avoid use-before-define
-  const handlePitchChange = useCallback(async (newPitch) => {
-    console.log('🎵 Main: handlePitchChange called', { 
-      newPitch, 
-      audioConnected, 
-      fadeAudioContext: !!fadeAudioContext,
-      isEqualizerConnected
-    });
+  // 🎵 Modern pitch change handler - zero audio interruption (like speed)
+  const handlePitchChange = useCallback((newPitch) => {
+    console.log(`🎵 Main: handlePitchChange called: ${newPitch}st`);
     
+    // Update pitch state first
     updatePitch(newPitch);
     
-    // Check if we can apply pitch - either main audio connected OR equalizer connected (they share context)
-    const canApplyPitch = fadeAudioContext && (audioConnected || isEqualizerConnected);
-    
-    if (!canApplyPitch) {
-      console.log('🎵 Main: Audio not ready, pitch will be applied later');
-      return;
-    }
-    
-    const existingPitchNode = getPitchNode();
-    console.log('🎵 Main: Current state', { 
-      newPitch, 
-      hasExistingPitchNode: !!existingPitchNode,
-      canApplyPitch,
-      contextState: fadeAudioContext?.state
-    });
-
-    if (newPitch !== 0) {
-      // Apply pitch processing
-      if (!existingPitchNode) {
-        // Create new pitch node for first time use
-        try {
-          console.log('🎵 Main: Creating new pitch worklet...');
-
-          // Only load worklet if not already preloaded (prevents lag)
-          if (!isWorkletPreloaded()) {
-            console.log('🎵 Main: Loading worklet module...');
-            await fadeAudioContext.audioWorklet.addModule('./soundtouch-worklet.js');
-          } else {
-            console.log('🎵 Main: Using preloaded worklet (instant)');
-          }
-          
-          // Create new pitch node (this should be instant if worklet preloaded)
-          const pitchNode = new AudioWorkletNode(fadeAudioContext, 'soundtouch-processor');
-          
-          // Set parameters
-          pitchNode.parameters.get('pitchSemitones').value = newPitch;
-          pitchNode.parameters.get('tempo').value = 1.0;
-          pitchNode.parameters.get('rate').value = 1.0;
-          
-          // Add debug listener to verify audio processing
-          pitchNode.port.onmessage = (event) => {
-            if (event.data.type === 'debug') {
-              console.log('🎵 Pitch worklet processing:', event.data);
-            }
-          };
-          
-          console.log('🎵 Main: Pitch worklet created with params:', {
-            pitch: newPitch,
-            tempo: 1.0,
-            rate: 1.0,
-            nodeState: pitchNode.context.state
-          });
-          
-          // Insert into audio chain (now uses smooth insertion)
-          if (insertPitchNode(pitchNode)) {
-            setPitchNode(pitchNode);
-            console.log('✅ Main: Pitch node inserted and active with value:', newPitch);
-          } else {
-            console.error('❌ Main: Failed to insert pitch node into audio chain');
-            // Cleanup failed pitch node
-            try {
-              pitchNode.disconnect();
-            } catch (e) {
-              // Ignore disconnect errors
-            }
-          }
-        } catch (error) {
-          console.error('❌ Main: Failed to create/insert pitch worklet:', error);
-        }
-      } else {
-        // Update existing pitch node (this is already handled in usePitchShift)
-        console.log('✅ Main: Existing pitch node will be updated by usePitchShift hook');
-      }
+    // Update persistent pitch node parameters (zero interruption)
+    if (setPitchValue(newPitch)) {
+      console.log(`✅ Main: Pitch updated to ${newPitch}st (zero interruption)`);
     } else {
-      // Remove pitch processing when set to 0
-      if (existingPitchNode) {
-        console.log('🎵 Main: Removing pitch processing (pitch = 0)...');
-        removePitchNode();
-        clearPitchNode();
-        console.log('✅ Main: Pitch processing removed');
-      }
+      console.log('🎵 Main: Pitch will be applied when audio connects');
     }
-  }, [updatePitch, fadeAudioContext, audioConnected, isEqualizerConnected, insertPitchNode, removePitchNode, setPitchNode, clearPitchNode, getPitchNode, isWorkletPreloaded]);
+  }, [updatePitch, setPitchValue]);
   
   // 🎵 Apply pending pitch when audio connection is established
   useEffect(() => {
     const canApplyPitch = fadeAudioContext && (audioConnected || isEqualizerConnected);
-    if (canApplyPitch && pitchValue !== 0 && !getPitchNode()) {
-      console.log('🎵 Main: Audio/EQ connected - applying pending pitch value:', pitchValue);
-      handlePitchChange(pitchValue);
+    if (canApplyPitch && pitchValue !== 0) {
+      console.log('🎵 Main: Audio connected - applying pending pitch value:', pitchValue);
+      setPitchValue(pitchValue);
     }
-  }, [fadeAudioContext, audioConnected, isEqualizerConnected, pitchValue, getPitchNode, handlePitchChange]);
+  }, [fadeAudioContext, audioConnected, isEqualizerConnected, pitchValue, setPitchValue]);
   
   useEffect(() => {
     const audio = audioRef.current;
@@ -566,8 +486,7 @@ const MP3CutterMain = React.memo(() => {
       console.log('🔍 Debug EQ State:', {
         fadeAudioContext: !!fadeAudioContext,
         audioConnected,
-        pitchValue,
-        hasPitchNode: !!getPitchNode()
+        pitchValue
       });
       return;
     }
@@ -602,7 +521,7 @@ const MP3CutterMain = React.memo(() => {
       default:
         console.warn('⚠️ Unknown equalizer change type:', type);
     }
-  }, [isEqualizerConnected, updateEqualizerBand, updateEqualizerValues, resetEqualizer, setCurrentEqualizerValues, fadeAudioContext, audioConnected, pitchValue, getPitchNode]);
+  }, [isEqualizerConnected, updateEqualizerBand, updateEqualizerValues, resetEqualizer, setCurrentEqualizerValues, fadeAudioContext, audioConnected, pitchValue]);
 
   // 🎚️ Function to get current equalizer state for export
   const getCurrentEqualizerState = useCallback(() => {
