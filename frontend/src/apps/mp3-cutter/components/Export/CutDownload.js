@@ -258,12 +258,7 @@ const CutDownload = ({
               {volume !== 1 && (
                 <span className="ml-1 text-xs bg-blue-100 px-1 rounded">APPLIED</span>
               )}
-            </div>
-          </div>          {volume > 1 && (
-            <div className="mt-2 p-2 bg-orange-50 border border-orange-200 rounded text-xs text-orange-700">
-              ⚠️ <strong>Volume boost may cause audio distortion at high levels</strong>
-            </div>
-          )}
+            </div>          </div>
         </div>
       )}
       {audioFile && isInverted && activeRegionDuration < 0.1 && (
