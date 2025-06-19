@@ -28,13 +28,64 @@ export const useRealTimeFadeEffects = () => {
     isConnected: isEqualizerConnected,
     getEqualizerState
   } = useEqualizerRealtime();
-  
-  // Master volume state
+    // Master volume state
   const masterVolumeRef = useRef(1.0);
-
+  
   const [fadeConfig, setFadeConfig] = useState({
     fadeIn: 0, fadeOut: 0, startTime: 0, endTime: 0, isActive: false
   });
+
+  // 🔧 Helper function to safely disconnect audio nodes
+  const safeDisconnect = useCallback((node, description = 'node') => {
+    if (!node) return;
+    try {
+      node.disconnect();
+      console.log(`🔗 ${description} disconnected successfully`);
+    } catch (error) {
+      // Ignore disconnect errors - node may not be connected
+      console.log(`🔗 ${description} disconnect skipped (not connected)`);
+    }
+  }, []);
+
+  // 🔧 Helper function to rebuild audio chain properly
+  const rebuildAudioChain = useCallback((ctx) => {
+    console.log('🔗 Rebuilding audio chain...');
+    
+    try {
+      // Safely disconnect everything first to avoid conflicts
+      safeDisconnect(sourceNodeRef.current, 'Source node');
+      safeDisconnect(pitchNodeRef.current, 'Pitch node');
+      disconnectEqualizer();
+
+      // Determine the correct audio flow
+      let currentInput = sourceNodeRef.current;
+      let currentOutput = masterGainNodeRef.current;
+
+      // Step 1: Connect pitch if available
+      if (pitchNodeRef.current && hasPitchNodeRef.current) {
+        currentInput.connect(pitchNodeRef.current);
+        currentInput = pitchNodeRef.current;
+        console.log('🎵 Pitch node connected in chain');
+      }
+
+      // Step 2: Connect equalizer if available
+      const eqConnected = connectEqualizer(ctx, currentInput, currentOutput);
+      if (eqConnected) {
+        console.log('🎚️ Equalizer connected in chain');
+      } else {
+        // Fallback: direct connection if EQ fails
+        currentInput.connect(currentOutput);
+        console.log('🔗 Direct connection (EQ failed)');
+      }
+
+      console.log('✅ Audio chain rebuilt successfully');
+      return true;
+    } catch (error) {
+      console.error('❌ Failed to rebuild audio chain:', error);
+      return false;
+    }
+  }, [connectEqualizer, disconnectEqualizer, safeDisconnect]);
+
   const initializeWebAudio = useCallback(async (audioElement) => {
     try {
       connectionStateRef.current = 'connecting';
@@ -60,8 +111,11 @@ export const useRealTimeFadeEffects = () => {
       if (!analyserNodeRef.current) {
         analyserNodeRef.current = ctx.createAnalyser();
         analyserNodeRef.current.fftSize = 256;
-      }      if (!isConnectedRef.current) {
-        // 🎚️ Connect equalizer chain: Source → [EQ] → MasterGain → FadeGain → Analyser → Destination
+      }
+
+      if (!isConnectedRef.current) {
+        // 🔗 Build initial audio chain: Source → [EQ] → MasterGain → FadeGain → Analyser → Destination
+        // Note: Pitch will be inserted later via insertPitchNode if needed
         const eqConnected = connectEqualizer(ctx, sourceNodeRef.current, masterGainNodeRef.current);
         if (!eqConnected) {
           // Fallback to direct connection if EQ fails
@@ -72,64 +126,93 @@ export const useRealTimeFadeEffects = () => {
         }
         
         masterGainNodeRef.current.connect(fadeGainNodeRef.current);
-        fadeGainNodeRef.current.connect(analyserNodeRef.current);        analyserNodeRef.current.connect(ctx.destination);        isConnectedRef.current = true;
+        fadeGainNodeRef.current.connect(analyserNodeRef.current);
+        analyserNodeRef.current.connect(ctx.destination);
+        isConnectedRef.current = true;
         connectionStateRef.current = 'connected';
-      }return !!(masterGainNodeRef.current && fadeGainNodeRef.current);
+        console.log('✅ Audio chain fully connected, isConnected:', isConnectedRef.current);
+      } else {
+        console.log('🔗 Audio already connected, skipping chain setup');
+      }
+
+      return !!(masterGainNodeRef.current && fadeGainNodeRef.current);
     } catch {
       connectionStateRef.current = 'error';
       return false;
     }
   }, [connectEqualizer]);
 
-  // Insert pitch node between source and master gain
+  // Insert pitch node at the beginning of the chain
   const insertPitchNode = useCallback((pitchNode) => {
-    if (!pitchNode || !sourceNodeRef.current || !masterGainNodeRef.current || hasPitchNodeRef.current) return false;
+    console.log('🎵 insertPitchNode called', !!pitchNode, 'hasPitch:', hasPitchNodeRef.current);
     
+    if (!pitchNode || !sourceNodeRef.current || !masterGainNodeRef.current) {
+      console.warn('🎵 Cannot insert pitch node: missing required nodes', { 
+        pitchNode: !!pitchNode, 
+        source: !!sourceNodeRef.current, 
+        masterGain: !!masterGainNodeRef.current 
+      });
+      return false;
+    }
+
     try {
-      // Disconnect source -> masterGain
-      sourceNodeRef.current.disconnect(masterGainNodeRef.current);
+      // 🔧 Simple approach: Clear old pitch reference and set new one
+      if (hasPitchNodeRef.current || pitchNodeRef.current) {
+        console.log('🎵 Clearing existing pitch node reference...');
+        pitchNodeRef.current = null;
+        hasPitchNodeRef.current = false;
+      }
       
-      // Connect: source -> pitch -> masterGain
-      sourceNodeRef.current.connect(pitchNode);
-      pitchNode.connect(masterGainNodeRef.current);
-      
+      // Store new pitch node reference
       pitchNodeRef.current = pitchNode;
       hasPitchNodeRef.current = true;
       
-      console.log('Pitch node inserted successfully');
-      return true;
-    } catch (error) {
-      console.error('Failed to insert pitch node:', error);
-      // Fallback: restore original connection
-      try {
-        sourceNodeRef.current.connect(masterGainNodeRef.current);
-      } catch (e) {
-        console.error('Failed to restore connection:', e);
+      // Rebuild the entire audio chain with pitch at the beginning
+      const ctx = audioContextRef.current;
+      if (rebuildAudioChain(ctx)) {
+        console.log('✅ Pitch node inserted successfully into audio chain');
+        return true;
+      } else {
+        // Rollback on failure
+        pitchNodeRef.current = null;
+        hasPitchNodeRef.current = false;
+        console.error('❌ Failed to rebuild audio chain with pitch node');
+        return false;
       }
+    } catch (error) {
+      console.error('❌ Failed to insert pitch node:', error);
+      // Rollback on failure
+      pitchNodeRef.current = null;
+      hasPitchNodeRef.current = false;
       return false;
     }
-  }, []);
+  }, [rebuildAudioChain]);
 
   // Remove pitch node from chain
   const removePitchNode = useCallback(() => {
-    if (!pitchNodeRef.current || !sourceNodeRef.current || !masterGainNodeRef.current || !hasPitchNodeRef.current) return;
+    console.log('🎵 removePitchNode called');
+    
+    if (!pitchNodeRef.current || !hasPitchNodeRef.current) {
+      console.log('🎵 No pitch node to remove');
+      return;
+    }
     
     try {
-      // Disconnect: source -x- pitch -x- masterGain
-      sourceNodeRef.current.disconnect(pitchNodeRef.current);
-      pitchNodeRef.current.disconnect(masterGainNodeRef.current);
-      
-      // Direct connect: source -> masterGain
-      sourceNodeRef.current.connect(masterGainNodeRef.current);
-      
+      // Clear pitch node references first
       pitchNodeRef.current = null;
       hasPitchNodeRef.current = false;
       
-      console.log('Pitch node removed successfully');
+      // Rebuild audio chain without pitch
+      const ctx = audioContextRef.current;
+      if (rebuildAudioChain(ctx)) {
+        console.log('✅ Pitch node removed successfully from audio chain');
+      } else {
+        console.error('❌ Failed to rebuild audio chain after removing pitch node');
+      }
     } catch (error) {
-      console.error('Failed to remove pitch node:', error);
+      console.error('❌ Failed to remove pitch node:', error);
     }
-  }, []);
+  }, [rebuildAudioChain]);
 
   const calculateFadeMultiplier = useCallback((currentTime, config) => {
     const { fadeIn, fadeOut, startTime, endTime, isInverted, duration = 0 } = config;
@@ -266,14 +349,21 @@ export const useRealTimeFadeEffects = () => {
   }, []);
   useEffect(() => () => {
     isAnimatingRef.current = false;
-    if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);    // 🧹 Cleanup equalizer first
+    if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+    // 🧹 Cleanup equalizer first
     disconnectEqualizer();
     
     if (audioContextRef.current && audioContextRef.current.state !== 'closed')
       audioContextRef.current.close();
-    audioContextRef.current = null; sourceNodeRef.current = null; masterGainNodeRef.current = null; fadeGainNodeRef.current = null; analyserNodeRef.current = null;
-    isConnectedRef.current = false; connectionStateRef.current = 'disconnected';
-    pitchNodeRef.current = null; hasPitchNodeRef.current = false;
+    audioContextRef.current = null; 
+    sourceNodeRef.current = null; 
+    masterGainNodeRef.current = null; 
+    fadeGainNodeRef.current = null; 
+    analyserNodeRef.current = null;
+    isConnectedRef.current = false; 
+    connectionStateRef.current = 'disconnected';
+    pitchNodeRef.current = null; 
+    hasPitchNodeRef.current = false;
   }, [disconnectEqualizer]);
   return {
     connectAudioElement,
@@ -294,7 +384,8 @@ export const useRealTimeFadeEffects = () => {
     // Master volume control
     setMasterVolume,
     getMasterVolume,
-      // 🎚️ Equalizer control
+    
+    // 🎚️ Equalizer control
     updateEqualizerBand,
     updateEqualizerValues,
     resetEqualizer,

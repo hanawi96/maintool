@@ -1,4 +1,4 @@
-import { useRef, useCallback, useEffect } from 'react';
+import { useRef, useCallback, useEffect, useState } from 'react';
 
 // 🎚️ EQ configuration - optimized frequency distribution (moved outside to avoid re-renders)
 const EQ_CONFIG = {
@@ -17,6 +17,9 @@ export const useEqualizerRealtime = () => {
   const filtersRef = useRef(null);
   const isConnectedRef = useRef(false);
   const audioContextRef = useRef(null);
+  
+  // State for component re-renders
+  const [isConnected, setIsConnected] = useState(false);
 
   /**
    * 🔧 Create optimized BiquadFilter chain
@@ -46,22 +49,28 @@ export const useEqualizerRealtime = () => {
       console.warn('Failed to create equalizer chain:', error);
       return null;
     }
-  }, []);
-  /**
+  }, []);  /**
    * 🔗 Connect equalizer into audio graph
    * Position: Source → [EQ Chain] → MasterGain → Output
    */
   const connectEqualizer = useCallback((audioContext, sourceNode, destinationNode) => {
     if (!audioContext || !sourceNode || !destinationNode) return false;
-    if (isConnectedRef.current) return true;
+    if (isConnectedRef.current) {
+      console.log('🎚️ EQ already connected, skipping');
+      return true;
+    }
     
     const filters = createEqualizerChain(audioContext);
-    if (!filters || filters.length === 0) return false;
+    if (!filters || filters.length === 0) {
+      console.error('❌ Failed to create EQ filter chain');
+      return false;
+    }
     
     try {
       // 🔧 Safely disconnect existing connection (may not exist)
       try {
         sourceNode.disconnect(destinationNode);
+        console.log('🔗 Disconnected existing direct connection');
       } catch (e) {
         // Connection may not exist yet, this is fine
         console.log('🔗 No existing direct connection to disconnect (expected on first run)');
@@ -69,15 +78,18 @@ export const useEqualizerRealtime = () => {
       
       // Create filter chain: Source → Filter1 → Filter2 → ... → FilterN → Destination
       sourceNode.connect(filters[0]);
+      console.log('🎚️ Connected source to first EQ filter');
       
       for (let i = 0; i < filters.length - 1; i++) {
         filters[i].connect(filters[i + 1]);
       }
+      console.log(`🎚️ Connected ${filters.length} EQ filters in chain`);
       
       filters[filters.length - 1].connect(destinationNode);
-      
-      audioContextRef.current = audioContext;
+      console.log('🎚️ Connected last EQ filter to destination');
+        audioContextRef.current = audioContext;
       isConnectedRef.current = true;
+      setIsConnected(true);
       
       console.log('🔗 Equalizer chain connected successfully');
       return true;
@@ -143,29 +155,35 @@ export const useEqualizerRealtime = () => {
       console.warn('Failed to reset equalizer:', error);
     }
   }, []);
-
   /**
    * 🧹 Cleanup resources
    */
   const disconnectEqualizer = useCallback(() => {
-    if (!isConnectedRef.current || !filtersRef.current) return;
+    if (!isConnectedRef.current) {
+      console.log('🎚️ EQ already disconnected');
+      return;
+    }
     
     try {
-      filtersRef.current.forEach(filter => {
-        try {
-          filter.disconnect();
-        } catch (e) {
-          // Ignore disconnect errors
-        }
-      });
-      
-      filtersRef.current = null;
+      console.log('🧹 Disconnecting equalizer...');
+      if (filtersRef.current) {
+        filtersRef.current.forEach((filter, index) => {
+          try {
+            filter.disconnect();
+            console.log(`🧹 Disconnected EQ filter ${index + 1}/${filtersRef.current.length}`);
+          } catch (e) {
+            // Ignore disconnect errors
+          }
+        });
+      }
+        filtersRef.current = null;
       isConnectedRef.current = false;
+      setIsConnected(false);
       audioContextRef.current = null;
       
-      console.log('🧹 Equalizer disconnected and cleaned up');
+      console.log('✅ Equalizer disconnected and cleaned up');
     } catch (error) {
-      console.warn('Error during equalizer cleanup:', error);
+      console.warn('❌ Error during equalizer cleanup:', error);
     }
   }, []);
 
@@ -203,9 +221,8 @@ export const useEqualizerRealtime = () => {
     updateEqualizerBand,
     updateEqualizerValues,
     resetEqualizer,
-    
-    // State
-    isConnected: isConnectedRef.current,
+      // State
+    isConnected,
     getEqualizerState,
     
     // Configuration
