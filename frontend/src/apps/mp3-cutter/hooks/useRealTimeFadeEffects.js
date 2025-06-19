@@ -237,7 +237,7 @@ export const useRealTimeFadeEffects = () => {
     }
     
     // 🎯 Also ensure audioRef from main component is at 1.0
-    // This is a backup in case currentAudioElementRef is not set
+    // This is a backup in case currentAudioElementRef is not sett
     const audioElements = document.querySelectorAll('audio');
     audioElements.forEach(audio => {
       if (audio.volume !== 1.0) {
