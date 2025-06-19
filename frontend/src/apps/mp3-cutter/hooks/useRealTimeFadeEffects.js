@@ -1,209 +1,103 @@
-import { useRef, useCallback, useEffect, useState } from 'react';
+import { useRef, useEffect, useCallback, useState } from 'react';
 import { useEqualizerRealtime } from './useEqualizerRealtime';
 
+const DEV = process.env.NODE_ENV === 'development';
+
 export const useRealTimeFadeEffects = () => {
-  const audioContextRef = useRef(null);
-  const sourceNodeRef = useRef(null);
-  const masterGainNodeRef = useRef(null);
-  const fadeGainNodeRef = useRef(null);
-  const analyserNodeRef = useRef(null);
-  const isConnectedRef = useRef(false);
-  const connectionStateRef = useRef('disconnected');
-  const fadeConfigRef = useRef({});
-  const animationFrameRef = useRef(null);
-  const lastUpdateTimeRef = useRef(0);
-  const isAnimatingRef = useRef(false);
-  const currentAudioElementRef = useRef(null);
-  
-  // 🎵 Pitch shift integration - PERSISTENT NODE SYSTEM
-  const pitchNodeRef = useRef(null);
-  const hasPitchNodeRef = useRef(false);
-  const isPitchActiveRef = useRef(false); // Track if pitch is currently active (non-zero)
-  // 🎵 Add worklet preloading state
-  const isWorkletLoadedRef = useRef(false);
-  const workletLoadingRef = useRef(false);
-  // 🎚️ Equalizer integration
+  // Web Audio refs
+  const audioCtx = useRef();
+  const sourceNode = useRef();
+  const masterGain = useRef();
+  const fadeGain = useRef();
+  const analyser = useRef();
+  const pitchNode = useRef();
+  const isConnected = useRef(false);
+
+  // Equalizer
   const {
-    connectEqualizer,
-    disconnectEqualizer,
-    updateEqualizerBand,
-    updateEqualizerValues,
-    resetEqualizer,
-    isConnected: isEqualizerConnected,
-    getEqualizerState
+    connectEqualizer, disconnectEqualizer,
+    updateEqualizerBand, updateEqualizerValues, resetEqualizer,
+    isConnected: isEQConnected, getEqualizerState,
   } = useEqualizerRealtime();
-    // Master volume state
-  const masterVolumeRef = useRef(1.0);
-  
-  const [fadeConfig, setFadeConfig] = useState({
-    fadeIn: 0, fadeOut: 0, startTime: 0, endTime: 0, isActive: false
-  });
 
-  // 🔧 Add state to trigger re-renders when connection changes
-  const [isConnectedState, setIsConnectedState] = useState(false);
-  
-  // 🔧 Debug: Track connection state changes
-  useEffect(() => {
-    console.log('🔧 isConnectedState changed to:', isConnectedState);
-  }, [isConnectedState]);
+  // State for UI
+  const [fadeConfig, setFadeConfig] = useState({ fadeIn: 0, fadeOut: 0, startTime: 0, endTime: 0, isActive: false });
+  const [connected, setConnected] = useState(false);
+  const [workletLoaded, setWorkletLoaded] = useState(false);
 
-  // 🔧 Helper function to safely disconnect audio nodes
-  const safeDisconnect = useCallback((node, description = 'node') => {
-    if (!node) return;
+  // Volume
+  const masterVolume = useRef(1);
+
+  // Fade animation
+  const animRef = useRef();
+
+  // Preload Pitch Worklet
+  const preloadPitchWorklet = useCallback(async ctx => {
+    if (workletLoaded) return true;
     try {
-      node.disconnect();
-      console.log(`🔗 ${description} disconnected successfully`);
-    } catch (error) {
-      // Ignore disconnect errors - node may not be connected
-      console.log(`🔗 ${description} disconnect skipped (not connected)`);
-    }
-  }, []);
-
-  // 🎵 Preload pitch worklet for smooth transitions - MOVED UP to avoid temporal dead zone
-  const preloadPitchWorklet = useCallback(async (ctx) => {
-    if (isWorkletLoadedRef.current || workletLoadingRef.current || !ctx) return true;
-    
-    workletLoadingRef.current = true;
-    try {
-      console.log('🎵 Preloading pitch worklet...');
       await ctx.audioWorklet.addModule('./soundtouch-worklet.js');
-      isWorkletLoadedRef.current = true;
-      console.log('✅ Pitch worklet preloaded successfully');
+      setWorkletLoaded(true);
       return true;
-    } catch (error) {
-      console.error('❌ Failed to preload pitch worklet:', error);
-      return false;
-    } finally {
-      workletLoadingRef.current = false;
-    }
-  }, []);
-
-  const initializeWebAudio = useCallback(async (audioElement) => {
-    try {
-      connectionStateRef.current = 'connecting';
-      if (!audioContextRef.current)
-        audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
-      const ctx = audioContextRef.current;
-      if (ctx.state === 'suspended') await ctx.resume();
-      if (!audioElement || !audioElement.src) return false;
-      
-      // 🎯 CRITICAL: Ensure HTML5 audio volume is always 1.0
-      audioElement.volume = 1.0;
-      currentAudioElementRef.current = audioElement;
-      
-      if (!sourceNodeRef.current) sourceNodeRef.current = ctx.createMediaElementSource(audioElement);
-      if (!masterGainNodeRef.current) {
-        masterGainNodeRef.current = ctx.createGain();
-        masterGainNodeRef.current.gain.value = masterVolumeRef.current;
-      }
-      if (!fadeGainNodeRef.current) {
-        fadeGainNodeRef.current = ctx.createGain();
-        fadeGainNodeRef.current.gain.value = 1.0;
-      }
-      if (!analyserNodeRef.current) {
-        analyserNodeRef.current = ctx.createAnalyser();
-        analyserNodeRef.current.fftSize = 256;
-      }
-
-      if (!isConnectedRef.current) {
-        // 🎵 Initialize persistent pitch node first (one-time creation)
-        const persistentPitchNode = await initPersistentPitchNode(ctx);
-        
-        // 🔗 Build audio chain with persistent pitch: Source → Pitch → [EQ] → MasterGain → FadeGain → Analyser → Destination
-        if (persistentPitchNode) {
-          // Chain with pitch: Source → Pitch → EQ → MasterGain
-          sourceNodeRef.current.connect(persistentPitchNode);
-          const eqConnected = connectEqualizer(ctx, persistentPitchNode, masterGainNodeRef.current);
-          if (!eqConnected) {
-            persistentPitchNode.connect(masterGainNodeRef.current);
-            console.log('🔗 Persistent pitch chain: Source → Pitch → MasterGain (EQ failed)');
-          } else {
-            console.log('🔗 Persistent pitch chain: Source → Pitch → EQ → MasterGain');
-          }
-        } else {
-          // Fallback without pitch: Source → EQ → MasterGain
-          const eqConnected = connectEqualizer(ctx, sourceNodeRef.current, masterGainNodeRef.current);
-          if (!eqConnected) {
-            sourceNodeRef.current.connect(masterGainNodeRef.current);
-            console.log('🔗 Fallback chain: Source → MasterGain (no pitch, EQ failed)');
-          } else {
-            console.log('🔗 Fallback chain: Source → EQ → MasterGain (no pitch)');
-          }
-        }
-        
-        masterGainNodeRef.current.connect(fadeGainNodeRef.current);
-        fadeGainNodeRef.current.connect(analyserNodeRef.current);
-        analyserNodeRef.current.connect(ctx.destination);
-        isConnectedRef.current = true;
-        connectionStateRef.current = 'connected';
-        setIsConnectedState(true);
-        console.log('✅ Audio chain with persistent pitch fully connected');
-        
-        // 🎵 Note: No need for worklet preloading here since pitch node is already created
-      } else {
-        console.log('🔗 Audio already connected, skipping chain setup');
-      }
-
-      return !!(masterGainNodeRef.current && fadeGainNodeRef.current);
     } catch {
-      connectionStateRef.current = 'error';
-      setIsConnectedState(false);
       return false;
     }
-  }, [connectEqualizer, preloadPitchWorklet]);
+  }, [workletLoaded]);
 
-  // 🎵 Update pitch parameters - ZERO AUDIO INTERRUPTION
-  const updatePitchParameters = useCallback((pitchSemitones) => {
-    const pitchNode = pitchNodeRef.current;
-    if (!pitchNode) {
-      console.warn('🎵 No persistent pitch node available for parameter update');
-      return false;
+  // Create Persistent Pitch Node (one time)
+  const createPitchNode = useCallback(async ctx => {
+    if (!ctx || pitchNode.current) return pitchNode.current;
+    await preloadPitchWorklet(ctx);
+    pitchNode.current = new AudioWorkletNode(ctx, 'soundtouch-processor');
+    pitchNode.current.parameters.get('pitchSemitones').value = 0;
+    pitchNode.current.parameters.get('tempo').value = 1.0;
+    pitchNode.current.parameters.get('rate').value = 1.0;
+    return pitchNode.current;
+  }, [preloadPitchWorklet]);
+
+  // Connect Audio Element to Web Audio chain (one time)
+  const connectAudioElement = useCallback(async (audioElement) => {
+    if (!audioElement?.src) return false;
+    if (!audioCtx.current) audioCtx.current = new (window.AudioContext || window.webkitAudioContext)();
+    const ctx = audioCtx.current;
+    await ctx.resume();
+    // Always force HTML5 audio volume = 1
+    audioElement.volume = 1;
+
+    // Create nodes if not exist
+    if (!sourceNode.current) sourceNode.current = ctx.createMediaElementSource(audioElement);
+    if (!masterGain.current) masterGain.current = ctx.createGain();
+    if (!fadeGain.current) fadeGain.current = ctx.createGain();
+    if (!analyser.current) analyser.current = ctx.createAnalyser();
+
+    masterGain.current.gain.value = masterVolume.current;
+    fadeGain.current.gain.value = 1;
+    analyser.current.fftSize = 256;
+
+    // Create persistent pitch node
+    const pNode = await createPitchNode(ctx);
+
+    // Connect chain only once
+    if (!isConnected.current) {
+      if (pNode) {
+        sourceNode.current.connect(pNode);
+        if (!connectEqualizer(ctx, pNode, masterGain.current)) pNode.connect(masterGain.current);
+      } else {
+        if (!connectEqualizer(ctx, sourceNode.current, masterGain.current)) sourceNode.current.connect(masterGain.current);
+      }
+      masterGain.current.connect(fadeGain.current);
+      fadeGain.current.connect(analyser.current);
+      analyser.current.connect(ctx.destination);
+
+      isConnected.current = true;
+      setConnected(true);
+      if (DEV) console.log('Web Audio chain connected');
     }
-    
-    try {
-      // Update parameters instantly - no audio chain changes
-      pitchNode.parameters.get('pitchSemitones').value = pitchSemitones;
-      pitchNode.parameters.get('tempo').value = 1.0;
-      pitchNode.parameters.get('rate').value = 1.0;
-      
-      // Update active state
-      const wasActive = isPitchActiveRef.current;
-      const isNowActive = pitchSemitones !== 0;
-      isPitchActiveRef.current = isNowActive;
-      
-      console.log(`🎵 Pitch parameters updated: ${pitchSemitones}st (${wasActive ? 'was' : 'wasn\'t'} active → ${isNowActive ? 'now' : 'not'} active)`);
-      return true;
-    } catch (error) {
-      console.error('❌ Failed to update pitch parameters:', error);
-      return false;
-    }
-  }, []);
+    return true;
+  }, [connectEqualizer, createPitchNode]);
 
-  // 🎵 Modern pitch control - parameter update only (zero audio interruption)
-  const setPitchValue = useCallback((pitchSemitones) => {
-    console.log(`🎵 setPitchValue called: ${pitchSemitones}st`);
-    
-    if (!pitchNodeRef.current) {
-      console.warn('🎵 Persistent pitch node not available, pitch will be applied when audio connects');
-      return false;
-    }
-    
-    // Simply update parameters - no audio chain changes needed!
-    return updatePitchParameters(pitchSemitones);
-  }, [updatePitchParameters]);
-
-  // 🎵 Legacy pitch node management (DEPRECATED - kept for compatibility)
-  const insertPitchNode = useCallback((pitchNode) => {
-    console.warn('🎵 insertPitchNode is deprecated - using persistent pitch node system');
-    return true; // Always return true for compatibility
-  }, []);
-
-  const removePitchNode = useCallback(() => {
-    console.warn('🎵 removePitchNode is deprecated - using persistent pitch node system');
-  }, []);
-
-  const calculateFadeMultiplier = useCallback((currentTime, config) => {
-    const { fadeIn, fadeOut, startTime, endTime, isInverted, duration = 0 } = config;
+  // Fade calculation
+  const calcFade = useCallback((currentTime, cfg) => {
+    const { fadeIn, fadeOut, startTime, endTime, isInverted, duration = 0 } = cfg;
     if (isInverted) {
       if (fadeIn <= 0 && fadeOut <= 0) return 1.0;
       let m = 1.0;
@@ -222,174 +116,68 @@ export const useRealTimeFadeEffects = () => {
     return Math.max(0.0001, Math.min(1, m));
   }, []);
 
-  const startFadeAnimation = useCallback((audioElement) => {
-    if (isAnimatingRef.current || !fadeGainNodeRef.current) return;
-    isAnimatingRef.current = true;
-    currentAudioElementRef.current = audioElement;
-    const animate = (ts) => {
-      if (ts - lastUpdateTimeRef.current < 16) {
-        if (isAnimatingRef.current) animationFrameRef.current = requestAnimationFrame(animate);
-        return;
-      }
-      lastUpdateTimeRef.current = ts;
-      const el = currentAudioElementRef.current;
-      if (!el || !fadeGainNodeRef.current) return;
-      const t = el.currentTime || 0;
-      const cfg = fadeConfigRef.current;
-      fadeGainNodeRef.current.gain.value = calculateFadeMultiplier(t, cfg);
-      if (isAnimatingRef.current && (cfg.isActive || (!el.paused && el.currentTime >= 0)))
-        animationFrameRef.current = requestAnimationFrame(animate);
-      else {
-        isAnimatingRef.current = false;
-        animationFrameRef.current = null;
-        currentAudioElementRef.current = null;
-      }
+  // Animation
+  const startFadeAnimation = useCallback(audioElement => {
+    if (animRef.current) cancelAnimationFrame(animRef.current);
+    const animate = () => {
+      if (!audioElement || !fadeGain.current) return;
+      fadeGain.current.gain.value = calcFade(audioElement.currentTime, fadeConfig);
+      if (fadeConfig.isActive && !audioElement.paused) animRef.current = requestAnimationFrame(animate);
     };
-    animationFrameRef.current = requestAnimationFrame(animate);
-  }, [calculateFadeMultiplier]);
+    animRef.current = requestAnimationFrame(animate);
+  }, [fadeConfig, calcFade]);
 
   const stopFadeAnimation = useCallback(() => {
-    isAnimatingRef.current = false;
-    currentAudioElementRef.current = null;
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-      animationFrameRef.current = null;
-    }
-    if (fadeGainNodeRef.current && fadeGainNodeRef.current.gain)
-      fadeGainNodeRef.current.gain.value = 1.0;
+    if (animRef.current) cancelAnimationFrame(animRef.current);
+    animRef.current = null;
+    if (fadeGain.current) fadeGain.current.gain.value = 1;
   }, []);
 
-  const updateFadeConfig = useCallback((cfg) => {
-    const { fadeIn, fadeOut, startTime, endTime, isInverted = false, duration = 0 } = cfg;
+  // Update fade config
+  const updateFadeConfig = useCallback(cfg => {
+    const { fadeIn = 0, fadeOut = 0, startTime = 0, endTime = 0, isInverted = false, duration = 0 } = cfg;
     const isActive = ((fadeIn > 0 || fadeOut > 0) || isInverted) && startTime < endTime;
-    fadeConfigRef.current = { fadeIn, fadeOut, startTime, endTime, isActive, isInverted, duration };
-    setFadeConfig(fadeConfigRef.current);
-    if (!isActive && fadeGainNodeRef.current && fadeGainNodeRef.current.gain)
-      fadeGainNodeRef.current.gain.value = 1.0;
+    setFadeConfig({ fadeIn, fadeOut, startTime, endTime, isActive, isInverted, duration });
+    if (!isActive && fadeGain.current) fadeGain.current.gain.value = 1;
   }, []);
 
-  useEffect(() => { fadeConfigRef.current = fadeConfig; }, [fadeConfig]);
-
-  const connectAudioElement = useCallback(async (audioElement) => {
-    let attempts = 0;
-    while (attempts < 3) {
-      if (await initializeWebAudio(audioElement)) return true;
-      await new Promise(res => setTimeout(res, 100));
-      attempts++;
-    }
-    return false;
-  }, [initializeWebAudio]);
-
-  const setFadeActive = useCallback((isPlaying, audioElement) => {
-    // 🎯 CRITICAL: Always ensure audio element volume is 1.0
-    if (audioElement) {
-      audioElement.volume = 1.0;
-      currentAudioElementRef.current = audioElement;
-    }
-    
-    if (isPlaying && isConnectedState) {
-      if (!isAnimatingRef.current) startFadeAnimation(audioElement);
-      else currentAudioElementRef.current = audioElement;
-    } else {
-      if (isAnimatingRef.current) stopFadeAnimation();
-    }
-  }, [startFadeAnimation, stopFadeAnimation, isConnectedState]);
-
-  // Master volume control (0-2.0 for 200% boost)
-  const setMasterVolume = useCallback((volume) => {
-    const clampedVolume = Math.max(0, Math.min(2.0, volume));
-    masterVolumeRef.current = clampedVolume;
-    
-    // 🎯 CRITICAL: ALWAYS set HTML5 audio volume to 1.0 (NEVER allow changes)
-    // This ensures preview and export volumes match perfectly
-    if (currentAudioElementRef.current) {
-      currentAudioElementRef.current.volume = 1.0;
-      console.log('🔒 HTML5 Audio Volume locked at 1.0');
-    }
-    
-    // 🎯 Also ensure audioRef from main component is at 1.0
-    // This is a backup in case currentAudioElementRef is not sett
-    const audioElements = document.querySelectorAll('audio');
-    audioElements.forEach(audio => {
-      if (audio.volume !== 1.0) {
-        audio.volume = 1.0;
-        console.log('🔒 Found and fixed audio element volume');
-      }
-    });
-    
-    if (masterGainNodeRef.current && masterGainNodeRef.current.gain) {
-      masterGainNodeRef.current.gain.value = clampedVolume;
-      console.log(`🔊 Volume Control: Preview=${(clampedVolume * 100).toFixed(0)}% | Export=${(clampedVolume * 100).toFixed(0)}% | HTML5=100% (Fixed)`);
-    }
-    
-    // 🎯 Final verification
-    console.log('🎚️ Volume Consistency Verification:', {
-      requestedVolume: volume,
-      actualWebAudioGain: clampedVolume,
-      exportVolumeWillBe: clampedVolume,
-      htmlAudioVolumeIsLocked: true,
-      previewEqualsExport: true
-    });
-  }, []);
-
-  const getMasterVolume = useCallback(() => {
-    return masterVolumeRef.current;
-  }, []);
-  useEffect(() => () => {
-    isAnimatingRef.current = false;
-    if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
-    // 🧹 Cleanup equalizer first
-    disconnectEqualizer();
-    
-    if (audioContextRef.current && audioContextRef.current.state !== 'closed')
-      audioContextRef.current.close();
-    audioContextRef.current = null; 
-    sourceNodeRef.current = null; 
-    masterGainNodeRef.current = null; 
-    fadeGainNodeRef.current = null; 
-    analyserNodeRef.current = null;
-    isConnectedRef.current = false; 
-    connectionStateRef.current = 'disconnected';
-    setIsConnectedState(false); // 🔧 Reset state
-    pitchNodeRef.current = null; 
-    hasPitchNodeRef.current = false;
-    // 🎵 Reset worklet state
-    isWorkletLoadedRef.current = false;
-    workletLoadingRef.current = false;
-  }, [disconnectEqualizer]);
-
-  // 🎵 Create persistent pitch node - CREATED ONCE, never destroyed - MOVED UP to avoid temporal dead zone
-  const initPersistentPitchNode = useCallback(async (ctx) => {
-    if (pitchNodeRef.current || !ctx) return pitchNodeRef.current;
-    
+  // Pitch
+  const setPitchValue = useCallback((pitchSemitones = 0) => {
+    if (!pitchNode.current) return false;
     try {
-      console.log('🎵 Creating persistent pitch node (one-time creation)...');
-      
-      // Ensure worklet is loaded
-      if (!isWorkletLoadedRef.current) {
-        await preloadPitchWorklet(ctx);
-      }
-      
-      // Create persistent pitch node
-      const pitchNode = new AudioWorkletNode(ctx, 'soundtouch-processor');
-      
-      // Initialize with neutral values (no effect)
-      pitchNode.parameters.get('pitchSemitones').value = 0;
-      pitchNode.parameters.get('tempo').value = 1.0;
-      pitchNode.parameters.get('rate').value = 1.0;
-      
-      // Store persistent reference
-      pitchNodeRef.current = pitchNode;
-      hasPitchNodeRef.current = true;
-      isPitchActiveRef.current = false; // Initially inactive
-      
-      console.log('✅ Persistent pitch node created successfully');
-      return pitchNode;
-    } catch (error) {
-      console.error('❌ Failed to create persistent pitch node:', error);
-      return null;
-    }
-  }, [preloadPitchWorklet, isWorkletLoadedRef]);
+      pitchNode.current.parameters.get('pitchSemitones').value = pitchSemitones;
+      pitchNode.current.parameters.get('tempo').value = 1.0;
+      pitchNode.current.parameters.get('rate').value = 1.0;
+      return true;
+    } catch { return false; }
+  }, []);
+
+  // Volume
+  const setMasterVolume = useCallback((vol) => {
+    const clamped = Math.max(0, Math.min(2, vol));
+    masterVolume.current = clamped;
+    if (masterGain.current) masterGain.current.gain.value = clamped;
+    // Ensure all audio tag volume = 1
+    document.querySelectorAll('audio').forEach(a => { if (a.volume !== 1) a.volume = 1; });
+  }, []);
+
+  // Trigger fade animation when play state changes
+  const setFadeActive = useCallback((isPlaying, audioElement) => {
+    audioElement && (audioElement.volume = 1);
+    if (isPlaying && connected) startFadeAnimation(audioElement);
+    else stopFadeAnimation();
+  }, [startFadeAnimation, stopFadeAnimation, connected]);
+
+  // Cleanup
+  useEffect(() => () => {
+    stopFadeAnimation();
+    disconnectEqualizer();
+    audioCtx.current?.close?.();
+    [audioCtx, sourceNode, masterGain, fadeGain, analyser, pitchNode].forEach(ref => { ref.current = null; });
+    isConnected.current = false;
+    setConnected(false);
+    setWorkletLoaded(false);
+  }, [disconnectEqualizer, stopFadeAnimation]);
 
   return {
     connectAudioElement,
@@ -397,29 +185,14 @@ export const useRealTimeFadeEffects = () => {
     setFadeActive,
     fadeConfig,
     isWebAudioSupported: !!(window.AudioContext || window.webkitAudioContext),
-    
-    // Pitch shift integration
-    insertPitchNode,
-    removePitchNode,
     setPitchValue,
-    audioContext: audioContextRef.current,
-    sourceNode: sourceNodeRef.current,
-    masterGainNode: masterGainNodeRef.current,
-    fadeGainNode: fadeGainNodeRef.current,
-    isConnected: isConnectedState,
-
-    // Master volume control
+    audioContext: audioCtx.current,
+    isConnected: connected,
     setMasterVolume,
-    getMasterVolume,
-    
-    // 🎚️ Equalizer control
-    updateEqualizerBand,
-    updateEqualizerValues,
-    resetEqualizer,
-    isEqualizerConnected, // Use from equalizer hook
+    getMasterVolume: () => masterVolume.current,
+    updateEqualizerBand, updateEqualizerValues, resetEqualizer,
+    isEqualizerConnected: isEQConnected,
     getEqualizerState,
-    
-    // 🎵 Pitch worklet state
-    isWorkletPreloaded: () => isWorkletLoadedRef.current
+    isWorkletPreloaded: () => workletLoaded,
   };
 };
