@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Zap, RotateCcw, RotateCw, Repeat, Shuffle, TrendingUp, TrendingDown, Music, Sliders
+  Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Zap, RotateCcw, RotateCw, Repeat, Shuffle, TrendingUp, TrendingDown, Music, Sliders,
+  Plus, Minus, Trash2
 } from 'lucide-react';
 import CompactTimeSelector from './CompactTimeSelector';
 import { getAutoReturnSetting, setAutoReturnSetting } from '../../utils/safeStorage';
@@ -11,8 +12,6 @@ import SpeedSliderPopup from './SpeedSliderPopup';
 import PitchSliderPopup from './PitchSliderPopup';
 import EqualizerPopup from './EqualizerPopup';
 
-const popupList = ['fadeIn', 'fadeOut', 'volume', 'speed', 'pitch'];
-
 const UnifiedControlBar = React.memo(({
   isPlaying, volume, playbackRate, pitch = 0, onTogglePlayPause, onJumpToStart, onJumpToEnd, onVolumeChange, onSpeedChange, onPitchChange,
   startTime, endTime, duration, onStartTimeChange, onEndTimeChange,
@@ -21,7 +20,13 @@ const UnifiedControlBar = React.memo(({
   canUndo, canRedo, onUndo, onRedo, historyIndex, historyLength,
   disabled = false,
   onEqualizerChange = null, // 🎚️ New prop for realtime equalizer updates
-  equalizerState = null // 🎚️ Current equalizer state for visual indicators
+  equalizerState = null, // 🎚️ Current equalizer state for visual indicators
+  // 🆕 Region management props
+  regions = [], // Array of regions
+  canAddNewRegion = false, // 🆕 Whether can add new region based on available spaces
+  onAddRegion = null, // Callback to add new region
+  onDeleteRegion = null, // Callback to delete active region
+  onClearAllRegions = null // Callback to clear all regions
 }) => {
   // Auto-return loop state
   const [autoReturnEnabled, setAutoReturnEnabled] = useState(() => getAutoReturnSetting());
@@ -39,7 +44,10 @@ const UnifiedControlBar = React.memo(({
 
   // 🎚️ Check if equalizer has non-default values
   const isEqualizerActive = equalizerState && Array.isArray(equalizerState) && 
-    equalizerState.some(value => value !== 0);
+    equalizerState.some(value => value !== 0);  // 🆕 Region management logic
+  const canAddRegion = canAddNewRegion && !!onAddRegion; // 🆕 Now depends on available spaces
+  const canDeleteRegion = !disabled && regions.length >= 2 && onDeleteRegion;
+  const canClearAllRegions = !disabled && regions.length >= 2 && onClearAllRegions;
 
 
 
@@ -70,9 +78,14 @@ const UnifiedControlBar = React.memo(({
     const handleKeyDown = (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
       switch (e.code) {
-        case 'Space': e.preventDefault(); onTogglePlayPause(); break;
-        case 'ArrowLeft': if (e.shiftKey) { e.preventDefault(); onJumpToStart(); } break;
+        case 'Space': e.preventDefault(); onTogglePlayPause(); break;        case 'ArrowLeft': if (e.shiftKey) { e.preventDefault(); onJumpToStart(); } break;
         case 'ArrowRight': if (e.shiftKey) { e.preventDefault(); onJumpToEnd(); } break;
+        case 'KeyN':
+          if ((e.ctrlKey || e.metaKey) && canAddRegion) { 
+            e.preventDefault(); 
+            onAddRegion(); 
+          }
+          break;
         case 'KeyZ':
           if ((e.ctrlKey || e.metaKey)) {
             e.preventDefault();
@@ -87,14 +100,7 @@ const UnifiedControlBar = React.memo(({
       }
     };
     document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [onTogglePlayPause, onJumpToStart, onJumpToEnd, onUndo, onRedo, canUndo, canRedo]);
-
-  // Volume/speed handler
-  const handleVolumeChange = useCallback((e) => onVolumeChange(parseFloat(e.target.value)), [onVolumeChange]);
-  const handleSpeedChange = useCallback((e) => onSpeedChange(parseFloat(e.target.value)), [onSpeedChange]);
-  const toggleMute = useCallback(() => onVolumeChange(volume === 0 ? 1 : 0), [volume, onVolumeChange]);
-  const resetSpeed = useCallback(() => onSpeedChange(1), [onSpeedChange]);
+    return () => document.removeEventListener('keydown', handleKeyDown);  }, [onTogglePlayPause, onJumpToStart, onJumpToEnd, onUndo, onRedo, canUndo, canRedo, canAddRegion, onAddRegion]);
 
   // Popup render shortcut
   const popupProps = {
@@ -324,9 +330,56 @@ const UnifiedControlBar = React.memo(({
             title="Equalizer - Click to adjust frequency bands">
             <Sliders className={`w-4 h-4 ${isEqualizerActive ? 'text-cyan-700' : 'text-cyan-600'} group-hover:text-cyan-700`} />
             {isEqualizerActive && <div className="absolute -top-1 -right-1 w-2 h-2 bg-cyan-500 rounded-full"></div>}
+          </button>          {/* 🆕 14. Add Region */}
+          <button
+            onClick={onAddRegion}
+            disabled={!canAddRegion}
+            className={`relative p-2 rounded-lg group transition-all duration-200 ${
+              canAddRegion
+                ? 'bg-gradient-to-r from-emerald-100 to-green-100 hover:from-emerald-200 hover:to-green-200 border border-emerald-300 hover:border-emerald-400 shadow-sm hover:shadow-md'
+                : 'bg-slate-100 opacity-50 cursor-not-allowed border border-slate-300'
+            }`}
+            title={canAddRegion 
+              ? "Add New Region (Ctrl+N) - Available space found" 
+              : "Add New Region - Need >1s space outside current selection"
+            }>
+            <Plus className={`w-4 h-4 ${canAddRegion ? 'text-emerald-700 group-hover:text-emerald-800' : 'text-slate-500'}`} />
+            {canAddRegion && <div className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>}
           </button>
 
-          {/* 14. Time Selector */}
+          {/* 🆕 15. Delete Region */}
+          <button
+            onClick={onDeleteRegion}
+            disabled={!canDeleteRegion}
+            className={`relative p-2 rounded-lg group transition-all duration-200 ${
+              canDeleteRegion
+                ? 'bg-gradient-to-r from-red-100 to-rose-100 hover:from-red-200 hover:to-rose-200 border border-red-300 hover:border-red-400 shadow-sm hover:shadow-md'
+                : 'bg-slate-100 opacity-50 cursor-not-allowed'
+            }`}
+            title={`Delete Active Region ${canDeleteRegion ? `(${regions.length} regions)` : '(Need 2+ regions)'}`}>
+            <Minus className={`w-4 h-4 ${canDeleteRegion ? 'text-red-700 group-hover:text-red-800' : 'text-slate-500'}`} />
+            {canDeleteRegion && regions.length > 2 && (
+              <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>
+            )}
+          </button>
+
+          {/* 🆕 16. Clear All Regions */}
+          <button
+            onClick={onClearAllRegions}
+            disabled={!canClearAllRegions}
+            className={`relative p-2 rounded-lg group transition-all duration-200 ${
+              canClearAllRegions
+                ? 'bg-gradient-to-r from-orange-100 to-amber-100 hover:from-orange-200 hover:to-amber-200 border border-orange-300 hover:border-orange-400 shadow-sm hover:shadow-md'
+                : 'bg-slate-100 opacity-50 cursor-not-allowed'
+            }`}
+            title={`Clear All Regions ${canClearAllRegions ? `(${regions.length} regions)` : '(Need 2+ regions)'}`}>
+            <Trash2 className={`w-4 h-4 ${canClearAllRegions ? 'text-orange-700 group-hover:text-orange-800' : 'text-slate-500'}`} />
+            {canClearAllRegions && regions.length >= 5 && (
+              <div className="absolute -top-1 -right-1 w-2 h-2 bg-orange-500 rounded-full"></div>
+            )}
+          </button>
+
+          {/* 17. Time Selector */}
           <div className="ml-auto">
             <CompactTimeSelector
               startTime={startTime}

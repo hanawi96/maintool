@@ -71,6 +71,12 @@ export const WaveformUI = memo(({
   mainCursorTooltip,
   handlePositions,
   cursorPositions,
+  // 🆕 Region props
+  regionPositions = [],
+  onRegionClick = null,
+  onRegionHandleDown = null,
+  onRegionHandleMove = null,
+  onRegionHandleUp = null,
   onHandleMouseDown,
   onHandleMouseMove,
   onHandleMouseUp,
@@ -329,12 +335,106 @@ export const WaveformUI = memo(({
       {/* 🔵 **MAIN CURSOR** - Always visible for playback feedback */}
       {shouldRenderMainCursor && (
         <div className="absolute" style={mainCursorStyle} />
-      )}
-
-      {/* 🖱️ **HOVER LINE** - Disabled during playback for performance */}
+      )}      {/* 🖱️ **HOVER LINE** - Disabled during playback for performance */}
       {shouldRenderHoverLine && (
         <div className="absolute" style={hoverLineStyle} />
       )}
+
+      {/* 🆕 **REGION BACKGROUNDS** - Clickable areas to select regions */}
+      {regionPositions.map(region => {
+        const regionWidth = region.endHandle.x - region.startHandle.x + region.startHandle.width;
+        return (
+          <div
+            key={`bg-${region.id}`}
+            className="absolute cursor-pointer"
+            style={{
+              left: `${region.startHandle.x}px`,
+              top: `${region.startHandle.y}px`,
+              width: `${regionWidth}px`,
+              height: `${region.startHandle.height}px`,
+              zIndex: 15, // 🔧 Higher than canvas (0) to capture clicks first
+              backgroundColor: 'transparent'
+            }}
+            onClick={(e) => {
+              console.log('🖱️ Region background clicked:', { regionId: region.id, regionName: region.name });
+              e.preventDefault();
+              e.stopPropagation();
+              onRegionClick?.(region.id);
+            }}
+            title={`Click to select ${region.name}`}
+          />
+        );
+      })}
+
+      {/* 🆕 **REGION HANDLES** - Draggable handles for regions */}
+      {regionPositions.map(region => (
+        <React.Fragment key={region.id}>
+          {/* Region Start Handle */}
+          <div
+            className="absolute"
+            style={{
+              ...HANDLE_STYLES.base,
+              ...HANDLE_STYLES.start,
+              left: `${region.startHandle.x}px`,
+              top: `${region.startHandle.y}px`,
+              width: `${region.startHandle.width}px`,
+              height: `${region.startHandle.height}px`,
+              backgroundColor: region.startHandle.color,
+              border: `2px solid ${region.isActive ? '#16a34a' : '#1d4ed8'}`,
+              opacity: region.isActive ? 1 : 0.8
+            }}
+            onPointerDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onRegionHandleDown?.(region.id, 'start', e);
+            }}
+            onPointerMove={(e) => {
+              onRegionHandleMove?.(region.id, 'start', e);
+            }}
+            onPointerUp={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onRegionHandleUp?.(region.id, 'start', e);
+            }}
+          >
+            <div style={HANDLE_DOT_STYLE} />
+            <div style={HANDLE_DOT_STYLE} />
+          </div>
+
+          {/* Region End Handle */}
+          <div
+            className="absolute"
+            style={{
+              ...HANDLE_STYLES.base,
+              ...HANDLE_STYLES.end,
+              left: `${region.endHandle.x}px`,
+              top: `${region.endHandle.y}px`,
+              width: `${region.endHandle.width}px`,
+              height: `${region.endHandle.height}px`,
+              backgroundColor: region.endHandle.color,
+              border: `2px solid ${region.isActive ? '#16a34a' : '#1d4ed8'}`,
+              opacity: region.isActive ? 1 : 0.8
+            }}
+            onPointerDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onRegionHandleDown?.(region.id, 'end', e);
+            }}
+            onPointerMove={(e) => {
+              onRegionHandleMove?.(region.id, 'end', e);
+            }}
+            onPointerUp={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onRegionHandleUp?.(region.id, 'end', e);
+            }}
+          >
+            <div style={HANDLE_DOT_STYLE} />
+            <div style={HANDLE_DOT_STYLE} />
+            <div style={HANDLE_DOT_STYLE} />
+          </div>
+        </React.Fragment>
+      ))}
     </>
   );
 });

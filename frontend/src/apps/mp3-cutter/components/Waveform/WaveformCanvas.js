@@ -76,11 +76,19 @@ const WaveformCanvas = React.memo(({
   fadeOut = 0,
   isInverted = false,
   audioRef,
+  // 🆕 Region props
+  regions = [],
+  activeRegionId = null,
+  onRegionUpdate = null,
+  onRegionClick = null,
+  onRegionHandleDown = null,
+  onRegionHandleMove = null,
+  onRegionHandleUp = null,
   onMouseDown,
   onMouseMove,
   onMouseUp,
   onMouseLeave
-}) => {  // Cache ref for static gray/dynamic canvas
+}) => {// Cache ref for static gray/dynamic canvas
   const backgroundCacheRef = useRef(null);
   const dynamicWaveformCacheRef = useRef(null);
   const lastCacheKey = useRef(null);
@@ -111,6 +119,7 @@ const WaveformCanvas = React.memo(({
     if (canvas) {
       const rect = canvas.getBoundingClientRect();
       const mouseX = e.clientX - rect.left;
+      
       canvas.setPointerCapture(e.pointerId);
       updateCursor(mouseX);
       clearHoverTooltip();
@@ -350,13 +359,49 @@ const WaveformCanvas = React.memo(({
         ctx.rect(startX + (startTime / duration) * areaWidth, 0, ((endTime - startTime) / duration) * areaWidth, height);
         ctx.clip();
         ctx.drawImage(dynamicWaveformCacheRef.current, 0, 0);
-      }ctx.restore();
+      }      ctx.restore();
       // 3. Selection overlay
       ctx.fillStyle = 'rgba(139,92,246,0.15)';
       ctx.fillRect(startX + (startTime / duration) * areaWidth, 0, ((endTime - startTime) / duration) * areaWidth, height);
     }
-    // 4. Current time cursor - Now rendered by React component only
-  }, [canvasRef, renderData]);
+
+    // 4. Regions overlay - Only draw actual regions, not main selection
+    if (regions?.length > 0 && duration > 0) {
+      regions.forEach((region, index) => {
+        const regionStartX = startX + (region.start / duration) * areaWidth;
+        const regionEndX = startX + (region.end / duration) * areaWidth;
+        const regionWidth = regionEndX - regionStartX;
+        
+        // Only draw if region has reasonable width
+        if (regionWidth > 2) {
+          // Region background
+          const isActive = region.id === activeRegionId;
+          ctx.fillStyle = isActive 
+            ? 'rgba(34, 197, 94, 0.2)' // Green for active
+            : 'rgba(59, 130, 246, 0.15)'; // Blue for inactive
+          ctx.fillRect(regionStartX, 0, regionWidth, height);
+          
+          // Region border
+          ctx.strokeStyle = isActive ? '#22c55e' : '#3b82f6';
+          ctx.lineWidth = isActive ? 2 : 1;
+          ctx.strokeRect(regionStartX, 0, regionWidth, height);
+          
+          // Region label
+          if (regionWidth > 40) {
+            ctx.fillStyle = isActive ? '#16a34a' : '#2563eb';
+            ctx.font = '11px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(
+              region.name || `R${index + 1}`,
+              regionStartX + regionWidth / 2,
+              15
+            );
+          }
+        }
+      });    
+    }
+    // 5. Current time cursor - Now rendered by React component only
+  }, [canvasRef, renderData, regions, activeRegionId]);
 
   // ----- CACHE MANAGEMENT -----
   useEffect(() => {
@@ -406,9 +451,17 @@ const WaveformCanvas = React.memo(({
     if (renderData) requestRedraw(drawWaveform);
   }, [renderData, requestRedraw, drawWaveform]);
 
+  // ----- REDRAW ON REGIONS CHANGE -----
+  useEffect(() => {
+    if (renderData && regions?.length > 0) {
+      requestRedraw(drawWaveform);
+    }
+  }, [regions, activeRegionId, renderData, requestRedraw, drawWaveform]);
+
   // ----- HANDLE POSITION CALC -----
   const handlePositions = useMemo(() => {
     if (!canvasRef.current || duration === 0 || startTime >= endTime || !renderData) return { start: null, end: null };
+    
     const canvas = canvasRef.current;
     const w = containerWidth || canvas.width || 800, h = canvas.height || WAVEFORM_CONFIG.HEIGHT;
     const { startX, areaWidth, handleW } = getWaveformArea(w);
@@ -458,8 +511,46 @@ const WaveformCanvas = React.memo(({
         height: h,
         color: 'rgba(156,163,175,0.6)'
       }
-    };
-  }, [canvasRef, duration, currentTime, hoverTooltip, isDragging, containerWidth, renderData]);
+    };  }, [canvasRef, duration, currentTime, hoverTooltip, isDragging, containerWidth, renderData]);
+
+  // 🆕 ----- REGION POSITIONS CALC -----
+  const regionPositions = useMemo(() => {
+    if (!regions?.length || !canvasRef.current || duration === 0 || !renderData) return [];
+    
+    const canvas = canvasRef.current;
+    const w = containerWidth || canvas.width || 800;
+    const h = canvas.height || WAVEFORM_CONFIG.HEIGHT;
+    const { startX, areaWidth, handleW } = getWaveformArea(w);
+    
+    return regions.map(region => {
+      const regionStartX = startX + (region.start / duration) * areaWidth;
+      const regionEndX = startX + (region.end / duration) * areaWidth;
+      const isActive = region.id === activeRegionId;
+      
+      return {
+        id: region.id,
+        name: region.name,
+        isActive,
+        startHandle: {
+          visible: true,
+          x: regionStartX - handleW / 2,
+          y: 0,
+          width: handleW,
+          height: h,
+          color: isActive ? '#22c55e' : '#3b82f6'
+        },
+        endHandle: {
+          visible: true,
+          x: regionEndX - handleW / 2,
+          y: 0,
+          width: handleW,
+          height: h,
+          color: isActive ? '#22c55e' : '#3b82f6'
+        }
+      };
+    });
+  }, [regions, activeRegionId, canvasRef, duration, containerWidth, renderData]);
+
   // ----- CLEANUP IMAGEBITMAP -----
   useEffect(() => () => {
     backgroundCacheRef.current?.close?.();
@@ -481,17 +572,21 @@ const WaveformCanvas = React.memo(({
         style={{
           height: WAVEFORM_CONFIG.HEIGHT,
           touchAction: 'none',
-          zIndex: 1,
+          zIndex: 0,
           visibility: renderData ? 'visible' : 'hidden'
         }}
-      />
-      {renderData && (
+      />      {renderData && (
         <WaveformUI
           hoverTooltip={hoverTooltip}
           handleTooltips={handleTooltipsData}
           mainCursorTooltip={mainCursorTooltip}
           handlePositions={handlePositions}
-          cursorPositions={cursorPositions}
+          cursorPositions={cursorPositions}          // 🆕 Region props
+          regionPositions={regionPositions}
+          onRegionClick={onRegionClick}
+          onRegionHandleDown={onRegionHandleDown}
+          onRegionHandleMove={onRegionHandleMove}
+          onRegionHandleUp={onRegionHandleUp}
           onHandleMouseDown={handleHandlePointerDown}
           onHandleMouseMove={handleHandlePointerMove}
           onHandleMouseUp={handleHandlePointerUp}

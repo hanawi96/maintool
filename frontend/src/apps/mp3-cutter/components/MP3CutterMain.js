@@ -184,7 +184,7 @@ const MP3CutterMain = React.memo(() => {
     setStartTime, setEndTime, setIsDragging, setHoveredHandle, canvasRef, isGenerating, enhancedFeatures
   } = useEnhancedWaveform();
   const { saveState, undo, redo, canUndo, canRedo, historyIndex, historyLength } = useHistory();  const { 
-    connectAudioElement, updateFadeConfig, setFadeActive, isWebAudioSupported,
+    connectAudioElement, disconnectAudioElement, updateFadeConfig, setFadeActive, isWebAudioSupported,
     setPitchValue,
     audioContext: fadeAudioContext, isConnected: audioConnected,
     setMasterVolume,
@@ -200,8 +200,11 @@ const MP3CutterMain = React.memo(() => {
   const [connectionError, setConnectionError] = useState(null);
   const [audioError, setAudioError] = useState(null);
   const [fileValidation, setFileValidation] = useState(null);
-  const [compatibilityReport, setCompatibilityReport] = useState(null);
-  const [isInverted, setIsInverted] = useState(false);
+  const [compatibilityReport, setCompatibilityReport] = useState(null);  const [isInverted, setIsInverted] = useState(false);
+    // 🆕 Regions management state
+  const [regions, setRegions] = useState([]);
+  const [activeRegionId, setActiveRegionId] = useState(null);
+  const [draggingRegion, setDraggingRegion] = useState(null); // {regionId, handleType, startPos}
   
   // 🎚️ Add local state to track current equalizer values for immediate visual feedback
   const [currentEqualizerValues, setCurrentEqualizerValues] = useState(Array(10).fill(0));
@@ -226,13 +229,17 @@ const MP3CutterMain = React.memo(() => {
   });
 
   const handleStartTimeChange = useCallback((newStartTime) => {
+    // 🔧 Simplified - always work with main selection
     originalHandleStartTimeChange(newStartTime);
     jumpToTime(isInverted ? Math.max(0, newStartTime - 3) : newStartTime);
   }, [originalHandleStartTimeChange, jumpToTime, isInverted]);
+
   const handleEndTimeChange = useCallback((newEndTime) => {
+    // 🔧 Simplified - always work with main selection  
     originalHandleEndTimeChange(newEndTime);
     if (!isDragging) jumpToTime(isInverted ? Math.max(0, startTime - 3) : Math.max(startTime, newEndTime - 3));
-  }, [originalHandleEndTimeChange, jumpToTime, startTime, isInverted, isDragging]);
+  }, [originalHandleEndTimeChange, isDragging, jumpToTime, isInverted, startTime]);
+
   useEffect(() => {
     enhancedHandlersRef.current.handleStartTimeChange = handleStartTimeChange;
     enhancedHandlersRef.current.handleEndTimeChange = handleEndTimeChange;
@@ -250,6 +257,12 @@ const MP3CutterMain = React.memo(() => {
     setAudioError(null); setFileValidation(null); setIsInverted(false); window.preventInvertStateRestore = true;
     setTimeout(() => { window.preventInvertStateRestore = false; }, 10000);
     window.currentAudioFile = file;
+    
+    // 🆕 Clear existing regions when uploading new file
+    setRegions([]);
+    setActiveRegionId(null);
+    console.log('🗑️ Cleared existing regions for new file upload');
+    
     try {
       const validation = validateAudioFile(file);
       setFileValidation(validation);
@@ -271,18 +284,29 @@ const MP3CutterMain = React.memo(() => {
       }
       const waveformResult = await generateWaveform(file);
       const audioDuration = waveformResult.duration || audioRef.current?.duration || duration || 0;
-      if (audioDuration > 0) saveState({ startTime: 0, endTime: audioDuration, fadeIn: 0, fadeOut: 0, isInverted: false });
+      if (audioDuration > 0) {
+        saveState({ startTime: 0, endTime: audioDuration, fadeIn: 0, fadeOut: 0, isInverted: false });
+        
+        // 🆕 Don't create default region - just use main selection as visual default
+        console.log('🎵 File loaded, main selection covers entire track:', { start: 0, end: audioDuration });
+      }
     } catch (error) {
       setAudioError({ type: 'upload', title: 'Upload Failed', message: error.message, suggestions: ['Check your internet connection', 'Try a different file', 'Restart the backend server'] });
     }
   }, [uploadFile, generateWaveform, audioRef, duration, saveState, isConnected, testConnection]);
-
   useEffect(() => {
     const audio = audioRef.current;
-    if (!audio || !audioFile?.url) return;
+    if (!audio || !audioFile?.url) {
+      // Disconnect Web Audio when no audio file
+      if (audioConnected) {
+        console.log('🔌 Disconnecting Web Audio - no audio file');
+        disconnectAudioElement();
+      }
+      return;
+    }
     if (interactionManagerRef.current) interactionManagerRef.current.reset();
     setAudioError(null);
-  }, [audioFile?.url, audioFile?.name, audioRef, setAudioError]);
+  }, [audioFile?.url, audioFile?.name, audioRef, setAudioError, audioConnected, disconnectAudioElement]);
   useEffect(() => { animationRef.current = { isPlaying, startTime, endTime }; }, [isPlaying, startTime, endTime]);
   useEffect(() => {
     const audio = audioRef.current;
@@ -312,7 +336,7 @@ const MP3CutterMain = React.memo(() => {
       });
     }, 100);
     return () => clearTimeout(t);
-  }, [audioFile?.url, audioRef, connectAudioElement, isWebAudioSupported, setMasterVolumeSetter, setMasterVolume, volume]);
+  }, [audioFile?.url, audioRef, connectAudioElement, disconnectAudioElement, isWebAudioSupported, setMasterVolumeSetter, setMasterVolume, volume]);
   
   // 🎵 Modern pitch change handler - zero audio interruption (like speed)
   const handlePitchChange = useCallback((newPitch) => {
@@ -378,8 +402,243 @@ const MP3CutterMain = React.memo(() => {
   const handleFadeInDragEnd = useCallback(finalFadeIn => saveState({ startTime, endTime, fadeIn: finalFadeIn, fadeOut, isInverted }), [startTime, endTime, fadeOut, saveState, isInverted]);
   const handleFadeOutDragEnd = useCallback(finalFadeOut => saveState({ startTime, endTime, fadeIn, fadeOut: finalFadeOut, isInverted }), [startTime, endTime, fadeIn, saveState, isInverted]);
   const handleFadeInToggle = useCallback(() => { const v = fadeIn > 0 ? 0 : 3.0; updateFade('in', v); saveState({ startTime, endTime, fadeIn: v, fadeOut, isInverted }); }, [fadeIn, fadeOut, startTime, endTime, isInverted, updateFade, saveState]);
-  const handleFadeOutToggle = useCallback(() => { const v = fadeOut > 0 ? 0 : 3.0; updateFade('out', v); saveState({ startTime, endTime, fadeIn, fadeOut: v, isInverted }); }, [fadeIn, fadeOut, startTime, endTime, isInverted, updateFade, saveState]);
-  const handlePresetApply = useCallback((newFadeIn, newFadeOut) => { setFadeIn(newFadeIn); setFadeOut(newFadeOut); updateFadeConfig({ fadeIn: newFadeIn, fadeOut: newFadeOut, startTime, endTime, isInverted, duration }); saveState({ startTime, endTime, fadeIn: newFadeIn, fadeOut: newFadeOut, isInverted }); }, [startTime, endTime, updateFadeConfig, saveState, isInverted, duration]);
+  const handleFadeOutToggle = useCallback(() => { const v = fadeOut > 0 ? 0 : 3.0; updateFade('out', v); saveState({ startTime, endTime, fadeIn, fadeOut: v, isInverted }); }, [fadeIn, fadeOut, startTime, endTime, isInverted, updateFade, saveState]);  const handlePresetApply = useCallback((newFadeIn, newFadeOut) => { setFadeIn(newFadeIn); setFadeOut(newFadeOut); updateFadeConfig({ fadeIn: newFadeIn, fadeOut: newFadeOut, startTime, endTime, isInverted, duration }); saveState({ startTime, endTime, fadeIn: newFadeIn, fadeOut: newFadeOut, isInverted }); }, [startTime, endTime, updateFadeConfig, saveState, isInverted, duration]);
+
+  // 🆕 Calculate available spaces between existing regions and main selection
+  const calculateAvailableSpaces = useCallback(() => {
+    if (duration <= 0) return [];
+    
+    // Collect occupied areas - always include both regions and main selection
+    const occupiedAreas = [];
+    
+    // Add existing regions
+    regions.forEach(region => {
+      occupiedAreas.push({
+        start: region.start,
+        end: region.end,
+        type: 'region',
+        id: region.id
+      });
+    });
+    
+    // 🔧 Always add main selection as occupied area to prevent overlap
+    if (startTime < endTime) {
+      occupiedAreas.push({
+        start: startTime,
+        end: endTime,
+        type: 'selection'
+      });
+    }
+    
+    // If no occupied areas, entire duration is available
+    if (occupiedAreas.length === 0) {
+      return [{
+        start: 0,
+        end: duration,
+        length: duration
+      }];
+    }
+    
+    // Sort occupied areas by start time
+    const sortedAreas = occupiedAreas.sort((a, b) => a.start - b.start);
+    const spaces = [];
+    
+    // Space before first occupied area
+    if (sortedAreas[0].start > 0) {
+      spaces.push({
+        start: 0,
+        end: sortedAreas[0].start,
+        length: sortedAreas[0].start
+      });
+    }
+    
+    // Spaces between occupied areas
+    for (let i = 0; i < sortedAreas.length - 1; i++) {
+      const currentEnd = sortedAreas[i].end;
+      const nextStart = sortedAreas[i + 1].start;
+      if (nextStart > currentEnd) {
+        spaces.push({
+          start: currentEnd,
+          end: nextStart,
+          length: nextStart - currentEnd
+        });
+      }
+    }
+    
+    // Space after last occupied area
+    const lastArea = sortedAreas[sortedAreas.length - 1];
+    if (lastArea.end < duration) {
+      spaces.push({
+        start: lastArea.end,
+        end: duration,
+        length: duration - lastArea.end
+      });
+    }
+    
+    // Filter spaces >= 1 second
+    const validSpaces = spaces.filter(space => space.length >= 1.0);
+    
+    return validSpaces;
+  }, [regions, duration, startTime, endTime]);
+
+  // 🆕 Check if can add new region
+  const canAddNewRegion = useMemo(() => {
+    const availableSpaces = calculateAvailableSpaces();
+    const canAdd = availableSpaces.length > 0;
+    return canAdd;
+  }, [calculateAvailableSpaces]);
+
+  // 🆕 Region management functions - Updated to use available spaces
+  const generateRandomRegion = useCallback(() => {
+    if (duration <= 0) return null;
+    
+    const availableSpaces = calculateAvailableSpaces();
+    
+    if (availableSpaces.length === 0) {
+      console.log('🚫 No available spaces for new region');
+      return null;
+    }
+    
+    // Choose the largest available space
+    const bestSpace = availableSpaces.reduce((best, current) => 
+      current.length > best.length ? current : best
+    );
+    
+    // Calculate region size (10-60% of available space, min 1s, max 30s)
+    const minDuration = Math.max(1, bestSpace.length * 0.1);
+    const maxDuration = Math.min(30, bestSpace.length * 0.6);
+    const regionDuration = minDuration + Math.random() * (maxDuration - minDuration);
+    
+    // Random position within the space
+    const maxStartPos = bestSpace.end - regionDuration;
+    const regionStart = bestSpace.start + Math.random() * Math.max(0, maxStartPos - bestSpace.start);
+    
+    const newRegion = {
+      id: Date.now() + Math.random(),
+      start: Math.max(bestSpace.start, regionStart),
+      end: Math.min(bestSpace.end, regionStart + regionDuration),
+      name: `Region ${regions.length + 1}`
+    };
+    
+    console.log('✨ Generated new region:', newRegion.name, `[${newRegion.start.toFixed(1)}s - ${newRegion.end.toFixed(1)}s]`);
+    return newRegion;
+  }, [duration, calculateAvailableSpaces, regions, startTime, endTime]);
+
+  const handleAddRegion = useCallback(() => {
+    if (!canAddNewRegion) {
+      return;
+    }
+    
+    const newRegion = generateRandomRegion();
+    if (newRegion) {
+      console.log('✅ Added new region:', newRegion.name);
+      setRegions(prev => [...prev, newRegion]);
+      setActiveRegionId(newRegion.id);
+      // 🔧 Remove auto-sync - don't change main selection when adding regions
+    }
+  }, [generateRandomRegion, canAddNewRegion]);
+  const handleDeleteRegion = useCallback(() => {
+    if (regions.length >= 2 && activeRegionId) {
+      setRegions(prev => prev.filter(r => r.id !== activeRegionId));
+      const remaining = regions.filter(r => r.id !== activeRegionId);
+      setActiveRegionId(remaining.length > 0 ? remaining[0].id : null);
+    }
+  }, [activeRegionId, regions]);
+  const handleClearAllRegions = useCallback(() => {
+    setRegions([]);
+    setActiveRegionId(null);
+  }, []);
+
+  // 🆕 Helper function to calculate safe boundaries for region dragging
+  const getRegionBoundaries = useCallback((targetRegionId, handleType, regions, selectionStart, selectionEnd) => {
+    const otherRegions = regions.filter(r => r.id !== targetRegionId);
+    const allOccupiedAreas = [];
+    
+    // Add other regions as occupied areas
+    otherRegions.forEach(region => {
+      allOccupiedAreas.push({ start: region.start, end: region.end });
+    });
+    
+    // Add main selection as occupied area
+    if (selectionStart < selectionEnd) {
+      allOccupiedAreas.push({ start: selectionStart, end: selectionEnd });
+    }
+    
+    // Sort by start time
+    allOccupiedAreas.sort((a, b) => a.start - b.start);
+    
+    const targetRegion = regions.find(r => r.id === targetRegionId);
+    if (!targetRegion) return { min: 0, max: duration };
+    
+    if (handleType === 'start') {
+      // For start handle, find the nearest end boundary to the left
+      let maxStart = 0;
+      for (const area of allOccupiedAreas) {
+        if (area.end <= targetRegion.start) {
+          maxStart = Math.max(maxStart, area.end);
+        }
+      }
+      return { min: maxStart, max: targetRegion.end - 0.5 };
+    } else {
+      // For end handle, find the nearest start boundary to the right
+      let minEnd = duration;
+      for (const area of allOccupiedAreas) {
+        if (area.start >= targetRegion.end) {
+          minEnd = Math.min(minEnd, area.start);
+        }
+      }
+      return { min: targetRegion.start + 0.5, max: minEnd };
+    }
+  }, [duration]);
+
+  // 🆕 Region drag handlers - Refactored to use proper pointer capture
+  const handleRegionMouseDown = useCallback((regionId, handleType, e) => {
+    setActiveRegionId(regionId);
+    setDraggingRegion({ regionId, handleType, startX: e.clientX });
+    
+    // Set pointer capture on the target element
+    if (e.target && e.target.setPointerCapture && e.pointerId) {
+      e.target.setPointerCapture(e.pointerId);
+    }
+  }, []);
+
+  const handleRegionMouseMove = useCallback((regionId, handleType, e) => {
+    if (!draggingRegion || draggingRegion.regionId !== regionId || draggingRegion.handleType !== handleType) return;
+    if (!duration) return;
+    
+    const deltaX = e.clientX - draggingRegion.startX;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    const canvasWidth = canvas.offsetWidth;
+    const deltaTime = (deltaX / canvasWidth) * duration;
+    
+    setRegions(prev => prev.map(region => {
+      if (region.id !== regionId) return region;
+      
+      // Get safe boundaries considering other regions and main selection
+      const boundaries = getRegionBoundaries(regionId, handleType, prev, startTime, endTime);
+      
+      if (handleType === 'start') {
+        const newStart = Math.max(boundaries.min, Math.min(region.start + deltaTime, boundaries.max));
+        return { ...region, start: newStart };
+      } else {
+        const newEnd = Math.max(boundaries.min, Math.min(region.end + deltaTime, boundaries.max));
+        return { ...region, end: newEnd };
+      }
+    }));
+    
+    setDraggingRegion(prev => ({ ...prev, startX: e.clientX }));
+  }, [draggingRegion, duration, canvasRef, getRegionBoundaries]);
+
+  const handleRegionMouseUp = useCallback((regionId, handleType, e) => {
+    // Release pointer capture
+    if (e.target && e.target.releasePointerCapture && e.pointerId) {
+      e.target.releasePointerCapture(e.pointerId);
+    }
+    
+    setDraggingRegion(null);
+  }, []);
 
   const handleDrop = useCallback((e) => { e.preventDefault(); const files = Array.from(e.dataTransfer.files); if (files.length > 0) handleFileUpload(files[0]); }, [handleFileUpload]);
 
@@ -413,8 +672,9 @@ const MP3CutterMain = React.memo(() => {
       }
     };
     if (isPlaying && audioRef.current) animationId = requestAnimationFrame(updateCursor);
-    return () => { if (animationId) cancelAnimationFrame(animationId); };
-  }, [isPlaying, startTime, endTime, audioRef, setCurrentTime, setIsPlaying, isInverted, jumpToTime, duration, canvasRef]);
+    return () => { if (animationId) cancelAnimationFrame(animationId); };  }, [isPlaying, startTime, endTime, audioRef, setCurrentTime, setIsPlaying, isInverted, jumpToTime, duration, canvasRef]);
+
+  // 🆕 Region dragging now handled by pointer capture in WaveformUI, no global listeners needed
 
   useSmartFadeConfigSync({ fadeIn, fadeOut, startTime, endTime, isInverted, duration, updateFadeConfig });
 
@@ -527,20 +787,24 @@ const MP3CutterMain = React.memo(() => {
   const getCurrentEqualizerState = useCallback(() => {
     // 🎚️ Prioritize local state for immediate visual feedback, fallback to Web Audio API values
     if (currentEqualizerValues.some(v => v !== 0)) {
-      console.log('🎚️ Frontend EQ Export State (Local):', currentEqualizerValues);
       return currentEqualizerValues;
     }
     
     if (!isEqualizerConnected || !getEqualizerState) {
-      console.log('🎚️ Frontend EQ Export State: No EQ data (not connected or no function)');
       return null;
     }
     const eqState = getEqualizerState();
     // Return just the gain values as an array for visual indicators and export
     const eqValues = eqState?.bands ? eqState.bands.map(band => band.gain) : null;
-    console.log('🎚️ Frontend EQ Export State (Web Audio):', eqValues);
     return eqValues;
   }, [currentEqualizerValues, isEqualizerConnected, getEqualizerState]);
+
+  // 🆕 Region click handlers - For selecting active region
+  const handleRegionClick = useCallback((regionId) => {
+    console.log('🎯 Region selected for highlighting:', regionId);
+    setActiveRegionId(regionId);
+    // 🔧 Only set active for visual highlighting, don't change time controls
+  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-pink-50">
@@ -560,8 +824,7 @@ const MP3CutterMain = React.memo(() => {
           <div className="space-y-4">
             <div className="file-info-display">
               <FileInfo audioFile={audioFile} duration={duration} />
-            </div>
-            <SmartWaveformLazy
+            </div>            <SmartWaveformLazy
               canvasRef={canvasRef}
               waveformData={waveformData}
               currentTime={currentTime}
@@ -577,7 +840,18 @@ const MP3CutterMain = React.memo(() => {
               fadeIn={fadeIn}
               fadeOut={fadeOut}
               isInverted={isInverted}
-              audioRef={audioRef}
+              audioRef={audioRef}              // 🆕 Region props
+              regions={regions}
+              activeRegionId={activeRegionId}
+              onRegionUpdate={(regionId, newStart, newEnd) => {
+                setRegions(prev => prev.map(r => 
+                  r.id === regionId ? { ...r, start: newStart, end: newEnd } : r
+                ));
+              }}
+              onRegionClick={handleRegionClick}
+              onRegionHandleDown={handleRegionMouseDown}
+              onRegionHandleMove={handleRegionMouseMove}
+              onRegionHandleUp={handleRegionMouseUp}
               onMouseDown={handleCanvasMouseDown}
               onMouseMove={handleCanvasMouseMove}
               onMouseUp={handleCanvasMouseUp}
@@ -614,6 +888,12 @@ const MP3CutterMain = React.memo(() => {
               historyIndex={historyIndex}
               historyLength={historyLength}
               disabled={!audioFile}
+              // 🆕 Region management props
+              regions={regions}
+              canAddNewRegion={canAddNewRegion}
+              onAddRegion={handleAddRegion}
+              onDeleteRegion={handleDeleteRegion}
+              onClearAllRegions={handleClearAllRegions}
             />
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div className="fade-controls">
@@ -667,3 +947,4 @@ const MP3CutterMain = React.memo(() => {
 
 MP3CutterMain.displayName = 'MP3CutterMain';
 export default MP3CutterMain;
+

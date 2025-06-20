@@ -92,6 +92,15 @@ const Waveform = React.memo(({
   // 🚀 **REALTIME AUDIO ACCESS**: Direct audio element access cho ultra-smooth tooltips
   audioRef,
   
+  // 🆕 **REGION PROPS**: Region management props
+  regions = [],
+  activeRegionId = null,
+  onRegionUpdate = null,
+  onRegionClick = null,
+  onRegionHandleDown = null,
+  onRegionHandleMove = null,
+  onRegionHandleUp = null,
+  
   onMouseDown,
   onMouseMove,
   onMouseUp,
@@ -174,6 +183,13 @@ const Waveform = React.memo(({
             fadeOut={fadeOut}
             isInverted={isInverted}
             audioRef={audioRef}
+            regions={regions}
+            activeRegionId={activeRegionId}
+            onRegionUpdate={onRegionUpdate}
+            onRegionClick={onRegionClick}
+            onRegionHandleDown={onRegionHandleDown}
+            onRegionHandleMove={onRegionHandleMove}
+            onRegionHandleUp={onRegionHandleUp}
             onMouseDown={onMouseDown}
             onMouseMove={onMouseMove}
             onMouseUp={onMouseUp}

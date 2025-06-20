@@ -53,10 +53,29 @@ export const useRealTimeFadeEffects = () => {
     pitchNode.current.parameters.get('rate').value = 1.0;
     return pitchNode.current;
   }, [preloadPitchWorklet]);
-
   // Connect Audio Element to Web Audio chain (one time)
   const connectAudioElement = useCallback(async (audioElement) => {
     if (!audioElement?.src) return false;
+    
+    // If we already have a connection with the same audio element, reuse it
+    if (sourceNode.current && sourceNode.current.mediaElement === audioElement && isConnected.current) {
+      console.log('🔌 Reusing existing Web Audio connection');
+      return true;
+    }
+    
+    // Clean up existing connection if switching audio sources
+    if (sourceNode.current && sourceNode.current.mediaElement !== audioElement) {
+      console.log('🔌 Cleaning up previous Web Audio connection for new audio source');
+      try {
+        sourceNode.current.disconnect();
+      } catch (e) {
+        console.warn('🔌 Error disconnecting previous source:', e);
+      }
+      sourceNode.current = null;
+      isConnected.current = false;
+      setConnected(false);
+    }
+    
     if (!audioCtx.current) audioCtx.current = new (window.AudioContext || window.webkitAudioContext)();
     const ctx = audioCtx.current;
     await ctx.resume();
@@ -64,7 +83,15 @@ export const useRealTimeFadeEffects = () => {
     audioElement.volume = 1;
 
     // Create nodes if not exist
-    if (!sourceNode.current) sourceNode.current = ctx.createMediaElementSource(audioElement);
+    if (!sourceNode.current) {
+      try {
+        sourceNode.current = ctx.createMediaElementSource(audioElement);
+        console.log('🔌 Created new MediaElementSourceNode');
+      } catch (error) {
+        console.error('🔌 Failed to create MediaElementSourceNode:', error);
+        return false;
+      }
+    }
     if (!masterGain.current) masterGain.current = ctx.createGain();
     if (!fadeGain.current) fadeGain.current = ctx.createGain();
     if (!analyser.current) analyser.current = ctx.createAnalyser();
@@ -167,20 +194,65 @@ export const useRealTimeFadeEffects = () => {
     if (isPlaying && connected) startFadeAnimation(audioElement);
     else stopFadeAnimation();
   }, [startFadeAnimation, stopFadeAnimation, connected]);
-
   // Cleanup
   useEffect(() => () => {
+    console.log('🔌 Cleaning up Web Audio resources...');
     stopFadeAnimation();
     disconnectEqualizer();
-    audioCtx.current?.close?.();
+    
+    // Properly disconnect all nodes
+    try {
+      if (sourceNode.current) {
+        sourceNode.current.disconnect();
+        console.log('🔌 Disconnected source node');
+      }
+      if (masterGain.current) masterGain.current.disconnect();
+      if (fadeGain.current) fadeGain.current.disconnect();
+      if (analyser.current) analyser.current.disconnect();
+      if (pitchNode.current) pitchNode.current.disconnect();
+    } catch (e) {
+      console.warn('🔌 Error during node disconnection:', e);
+    }
+    
+    // Close audio context
+    if (audioCtx.current?.state !== 'closed') {
+      audioCtx.current?.close?.();
+      console.log('🔌 Closed audio context');
+    }
+    
+    // Reset all refs
     [audioCtx, sourceNode, masterGain, fadeGain, analyser, pitchNode].forEach(ref => { ref.current = null; });
     isConnected.current = false;
     setConnected(false);
     setWorkletLoaded(false);
   }, [disconnectEqualizer, stopFadeAnimation]);
+  // Manual disconnect function for cleanup
+  const disconnectAudioElement = useCallback(() => {
+    if (!isConnected.current) return;
+    
+    console.log('🔌 Manually disconnecting Web Audio...');
+    stopFadeAnimation();
+    
+    try {
+      if (sourceNode.current) {
+        sourceNode.current.disconnect();
+        sourceNode.current = null;
+      }
+      if (masterGain.current) masterGain.current.disconnect();
+      if (fadeGain.current) fadeGain.current.disconnect();
+      if (analyser.current) analyser.current.disconnect();
+      if (pitchNode.current) pitchNode.current.disconnect();
+    } catch (e) {
+      console.warn('🔌 Error during manual disconnection:', e);
+    }
+    
+    isConnected.current = false;
+    setConnected(false);
+  }, [stopFadeAnimation]);
 
   return {
     connectAudioElement,
+    disconnectAudioElement,
     updateFadeConfig,
     setFadeActive,
     fadeConfig,
