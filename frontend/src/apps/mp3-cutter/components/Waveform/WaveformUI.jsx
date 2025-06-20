@@ -369,11 +369,31 @@ export const WaveformUI = memo(({
               e.preventDefault();
               e.stopPropagation();
               
+              // 🆕 Calculate click position as time
+              const rect = e.currentTarget.getBoundingClientRect();
+              const clickX = e.clientX - rect.left;
+              const regionWidth = rect.width;
+              const regionStartTime = region.startTime;
+              const regionEndTime = region.endTime;
+              const clickRatio = clickX / regionWidth;
+              const clickTime = regionStartTime + (regionEndTime - regionStartTime) * clickRatio;
+              
+              console.log('🎯 Region click position calculated:', {
+                regionId: region.id,
+                regionName: region.name,
+                clickX,
+                regionWidth,
+                clickRatio: clickRatio.toFixed(3),
+                regionStartTime: regionStartTime.toFixed(2),
+                regionEndTime: regionEndTime.toFixed(2),
+                calculatedClickTime: clickTime.toFixed(2)
+              });
+              
               // 🔧 FIX: Single handler for both region selection AND drag start
               // This prevents race condition between onClick and onPointerDown
               
               // First: Select the region (always happens)
-              onRegionClick?.(region.id);
+              onRegionClick?.(region.id, clickTime);
               
               // Then: Start drag if needed (only if dragging is intended)
               e.target.style.cursor = 'grabbing';

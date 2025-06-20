@@ -135,20 +135,41 @@ const WaveformCanvas = React.memo(({
         const mainSelectionRight = isInverted ? regionEndX : regionEndX + handleW;
         
         if (mouseX >= mainSelectionLeft && mouseX <= mainSelectionRight) {
-          // Set main selection as active
-          console.log('🎯 WaveformCanvas: Main selection area clicked!', {
-            mouseX,
-            mainSelectionLeft,
-            mainSelectionRight,
-            startTime,
-            endTime,
-            regionsCount: regions.length,
-            settingFlag: true
-          });
-          onMainSelectionClick?.();
-          // 🔧 Mark this event as main selection click to prevent double jumping
-          e.isMainSelectionClick = true;
-          console.log('🏃 WaveformCanvas: Flag set - e.isMainSelectionClick =', e.isMainSelectionClick);
+          const isMainAlreadyActive = activeRegionId === 'main';
+          
+          if (isMainAlreadyActive) {
+            // 🆕 Calculate click position for active main selection
+            const clickRatio = (mouseX - mainSelectionLeft) / (mainSelectionRight - mainSelectionLeft);
+            const clickTime = startTime + (endTime - startTime) * clickRatio;
+            
+            console.log('🎯 WaveformCanvas: Active main selection clicked - calculating position!', {
+              mouseX,
+              mainSelectionLeft,
+              mainSelectionRight,
+              clickRatio: clickRatio.toFixed(3),
+              startTime: startTime.toFixed(2),
+              endTime: endTime.toFixed(2),
+              calculatedClickTime: clickTime.toFixed(2)
+            });
+            
+            onMainSelectionClick?.(clickTime);
+          } else {
+            // 🆕 Inactive main selection - just select
+            console.log('🎯 WaveformCanvas: Main selection area clicked (inactive)!', {
+              mouseX,
+              mainSelectionLeft,
+              mainSelectionRight,
+              startTime,
+              endTime,
+              regionsCount: regions.length,
+              activeRegionId,
+              settingFlag: true
+            });
+            onMainSelectionClick?.();
+            // 🔧 Mark this event as main selection click to prevent double jumping
+            e.isMainSelectionClick = true;
+            console.log('🏃 WaveformCanvas: Flag set - e.isMainSelectionClick =', e.isMainSelectionClick);
+          }
         }
       }
       
@@ -157,7 +178,7 @@ const WaveformCanvas = React.memo(({
       clearHoverTooltip();
     }
     onMouseDown?.(e);
-  }, [onMouseDown, updateCursor, clearHoverTooltip, canvasRef, regions.length, duration, startTime, endTime, hybridWaveformData, containerWidth, isInverted, onMainSelectionClick]);
+  }, [onMouseDown, updateCursor, clearHoverTooltip, canvasRef, regions.length, duration, startTime, endTime, hybridWaveformData, containerWidth, isInverted, onMainSelectionClick, activeRegionId]);
   const handlePointerMove = useCallback((e) => {
     onMouseMove?.(e);
     const canvas = canvasRef.current;
@@ -591,6 +612,8 @@ const WaveformCanvas = React.memo(({
         id: region.id,
         name: region.name,
         isActive,
+        startTime: region.start,
+        endTime: region.end,
         startHandle: {
           visible: true,
           x: regionStartX - handleW, // Same as main selection: fully left of region start

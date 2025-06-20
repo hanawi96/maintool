@@ -1243,25 +1243,39 @@ const MP3CutterMain = React.memo(() => {
   }, [currentEqualizerValues, isEqualizerConnected, getEqualizerState]);
 
   // 🆕 Region click handlers - For selecting active region
-  const handleRegionClick = useCallback((regionId) => {
+  const handleRegionClick = useCallback((regionId, clickPosition = null) => {
     // 🔧 Don't jump cursor if we're in the middle of dragging
     if (draggingRegion) {
       console.log('🚫 Region click ignored - currently dragging');
       return;
     }
     
-    console.log('🎯 Region clicked - setting active and jumping to start point:', regionId);
-    setActiveRegionIdDebounced(regionId, 'regionClick');
-    
-    // 🆕 Jump cursor to region start point
     const selectedRegion = regions.find(r => r.id === regionId);
-    if (selectedRegion) {
+    if (!selectedRegion) return;
+    
+    const wasAlreadyActive = activeRegionId === regionId;
+    
+    console.log('🎯 Region clicked:', {
+      regionId,
+      wasAlreadyActive,
+      clickPosition,
+      regionName: selectedRegion.name
+    });
+    
+    if (wasAlreadyActive && clickPosition !== null) {
+      // 🆕 Active region click → Jump to click position
+      console.log('🎯 Active region click - jumping to click position:', clickPosition.toFixed(2));
+      jumpToTime(clickPosition);
+    } else {
+      // 🆕 Inactive region click → Select region and jump to start
+      console.log('🎯 Inactive region click - selecting and jumping to start point');
+      setActiveRegionIdDebounced(regionId, 'regionClick');
       jumpToTime(selectedRegion.start);
     }
-  }, [regions, jumpToTime, draggingRegion, setActiveRegionIdDebounced]);
+  }, [regions, jumpToTime, draggingRegion, setActiveRegionIdDebounced, activeRegionId]);
 
   // 🆕 Main selection click handler - For selecting main selection as active
-  const handleMainSelectionClick = useCallback(() => {
+  const handleMainSelectionClick = useCallback((clickPosition = null) => {
     if (regions.length >= 1) {
       // 🔧 Prevent double calls with simple debounce
       const now = Date.now();
@@ -1271,16 +1285,27 @@ const MP3CutterMain = React.memo(() => {
       }
       mainSelectionClickRef.current = now;
       
+      const wasAlreadyActive = activeRegionId === 'main';
+      
       console.log('🎯 MP3CutterMain: handleMainSelectionClick called!', {
         regionsCount: regions.length,
         currentActiveRegionId: activeRegionId,
+        wasAlreadyActive,
+        clickPosition,
         startTime,
-        willJumpTo: startTime
+        willJumpTo: wasAlreadyActive && clickPosition !== null ? clickPosition : startTime
       });
-      setActiveRegionIdDebounced('main', 'mainSelectionClick');
-      // 🆕 Jump cursor to main selection start point
-      jumpToTime(startTime);
-      console.log('✅ MP3CutterMain: Main selection activated and cursor jumped to:', startTime);
+      
+      if (wasAlreadyActive && clickPosition !== null) {
+        // 🆕 Active main selection click → Jump to click position
+        console.log('🎯 Active main selection click - jumping to click position:', clickPosition.toFixed(2));
+        jumpToTime(clickPosition);
+      } else {
+        // 🆕 Inactive main selection click → Select and jump to start
+        console.log('🎯 Inactive main selection click - selecting and jumping to start point');
+        setActiveRegionIdDebounced('main', 'mainSelectionClick');
+        jumpToTime(startTime);
+      }
     }
   }, [regions.length, setActiveRegionIdDebounced, jumpToTime, startTime, activeRegionId]);
 
