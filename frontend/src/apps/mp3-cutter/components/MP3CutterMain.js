@@ -967,6 +967,62 @@ const MP3CutterMain = React.memo(() => {
     }
   }, [regions.length, activeRegionId, regions]);
 
+  // 🆕 Computed values for time selector - show active region time when available
+  const timeDisplayValues = useMemo(() => {
+    if (activeRegionId && regions.length > 0) {
+      const activeRegion = regions.find(r => r.id === activeRegionId);
+      if (activeRegion) {
+        return {
+          displayStartTime: activeRegion.start,
+          displayEndTime: activeRegion.end,
+          isRegionTime: true,
+          regionName: activeRegion.name
+        };
+      }
+    }
+    // Fallback to main selection
+    return {
+      displayStartTime: startTime,
+      displayEndTime: endTime,
+      isRegionTime: false,
+      regionName: null
+    };
+  }, [activeRegionId, regions, startTime, endTime]);
+
+  // 🆕 Time change handlers for active region
+  const handleTimeDisplayChange = useCallback((type, newTime) => {
+    if (timeDisplayValues.isRegionTime && activeRegionId) {
+      // Update active region time with collision detection
+      setRegions(prev => prev.map(region => {
+        if (region.id !== activeRegionId) return region;
+        
+        // Apply collision detection for region time changes
+        const boundaries = getRegionBoundaries(activeRegionId, type, prev, startTime, endTime);
+        const safeTime = Math.max(boundaries.min, Math.min(newTime, boundaries.max));
+        
+        return {
+          ...region,
+          [type]: safeTime
+        };
+      }));
+    } else {
+      // Fallback to main selection change
+      if (type === 'start') {
+        handleStartTimeChange(newTime);
+      } else {
+        handleEndTimeChange(newTime);
+      }
+    }
+  }, [timeDisplayValues.isRegionTime, activeRegionId, handleStartTimeChange, handleEndTimeChange, getRegionBoundaries, startTime, endTime]);
+
+  const handleDisplayStartTimeChange = useCallback((newTime) => {
+    handleTimeDisplayChange('start', newTime);
+  }, [handleTimeDisplayChange]);
+
+  const handleDisplayEndTimeChange = useCallback((newTime) => {
+    handleTimeDisplayChange('end', newTime);
+  }, [handleTimeDisplayChange]);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-pink-50">
       <div className="container mx-auto px-6 py-6">
@@ -1028,15 +1084,16 @@ const MP3CutterMain = React.memo(() => {
               onTogglePlayPause={togglePlayPause}
               onJumpToStart={handleJumpToStart}
               onJumpToEnd={handleJumpToEnd}
-              onVolumeChange={updateVolume}              onSpeedChange={updatePlaybackRate}
+              onVolumeChange={updateVolume}
+              onSpeedChange={updatePlaybackRate}
               onPitchChange={handlePitchChange}
               onEqualizerChange={handleEqualizerChange}
               equalizerState={getCurrentEqualizerState()} // 🎚️ Pass current EQ state for visual indicators
-              startTime={startTime}
-              endTime={endTime}
+              startTime={timeDisplayValues.displayStartTime}
+              endTime={timeDisplayValues.displayEndTime}
               duration={duration}
-              onStartTimeChange={handleStartTimeChange}
-              onEndTimeChange={handleEndTimeChange}
+              onStartTimeChange={handleDisplayStartTimeChange}
+              onEndTimeChange={handleDisplayEndTimeChange}
               onInvertSelection={handleInvertSelection}
               isInverted={isInverted}
               fadeIn={fadeIn}
