@@ -961,6 +961,17 @@ const MP3CutterMain = React.memo(() => {
     // 🔧 Only set active for visual highlighting, don't change time controls
   }, []);
 
+  // 🆕 Auto-select first region when there are 2+ regions but no active selection
+  useEffect(() => {
+    if (regions.length >= 2 && !activeRegionId) {
+      const firstRegion = regions[0];
+      if (firstRegion) {
+        setActiveRegionId(firstRegion.id);
+        console.log('🎯 Auto-selected first region:', firstRegion.name);
+      }
+    }
+  }, [regions.length, activeRegionId, regions]);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-pink-50">
       <div className="container mx-auto px-6 py-6">

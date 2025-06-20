@@ -368,7 +368,45 @@ const WaveformCanvas = React.memo(({
       ctx.fillRect(startX + (startTime / duration) * areaWidth, 0, ((endTime - startTime) / duration) * areaWidth, height);
     }
 
-    // 4. Regions overlay - Only draw actual regions, not main selection
+    // 🆕 3.5. Purple waveform bars for regions (before region overlays)
+    if (regions?.length > 0 && duration > 0 && dynamicWaveformCacheRef.current) {
+      regions.forEach(region => {
+        const regionStartX = startX + (region.start / duration) * areaWidth;
+        const regionEndX = startX + (region.end / duration) * areaWidth;
+        const regionWidth = regionEndX - regionStartX;
+        
+        if (regionWidth > 2) {
+          ctx.save();
+          
+          // Create purple colored waveform for this region
+          ctx.fillStyle = '#7c3aed'; // Purple color for region waveform bars
+          const centerY = height / 2;
+          const FLAT_BAR = 1;
+          const MAX_PX = 65;
+          const vol = Math.max(0, Math.min(1, currentVolume));
+          const barW = areaWidth / renderData.waveformData.length;
+          
+          // Calculate which bars are in this region
+          const startBarIndex = Math.floor((region.start / duration) * renderData.waveformData.length);
+          const endBarIndex = Math.ceil((region.end / duration) * renderData.waveformData.length);
+          
+          // Draw purple bars for this region
+          for (let i = startBarIndex; i < endBarIndex && i < renderData.waveformData.length; i++) {
+            let h = FLAT_BAR + ((FLAT_BAR + (MAX_PX * renderData.waveformData[i]) - FLAT_BAR) * vol);
+            const x = startX + (i * barW);
+            
+            // Only draw if within region bounds
+            if (x >= regionStartX && x <= regionEndX) {
+              ctx.fillRect(Math.floor(x), centerY - h, barW, h * 2);
+            }
+          }
+          
+          ctx.restore();
+        }
+      });
+    }
+
+    // 4. Regions overlay - Simple design matching main selection
     if (regions?.length > 0 && duration > 0) {
       regions.forEach((region, index) => {
         const regionStartX = startX + (region.start / duration) * areaWidth;
@@ -377,28 +415,26 @@ const WaveformCanvas = React.memo(({
         
         // Only draw if region has reasonable width
         if (regionWidth > 2) {
-          // Region background
           const isActive = region.id === activeRegionId;
+          
+          // 🎨 Simple background - green when active, light blue when inactive
           ctx.fillStyle = isActive 
-            ? 'rgba(34, 197, 94, 0.2)' // Green for active
-            : 'rgba(59, 130, 246, 0.15)'; // Blue for inactive
+            ? 'rgba(34, 197, 94, 0.15)' // Green for active (same opacity as main selection)
+            : 'rgba(59, 130, 246, 0.1)'; // Light blue for inactive
           ctx.fillRect(regionStartX, 0, regionWidth, height);
           
-          // Region border
+          // 🎨 Simple border - same style as main selection
           ctx.strokeStyle = isActive ? '#22c55e' : '#3b82f6';
           ctx.lineWidth = isActive ? 2 : 1;
           ctx.strokeRect(regionStartX, 0, regionWidth, height);
           
-          // Region label
+          // 🎨 Simple label - same style as main selection
           if (regionWidth > 40) {
+            const labelText = region.name || `R${index + 1}`;
             ctx.fillStyle = isActive ? '#16a34a' : '#2563eb';
-            ctx.font = '11px Arial';
+            ctx.font = '11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText(
-              region.name || `R${index + 1}`,
-              regionStartX + regionWidth / 2,
-              15
-            );
+            ctx.fillText(labelText, regionStartX + regionWidth / 2, 15);
           }
         }
       });    

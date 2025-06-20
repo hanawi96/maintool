@@ -343,7 +343,7 @@ export const WaveformUI = memo(({
         <div className="absolute" style={hoverLineStyle} />
       )}
 
-      {/* 🆕 **REGION BACKGROUNDS** - Draggable areas to move entire regions */}
+      {/* 🆕 **REGION BACKGROUNDS** - Simple clickable areas */}
       {regionPositions.map(region => {
         const regionWidth = region.endHandle.x - region.startHandle.x + region.startHandle.width;
         return (
@@ -355,21 +355,19 @@ export const WaveformUI = memo(({
               top: `${region.startHandle.y}px`,
               width: `${regionWidth}px`,
               height: `${region.startHandle.height}px`,
-              zIndex: 15, // 🔧 Higher than canvas (0) but lower than handles (40)
+              zIndex: 15,
               backgroundColor: 'transparent',
-              cursor: 'grab' // 🔧 Changed from 'pointer' to 'grab' for drag indication
+              cursor: 'grab'
             }}
             onClick={(e) => {
-              console.log('🖱️ Region background clicked:', { regionId: region.id, regionName: region.name });
               e.preventDefault();
               e.stopPropagation();
               onRegionClick?.(region.id);
             }}
             onPointerDown={(e) => {
-              console.log('🫱 Region body drag started:', { regionId: region.id, regionName: region.name });
               e.preventDefault();
               e.stopPropagation();
-              e.target.style.cursor = 'grabbing'; // Visual feedback during drag
+              e.target.style.cursor = 'grabbing';
               onRegionBodyDown?.(region.id, e);
             }}
             onPointerMove={(e) => {
@@ -378,15 +376,14 @@ export const WaveformUI = memo(({
             onPointerUp={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              e.target.style.cursor = 'grab'; // Restore cursor after drag
+              e.target.style.cursor = 'grab';
               onRegionBodyUp?.(region.id, e);
             }}
-            title={`Click to select ${region.name} or drag to move`}
           />
         );
       })}
 
-      {/* 🆕 **REGION HANDLES** - Draggable handles for regions */}
+      {/* 🆕 **REGION HANDLES** - Simple design matching main selection */}
       {regionPositions.map(region => (
         <React.Fragment key={region.id}>
           {/* Region Start Handle */}
@@ -400,8 +397,7 @@ export const WaveformUI = memo(({
               width: `${region.startHandle.width}px`,
               height: `${region.startHandle.height}px`,
               backgroundColor: region.startHandle.color,
-              border: `2px solid ${region.isActive ? '#16a34a' : '#1d4ed8'}`,
-              opacity: region.isActive ? 1 : 0.8
+              zIndex: 40
             }}
             onPointerDown={(e) => {
               e.preventDefault();
@@ -419,6 +415,7 @@ export const WaveformUI = memo(({
           >
             <div style={HANDLE_DOT_STYLE} />
             <div style={HANDLE_DOT_STYLE} />
+            <div style={HANDLE_DOT_STYLE} />
           </div>
 
           {/* Region End Handle */}
@@ -432,8 +429,7 @@ export const WaveformUI = memo(({
               width: `${region.endHandle.width}px`,
               height: `${region.endHandle.height}px`,
               backgroundColor: region.endHandle.color,
-              border: `2px solid ${region.isActive ? '#16a34a' : '#1d4ed8'}`,
-              opacity: region.isActive ? 1 : 0.8
+              zIndex: 40
             }}
             onPointerDown={(e) => {
               e.preventDefault();
