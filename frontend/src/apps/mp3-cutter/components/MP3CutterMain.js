@@ -1088,8 +1088,10 @@ const MP3CutterMain = React.memo(() => {
 
   // 🆕 Auto-select main selection when there are 1+ regions but no active selection
   useEffect(() => {
-    if (regions.length >= 1 && !activeRegionId) {
-      // Prefer main selection as default active when multiple regions exist
+    // 🔧 REMOVED: Auto-select main to prevent overriding newly added regions
+    // The new behavior: let newly added regions stay active
+    // Only auto-select if there's no active region AND no regions exist yet
+    if (regions.length === 0 && !activeRegionId) {
       setActiveRegionIdDebounced('main', 'autoSelect');
     }
   }, [regions.length, activeRegionId, setActiveRegionIdDebounced]);
@@ -1254,6 +1256,7 @@ const MP3CutterMain = React.memo(() => {
               disabled={!audioFile}
               // 🆕 Region management props
               regions={regions}
+              activeRegionId={activeRegionId}
               canAddNewRegion={canAddNewRegion}
               onAddRegion={handleAddRegion}
               onDeleteRegion={handleDeleteRegion}

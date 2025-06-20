@@ -25,6 +25,7 @@ const UnifiedControlBar = React.memo(({
   equalizerState = null, // 🎚️ Current equalizer state for visual indicators
   // 🆕 Region management props
   regions = [], // Array of regions
+  activeRegionId = null, // 🆕 Currently active region ID (can be 'main' or region.id)
   canAddNewRegion = false, // 🆕 Whether can add new region based on available spaces
   onAddRegion = null, // Callback to add new region
   onDeleteRegion = null, // Callback to delete active region
@@ -55,7 +56,10 @@ const UnifiedControlBar = React.memo(({
   const rawEndTime = mainSelectionEndTime ?? endTime;
   const mainSelectionExists = duration > 0 && rawStartTime < rawEndTime;
   const totalDeletableItems = regions.length + (mainSelectionExists ? 1 : 0);
-  const canDeleteRegion = !disabled && totalDeletableItems > 1 && onDeleteRegion;
+  
+  // 🆕 Disable delete button when main region is active (main region cannot be deleted)
+  const isMainRegionActive = activeRegionId === 'main';
+  const canDeleteRegion = !disabled && totalDeletableItems > 1 && onDeleteRegion && !isMainRegionActive;
   const canClearAllRegions = !disabled && regions.length >= 2 && onClearAllRegions;
 
   // Auto-return logic
@@ -382,7 +386,13 @@ const UnifiedControlBar = React.memo(({
                 ? 'bg-gradient-to-r from-red-100 to-rose-100 hover:from-red-200 hover:to-rose-200 border border-red-300 hover:border-red-400 shadow-sm hover:shadow-md'
                 : 'bg-slate-100 opacity-50 cursor-not-allowed'
             }`}
-            title={`➖ DELETE ACTIVE REGION ONLY ${canDeleteRegion ? `(${totalDeletableItems} items total)` : '(Need 2+ items total)'}`}>
+            title={
+              isMainRegionActive 
+                ? "➖ CANNOT DELETE MAIN REGION (Main region is permanent and cannot be deleted)"
+                : canDeleteRegion 
+                ? `➖ DELETE ACTIVE REGION ONLY (${totalDeletableItems} items total)` 
+                : '(Need 2+ items total and select a region to delete)'
+            }>
             <Minus className={`w-4 h-4 ${canDeleteRegion ? 'text-red-700 group-hover:text-red-800' : 'text-slate-500'}`} />
             {canDeleteRegion && totalDeletableItems > 2 && (
               <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>
