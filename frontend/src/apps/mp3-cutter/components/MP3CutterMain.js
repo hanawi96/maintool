@@ -215,8 +215,7 @@ const MP3CutterMain = React.memo(() => {
   
   // 🆕 Debounce ref for handleMainSelectionClick to prevent double calls
   const mainSelectionClickRef = useRef(null);
-  
-  // 🔧 Debounced setActiveRegionId to prevent race conditions
+    // 🔧 Debounced setActiveRegionId to prevent race conditions
   const setActiveRegionIdDebounced = useCallback((newRegionId, source = 'unknown') => {
     // 🎯 **IMMEDIATE SET FOR ADD REGION**: No delay when adding new regions to prevent handle color flash
     if (source === 'addRegion') {
@@ -234,7 +233,7 @@ const MP3CutterMain = React.memo(() => {
       setActiveRegionId(newRegionId);
       activeRegionChangeRef.current = null;
     }, 1); // Very short delay to batch multiple calls
-  }, [activeRegionId]);
+  }, []); // Remove activeRegionId dependency as it's not actually used
   
   // 🎚️ Add local state to track current equalizer values for immediate visual feedback
   const [currentEqualizerValues, setCurrentEqualizerValues] = useState(Array(10).fill(0));
@@ -265,49 +264,134 @@ const MP3CutterMain = React.memo(() => {
       ));
     }
   });
-
-  // 🆕 Helper function to calculate safe boundaries for main selection handles
-  const getMainSelectionBoundaries = useCallback((handleType, currentStartTime, currentEndTime, regions) => {
-    if (regions.length === 0) {
-      // No regions, use normal boundaries
-      return {
-        min: handleType === 'start' ? 0 : currentStartTime + 0.1,
-        max: handleType === 'start' ? currentEndTime - 0.1 : duration
-      };
+  // 🆕 Enhanced collision detection - Handle edge based system to prevent handle overlap
+  const calculateHandleEdgePositions = useCallback((regions, selectionStart, selectionEnd) => {
+    const handleEdges = [];
+    
+    // Add main selection handle edges
+    if (selectionStart < selectionEnd) {
+      // Main selection start handle has edge at start position
+      // Main selection end handle has edge at end position
+      handleEdges.push({
+        position: selectionStart,
+        type: 'main_start_edge',
+        regionId: 'main'
+      });
+      handleEdges.push({
+        position: selectionEnd,
+        type: 'main_end_edge',
+        regionId: 'main'
+      });
     }
+    
+    // Add region handle edges
+    regions.forEach(region => {
+      // Region start handle has edge at start position
+      // Region end handle has edge at end position
+      handleEdges.push({
+        position: region.start,
+        type: 'region_start_edge',
+        regionId: region.id
+      });
+      handleEdges.push({
+        position: region.end,
+        type: 'region_end_edge',
+        regionId: region.id
+      });
+    });
+    
+    // Sort by position
+    handleEdges.sort((a, b) => a.position - b.position);
+    
+    return handleEdges;
+  }, []);
 
-    // Get all region boundaries
-    const regionBoundaries = regions.map(r => ({ start: r.start, end: r.end }));
-    regionBoundaries.sort((a, b) => a.start - b.start);
-
-    if (handleType === 'start') {
-      // For start handle, find the nearest region end that's before current start
-      let maxStart = 0;
-      for (const region of regionBoundaries) {
-        if (region.end <= currentStartTime) {
-          maxStart = Math.max(maxStart, region.end);
+  // 🆕 Enhanced collision detection function - Handle edge based
+  const getEnhancedCollisionBoundaries = useCallback((targetType, targetRegionId, handleType, newTime, currentStartTime, currentEndTime, regions, selectionStart, selectionEnd) => {
+    const handleEdges = calculateHandleEdgePositions(regions, selectionStart, selectionEnd);
+    
+    // Find the handle edges that should limit movement
+    let minBoundary = 0;
+    let maxBoundary = duration;
+    
+    if (targetType === 'main') {
+      // For main selection handles
+      for (const edge of handleEdges) {
+        // Skip our own edges
+        if (edge.regionId === 'main') continue;
+        
+        if (handleType === 'start') {
+          // Start handle can't go past any handle edge to the right
+          if (edge.position > newTime && edge.position < maxBoundary) {
+            maxBoundary = edge.position;
+          }
+          // Start handle can move to any handle edge to the left
+          if (edge.position <= newTime && edge.position > minBoundary) {
+            minBoundary = edge.position;
+          }
+        } else {
+          // End handle can't go past any handle edge to the left
+          if (edge.position < newTime && edge.position > minBoundary) {
+            minBoundary = edge.position;
+          }
+          // End handle can move to any handle edge to the right
+          if (edge.position >= newTime && edge.position < maxBoundary) {
+            maxBoundary = edge.position;
+          }
         }
       }
       
-      // For start handle, we only need to respect the maximum boundary (currentEndTime - 0.1)
-      // The minimum should only be limited by regions that are actually behind it
-      return { min: maxStart, max: currentEndTime - 0.1 };
+      // Apply internal constraints
+      if (handleType === 'start') {
+        maxBoundary = Math.min(maxBoundary, currentEndTime - 0.1);
+      } else {
+        minBoundary = Math.max(minBoundary, currentStartTime + 0.1);
+      }
+      
     } else {
-      // For end handle, find the nearest region start that's after current end
-      let minEnd = duration;
-      for (const region of regionBoundaries) {
-        if (region.start >= currentEndTime) {
-          minEnd = Math.min(minEnd, region.start);
+      // For region handles
+      for (const edge of handleEdges) {
+        // Skip our own region's edges
+        if (edge.regionId === targetRegionId) continue;
+        
+        if (handleType === 'start') {
+          // Start handle can't go past any handle edge to the right
+          if (edge.position > newTime && edge.position < maxBoundary) {
+            maxBoundary = edge.position;
+          }
+          // Start handle can move to any handle edge to the left
+          if (edge.position <= newTime && edge.position > minBoundary) {
+            minBoundary = edge.position;
+          }
+        } else {
+          // End handle can't go past any handle edge to the left
+          if (edge.position < newTime && edge.position > minBoundary) {
+            minBoundary = edge.position;
+          }
+          // End handle can move to any handle edge to the right
+          if (edge.position >= newTime && edge.position < maxBoundary) {
+            maxBoundary = edge.position;
+          }
         }
       }
       
-      // For end handle, we only need to respect the minimum boundary (currentStartTime + 0.1)
-      // The maximum should only be limited by regions that are actually in front of it
-      const result = { min: currentStartTime + 0.1, max: minEnd };
-      
-      return result;
+      // Apply internal region constraints
+      if (handleType === 'start') {
+        maxBoundary = Math.min(maxBoundary, currentEndTime - 0.1);
+      } else {
+        minBoundary = Math.max(minBoundary, currentStartTime + 0.1);
+      }
     }
-  }, [duration]);
+    
+    return { min: minBoundary, max: maxBoundary };
+  }, [calculateHandleEdgePositions, duration]);
+
+  // 🆕 Helper function to calculate safe boundaries for main selection handles (Updated)
+  const getMainSelectionBoundaries = useCallback((handleType, currentStartTime, currentEndTime, regions) => {
+    return getEnhancedCollisionBoundaries('main', 'main', handleType, 
+      handleType === 'start' ? currentStartTime : currentEndTime,
+      currentStartTime, currentEndTime, regions, currentStartTime, currentEndTime);
+  }, [getEnhancedCollisionBoundaries]);
 
   const handleStartTimeChange = useCallback((newStartTime) => {
     // 🆕 Set main region active when dragging main handles  
@@ -341,15 +425,26 @@ const MP3CutterMain = React.memo(() => {
     enhancedHandlersRef.current.handleStartTimeChange = handleStartTimeChange;
     enhancedHandlersRef.current.handleEndTimeChange = handleEndTimeChange;
   }, [handleStartTimeChange, handleEndTimeChange]);
-
   useEffect(() => {
     if (!interactionManagerRef.current) interactionManagerRef.current = createInteractionManager();
     
-    // 🆕 Set collision detection function
+    // 🆕 Set enhanced collision detection function
     if (interactionManagerRef.current) {
       interactionManagerRef.current.setCollisionDetection((handleType, newTime, currentStartTime, currentEndTime) => {
+        // Use enhanced handle-edge-based collision detection
         const boundaries = getMainSelectionBoundaries(handleType, currentStartTime, currentEndTime, regions);
         const result = Math.max(boundaries.min, Math.min(newTime, boundaries.max));
+        
+        console.log('🎯 Enhanced collision detection:', {
+          handleType,
+          newTime: newTime.toFixed(3),
+          boundaries: {
+            min: boundaries.min.toFixed(3),
+            max: boundaries.max.toFixed(3)
+          },
+          result: result.toFixed(3),
+          adjusted: Math.abs(result - newTime) > 0.001
+        });
         
         return result;
       });
@@ -863,91 +958,61 @@ const MP3CutterMain = React.memo(() => {
       }, 100); // Small delay để ensure jump đã hoàn thành
     }
   }, [regions, startTime, endTime, duration, setActiveRegionIdDebounced, jumpToTime, isPlaying, originalTogglePlayPause]);
-
-  // 🆕 Helper function to calculate safe boundaries for region body dragging (entire region movement)
+  // 🆕 Enhanced helper function to calculate safe boundaries for region body dragging (entire region movement)
   const getRegionBodyBoundaries = useCallback((targetRegionId, regions, selectionStart, selectionEnd) => {
     const targetRegion = regions.find(r => r.id === targetRegionId);
     if (!targetRegion) return { min: 0, max: duration };
     
     const regionDuration = targetRegion.end - targetRegion.start;
-    const otherRegions = regions.filter(r => r.id !== targetRegionId);
-    const allOccupiedAreas = [];
+    const handleEdges = calculateHandleEdgePositions(regions, selectionStart, selectionEnd);
     
-    // Add other regions as occupied areas
-    otherRegions.forEach(region => {
-      allOccupiedAreas.push({ start: region.start, end: region.end });
+    // For region body movement, find boundaries where the ENTIRE region can fit
+    let minStart = 0;
+    let maxStart = duration - regionDuration;
+    
+    for (const edge of handleEdges) {
+      // Skip our own region's edges
+      if (edge.regionId === targetRegionId) continue;
+      
+      // Find the nearest handle edge to the left - this sets our minimum start position
+      if (edge.position <= targetRegion.start && edge.position > minStart) {
+        minStart = edge.position;
+      }
+      
+      // Find the nearest handle edge to the right - this limits where our end can be
+      if (edge.position >= targetRegion.end && edge.position - regionDuration < maxStart) {
+        maxStart = edge.position - regionDuration;
+      }
+    }
+    
+    // Ensure boundaries are valid
+    maxStart = Math.max(minStart, Math.min(maxStart, duration - regionDuration));
+    
+    console.log('🎯 Enhanced region body boundaries:', {
+      targetRegionId,
+      regionDuration: regionDuration.toFixed(3),
+      boundaries: {
+        min: minStart.toFixed(3),
+        max: maxStart.toFixed(3)
+      },
+      totalEdges: handleEdges.length
     });
-    
-    // Add main selection as occupied area
-    if (selectionStart < selectionEnd) {
-      allOccupiedAreas.push({ start: selectionStart, end: selectionEnd });
-    }
-    
-    // Sort by start time
-    allOccupiedAreas.sort((a, b) => a.start - b.start);
-    
-    // Find boundaries for the entire region movement
-    let maxStart = 0;
-    let minEnd = duration - regionDuration;
-    
-    for (const area of allOccupiedAreas) {
-      // Left boundary: find the nearest end that's before current region
-      if (area.end <= targetRegion.start) {
-        maxStart = Math.max(maxStart, area.end);
-      }
-      // Right boundary: find the nearest start that's after current region
-      if (area.start >= targetRegion.end) {
-        minEnd = Math.min(minEnd, area.start - regionDuration);
-      }
-    }
     
     return { 
-      min: Math.max(0, maxStart), 
-      max: Math.max(Math.max(0, maxStart), Math.min(minEnd, duration - regionDuration))
+      min: Math.max(0, minStart), 
+      max: Math.max(0, maxStart)
     };
-  }, [duration]);
-
-  // 🆕 Helper function to calculate safe boundaries for region dragging
+  }, [calculateHandleEdgePositions, duration]);
+  // 🆕 Enhanced helper function to calculate safe boundaries for region dragging
   const getRegionBoundaries = useCallback((targetRegionId, handleType, regions, selectionStart, selectionEnd) => {
-    const otherRegions = regions.filter(r => r.id !== targetRegionId);
-    const allOccupiedAreas = [];
-    
-    // Add other regions as occupied areas
-    otherRegions.forEach(region => {
-      allOccupiedAreas.push({ start: region.start, end: region.end });
-    });
-    
-    // Add main selection as occupied area
-    if (selectionStart < selectionEnd) {
-      allOccupiedAreas.push({ start: selectionStart, end: selectionEnd });
-    }
-    
-    // Sort by start time
-    allOccupiedAreas.sort((a, b) => a.start - b.start);
-    
     const targetRegion = regions.find(r => r.id === targetRegionId);
     if (!targetRegion) return { min: 0, max: duration };
     
-    if (handleType === 'start') {
-      // For start handle, find the nearest end boundary to the left
-      let maxStart = 0;
-      for (const area of allOccupiedAreas) {
-        if (area.end <= targetRegion.start) {
-          maxStart = Math.max(maxStart, area.end);
-        }
-      }
-      return { min: maxStart, max: targetRegion.end - 0.5 };
-    } else {
-      // For end handle, find the nearest start boundary to the right
-      let minEnd = duration;
-      for (const area of allOccupiedAreas) {
-        if (area.start >= targetRegion.end) {
-          minEnd = Math.min(minEnd, area.start);
-        }
-      }
-      return { min: targetRegion.start + 0.5, max: minEnd };
-    }
-  }, [duration]);
+    // Use enhanced handle-edge-based collision detection for regions
+    return getEnhancedCollisionBoundaries('region', targetRegionId, handleType,
+      handleType === 'start' ? targetRegion.start : targetRegion.end,
+      targetRegion.start, targetRegion.end, regions, selectionStart, selectionEnd);
+  }, [getEnhancedCollisionBoundaries, duration]);
 
   // 🆕 Ultra smooth region cursor sync using audioSyncManager like main selection
   const regionAudioSyncManager = useRef(null);
