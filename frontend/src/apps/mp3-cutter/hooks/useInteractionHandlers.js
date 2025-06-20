@@ -65,7 +65,9 @@ export const useInteractionHandlers = ({
       setStartTime(result.startTime);
       setEndTime(result.endTime);
     }
-  }, [canvasRef, duration, startTime, endTime, setStartTime, setEndTime, setIsDragging, interactionManagerRef, audioContext, saveState, fadeIn, fadeOut, handleStartTimeChange, handleEndTimeChange, historySavedRef]);  const processMouseMove = useCallback(() => {
+  }, [canvasRef, duration, startTime, endTime, setStartTime, setEndTime, setIsDragging, interactionManagerRef, audioContext, saveState, fadeIn, fadeOut, handleStartTimeChange, handleEndTimeChange, historySavedRef]);
+
+  const processMouseMove = useCallback(() => {
     const e = latestEventRef.current;
     if (!e || !canvasRef.current || duration <= 0) return;
     const rect = cachedRectRef.current || canvasRef.current.getBoundingClientRect();
@@ -81,7 +83,7 @@ export const useInteractionHandlers = ({
     }
     if (result.action === 'hover' || result.cursor === 'ew-resize') setHoveredHandle(result.handle || null);
     rafIdRef.current = null;
-  }, [canvasRef, duration, startTime, endTime, setHoveredHandle, interactionManagerRef, audioContext, setStartTime, setEndTime]);
+  }, [canvasRef, duration, startTime, endTime, setHoveredHandle, interactionManagerRef, audioContext, setStartTime, setEndTime, isDragging]);
 
   const handleCanvasMouseMove = useCallback((e) => {
     latestEventRef.current = e;

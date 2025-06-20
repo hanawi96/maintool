@@ -292,8 +292,9 @@ export class InteractionManager {
         this.isDraggingConfirmed = true;
         if (this.pending.hasJump) this._clearPendingJump();
         if (this.pending.hasHandleUpdate) this._clearPendingHandleUpdate();
-        if (!this.activeHandle && this.regionDragStartTime != null && !this.isDraggingRegion)
+        if (!this.activeHandle && this.regionDragStartTime != null && !this.isDraggingRegion) {
           this.isDraggingRegion = true;
+        }
       }
     }
     this.lastMousePosition = { x, y: 0 };
@@ -304,13 +305,32 @@ export class InteractionManager {
         const regionDur = endTime - startTime;
         const newStart = clamp(roundedTime - this.regionDragOffset, 0, duration - regionDur);
         const newEnd = newStart + regionDur;
+        
+        let finalStart = newStart;
+        let finalEnd = newEnd;
+        
+        // 🆕 Apply collision detection for region body dragging
+        if (this.collisionDetectionFn) {
+          // For region body, we need to check collision for the entire region movement
+          // Get boundaries for the entire region (not individual handles)
+          const boundaries = this._getRegionBodyBoundaries(newStart, newEnd, startTime, endTime);
+          
+          // Apply boundaries to the entire region
+          if (newStart < boundaries.minStart) {
+            finalStart = boundaries.minStart;
+            finalEnd = finalStart + regionDur;
+          } else if (newEnd > boundaries.maxEnd) {
+            finalEnd = boundaries.maxEnd;
+            finalStart = finalEnd - regionDur;
+          }
+        }
+        
         let audioSynced = false;
-        if (audioContext) audioSynced = this.audioSyncManager.realTimeSync(newStart, audioContext.audioRef, audioContext.setCurrentTime, 'region', true, newStart, audioContext.isInverted);
-        return { action: 'updateRegion', startTime: newStart, endTime: newEnd, significant: true, audioSynced, isDraggingConfirmed: true, isRegionDrag: true, realTimeSync: true, ultraSmooth: true };
+        if (audioContext) audioSynced = this.audioSyncManager.realTimeSync(finalStart, audioContext.audioRef, audioContext.setCurrentTime, 'region', true, finalStart, audioContext.isInverted);
+        return { action: 'updateRegion', startTime: finalStart, endTime: finalEnd, significant: true, audioSynced, isDraggingConfirmed: true, isRegionDrag: true, realTimeSync: true, ultraSmooth: true };
       } else if (this.activeHandle === HANDLE_TYPES.START) {
         const newStart = clamp(roundedTime, 0, endTime - 0.05);
         
-        // 🆕 Apply collision detection if available
         const finalStart = this.collisionDetectionFn 
           ? this.collisionDetectionFn('start', newStart, startTime, endTime)
           : newStart;
@@ -323,7 +343,6 @@ export class InteractionManager {
       } else if (this.activeHandle === HANDLE_TYPES.END) {
         const newEnd = clamp(roundedTime, startTime + 0.05, duration);
         
-        // 🆕 Apply collision detection if available
         const finalEnd = this.collisionDetectionFn 
           ? this.collisionDetectionFn('end', newEnd, startTime, endTime)
           : newEnd;
@@ -471,6 +490,29 @@ export class InteractionManager {
   
   // 🆕 Set collision detection function
   setCollisionDetection(fn) { this.collisionDetectionFn = fn; }
+  
+  // 🆕 Helper method to calculate region body collision boundaries
+  _getRegionBodyBoundaries(newStart, newEnd, currentStart, currentEnd) {
+    if (!this.collisionDetectionFn) {
+      return { minStart: 0, maxEnd: Infinity };
+    }
+    
+    // For region body movement, we need to check collision for the entire region
+    // Check what the safe start position would be
+    const safeStart = this.collisionDetectionFn('start', newStart, currentStart, currentEnd);
+    
+    // Check what the safe end position would be  
+    const safeEnd = this.collisionDetectionFn('end', newEnd, currentStart, currentEnd);
+    
+    // Calculate the boundaries for the entire region movement
+    // If start is constrained, the entire region should respect that constraint
+    // If end is constrained, the entire region should respect that constraint
+    
+    return {
+      minStart: safeStart,
+      maxEnd: safeEnd === newEnd ? Infinity : safeEnd // If end is constrained, respect it
+    };
+  }
   
   getDebugInfo() {
     return {

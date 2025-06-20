@@ -250,14 +250,10 @@ const MP3CutterMain = React.memo(() => {
           maxStart = Math.max(maxStart, region.end);
         }
       }
-      // Also check for regions that would overlap if we move start handle
-      let minStart = currentEndTime - 0.1;
-      for (const region of regionBoundaries) {
-        if (region.start >= currentStartTime && region.start < currentEndTime) {
-          minStart = Math.min(minStart, region.start);
-        }
-      }
-      return { min: maxStart, max: Math.min(minStart, currentEndTime - 0.1) };
+      
+      // For start handle, we only need to respect the maximum boundary (currentEndTime - 0.1)
+      // The minimum should only be limited by regions that are actually behind it
+      return { min: maxStart, max: currentEndTime - 0.1 };
     } else {
       // For end handle, find the nearest region start that's after current end
       let minEnd = duration;
@@ -266,14 +262,12 @@ const MP3CutterMain = React.memo(() => {
           minEnd = Math.min(minEnd, region.start);
         }
       }
-      // Also check for regions that would overlap if we move end handle
-      let maxEnd = duration;
-      for (const region of regionBoundaries) {
-        if (region.end <= currentEndTime && region.end > currentStartTime) {
-          maxEnd = Math.min(maxEnd, region.end);
-        }
-      }
-      return { min: Math.max(currentStartTime + 0.1, maxEnd), max: minEnd };
+      
+      // For end handle, we only need to respect the minimum boundary (currentStartTime + 0.1)
+      // The maximum should only be limited by regions that are actually in front of it
+      const result = { min: currentStartTime + 0.1, max: minEnd };
+      
+      return result;
     }
   }, [duration]);
 
@@ -307,7 +301,9 @@ const MP3CutterMain = React.memo(() => {
     if (interactionManagerRef.current) {
       interactionManagerRef.current.setCollisionDetection((handleType, newTime, currentStartTime, currentEndTime) => {
         const boundaries = getMainSelectionBoundaries(handleType, currentStartTime, currentEndTime, regions);
-        return Math.max(boundaries.min, Math.min(newTime, boundaries.max));
+        const result = Math.max(boundaries.min, Math.min(newTime, boundaries.max));
+        
+        return result;
       });
     }
     
@@ -325,7 +321,6 @@ const MP3CutterMain = React.memo(() => {
     // 🆕 Clear existing regions when uploading new file
     setRegions([]);
     setActiveRegionId(null);
-    console.log('🗑️ Cleared existing regions for new file upload');
     
     try {
       const validation = validateAudioFile(file);
