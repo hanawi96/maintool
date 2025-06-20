@@ -182,18 +182,15 @@ export class InteractionManager {
   }
 
   // -- INTERACTION HANDLERS -----------------------------------------------
-
   handleMouseDown(x, canvasWidth, duration, startTime, endTime, eventInfo = null) {
     this._resetDragState();
     const isInverted = this.audioContext?.isInverted || false;
     const detectedHandle = detectHandle(x, canvasWidth, duration, startTime, endTime, eventInfo, isInverted);
     const currentTime = positionToTime(x, canvasWidth, duration);
 
-    // 🆕 Skip interaction logic for main selection clicks to prevent double jumping
-    if (eventInfo?.isMainSelectionClick) {
-      console.log('🚫 InteractionManager: Main selection click detected - skipping interaction logic to prevent double jumping');
-      return { action: 'none', reason: 'main_selection_click_blocked', blocked: true };
-    }
+    // 🔧 FIXED: Allow drag detection for main selection clicks, only skip jump logic
+    // This enables immediate drag functionality while preventing double jumping
+    const isMainSelectionClick = eventInfo?.isMainSelectionClick;
 
     const isStartAtEdge = Math.abs(startTime) < 0.1;
     const isEndAtEdge = Math.abs(endTime - duration) < 0.1;
@@ -229,8 +226,23 @@ export class InteractionManager {
             targetTime: smartAction.handle === HANDLE_TYPES.START ? startTime : endTime,
             offsetForEnd: smartAction.handle === HANDLE_TYPES.END ? 3.0 : 0,
           },
-        };
-      case CLICK_ACTIONS.JUMP_TO_TIME:
+        };      case CLICK_ACTIONS.JUMP_TO_TIME:
+        // 🔧 FIXED: Skip jump logic for main selection clicks but allow drag detection
+        if (isMainSelectionClick) {
+          console.log('🚫 InteractionManager: Main selection click - skipping jump but enabling drag potential');
+          // Still enable region drag if conditions are met
+          if (smartAction.regionDragPotential && this.smartClickManager.preferences.enableRegionDrag) {
+            this.state = INTERACTION_STATES.DRAGGING;
+            this.regionDragStartTime = currentTime;
+            this.regionDragOffset = currentTime - startTime;
+            this.dragStartPosition = x;
+            this.dragStartTime = currentTime;
+            return { action: 'startDrag', handle: null, regionDragPotential: true, mainSelectionDrag: true };
+          }
+          return { action: 'none', reason: 'main_selection_click_no_jump', regionDragPotential: !!smartAction.regionDragPotential };
+        }
+        
+        // Normal jump logic for other clicks
         this.pending.jumpTime = smartAction.seekTime;
         this.pending.hasJump = true;
         this.pending.jumpBlockedByInvert = false;

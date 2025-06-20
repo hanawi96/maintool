@@ -132,44 +132,25 @@ const WaveformCanvas = React.memo(({
         const regionEndX = startX + (endTime / duration) * areaWidth;
         
         const mainSelectionLeft = isInverted ? regionStartX : regionStartX - handleW;
-        const mainSelectionRight = isInverted ? regionEndX : regionEndX + handleW;
-        
-        if (mouseX >= mainSelectionLeft && mouseX <= mainSelectionRight) {
+        const mainSelectionRight = isInverted ? regionEndX : regionEndX + handleW;        if (mouseX >= mainSelectionLeft && mouseX <= mainSelectionRight) {
           const isMainAlreadyActive = activeRegionId === 'main';
           
-          if (isMainAlreadyActive) {
-            // 🆕 Calculate click position for active main selection
-            const clickRatio = (mouseX - mainSelectionLeft) / (mainSelectionRight - mainSelectionLeft);
-            const clickTime = startTime + (endTime - startTime) * clickRatio;
-            
-            console.log('🎯 WaveformCanvas: Active main selection clicked - calculating position!', {
-              mouseX,
-              mainSelectionLeft,
-              mainSelectionRight,
-              clickRatio: clickRatio.toFixed(3),
-              startTime: startTime.toFixed(2),
-              endTime: endTime.toFixed(2),
-              calculatedClickTime: clickTime.toFixed(2)
-            });
-            
-            onMainSelectionClick?.(clickTime);
-          } else {
-            // 🆕 Inactive main selection - just select
-            console.log('🎯 WaveformCanvas: Main selection area clicked (inactive)!', {
-              mouseX,
-              mainSelectionLeft,
-              mainSelectionRight,
-              startTime,
-              endTime,
-              regionsCount: regions.length,
-              activeRegionId,
-              settingFlag: true
-            });
-            onMainSelectionClick?.();
-            // 🔧 Mark this event as main selection click to prevent double jumping
-            e.isMainSelectionClick = true;
-            console.log('🏃 WaveformCanvas: Flag set - e.isMainSelectionClick =', e.isMainSelectionClick);
-          }
+          // 🎯 Always calculate click position for drag offset (needed for smooth dragging)
+          const clickRatio = (mouseX - mainSelectionLeft) / (mainSelectionRight - mainSelectionLeft);
+          const clickTime = startTime + (endTime - startTime) * clickRatio;
+          
+          console.log('🎯 WaveformCanvas: Main selection clicked!', {
+            mouseX,
+            clickTime: clickTime.toFixed(2),
+            wasActive: isMainAlreadyActive,
+            behavior: isMainAlreadyActive ? 'cursor_jump' : 'activate_only'
+          });
+          
+          // 🚀 Always pass click position (needed for drag), but mark if it's activation
+          onMainSelectionClick?.(clickTime, { isActivation: !isMainAlreadyActive });
+          
+          // 🔧 Mark this event as main selection click to prevent double jumping
+          e.isMainSelectionClick = true;
         }
       }
       

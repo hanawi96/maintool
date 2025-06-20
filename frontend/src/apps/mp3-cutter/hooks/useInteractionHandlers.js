@@ -107,8 +107,21 @@ export const useInteractionHandlers = ({
       result.action === 'createSelection'
     ) {
       historySavedRef.current = false;
+    }    if (
+      result.action === 'startDrag' ||
+      (result.action === 'pendingJump' && result.regionDragPotential) ||
+      result.action === 'createSelection'
+    ) {
+      historySavedRef.current = false;
     }
-    if (result.action === 'startDrag') setIsDragging(result.handle);
+    if (result.action === 'startDrag') {
+      // Handle both regular drag and main selection drag
+      if (result.mainSelectionDrag) {
+        setIsDragging('region-potential'); // Start with potential, will become 'region' when confirmed
+      } else {
+        setIsDragging(result.handle);
+      }
+    }
     else if (result.action === 'pendingJump' && result.regionDragPotential) setIsDragging('region-potential');
     else if (result.action === 'createSelection') {
       setStartTime(result.startTime);

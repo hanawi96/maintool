@@ -1347,10 +1347,8 @@ const MP3CutterMain = React.memo(() => {
       setActiveRegionIdDebounced(regionId, 'regionClick');
       jumpToTime(selectedRegion.start);
     }
-  }, [regions, jumpToTime, draggingRegion, setActiveRegionIdDebounced, activeRegionId]);
-
-  // 🆕 Main selection click handler - For selecting main selection as active
-  const handleMainSelectionClick = useCallback((clickPosition = null) => {
+  }, [regions, jumpToTime, draggingRegion, setActiveRegionIdDebounced, activeRegionId]);  // 🆕 Main selection click handler - Smart behavior based on active state
+  const handleMainSelectionClick = useCallback((clickPosition = null, options = {}) => {
     if (regions.length >= 1) {
       // 🔧 Prevent double calls with simple debounce
       const now = Date.now();
@@ -1361,25 +1359,26 @@ const MP3CutterMain = React.memo(() => {
       mainSelectionClickRef.current = now;
       
       const wasAlreadyActive = activeRegionId === 'main';
+      const isActivation = options.isActivation || false;
       
       console.log('🎯 MP3CutterMain: handleMainSelectionClick called!', {
         regionsCount: regions.length,
         currentActiveRegionId: activeRegionId,
         wasAlreadyActive,
         clickPosition,
-        startTime,
-        willJumpTo: wasAlreadyActive && clickPosition !== null ? clickPosition : startTime
+        isActivation,
+        startTime
       });
       
-      if (wasAlreadyActive && clickPosition !== null) {
-        // 🆕 Active main selection click → Jump to click position
-        console.log('🎯 Active main selection click - jumping to click position:', clickPosition.toFixed(2));
-        jumpToTime(clickPosition);
-      } else {
-        // 🆕 Inactive main selection click → Select and jump to start
-        console.log('🎯 Inactive main selection click - selecting and jumping to start point');
+      if (isActivation) {
+        // 🎯 Activation click: Activate and jump to start (ignore click position)
+        console.log('🎯 Activation click - activating and jumping to start point');
         setActiveRegionIdDebounced('main', 'mainSelectionClick');
         jumpToTime(startTime);
+      } else if (wasAlreadyActive && clickPosition !== null) {
+        // 🎯 Already active click: Jump to click position (cursor jumping)
+        console.log('🎯 Active main selection - jumping cursor to click position:', clickPosition.toFixed(2));
+        jumpToTime(clickPosition);
       }
     }
   }, [regions.length, setActiveRegionIdDebounced, jumpToTime, startTime, activeRegionId]);
