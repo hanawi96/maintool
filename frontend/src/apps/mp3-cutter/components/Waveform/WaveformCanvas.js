@@ -509,7 +509,7 @@ const WaveformCanvas = React.memo(({
     
     // 🆕 Check if main selection is active (when 2+ regions exist)
     const isMainSelectionActive = regions.length >= 1 && activeRegionId === 'main';
-    const baseColor = isMainSelectionActive ? '#22c55e' : '#14b8a6'; // Green when active, teal when inactive
+    const baseColor = isMainSelectionActive ? '#22c55e' : '#3b82f6'; // Green when active, blue when inactive
     
     return {
       start: {

@@ -215,18 +215,19 @@ const MP3CutterMain = React.memo(() => {
   
   // 🔧 Debounced setActiveRegionId to prevent race conditions
   const setActiveRegionIdDebounced = useCallback((newRegionId, source = 'unknown') => {
+    // 🎯 **IMMEDIATE SET FOR ADD REGION**: No delay when adding new regions to prevent handle color flash
+    if (source === 'addRegion') {
+      setActiveRegionId(newRegionId);
+      return;
+    }
+    
     // Clear any pending change
     if (activeRegionChangeRef.current) {
       clearTimeout(activeRegionChangeRef.current);
     }
     
-    // Set immediate change with very short debounce
+    // Set debounced change for other cases
     activeRegionChangeRef.current = setTimeout(() => {
-      console.log('🎯 Setting activeRegionId:', { 
-        from: activeRegionId, 
-        to: newRegionId, 
-        source
-      });
       setActiveRegionId(newRegionId);
       activeRegionChangeRef.current = null;
     }, 1); // Very short delay to batch multiple calls
@@ -1489,6 +1490,9 @@ const MP3CutterMain = React.memo(() => {
                   normalizeVolume={normalizeVolume}
                   onNormalizeVolumeChange={setNormalizeVolume}
                   disabled={!audioFile}
+                  // 🆕 Region props for total duration calculation
+                  regions={regions}
+                  activeRegionId={activeRegionId}
                 />
               </div>
             </div>

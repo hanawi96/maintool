@@ -17,7 +17,10 @@ const Export = ({
   isInverted = false,
   normalizeVolume = false,
   onNormalizeVolumeChange,
-  disabled = false 
+  disabled = false,
+  // 🆕 Region props for total duration calculation
+  regions = [],
+  activeRegionId = null
 }) => {
   return (
     <div className="bg-white/70 backdrop-blur-sm rounded-xl p-4 border border-slate-200/50 shadow-sm">
@@ -41,6 +44,9 @@ const Export = ({
           onNormalizeVolumeChange={onNormalizeVolumeChange}
           onFormatChange={onFormatChange}
           disabled={disabled}
+          // 🆕 Region props for total duration calculation
+          regions={regions}
+          activeRegionId={activeRegionId}
         />
       </div>
     </div>

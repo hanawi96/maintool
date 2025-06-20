@@ -22,7 +22,10 @@ const CutDownload = ({
   normalizeVolume = false,
   onNormalizeVolumeChange,
   onFormatChange,
-  disabled = false
+  disabled = false,
+  // 🆕 Region props for total duration calculation
+  regions = [],
+  activeRegionId = null
 }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingError, setProcessingError] = useState(null);
@@ -35,13 +38,34 @@ const CutDownload = ({
   // --- Helpers ---
   const activeRegionDuration = useMemo(() => {
     if (!audioFile) return 0;
-    if (isInverted) {
-      const d1 = startTime;
-      const d2 = Math.max(0, audioFile.duration - endTime);
-      return d1 + d2;
+    
+    // 🆕 Calculate total duration of all active regions (main selection + regions)
+    let totalDuration = 0;
+    
+    // Add main selection duration if it exists and has positive duration
+    if (startTime < endTime && endTime > startTime) {
+      if (isInverted) {
+        // For inverted: duration = everything except the selected part
+        const d1 = startTime;
+        const d2 = Math.max(0, audioFile.duration - endTime);
+        totalDuration += d1 + d2;
+      } else {
+        // For normal: duration = selected part
+        totalDuration += endTime - startTime;
+      }
     }
-    return endTime - startTime;
-  }, [audioFile, startTime, endTime, isInverted]);
+    
+    // Add all regions duration
+    if (regions && regions.length > 0) {
+      regions.forEach(region => {
+        if (region.start < region.end) {
+          totalDuration += region.end - region.start;
+        }
+      });
+    }
+    
+    return totalDuration;
+  }, [audioFile, startTime, endTime, isInverted, regions]);
 
   // Button States
   const cutButtonState = useMemo(() => {
