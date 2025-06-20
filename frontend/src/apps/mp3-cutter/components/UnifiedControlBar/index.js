@@ -15,6 +15,8 @@ import EqualizerPopup from './EqualizerPopup';
 const UnifiedControlBar = React.memo(({
   isPlaying, volume, playbackRate, pitch = 0, onTogglePlayPause, onJumpToStart, onJumpToEnd, onVolumeChange, onSpeedChange, onPitchChange,
   startTime, endTime, duration, onStartTimeChange, onEndTimeChange,
+  // 🔧 Raw main selection times for logic calculation
+  mainSelectionStartTime, mainSelectionEndTime,
   onInvertSelection, isInverted = false,
   fadeIn = 0, fadeOut = 0, onFadeInToggle, onFadeOutToggle, onFadeInChange, onFadeOutChange,
   canUndo, canRedo, onUndo, onRedo, historyIndex, historyLength,
@@ -46,10 +48,15 @@ const UnifiedControlBar = React.memo(({
   const isEqualizerActive = equalizerState && Array.isArray(equalizerState) && 
     equalizerState.some(value => value !== 0);  // 🆕 Region management logic
   const canAddRegion = canAddNewRegion && !!onAddRegion; // 🆕 Now depends on available spaces
-  const canDeleteRegion = !disabled && regions.length >= 2 && onDeleteRegion;
+  
+  // 🔧 Calculate total deletable items (regions + main selection when exists)
+  // Use raw main selection times for accurate calculation
+  const rawStartTime = mainSelectionStartTime ?? startTime;
+  const rawEndTime = mainSelectionEndTime ?? endTime;
+  const mainSelectionExists = duration > 0 && rawStartTime < rawEndTime;
+  const totalDeletableItems = regions.length + (mainSelectionExists ? 1 : 0);
+  const canDeleteRegion = !disabled && totalDeletableItems > 1 && onDeleteRegion;
   const canClearAllRegions = !disabled && regions.length >= 2 && onClearAllRegions;
-
-
 
   // Auto-return logic
   const toggleAutoReturn = useCallback(() => {
@@ -58,6 +65,20 @@ const UnifiedControlBar = React.memo(({
       return !v;
     });
   }, []);
+
+  // 🔧 Confirmation for Clear All Regions to prevent accidents
+  const handleClearAllRegions = useCallback(() => {
+    const regionCount = regions.length;
+    const confirmed = window.confirm(
+      `🗑️ Delete ALL ${regionCount} regions?\n\n` +
+      `This action cannot be undone. Only the main selection will remain.\n\n` +
+      `Click OK to delete all regions, or Cancel to keep them.`
+    );
+    
+    if (confirmed && onClearAllRegions) {
+      onClearAllRegions();
+    }
+  }, [regions.length, onClearAllRegions]);
 
   // Popup toggler
   const togglePopup = useCallback((type) => {
@@ -334,18 +355,21 @@ const UnifiedControlBar = React.memo(({
           <button
             onClick={onAddRegion}
             disabled={!canAddRegion}
-            className={`relative p-2 rounded-lg group transition-all duration-200 ${
+            className={`relative p-2 rounded-lg group transition-all duration-200 ml-2 ${
               canAddRegion
                 ? 'bg-gradient-to-r from-emerald-100 to-green-100 hover:from-emerald-200 hover:to-green-200 border border-emerald-300 hover:border-emerald-400 shadow-sm hover:shadow-md'
                 : 'bg-slate-100 opacity-50 cursor-not-allowed border border-slate-300'
             }`}
             title={canAddRegion 
-              ? "Add New Region (Ctrl+N) - Available space found" 
+              ? "➕ ADD NEW REGION (Ctrl+N)" 
               : "Add New Region - Need >1s space outside current selection"
             }>
             <Plus className={`w-4 h-4 ${canAddRegion ? 'text-emerald-700 group-hover:text-emerald-800' : 'text-slate-500'}`} />
             {canAddRegion && <div className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>}
           </button>
+
+          {/* 🚧 SEPARATOR */}
+          <div className="border-l border-slate-300 h-8 mx-1"></div>
 
           {/* 🆕 15. Delete Region */}
           <button
@@ -356,23 +380,23 @@ const UnifiedControlBar = React.memo(({
                 ? 'bg-gradient-to-r from-red-100 to-rose-100 hover:from-red-200 hover:to-rose-200 border border-red-300 hover:border-red-400 shadow-sm hover:shadow-md'
                 : 'bg-slate-100 opacity-50 cursor-not-allowed'
             }`}
-            title={`Delete Active Region ${canDeleteRegion ? `(${regions.length} regions)` : '(Need 2+ regions)'}`}>
+            title={`➖ DELETE ACTIVE REGION ONLY ${canDeleteRegion ? `(${totalDeletableItems} items total)` : '(Need 2+ items total)'}`}>
             <Minus className={`w-4 h-4 ${canDeleteRegion ? 'text-red-700 group-hover:text-red-800' : 'text-slate-500'}`} />
-            {canDeleteRegion && regions.length > 2 && (
+            {canDeleteRegion && totalDeletableItems > 2 && (
               <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>
             )}
           </button>
 
           {/* 🆕 16. Clear All Regions */}
           <button
-            onClick={onClearAllRegions}
+            onClick={handleClearAllRegions}
             disabled={!canClearAllRegions}
             className={`relative p-2 rounded-lg group transition-all duration-200 ${
               canClearAllRegions
                 ? 'bg-gradient-to-r from-orange-100 to-amber-100 hover:from-orange-200 hover:to-amber-200 border border-orange-300 hover:border-orange-400 shadow-sm hover:shadow-md'
                 : 'bg-slate-100 opacity-50 cursor-not-allowed'
             }`}
-            title={`Clear All Regions ${canClearAllRegions ? `(${regions.length} regions)` : '(Need 2+ regions)'}`}>
+            title={`🗑️ CLEAR ALL REGIONS ${canClearAllRegions ? `(DELETE ALL ${regions.length} regions)` : '(Need 2+ regions)'}`}>
             <Trash2 className={`w-4 h-4 ${canClearAllRegions ? 'text-orange-700 group-hover:text-orange-800' : 'text-slate-500'}`} />
             {canClearAllRegions && regions.length >= 5 && (
               <div className="absolute -top-1 -right-1 w-2 h-2 bg-orange-500 rounded-full"></div>

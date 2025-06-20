@@ -206,6 +206,28 @@ const MP3CutterMain = React.memo(() => {
   const [activeRegionId, setActiveRegionId] = useState(null);
   const [draggingRegion, setDraggingRegion] = useState(null); // {regionId, handleType, startPos}
   
+  // 🔧 Debounce flag to prevent duplicate activeRegionId changes
+  const activeRegionChangeRef = useRef(null);
+  
+  // 🔧 Debounced setActiveRegionId to prevent race conditions
+  const setActiveRegionIdDebounced = useCallback((newRegionId, source = 'unknown') => {
+    // Clear any pending change
+    if (activeRegionChangeRef.current) {
+      clearTimeout(activeRegionChangeRef.current);
+    }
+    
+    // Set immediate change with very short debounce
+    activeRegionChangeRef.current = setTimeout(() => {
+      console.log('🎯 Setting activeRegionId:', { 
+        from: activeRegionId, 
+        to: newRegionId, 
+        source
+      });
+      setActiveRegionId(newRegionId);
+      activeRegionChangeRef.current = null;
+    }, 1); // Very short delay to batch multiple calls
+  }, [activeRegionId]);
+  
   // 🎚️ Add local state to track current equalizer values for immediate visual feedback
   const [currentEqualizerValues, setCurrentEqualizerValues] = useState(Array(10).fill(0));
   const animationRef = useRef({ isPlaying: false, startTime: 0, endTime: 0 });
@@ -320,7 +342,7 @@ const MP3CutterMain = React.memo(() => {
     
     // 🆕 Clear existing regions when uploading new file
     setRegions([]);
-    setActiveRegionId(null);
+    setActiveRegionIdDebounced(null, 'fileUpload');
     
     try {
       const validation = validateAudioFile(file);
@@ -592,21 +614,67 @@ const MP3CutterMain = React.memo(() => {
     if (newRegion) {
       console.log('✅ Added new region:', newRegion.name);
       setRegions(prev => [...prev, newRegion]);
-      setActiveRegionId(newRegion.id);
+      setActiveRegionIdDebounced(newRegion.id, 'addRegion');
       // 🔧 Remove auto-sync - don't change main selection when adding regions
     }
-  }, [generateRandomRegion, canAddNewRegion]);
+  }, [generateRandomRegion, canAddNewRegion, setActiveRegionIdDebounced]);
   const handleDeleteRegion = useCallback(() => {
-    if (regions.length >= 2 && activeRegionId) {
-      setRegions(prev => prev.filter(r => r.id !== activeRegionId));
-      const remaining = regions.filter(r => r.id !== activeRegionId);
-      setActiveRegionId(remaining.length > 0 ? remaining[0].id : null);
+    console.log('🗑️ Delete region requested:', { 
+      activeRegionId, 
+      regionsCount: regions.length,
+      regions: regions.map(r => ({ id: r.id, name: r.name }))
+    });
+    
+    // Calculate total items (regions + main selection when exists)
+    const mainSelectionExists = startTime < endTime && duration > 0;
+    const totalItems = regions.length + (mainSelectionExists ? 1 : 0);
+    
+    // Only allow delete if total items > 1 (keep at least 1 item)
+    if (totalItems > 1 && activeRegionId) {
+      if (activeRegionId === 'main') {
+        // Delete main selection by resetting it to full duration
+        console.log('🗑️ Deleting main selection');
+        setStartTime(0);
+        setEndTime(duration);
+        
+        // Switch to first region if available
+        if (regions.length > 0) {
+          setActiveRegionIdDebounced(regions[0].id, 'deleteMainSelection');
+          console.log('🎯 Switched to first region:', regions[0].name);
+        } else {
+          setActiveRegionIdDebounced(null, 'deleteMainSelection');
+          console.log('🎯 No regions left, cleared active selection');
+        }
+      } else {
+        // Delete specific region
+        const targetRegion = regions.find(r => r.id === activeRegionId);
+        console.log('🗑️ Deleting specific region:', targetRegion?.name);
+        
+        // 🔧 FIX: Calculate remaining BEFORE calling setRegions to avoid stale closure
+        const remaining = regions.filter(r => r.id !== activeRegionId);
+        
+        setRegions(prev => prev.filter(r => r.id !== activeRegionId));
+        
+        // Switch to main selection or first remaining region
+        if (mainSelectionExists) {
+          setActiveRegionIdDebounced('main', 'deleteRegion');
+          console.log('🎯 Switched to main selection');
+        } else if (remaining.length > 0) {
+          setActiveRegionIdDebounced(remaining[0].id, 'deleteRegion');
+          console.log('🎯 Switched to remaining region:', remaining[0].name);
+        } else {
+          setActiveRegionIdDebounced(null, 'deleteRegion');
+          console.log('🎯 No items left, cleared active selection');
+        }
+      }
+    } else {
+      console.log('🚫 Cannot delete - would leave no items or no active region');
     }
-  }, [activeRegionId, regions]);
+  }, [activeRegionId, regions, startTime, endTime, duration, setStartTime, setEndTime, setActiveRegionIdDebounced]);
   const handleClearAllRegions = useCallback(() => {
     setRegions([]);
-    setActiveRegionId(null);
-  }, []);
+    setActiveRegionIdDebounced(null, 'clearAllRegions');
+  }, [setActiveRegionIdDebounced]);
 
   // 🆕 Helper function to calculate safe boundaries for region body dragging (entire region movement)
   const getRegionBodyBoundaries = useCallback((targetRegionId, regions, selectionStart, selectionEnd) => {
@@ -728,25 +796,25 @@ const MP3CutterMain = React.memo(() => {
 
   // 🆕 Region drag handlers - Refactored to use proper pointer capture
   const handleRegionMouseDown = useCallback((regionId, handleType, e) => {
-    setActiveRegionId(regionId);
+    setActiveRegionIdDebounced(regionId, 'regionMouseDown');
     setDraggingRegion({ regionId, handleType, startX: e.clientX });
     
     // Set pointer capture on the target element
     if (e.target && e.target.setPointerCapture && e.pointerId) {
       e.target.setPointerCapture(e.pointerId);
     }
-  }, []);
+  }, [activeRegionId, setActiveRegionIdDebounced]);
 
   // 🆕 Region body drag handlers - For moving entire regions
   const handleRegionBodyDown = useCallback((regionId, e) => {
-    setActiveRegionId(regionId);
+    setActiveRegionIdDebounced(regionId, 'regionBodyDown');
     setDraggingRegion({ regionId, handleType: 'body', startX: e.clientX });
     
     // Set pointer capture on the target element
     if (e.target && e.target.setPointerCapture && e.pointerId) {
       e.target.setPointerCapture(e.pointerId);
     }
-  }, []);
+  }, [activeRegionId, setActiveRegionIdDebounced]);
 
   const handleRegionMouseMove = useCallback((regionId, handleType, e) => {
     if (!draggingRegion || draggingRegion.regionId !== regionId || draggingRegion.handleType !== handleType) return;
@@ -1001,32 +1069,30 @@ const MP3CutterMain = React.memo(() => {
       return;
     }
     
-    console.log('🎯 Region selected for highlighting:', regionId);
-    setActiveRegionId(regionId);
+    console.log('🎯 Region selected:', regionId);
+    setActiveRegionIdDebounced(regionId, 'regionClick');
     
     // 🆕 Jump cursor to region start point
     const selectedRegion = regions.find(r => r.id === regionId);
     if (selectedRegion) {
-      console.log('⏯️ Jumping cursor to region start:', selectedRegion.start);
       jumpToTime(selectedRegion.start);
     }
-  }, [regions, jumpToTime, draggingRegion]);
+  }, [regions, jumpToTime, draggingRegion, activeRegionId, setActiveRegionIdDebounced]);
 
   // 🆕 Main selection click handler - For selecting main selection as active
   const handleMainSelectionClick = useCallback(() => {
     if (regions.length >= 1) {
-      setActiveRegionId('main');
+      setActiveRegionIdDebounced('main', 'mainSelectionClick');
     }
-  }, [regions.length]);
+  }, [regions.length, setActiveRegionIdDebounced]);
 
   // 🆕 Auto-select main selection when there are 1+ regions but no active selection
   useEffect(() => {
     if (regions.length >= 1 && !activeRegionId) {
       // Prefer main selection as default active when multiple regions exist
-      setActiveRegionId('main');
-      console.log('🎯 Auto-selected main selection as active');
+      setActiveRegionIdDebounced('main', 'autoSelect');
     }
-  }, [regions.length, activeRegionId]);
+  }, [regions.length, activeRegionId, setActiveRegionIdDebounced]);
 
   // 🆕 Computed values for time selector - show active region time when available
   const timeDisplayValues = useMemo(() => {
@@ -1165,6 +1231,9 @@ const MP3CutterMain = React.memo(() => {
               equalizerState={getCurrentEqualizerState()} // 🎚️ Pass current EQ state for visual indicators
               startTime={timeDisplayValues.displayStartTime}
               endTime={timeDisplayValues.displayEndTime}
+              // 🔧 Pass raw main selection times for logic calculation
+              mainSelectionStartTime={startTime}
+              mainSelectionEndTime={endTime}
               duration={duration}
               onStartTimeChange={handleDisplayStartTimeChange}
               onEndTimeChange={handleDisplayEndTimeChange}

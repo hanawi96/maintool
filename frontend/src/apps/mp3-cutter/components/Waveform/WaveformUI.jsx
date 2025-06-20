@@ -365,14 +365,17 @@ export const WaveformUI = memo(({
               backgroundColor: 'transparent',
               cursor: 'grab'
             }}
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onRegionClick?.(region.id);
-            }}
             onPointerDown={(e) => {
               e.preventDefault();
               e.stopPropagation();
+              
+              // 🔧 FIX: Single handler for both region selection AND drag start
+              // This prevents race condition between onClick and onPointerDown
+              
+              // First: Select the region (always happens)
+              onRegionClick?.(region.id);
+              
+              // Then: Start drag if needed (only if dragging is intended)
               e.target.style.cursor = 'grabbing';
               onRegionBodyDown?.(region.id, e);
             }}
