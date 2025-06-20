@@ -346,13 +346,18 @@ export const WaveformUI = memo(({
 
       {/* 🆕 **REGION BACKGROUNDS** - Simple clickable areas */}
       {regionPositions.map(region => {
-        const regionWidth = region.endHandle.x - region.startHandle.x + region.startHandle.width;
+        // 🔧 Background should span from end of start handle to start of end handle
+        // This prevents overlapping with handles and main cursor at boundaries
+        const backgroundLeft = region.startHandle.x + region.startHandle.width; // End of start handle
+        const backgroundRight = region.endHandle.x; // Start of end handle
+        const regionWidth = backgroundRight - backgroundLeft;
+        
         return (
           <div
             key={`bg-${region.id}`}
             className="absolute"
             style={{
-              left: `${region.startHandle.x}px`,
+              left: `${backgroundLeft}px`,
               top: `${region.startHandle.y}px`,
               width: `${regionWidth}px`,
               height: `${region.startHandle.height}px`,

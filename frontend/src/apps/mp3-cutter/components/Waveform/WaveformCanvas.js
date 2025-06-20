@@ -594,13 +594,18 @@ const WaveformCanvas = React.memo(({
       const regionEndX = startX + (region.end / duration) * areaWidth;
       const isActive = region.id === activeRegionId;
       
+      // 🔧 Use same positioning logic as main selection to prevent cursor overlap
+      // Start handle: fully to the left of region start point
+      // End handle: fully to the right of region end point
+      // This ensures no overlap with main cursor line at time boundaries
+      
       return {
         id: region.id,
         name: region.name,
         isActive,
         startHandle: {
           visible: true,
-          x: regionStartX - handleW / 2,
+          x: regionStartX - handleW, // Same as main selection: fully left of region start
           y: 0,
           width: handleW,
           height: h,
@@ -608,7 +613,7 @@ const WaveformCanvas = React.memo(({
         },
         endHandle: {
           visible: true,
-          x: regionEndX - handleW / 2,
+          x: regionEndX, // Same as main selection: fully right of region end
           y: 0,
           width: handleW,
           height: h,
