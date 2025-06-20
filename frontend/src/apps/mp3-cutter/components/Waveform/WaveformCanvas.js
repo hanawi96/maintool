@@ -84,6 +84,9 @@ const WaveformCanvas = React.memo(({
   onRegionHandleDown = null,
   onRegionHandleMove = null,
   onRegionHandleUp = null,
+  onRegionBodyDown = null,
+  onRegionBodyMove = null,
+  onRegionBodyUp = null,
   onMouseDown,
   onMouseMove,
   onMouseUp,
@@ -587,6 +590,9 @@ const WaveformCanvas = React.memo(({
           onRegionHandleDown={onRegionHandleDown}
           onRegionHandleMove={onRegionHandleMove}
           onRegionHandleUp={onRegionHandleUp}
+          onRegionBodyDown={onRegionBodyDown}
+          onRegionBodyMove={onRegionBodyMove}
+          onRegionBodyUp={onRegionBodyUp}
           onHandleMouseDown={handleHandlePointerDown}
           onHandleMouseMove={handleHandlePointerMove}
           onHandleMouseUp={handleHandlePointerUp}

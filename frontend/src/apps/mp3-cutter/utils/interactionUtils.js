@@ -90,6 +90,9 @@ export class InteractionManager {
     this.onGlobalDragUpdate = null;
     this.debugId = Math.random().toString(36).substring(2, 8);
 
+    // 🆕 Collision detection function
+    this.collisionDetectionFn = null;
+
     // Event listeners (only bind once)
     this._bindedMouseUp = this._onGlobalMouseUp.bind(this);
     this._bindedMouseMove = this._onGlobalMouseMove.bind(this);
@@ -306,18 +309,30 @@ export class InteractionManager {
         return { action: 'updateRegion', startTime: newStart, endTime: newEnd, significant: true, audioSynced, isDraggingConfirmed: true, isRegionDrag: true, realTimeSync: true, ultraSmooth: true };
       } else if (this.activeHandle === HANDLE_TYPES.START) {
         const newStart = clamp(roundedTime, 0, endTime - 0.05);
-        if (Math.abs(newStart - startTime) > 0.005) {
+        
+        // 🆕 Apply collision detection if available
+        const finalStart = this.collisionDetectionFn 
+          ? this.collisionDetectionFn('start', newStart, startTime, endTime)
+          : newStart;
+        
+        if (Math.abs(finalStart - startTime) > 0.005) {
           let audioSynced = false;
-          if (audioContext) audioSynced = this.audioSyncManager.realTimeSync(newStart, audioContext.audioRef, audioContext.setCurrentTime, 'start', true, newStart, audioContext.isInverted);
-          return { action: 'updateRegion', startTime: newStart, significant: true, audioSynced, isDraggingConfirmed: true, realTimeSync: true };
+          if (audioContext) audioSynced = this.audioSyncManager.realTimeSync(finalStart, audioContext.audioRef, audioContext.setCurrentTime, 'start', true, finalStart, audioContext.isInverted);
+          return { action: 'updateRegion', startTime: finalStart, significant: true, audioSynced, isDraggingConfirmed: true, realTimeSync: true };
         }
       } else if (this.activeHandle === HANDLE_TYPES.END) {
         const newEnd = clamp(roundedTime, startTime + 0.05, duration);
-        if (Math.abs(newEnd - endTime) > 0.005) {
+        
+        // 🆕 Apply collision detection if available
+        const finalEnd = this.collisionDetectionFn 
+          ? this.collisionDetectionFn('end', newEnd, startTime, endTime)
+          : newEnd;
+        
+        if (Math.abs(finalEnd - endTime) > 0.005) {
           let audioSynced = false;
           if (audioContext && this.audioSyncManager.preferences.syncEndHandle)
-            audioSynced = this.audioSyncManager.realTimeSync(newEnd, audioContext.audioRef, audioContext.setCurrentTime, 'end', true, startTime, audioContext.isInverted);
-          return { action: 'updateRegion', endTime: newEnd, significant: true, audioSynced, isDraggingConfirmed: true, realTimeSync: true };
+            audioSynced = this.audioSyncManager.realTimeSync(finalEnd, audioContext.audioRef, audioContext.setCurrentTime, 'end', true, startTime, audioContext.isInverted);
+          return { action: 'updateRegion', endTime: finalEnd, significant: true, audioSynced, isDraggingConfirmed: true, realTimeSync: true };
         }
       }
       return { action: 'none' };
@@ -453,6 +468,10 @@ export class InteractionManager {
   setAudioSyncEnabled(enabled) { this.audioSyncManager?.setEnabled(enabled); }
   getAudioSyncDebugInfo() { return this.audioSyncManager?.getDebugInfo() || null; }
   getSmartClickDebugInfo() { return this.smartClickManager?.getDebugInfo() || null; }
+  
+  // 🆕 Set collision detection function
+  setCollisionDetection(fn) { this.collisionDetectionFn = fn; }
+  
   getDebugInfo() {
     return {
       id: this.debugId,

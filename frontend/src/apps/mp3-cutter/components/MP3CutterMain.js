@@ -228,17 +228,72 @@ const MP3CutterMain = React.memo(() => {
     jumpToTime, saveState, saveHistoryNow, historySavedRef, interactionManagerRef, audioContext
   });
 
+  // 🆕 Helper function to calculate safe boundaries for main selection handles
+  const getMainSelectionBoundaries = useCallback((handleType, currentStartTime, currentEndTime, regions) => {
+    if (regions.length === 0) {
+      // No regions, use normal boundaries
+      return {
+        min: handleType === 'start' ? 0 : currentStartTime + 0.1,
+        max: handleType === 'start' ? currentEndTime - 0.1 : duration
+      };
+    }
+
+    // Get all region boundaries
+    const regionBoundaries = regions.map(r => ({ start: r.start, end: r.end }));
+    regionBoundaries.sort((a, b) => a.start - b.start);
+
+    if (handleType === 'start') {
+      // For start handle, find the nearest region end that's before current start
+      let maxStart = 0;
+      for (const region of regionBoundaries) {
+        if (region.end <= currentStartTime) {
+          maxStart = Math.max(maxStart, region.end);
+        }
+      }
+      // Also check for regions that would overlap if we move start handle
+      let minStart = currentEndTime - 0.1;
+      for (const region of regionBoundaries) {
+        if (region.start >= currentStartTime && region.start < currentEndTime) {
+          minStart = Math.min(minStart, region.start);
+        }
+      }
+      return { min: maxStart, max: Math.min(minStart, currentEndTime - 0.1) };
+    } else {
+      // For end handle, find the nearest region start that's after current end
+      let minEnd = duration;
+      for (const region of regionBoundaries) {
+        if (region.start >= currentEndTime) {
+          minEnd = Math.min(minEnd, region.start);
+        }
+      }
+      // Also check for regions that would overlap if we move end handle
+      let maxEnd = duration;
+      for (const region of regionBoundaries) {
+        if (region.end <= currentEndTime && region.end > currentStartTime) {
+          maxEnd = Math.min(maxEnd, region.end);
+        }
+      }
+      return { min: Math.max(currentStartTime + 0.1, maxEnd), max: minEnd };
+    }
+  }, [duration]);
+
   const handleStartTimeChange = useCallback((newStartTime) => {
-    // 🔧 Simplified - always work with main selection
-    originalHandleStartTimeChange(newStartTime);
-    jumpToTime(isInverted ? Math.max(0, newStartTime - 3) : newStartTime);
-  }, [originalHandleStartTimeChange, jumpToTime, isInverted]);
+    // 🔧 Apply collision detection with regions
+    const boundaries = getMainSelectionBoundaries('start', startTime, endTime, regions);
+    const safeStartTime = Math.max(boundaries.min, Math.min(newStartTime, boundaries.max));
+    
+    originalHandleStartTimeChange(safeStartTime);
+    jumpToTime(isInverted ? Math.max(0, safeStartTime - 3) : safeStartTime);
+  }, [originalHandleStartTimeChange, jumpToTime, isInverted, getMainSelectionBoundaries, startTime, endTime, regions]);
 
   const handleEndTimeChange = useCallback((newEndTime) => {
-    // 🔧 Simplified - always work with main selection  
-    originalHandleEndTimeChange(newEndTime);
-    if (!isDragging) jumpToTime(isInverted ? Math.max(0, startTime - 3) : Math.max(startTime, newEndTime - 3));
-  }, [originalHandleEndTimeChange, isDragging, jumpToTime, isInverted, startTime]);
+    // 🔧 Apply collision detection with regions
+    const boundaries = getMainSelectionBoundaries('end', startTime, endTime, regions);
+    const safeEndTime = Math.max(boundaries.min, Math.min(newEndTime, boundaries.max));
+    
+    originalHandleEndTimeChange(safeEndTime);
+    if (!isDragging) jumpToTime(isInverted ? Math.max(0, startTime - 3) : Math.max(startTime, safeEndTime - 3));
+  }, [originalHandleEndTimeChange, isDragging, jumpToTime, isInverted, startTime, getMainSelectionBoundaries, endTime, regions]);
 
   useEffect(() => {
     enhancedHandlersRef.current.handleStartTimeChange = handleStartTimeChange;
@@ -247,8 +302,17 @@ const MP3CutterMain = React.memo(() => {
 
   useEffect(() => {
     if (!interactionManagerRef.current) interactionManagerRef.current = createInteractionManager();
+    
+    // 🆕 Set collision detection function
+    if (interactionManagerRef.current) {
+      interactionManagerRef.current.setCollisionDetection((handleType, newTime, currentStartTime, currentEndTime) => {
+        const boundaries = getMainSelectionBoundaries(handleType, currentStartTime, currentEndTime, regions);
+        return Math.max(boundaries.min, Math.min(newTime, boundaries.max));
+      });
+    }
+    
     return () => { if (cleanupTimeHandlers) cleanupTimeHandlers(); };
-  }, [cleanupTimeHandlers]);
+  }, [cleanupTimeHandlers, getMainSelectionBoundaries, regions]);
   useEffect(() => setCompatibilityReport(generateCompatibilityReport()), []);
   useEffect(() => { testConnection().then(c => { setIsConnected(c); setConnectionError(null); }).catch(() => { setIsConnected(false); setConnectionError('Backend server is not available.'); }); }, [testConnection]);
 
@@ -549,6 +613,49 @@ const MP3CutterMain = React.memo(() => {
     setActiveRegionId(null);
   }, []);
 
+  // 🆕 Helper function to calculate safe boundaries for region body dragging (entire region movement)
+  const getRegionBodyBoundaries = useCallback((targetRegionId, regions, selectionStart, selectionEnd) => {
+    const targetRegion = regions.find(r => r.id === targetRegionId);
+    if (!targetRegion) return { min: 0, max: duration };
+    
+    const regionDuration = targetRegion.end - targetRegion.start;
+    const otherRegions = regions.filter(r => r.id !== targetRegionId);
+    const allOccupiedAreas = [];
+    
+    // Add other regions as occupied areas
+    otherRegions.forEach(region => {
+      allOccupiedAreas.push({ start: region.start, end: region.end });
+    });
+    
+    // Add main selection as occupied area
+    if (selectionStart < selectionEnd) {
+      allOccupiedAreas.push({ start: selectionStart, end: selectionEnd });
+    }
+    
+    // Sort by start time
+    allOccupiedAreas.sort((a, b) => a.start - b.start);
+    
+    // Find boundaries for the entire region movement
+    let maxStart = 0;
+    let minEnd = duration - regionDuration;
+    
+    for (const area of allOccupiedAreas) {
+      // Left boundary: find the nearest end that's before current region
+      if (area.end <= targetRegion.start) {
+        maxStart = Math.max(maxStart, area.end);
+      }
+      // Right boundary: find the nearest start that's after current region
+      if (area.start >= targetRegion.end) {
+        minEnd = Math.min(minEnd, area.start - regionDuration);
+      }
+    }
+    
+    return { 
+      min: Math.max(0, maxStart), 
+      max: Math.max(Math.max(0, maxStart), Math.min(minEnd, duration - regionDuration))
+    };
+  }, [duration]);
+
   // 🆕 Helper function to calculate safe boundaries for region dragging
   const getRegionBoundaries = useCallback((targetRegionId, handleType, regions, selectionStart, selectionEnd) => {
     const otherRegions = regions.filter(r => r.id !== targetRegionId);
@@ -602,6 +709,17 @@ const MP3CutterMain = React.memo(() => {
     }
   }, []);
 
+  // 🆕 Region body drag handlers - For moving entire regions
+  const handleRegionBodyDown = useCallback((regionId, e) => {
+    setActiveRegionId(regionId);
+    setDraggingRegion({ regionId, handleType: 'body', startX: e.clientX });
+    
+    // Set pointer capture on the target element
+    if (e.target && e.target.setPointerCapture && e.pointerId) {
+      e.target.setPointerCapture(e.pointerId);
+    }
+  }, []);
+
   const handleRegionMouseMove = useCallback((regionId, handleType, e) => {
     if (!draggingRegion || draggingRegion.regionId !== regionId || draggingRegion.handleType !== handleType) return;
     if (!duration) return;
@@ -630,6 +748,43 @@ const MP3CutterMain = React.memo(() => {
     
     setDraggingRegion(prev => ({ ...prev, startX: e.clientX }));
   }, [draggingRegion, duration, canvasRef, getRegionBoundaries]);
+
+  const handleRegionBodyMove = useCallback((regionId, e) => {
+    if (!draggingRegion || draggingRegion.regionId !== regionId || draggingRegion.handleType !== 'body') return;
+    if (!duration) return;
+    
+    const deltaX = e.clientX - draggingRegion.startX;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    const canvasWidth = canvas.offsetWidth;
+    const deltaTime = (deltaX / canvasWidth) * duration;
+    
+    setRegions(prev => prev.map(region => {
+      if (region.id !== regionId) return region;
+      
+      // Get safe boundaries for entire region movement
+      const boundaries = getRegionBodyBoundaries(regionId, prev, startTime, endTime);
+      const regionDuration = region.end - region.start;
+      
+      // Calculate new start position with collision detection
+      const newStart = Math.max(boundaries.min, Math.min(region.start + deltaTime, boundaries.max));
+      const newEnd = newStart + regionDuration;
+      
+      return { ...region, start: newStart, end: newEnd };
+    }));
+    
+    setDraggingRegion(prev => ({ ...prev, startX: e.clientX }));
+  }, [draggingRegion, duration, canvasRef, getRegionBodyBoundaries, startTime, endTime]);
+
+  const handleRegionBodyUp = useCallback((regionId, e) => {
+    // Release pointer capture
+    if (e.target && e.target.releasePointerCapture && e.pointerId) {
+      e.target.releasePointerCapture(e.pointerId);
+    }
+    
+    setDraggingRegion(null);
+  }, []);
 
   const handleRegionMouseUp = useCallback((regionId, handleType, e) => {
     // Release pointer capture
@@ -852,6 +1007,9 @@ const MP3CutterMain = React.memo(() => {
               onRegionHandleDown={handleRegionMouseDown}
               onRegionHandleMove={handleRegionMouseMove}
               onRegionHandleUp={handleRegionMouseUp}
+              onRegionBodyDown={handleRegionBodyDown}
+              onRegionBodyMove={handleRegionBodyMove}
+              onRegionBodyUp={handleRegionBodyUp}
               onMouseDown={handleCanvasMouseDown}
               onMouseMove={handleCanvasMouseMove}
               onMouseUp={handleCanvasMouseUp}

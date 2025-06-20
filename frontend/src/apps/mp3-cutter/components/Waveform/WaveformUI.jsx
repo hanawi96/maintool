@@ -77,6 +77,9 @@ export const WaveformUI = memo(({
   onRegionHandleDown = null,
   onRegionHandleMove = null,
   onRegionHandleUp = null,
+  onRegionBodyDown = null,
+  onRegionBodyMove = null,
+  onRegionBodyUp = null,
   onHandleMouseDown,
   onHandleMouseMove,
   onHandleMouseUp,
@@ -340,20 +343,21 @@ export const WaveformUI = memo(({
         <div className="absolute" style={hoverLineStyle} />
       )}
 
-      {/* 🆕 **REGION BACKGROUNDS** - Clickable areas to select regions */}
+      {/* 🆕 **REGION BACKGROUNDS** - Draggable areas to move entire regions */}
       {regionPositions.map(region => {
         const regionWidth = region.endHandle.x - region.startHandle.x + region.startHandle.width;
         return (
           <div
             key={`bg-${region.id}`}
-            className="absolute cursor-pointer"
+            className="absolute"
             style={{
               left: `${region.startHandle.x}px`,
               top: `${region.startHandle.y}px`,
               width: `${regionWidth}px`,
               height: `${region.startHandle.height}px`,
-              zIndex: 15, // 🔧 Higher than canvas (0) to capture clicks first
-              backgroundColor: 'transparent'
+              zIndex: 15, // 🔧 Higher than canvas (0) but lower than handles (40)
+              backgroundColor: 'transparent',
+              cursor: 'grab' // 🔧 Changed from 'pointer' to 'grab' for drag indication
             }}
             onClick={(e) => {
               console.log('🖱️ Region background clicked:', { regionId: region.id, regionName: region.name });
@@ -361,7 +365,23 @@ export const WaveformUI = memo(({
               e.stopPropagation();
               onRegionClick?.(region.id);
             }}
-            title={`Click to select ${region.name}`}
+            onPointerDown={(e) => {
+              console.log('🫱 Region body drag started:', { regionId: region.id, regionName: region.name });
+              e.preventDefault();
+              e.stopPropagation();
+              e.target.style.cursor = 'grabbing'; // Visual feedback during drag
+              onRegionBodyDown?.(region.id, e);
+            }}
+            onPointerMove={(e) => {
+              onRegionBodyMove?.(region.id, e);
+            }}
+            onPointerUp={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              e.target.style.cursor = 'grab'; // Restore cursor after drag
+              onRegionBodyUp?.(region.id, e);
+            }}
+            title={`Click to select ${region.name} or drag to move`}
           />
         );
       })}
