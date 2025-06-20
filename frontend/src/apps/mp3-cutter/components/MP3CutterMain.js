@@ -213,6 +213,9 @@ const MP3CutterMain = React.memo(() => {
   // 🔧 Debounce flag to prevent duplicate activeRegionId changes
   const activeRegionChangeRef = useRef(null);
   
+  // 🆕 Debounce ref for handleMainSelectionClick to prevent double calls
+  const mainSelectionClickRef = useRef(null);
+  
   // 🔧 Debounced setActiveRegionId to prevent race conditions
   const setActiveRegionIdDebounced = useCallback((newRegionId, source = 'unknown') => {
     // 🎯 **IMMEDIATE SET FOR ADD REGION**: No delay when adding new regions to prevent handle color flash
@@ -1247,7 +1250,7 @@ const MP3CutterMain = React.memo(() => {
       return;
     }
     
-    console.log('🎯 Region selected:', regionId);
+    console.log('🎯 Region clicked - setting active and jumping to start point:', regionId);
     setActiveRegionIdDebounced(regionId, 'regionClick');
     
     // 🆕 Jump cursor to region start point
@@ -1255,14 +1258,31 @@ const MP3CutterMain = React.memo(() => {
     if (selectedRegion) {
       jumpToTime(selectedRegion.start);
     }
-  }, [regions, jumpToTime, draggingRegion, activeRegionId, setActiveRegionIdDebounced]);
+  }, [regions, jumpToTime, draggingRegion, setActiveRegionIdDebounced]);
 
   // 🆕 Main selection click handler - For selecting main selection as active
   const handleMainSelectionClick = useCallback(() => {
     if (regions.length >= 1) {
+      // 🔧 Prevent double calls with simple debounce
+      const now = Date.now();
+      if (mainSelectionClickRef.current && now - mainSelectionClickRef.current < 100) {
+        console.log('🚫 MP3CutterMain: handleMainSelectionClick debounced - too fast');
+        return;
+      }
+      mainSelectionClickRef.current = now;
+      
+      console.log('🎯 MP3CutterMain: handleMainSelectionClick called!', {
+        regionsCount: regions.length,
+        currentActiveRegionId: activeRegionId,
+        startTime,
+        willJumpTo: startTime
+      });
       setActiveRegionIdDebounced('main', 'mainSelectionClick');
+      // 🆕 Jump cursor to main selection start point
+      jumpToTime(startTime);
+      console.log('✅ MP3CutterMain: Main selection activated and cursor jumped to:', startTime);
     }
-  }, [regions.length, setActiveRegionIdDebounced]);
+  }, [regions.length, setActiveRegionIdDebounced, jumpToTime, startTime, activeRegionId]);
 
   // 🆕 Auto-select main selection when there are 1+ regions but no active selection
   useEffect(() => {

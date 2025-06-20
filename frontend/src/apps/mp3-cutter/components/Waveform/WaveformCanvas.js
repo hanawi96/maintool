@@ -136,8 +136,19 @@ const WaveformCanvas = React.memo(({
         
         if (mouseX >= mainSelectionLeft && mouseX <= mainSelectionRight) {
           // Set main selection as active
+          console.log('🎯 WaveformCanvas: Main selection area clicked!', {
+            mouseX,
+            mainSelectionLeft,
+            mainSelectionRight,
+            startTime,
+            endTime,
+            regionsCount: regions.length,
+            settingFlag: true
+          });
           onMainSelectionClick?.();
-          // 🔧 DON'T return here - allow normal drag logic to continue
+          // 🔧 Mark this event as main selection click to prevent double jumping
+          e.isMainSelectionClick = true;
+          console.log('🏃 WaveformCanvas: Flag set - e.isMainSelectionClick =', e.isMainSelectionClick);
         }
       }
       

@@ -425,8 +425,10 @@ const UnifiedControlBar = React.memo(({
             }`}
             title={`🗑️ CLEAR ALL REGIONS ${canClearAllRegions ? `(DELETE ALL ${regions.length} regions)` : '(Need 2+ regions)'}`}>
             <Trash2 className={`w-4 h-4 ${canClearAllRegions ? 'text-orange-700 group-hover:text-orange-800' : 'text-slate-500'}`} />
-            {canClearAllRegions && regions.length >= 5 && (
-              <div className="absolute -top-1 -right-1 w-2 h-2 bg-orange-500 rounded-full"></div>
+            {canClearAllRegions && (
+              <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center text-[10px] font-semibold">
+                {regions.length}
+              </span>
             )}
           </button>
 

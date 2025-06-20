@@ -49,14 +49,37 @@ export const useInteractionHandlers = ({
   const rafIdRef = useRef(null);
   const latestEventRef = useRef(null);
   const lastClickPositionRef = useRef(null);
+  
+  // 🆕 Track the activeRegionId at the moment of mouse down to detect selection vs active click
+  const activeRegionAtMouseDownRef = useRef(null);
 
   const handleCanvasMouseDown = useCallback((e) => {
     if (!canvasRef.current || duration <= 0) return;
     cachedRectRef.current = canvasRef.current.getBoundingClientRect();
     const x = e.clientX - cachedRectRef.current.left;
     
-    if (!e.isHandleEvent) {
+    console.log('🎯 useInteractionHandlers: handleCanvasMouseDown called!', {
+      isHandleEvent: e.isHandleEvent,
+      isMainSelectionClick: e.isMainSelectionClick,
+      clickX: x,
+      activeRegionId,
+      regionsCount: regions.length
+    });
+    
+    // 🆕 Capture activeRegionId at mouse down to detect if this is a selection click or active click
+    activeRegionAtMouseDownRef.current = activeRegionId;
+    
+    // 🆕 Store click position for potential cursor jumping/endpoint jumping
+    // Skip storing position if this is a main selection click (to prevent double jumping)
+    if (!e.isHandleEvent && !e.isMainSelectionClick) {
       lastClickPositionRef.current = x;
+      console.log('✅ useInteractionHandlers: Click position stored for potential jumping:', x);
+    } else if (e.isMainSelectionClick) {
+      console.log('🚫 useInteractionHandlers: Main selection click detected - skipping position storage to prevent double jumping');
+      lastClickPositionRef.current = null;
+    } else if (e.isHandleEvent) {
+      console.log('🚫 useInteractionHandlers: Handle event detected - skipping position storage');
+      lastClickPositionRef.current = null;
     }
     
     const manager = interactionManagerRef.current;
@@ -75,7 +98,8 @@ export const useInteractionHandlers = ({
     }
     const result = manager.handleMouseDown(x, canvasRef.current.width, duration, startTime, endTime, {
       isHandleEvent: e.isHandleEvent || false,
-      handleType: e.handleType || null
+      handleType: e.handleType || null,
+      isMainSelectionClick: e.isMainSelectionClick || false
     });
     if (
       result.action === 'startDrag' ||
@@ -90,7 +114,7 @@ export const useInteractionHandlers = ({
       setStartTime(result.startTime);
       setEndTime(result.endTime);
     }
-  }, [canvasRef, duration, startTime, endTime, setStartTime, setEndTime, setIsDragging, interactionManagerRef, audioContext, saveState, fadeIn, fadeOut, handleStartTimeChange, handleEndTimeChange, historySavedRef]);
+  }, [canvasRef, duration, startTime, endTime, setStartTime, setEndTime, setIsDragging, interactionManagerRef, audioContext, saveState, fadeIn, fadeOut, handleStartTimeChange, handleEndTimeChange, historySavedRef, activeRegionId, regions]);
 
   const processMouseMove = useCallback(() => {
     const e = latestEventRef.current;
@@ -118,109 +142,159 @@ export const useInteractionHandlers = ({
     const wasDragging = isDragging !== null;
     setIsDragging(null);
     
+    console.log('🎯 useInteractionHandlers: handleCanvasMouseUp called!', {
+      wasDragging,
+      hasClickPosition: !!lastClickPositionRef.current,
+      activeRegionId,
+      activeAtMouseDown: activeRegionAtMouseDownRef.current,
+      regionsCount: regions.length
+    });
+    
+    // 🆕 Enhanced cursor jumping logic - Only for active regions, not selection clicks
     if (!wasDragging && lastClickPositionRef.current !== null && activeRegionId && regions.length > 0) {
+      console.log('🔥 useInteractionHandlers: Entering cursor jumping logic...');
       const canvas = canvasRef.current;
       if (canvas) {
-        const canvasWidth = canvas.offsetWidth || canvas.width || 800;
-        const clickX = lastClickPositionRef.current;
+        // 🔧 Check if region was ALREADY active at mouse down (not a selection click)
+        const wasAlreadyActive = activeRegionAtMouseDownRef.current === activeRegionId;
+        const isSelectionClick = activeRegionAtMouseDownRef.current !== activeRegionId;
         
-        const { startX, areaWidth, handleW } = getWaveformArea(canvasWidth);
-        const clickTime = ((clickX - startX) / areaWidth) * duration;
+        console.log('🎯 Click analysis:', {
+          activeRegionId,
+          activeAtMouseDown: activeRegionAtMouseDownRef.current,
+          wasAlreadyActive,
+          isSelectionClick,
+          shouldJumpCursor: wasAlreadyActive,
+          hasClickPosition: !!lastClickPositionRef.current
+        });
         
-        let activeRegion = null;
-        if (activeRegionId === 'main') {
-          activeRegion = { id: 'main', start: startTime, end: endTime };
-        } else {
-          activeRegion = regions.find(r => r.id === activeRegionId);
+        // 🚫 Skip cursor jumping for selection clicks - let region selection handler take care of it
+        if (isSelectionClick) {
+          console.log('🚫 Selection click detected - skipping cursor jumping, letting region selection handle it');
+          lastClickPositionRef.current = null;
+          activeRegionAtMouseDownRef.current = null;
+          return;
         }
         
-        if (activeRegion && clickTime >= 0 && clickTime <= duration) {
-          const { start: regionStart, end: regionEnd } = activeRegion;
+        // ✅ Proceed with cursor jumping only for already-active regions
+        if (wasAlreadyActive) {
+          console.log('✅ useInteractionHandlers: Proceeding with cursor jumping for already-active region');
+          const canvasWidth = canvas.offsetWidth || canvas.width || 800;
+          const clickX = lastClickPositionRef.current;
           
-          const regionStartX = startX + (regionStart / duration) * areaWidth;
-          const regionEndX = startX + (regionEnd / duration) * areaWidth;
-          const startHandleLeft = regionStartX - handleW;
-          const startHandleRight = regionStartX;
-          const endHandleLeft = regionEndX;
-          const endHandleRight = regionEndX + handleW;
+          const { startX, areaWidth, handleW } = getWaveformArea(canvasWidth);
+          const clickTime = ((clickX - startX) / areaWidth) * duration;
           
-          const isInStartHandle = clickX >= startHandleLeft && clickX <= startHandleRight;
-          const isInEndHandle = clickX >= endHandleLeft && clickX <= endHandleRight;
-          
-          console.log('🎯 Region endpoint jumping check:', {
-            activeRegionId,
-            clickTime: clickTime.toFixed(2),
-            clickX,
-            canvasWidth,
-            startX,
-            areaWidth,
-            handleW,
-            isInStartHandle,
-            isInEndHandle,
-            regionStart: regionStart.toFixed(2),
-            regionEnd: regionEnd.toFixed(2)
-          });
-          
-          if (isInStartHandle || isInEndHandle) {
-            console.log('🚫 Click in handle area, skipping endpoint jumping');
-            lastClickPositionRef.current = null;
-            return;
+          let activeRegion = null;
+          if (activeRegionId === 'main') {
+            activeRegion = { id: 'main', start: startTime, end: endTime };
+          } else {
+            activeRegion = regions.find(r => r.id === activeRegionId);
           }
           
-          if (clickTime < regionStart || clickTime > regionEnd) {
-            const distanceToStart = Math.abs(clickTime - regionStart);
-            const distanceToEnd = Math.abs(clickTime - regionEnd);
-            const isCloserToStart = distanceToStart < distanceToEnd;
+          if (activeRegion && clickTime >= 0 && clickTime <= duration) {
+            const { start: regionStart, end: regionEnd } = activeRegion;
             
-            console.log('🎯 Click outside active region, jumping endpoint:', {
-              region: activeRegion.id,
+            const regionStartX = startX + (regionStart / duration) * areaWidth;
+            const regionEndX = startX + (regionEnd / duration) * areaWidth;
+            const startHandleLeft = regionStartX - handleW;
+            const startHandleRight = regionStartX;
+            const endHandleLeft = regionEndX;
+            const endHandleRight = regionEndX + handleW;
+            
+            const isInStartHandle = clickX >= startHandleLeft && clickX <= startHandleRight;
+            const isInEndHandle = clickX >= endHandleLeft && clickX <= endHandleRight;
+            
+            console.log('🎯 Active region click analysis:', {
+              activeRegionId,
+              clickTime: clickTime.toFixed(2),
               regionStart: regionStart.toFixed(2),
               regionEnd: regionEnd.toFixed(2),
-              clickTime: clickTime.toFixed(2),
-              distanceToStart: distanceToStart.toFixed(2),
-              distanceToEnd: distanceToEnd.toFixed(2),
-              jumpingEndpoint: isCloserToStart ? 'start' : 'end'
+              isInStartHandle,
+              isInEndHandle,
+              isInsideRegion: clickTime >= regionStart && clickTime <= regionEnd
             });
             
-            let newTime = clickTime;
-            if (isCloserToStart) {
-              newTime = Math.max(0, Math.min(clickTime, regionEnd - 0.1));
-            } else {
-              newTime = Math.max(regionStart + 0.1, Math.min(clickTime, duration));
+            // Skip if clicking on handles
+            if (isInStartHandle || isInEndHandle) {
+              console.log('🚫 Click in handle area, skipping cursor jumping');
+              lastClickPositionRef.current = null;
+              activeRegionAtMouseDownRef.current = null;
+              return;
             }
             
-            if (activeRegionId === 'main') {
-              if (isCloserToStart) {
-                console.log('🎯 Jumping main start to:', newTime.toFixed(2));
-                handleStartTimeChange(newTime);
-              } else {
-                console.log('🎯 Jumping main end to:', newTime.toFixed(2));
-                handleEndTimeChange(newTime);
-              }
-            } else {
-              console.log('🎯 Jumping region endpoint:', {
-                regionId: activeRegionId,
-                endpoint: isCloserToStart ? 'start' : 'end',
-                newTime: newTime.toFixed(2)
+            // ✅ Click INSIDE already-active region - jump cursor to click point
+            if (clickTime >= regionStart && clickTime <= regionEnd) {
+              console.log('🎯 Click INSIDE already-active region - jumping cursor to click point:', clickTime.toFixed(2));
+              jumpToTime(clickTime);
+              lastClickPositionRef.current = null;
+              activeRegionAtMouseDownRef.current = null;
+              return;
+            }
+            
+            // ✅ Click OUTSIDE already-active region - endpoint jumping
+            if (clickTime < regionStart || clickTime > regionEnd) {
+              const distanceToStart = Math.abs(clickTime - regionStart);
+              const distanceToEnd = Math.abs(clickTime - regionEnd);
+              const isCloserToStart = distanceToStart < distanceToEnd;
+              
+              console.log('🎯 Click OUTSIDE already-active region - jumping endpoint:', {
+                region: activeRegion.id,
+                clickTime: clickTime.toFixed(2),
+                distanceToStart: distanceToStart.toFixed(2),
+                distanceToEnd: distanceToEnd.toFixed(2),
+                jumpingEndpoint: isCloserToStart ? 'start' : 'end'
               });
               
-              if (onRegionUpdate) {
-                const updatedRegion = {
-                  ...activeRegion,
-                  [isCloserToStart ? 'start' : 'end']: newTime
-                };
-                onRegionUpdate(activeRegionId, updatedRegion.start, updatedRegion.end);
+              // Calculate safe boundary for endpoint jumping
+              let newTime = clickTime;
+              if (isCloserToStart) {
+                newTime = Math.max(0, Math.min(clickTime, regionEnd - 0.1));
+              } else {
+                newTime = Math.max(regionStart + 0.1, Math.min(clickTime, duration));
+              }
+              
+              // Apply endpoint jumping
+              if (activeRegionId === 'main') {
+                if (isCloserToStart) {
+                  console.log('🎯 Jumping main start to:', newTime.toFixed(2));
+                  handleStartTimeChange(newTime);
+                } else {
+                  console.log('🎯 Jumping main end to:', newTime.toFixed(2));
+                  handleEndTimeChange(newTime);
+                }
+              } else {
+                console.log('🎯 Jumping region endpoint:', {
+                  regionId: activeRegionId,
+                  endpoint: isCloserToStart ? 'start' : 'end',
+                  newTime: newTime.toFixed(2)
+                });
+                
+                if (onRegionUpdate) {
+                  const updatedRegion = {
+                    ...activeRegion,
+                    [isCloserToStart ? 'start' : 'end']: newTime
+                  };
+                  onRegionUpdate(activeRegionId, updatedRegion.start, updatedRegion.end);
+                }
               }
             }
-            
-            lastClickPositionRef.current = null;
-            return;
           }
         }
       }
+    } else {
+      console.log('🚫 useInteractionHandlers: Skipping cursor jumping logic - conditions not met:', {
+        wasDragging,
+        hasClickPosition: !!lastClickPositionRef.current,
+        activeRegionId: !!activeRegionId,
+        hasRegions: regions.length > 0
+      });
     }
     
+    // 🔧 Reset tracking refs
+    console.log('🔧 useInteractionHandlers: Resetting tracking refs');
     lastClickPositionRef.current = null;
+    activeRegionAtMouseDownRef.current = null;
     
     if (wasDragging) {
       saveHistoryNow();

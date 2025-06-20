@@ -189,6 +189,12 @@ export class InteractionManager {
     const detectedHandle = detectHandle(x, canvasWidth, duration, startTime, endTime, eventInfo, isInverted);
     const currentTime = positionToTime(x, canvasWidth, duration);
 
+    // 🆕 Skip interaction logic for main selection clicks to prevent double jumping
+    if (eventInfo?.isMainSelectionClick) {
+      console.log('🚫 InteractionManager: Main selection click detected - skipping interaction logic to prevent double jumping');
+      return { action: 'none', reason: 'main_selection_click_blocked', blocked: true };
+    }
+
     const isStartAtEdge = Math.abs(startTime) < 0.1;
     const isEndAtEdge = Math.abs(endTime - duration) < 0.1;
 
