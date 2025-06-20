@@ -103,6 +103,7 @@ const Waveform = React.memo(({
   onRegionBodyDown = null,
   onRegionBodyMove = null,
   onRegionBodyUp = null,
+  onMainSelectionClick = null,
   
   onMouseDown,
   onMouseMove,
@@ -196,6 +197,7 @@ const Waveform = React.memo(({
             onRegionBodyDown={onRegionBodyDown}
             onRegionBodyMove={onRegionBodyMove}
             onRegionBodyUp={onRegionBodyUp}
+            onMainSelectionClick={onMainSelectionClick}
             onMouseDown={onMouseDown}
             onMouseMove={onMouseMove}
             onMouseUp={onMouseUp}

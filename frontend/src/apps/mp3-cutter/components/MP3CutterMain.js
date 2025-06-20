@@ -581,7 +581,7 @@ const MP3CutterMain = React.memo(() => {
     
     console.log('✨ Generated new region:', newRegion.name, `[${newRegion.start.toFixed(1)}s - ${newRegion.end.toFixed(1)}s]`);
     return newRegion;
-  }, [duration, calculateAvailableSpaces, regions, startTime, endTime]);
+  }, [duration, calculateAvailableSpaces, regions]);
 
   const handleAddRegion = useCallback(() => {
     if (!canAddNewRegion) {
@@ -693,6 +693,39 @@ const MP3CutterMain = React.memo(() => {
     }
   }, [duration]);
 
+  // 🆕 Ultra smooth region cursor sync using audioSyncManager like main selection
+  const regionAudioSyncManager = useRef(null);
+  
+  useEffect(() => {
+    if (!regionAudioSyncManager.current) {
+      // Import audioSyncManager locally
+      import('../utils/audioSyncManager').then(({ createAudioSyncManager }) => {
+        regionAudioSyncManager.current = createAudioSyncManager();
+        console.log('🎯 Region AudioSyncManager initialized');
+      });
+    }
+  }, []);
+
+  const ultraSmoothRegionSync = useCallback((newTime, handleType = 'region') => {
+    if (!regionAudioSyncManager.current || !audioRef.current) return;
+    
+    // Use same ultra-optimized sync as main selection
+    const success = regionAudioSyncManager.current.realTimeSync(
+      newTime, 
+      audioRef, 
+      setCurrentTime, 
+      handleType, 
+      true, // force = true for realtime updates
+      newTime, // startTime for region context
+      isInverted
+    );
+    
+    // Only log every 10th successful sync to reduce console spam
+    if (success && Math.random() < 0.1) {
+      console.log('🎯 Ultra smooth region sync:', newTime.toFixed(3));
+    }
+  }, [audioRef, setCurrentTime, isInverted]);
+
   // 🆕 Region drag handlers - Refactored to use proper pointer capture
   const handleRegionMouseDown = useCallback((regionId, handleType, e) => {
     setActiveRegionId(regionId);
@@ -734,15 +767,23 @@ const MP3CutterMain = React.memo(() => {
       
       if (handleType === 'start') {
         const newStart = Math.max(boundaries.min, Math.min(region.start + deltaTime, boundaries.max));
+        
+        // 🆕 Realtime cursor jump to region start when dragging start handle
+        ultraSmoothRegionSync(newStart);
+        
         return { ...region, start: newStart };
       } else {
         const newEnd = Math.max(boundaries.min, Math.min(region.end + deltaTime, boundaries.max));
+        
+        // 🆕 Realtime cursor jump when dragging end handle (jump to end - 3s offset like main selection)
+        ultraSmoothRegionSync(Math.max(0, newEnd - 3), 'end');
+        
         return { ...region, end: newEnd };
       }
     }));
     
     setDraggingRegion(prev => ({ ...prev, startX: e.clientX }));
-  }, [draggingRegion, duration, canvasRef, getRegionBoundaries]);
+  }, [draggingRegion, duration, canvasRef, getRegionBoundaries, startTime, endTime, ultraSmoothRegionSync]);
 
   const handleRegionBodyMove = useCallback((regionId, e) => {
     if (!draggingRegion || draggingRegion.regionId !== regionId || draggingRegion.handleType !== 'body') return;
@@ -766,11 +807,14 @@ const MP3CutterMain = React.memo(() => {
       const newStart = Math.max(boundaries.min, Math.min(region.start + deltaTime, boundaries.max));
       const newEnd = newStart + regionDuration;
       
+      // 🆕 Realtime cursor jump to region start when dragging region body
+      ultraSmoothRegionSync(newStart);
+      
       return { ...region, start: newStart, end: newEnd };
     }));
     
     setDraggingRegion(prev => ({ ...prev, startX: e.clientX }));
-  }, [draggingRegion, duration, canvasRef, getRegionBodyBoundaries, startTime, endTime]);
+  }, [draggingRegion, duration, canvasRef, getRegionBodyBoundaries, startTime, endTime, ultraSmoothRegionSync]);
 
   const handleRegionBodyUp = useCallback((regionId, e) => {
     // Release pointer capture
@@ -951,25 +995,53 @@ const MP3CutterMain = React.memo(() => {
 
   // 🆕 Region click handlers - For selecting active region
   const handleRegionClick = useCallback((regionId) => {
+    // 🔧 Don't jump cursor if we're in the middle of dragging
+    if (draggingRegion) {
+      console.log('🚫 Region click ignored - currently dragging');
+      return;
+    }
+    
     console.log('🎯 Region selected for highlighting:', regionId);
     setActiveRegionId(regionId);
-    // 🔧 Only set active for visual highlighting, don't change time controls
-  }, []);
-
-  // 🆕 Auto-select first region when there are 2+ regions but no active selection
-  useEffect(() => {
-    if (regions.length >= 2 && !activeRegionId) {
-      const firstRegion = regions[0];
-      if (firstRegion) {
-        setActiveRegionId(firstRegion.id);
-        console.log('🎯 Auto-selected first region:', firstRegion.name);
-      }
+    
+    // 🆕 Jump cursor to region start point
+    const selectedRegion = regions.find(r => r.id === regionId);
+    if (selectedRegion) {
+      console.log('⏯️ Jumping cursor to region start:', selectedRegion.start);
+      jumpToTime(selectedRegion.start);
     }
-  }, [regions.length, activeRegionId, regions]);
+  }, [regions, jumpToTime, draggingRegion]);
+
+  // 🆕 Main selection click handler - For selecting main selection as active
+  const handleMainSelectionClick = useCallback(() => {
+    if (regions.length >= 1) {
+      setActiveRegionId('main');
+    }
+  }, [regions.length]);
+
+  // 🆕 Auto-select main selection when there are 1+ regions but no active selection
+  useEffect(() => {
+    if (regions.length >= 1 && !activeRegionId) {
+      // Prefer main selection as default active when multiple regions exist
+      setActiveRegionId('main');
+      console.log('🎯 Auto-selected main selection as active');
+    }
+  }, [regions.length, activeRegionId]);
 
   // 🆕 Computed values for time selector - show active region time when available
   const timeDisplayValues = useMemo(() => {
     if (activeRegionId && regions.length > 0) {
+      // Special case: main selection active (represented by 'main')
+      if (activeRegionId === 'main') {
+        return {
+          displayStartTime: startTime,
+          displayEndTime: endTime,
+          isRegionTime: false, // Still use main selection handlers
+          regionName: 'Main Selection'
+        };
+      }
+      
+      // Regular region active
       const activeRegion = regions.find(r => r.id === activeRegionId);
       if (activeRegion) {
         return {
@@ -1057,7 +1129,8 @@ const MP3CutterMain = React.memo(() => {
               fadeIn={fadeIn}
               fadeOut={fadeOut}
               isInverted={isInverted}
-              audioRef={audioRef}              // 🆕 Region props
+              audioRef={audioRef}
+              // 🆕 Region props
               regions={regions}
               activeRegionId={activeRegionId}
               onRegionUpdate={(regionId, newStart, newEnd) => {
@@ -1072,6 +1145,7 @@ const MP3CutterMain = React.memo(() => {
               onRegionBodyDown={handleRegionBodyDown}
               onRegionBodyMove={handleRegionBodyMove}
               onRegionBodyUp={handleRegionBodyUp}
+              onMainSelectionClick={handleMainSelectionClick}
               onMouseDown={handleCanvasMouseDown}
               onMouseMove={handleCanvasMouseMove}
               onMouseUp={handleCanvasMouseUp}

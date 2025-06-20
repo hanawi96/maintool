@@ -80,6 +80,7 @@ export const WaveformUI = memo(({
   onRegionBodyDown = null,
   onRegionBodyMove = null,
   onRegionBodyUp = null,
+  onMainSelectionClick = null,
   onHandleMouseDown,
   onHandleMouseMove,
   onHandleMouseUp,

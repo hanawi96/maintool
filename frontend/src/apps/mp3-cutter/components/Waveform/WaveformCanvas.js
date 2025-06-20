@@ -90,7 +90,8 @@ const WaveformCanvas = React.memo(({
   onMouseDown,
   onMouseMove,
   onMouseUp,
-  onMouseLeave
+  onMouseLeave,
+  onMainSelectionClick
 }) => {// Cache ref for static gray/dynamic canvas
   const backgroundCacheRef = useRef(null);
   const dynamicWaveformCacheRef = useRef(null);
@@ -123,12 +124,29 @@ const WaveformCanvas = React.memo(({
       const rect = canvas.getBoundingClientRect();
       const mouseX = e.clientX - rect.left;
       
+      // 🆕 Check if click is within main selection area when 1+ regions exist
+      if (regions.length >= 1 && duration > 0 && startTime < endTime && hybridWaveformData?.data?.length) {
+        const w = containerWidth || canvas.width || 800;
+        const { startX, areaWidth, handleW } = getWaveformArea(w);
+        const regionStartX = startX + (startTime / duration) * areaWidth;
+        const regionEndX = startX + (endTime / duration) * areaWidth;
+        
+        const mainSelectionLeft = isInverted ? regionStartX : regionStartX - handleW;
+        const mainSelectionRight = isInverted ? regionEndX : regionEndX + handleW;
+        
+        if (mouseX >= mainSelectionLeft && mouseX <= mainSelectionRight) {
+          // Set main selection as active
+          onMainSelectionClick?.();
+          // 🔧 DON'T return here - allow normal drag logic to continue
+        }
+      }
+      
       canvas.setPointerCapture(e.pointerId);
       updateCursor(mouseX);
       clearHoverTooltip();
     }
     onMouseDown?.(e);
-  }, [onMouseDown, updateCursor, clearHoverTooltip, canvasRef]);
+  }, [onMouseDown, updateCursor, clearHoverTooltip, canvasRef, regions.length, duration, startTime, endTime, hybridWaveformData, containerWidth, isInverted, onMainSelectionClick]);
   const handlePointerMove = useCallback((e) => {
     onMouseMove?.(e);
     const canvas = canvasRef.current;
@@ -364,7 +382,12 @@ const WaveformCanvas = React.memo(({
         ctx.drawImage(dynamicWaveformCacheRef.current, 0, 0);
       }      ctx.restore();
       // 3. Selection overlay
-      ctx.fillStyle = 'rgba(139,92,246,0.15)';
+      const isMainSelectionActive = regions.length >= 1 && activeRegionId === 'main';
+      const overlayColor = isMainSelectionActive 
+        ? 'rgba(34, 197, 94, 0.15)' // Green when active (same as active regions)
+        : 'rgba(139,92,246,0.15)'; // Purple when inactive
+      
+      ctx.fillStyle = overlayColor;
       ctx.fillRect(startX + (startTime / duration) * areaWidth, 0, ((endTime - startTime) / duration) * areaWidth, height);
     }
 
@@ -506,23 +529,28 @@ const WaveformCanvas = React.memo(({
     const { startX, areaWidth, handleW } = getWaveformArea(w);
     const regionStartX = startX + (startTime / duration) * areaWidth;
     const regionEndX = startX + (endTime / duration) * areaWidth;
+    
+    // 🆕 Check if main selection is active (when 2+ regions exist)
+    const isMainSelectionActive = regions.length >= 1 && activeRegionId === 'main';
+    const baseColor = isMainSelectionActive ? '#22c55e' : '#14b8a6'; // Green when active, teal when inactive
+    
     return {
       start: {
         visible: true,
         x: isInverted ? regionStartX : regionStartX - handleW,
         y: 0, width: handleW, height: h,
         isActive: hoveredHandle === 'start' || isDragging === 'start',
-        color: isDragging === 'start' ? '#0d9488' : '#14b8a6'
+        color: isDragging === 'start' ? (isMainSelectionActive ? '#16a34a' : '#0d9488') : baseColor
       },
       end: {
         visible: true,
         x: isInverted ? regionEndX - handleW : regionEndX,
         y: 0, width: handleW, height: h,
         isActive: hoveredHandle === 'end' || isDragging === 'end',
-        color: isDragging === 'end' ? '#0d9488' : '#14b8a6'
+        color: isDragging === 'end' ? (isMainSelectionActive ? '#16a34a' : '#0d9488') : baseColor
       }
     };
-  }, [canvasRef, duration, startTime, endTime, hoveredHandle, isDragging, containerWidth, isInverted, renderData]);
+  }, [canvasRef, duration, startTime, endTime, hoveredHandle, isDragging, containerWidth, isInverted, renderData, regions.length, activeRegionId]);
 
   // ----- CURSOR POSITION CALC -----
   const cursorPositions = useMemo(() => {
