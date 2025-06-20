@@ -172,7 +172,7 @@ const MP3CutterMain = React.memo(() => {
   const { audioFile, uploadFile, isUploading, uploadError, testConnection, uploadProgress } = useFileUpload();
   const {
     isPlaying, currentTime, duration, volume, playbackRate,
-    togglePlayPause, jumpToTime, updateVolume, updatePlaybackRate,
+    togglePlayPause: originalTogglePlayPause, jumpToTime, updateVolume, updatePlaybackRate,
     audioRef, setCurrentTime, setDuration, setIsPlaying, setMasterVolumeSetter
   } = useAudioPlayer();
   
@@ -205,6 +205,10 @@ const MP3CutterMain = React.memo(() => {
   const [regions, setRegions] = useState([]);
   const [activeRegionId, setActiveRegionId] = useState(null);
   const [draggingRegion, setDraggingRegion] = useState(null); // {regionId, handleType, startPos}
+  
+  // 🆕 Play All Regions state
+  const [isPlayAllMode, setIsPlayAllMode] = useState(false);
+  const [playAllIndex, setPlayAllIndex] = useState(0);
   
   // 🔧 Debounce flag to prevent duplicate activeRegionId changes
   const activeRegionChangeRef = useRef(null);
@@ -294,22 +298,32 @@ const MP3CutterMain = React.memo(() => {
   }, [duration]);
 
   const handleStartTimeChange = useCallback((newStartTime) => {
+    // 🆕 Set main region active when dragging main handles  
+    if (regions.length > 0) {
+      setActiveRegionIdDebounced('main', 'dragMainHandle');
+    }
+    
     // 🔧 Apply collision detection with regions
     const boundaries = getMainSelectionBoundaries('start', startTime, endTime, regions);
     const safeStartTime = Math.max(boundaries.min, Math.min(newStartTime, boundaries.max));
     
     originalHandleStartTimeChange(safeStartTime);
     jumpToTime(isInverted ? Math.max(0, safeStartTime - 3) : safeStartTime);
-  }, [originalHandleStartTimeChange, jumpToTime, isInverted, getMainSelectionBoundaries, startTime, endTime, regions]);
+  }, [originalHandleStartTimeChange, jumpToTime, isInverted, getMainSelectionBoundaries, startTime, endTime, regions, setActiveRegionIdDebounced]);
 
   const handleEndTimeChange = useCallback((newEndTime) => {
+    // 🆕 Set main region active when dragging main handles
+    if (regions.length > 0) {
+      setActiveRegionIdDebounced('main', 'dragMainHandle');
+    }
+    
     // 🔧 Apply collision detection with regions
     const boundaries = getMainSelectionBoundaries('end', startTime, endTime, regions);
     const safeEndTime = Math.max(boundaries.min, Math.min(newEndTime, boundaries.max));
     
     originalHandleEndTimeChange(safeEndTime);
     if (!isDragging) jumpToTime(isInverted ? Math.max(0, startTime - 3) : Math.max(startTime, safeEndTime - 3));
-  }, [originalHandleEndTimeChange, isDragging, jumpToTime, isInverted, startTime, getMainSelectionBoundaries, endTime, regions]);
+  }, [originalHandleEndTimeChange, isDragging, jumpToTime, isInverted, startTime, getMainSelectionBoundaries, endTime, regions, setActiveRegionIdDebounced]);
 
   useEffect(() => {
     enhancedHandlersRef.current.handleStartTimeChange = handleStartTimeChange;
@@ -470,8 +484,39 @@ const MP3CutterMain = React.memo(() => {
     }
   }, [redo, setStartTime, setEndTime, jumpToTime]);
 
-  const handleJumpToStart = useCallback(() => jumpToTime(startTime), [jumpToTime, startTime]);
-  const handleJumpToEnd = useCallback(() => jumpToTime(endTime), [jumpToTime, endTime]);
+  // 🆕 Helper function to get active playback boundaries
+  const getActivePlaybackBoundaries = useCallback(() => {
+    // If there's an active region, use its boundaries
+    if (activeRegionId && regions.length > 0 && activeRegionId !== 'main') {
+      const activeRegion = regions.find(r => r.id === activeRegionId);
+      if (activeRegion) {
+        return {
+          start: activeRegion.start,
+          end: activeRegion.end,
+          isRegion: true,
+          regionName: activeRegion.name
+        };
+      }
+    }
+    
+    // Fallback to main selection boundaries
+    return {
+      start: startTime,
+      end: endTime,
+      isRegion: false,
+      regionName: 'Main Selection'
+    };
+  }, [activeRegionId, regions, startTime, endTime]);
+
+  const handleJumpToStart = useCallback(() => {
+    const playbackBounds = getActivePlaybackBoundaries();
+    jumpToTime(playbackBounds.start);
+  }, [jumpToTime, getActivePlaybackBoundaries]);
+  
+  const handleJumpToEnd = useCallback(() => {
+    const playbackBounds = getActivePlaybackBoundaries();
+    jumpToTime(playbackBounds.end);
+  }, [jumpToTime, getActivePlaybackBoundaries]);
 
   const updateFade = useCallback((type, value) => {
     if (type === 'in') setFadeIn(value); else setFadeOut(value);
@@ -615,9 +660,13 @@ const MP3CutterMain = React.memo(() => {
       console.log('✅ Added new region:', newRegion.name);
       setRegions(prev => [...prev, newRegion]);
       setActiveRegionIdDebounced(newRegion.id, 'addRegion');
+      
+      // 🆕 Jump cursor to start point of new region immediately
+      jumpToTime(newRegion.start);
+      
       // 🔧 Remove auto-sync - don't change main selection when adding regions
     }
-  }, [generateRandomRegion, canAddNewRegion, setActiveRegionIdDebounced]);
+  }, [generateRandomRegion, canAddNewRegion, setActiveRegionIdDebounced, jumpToTime]);
   const handleDeleteRegion = useCallback(() => {
     console.log('🗑️ Delete region requested:', { 
       activeRegionId, 
@@ -675,6 +724,56 @@ const MP3CutterMain = React.memo(() => {
     setRegions([]);
     setActiveRegionIdDebounced(null, 'clearAllRegions');
   }, [setActiveRegionIdDebounced]);
+
+  // 🆕 Play All Regions - Phát lần lượt tất cả regions + main selection theo thứ tự thời gian
+  const handlePlayAllRegions = useCallback(() => {
+    if (regions.length === 0 && (startTime >= endTime || duration <= 0)) return;
+    
+    // 🔧 Collect all playable items: main selection + regions
+    const allPlayableItems = [];
+    
+    // Add main selection if it exists
+    if (startTime < endTime && duration > 0) {
+      allPlayableItems.push({
+        id: 'main',
+        start: startTime,
+        end: endTime,
+        name: 'Main Selection',
+        type: 'main'
+      });
+    }
+    
+    // Add all regions
+    regions.forEach(region => {
+      allPlayableItems.push({
+        ...region,
+        type: 'region'
+      });
+    });
+    
+    if (allPlayableItems.length === 0) return;
+    
+    // Sắp xếp tất cả items theo thời gian start
+    const sortedItems = allPlayableItems.sort((a, b) => a.start - b.start);
+    
+    console.log('🎵 Starting Play All (Main + Regions):', sortedItems.map(item => `${item.name} [${item.start.toFixed(1)}s-${item.end.toFixed(1)}s]`));
+    
+    // Set play all mode
+    setIsPlayAllMode(true);
+    setPlayAllIndex(0);
+    
+    // Jump đến start của item đầu tiên
+    const firstItem = sortedItems[0];
+    setActiveRegionIdDebounced(firstItem.id, 'playAllRegions');
+    jumpToTime(firstItem.start);
+    
+    // Start playing
+    if (!isPlaying) {
+      setTimeout(() => {
+        originalTogglePlayPause();
+      }, 100); // Small delay để ensure jump đã hoàn thành
+    }
+  }, [regions, startTime, endTime, duration, setActiveRegionIdDebounced, jumpToTime, isPlaying, originalTogglePlayPause]);
 
   // 🆕 Helper function to calculate safe boundaries for region body dragging (entire region movement)
   const getRegionBodyBoundaries = useCallback((targetRegionId, regions, selectionStart, selectionEnd) => {
@@ -843,8 +942,19 @@ const MP3CutterMain = React.memo(() => {
       } else {
         const newEnd = Math.max(boundaries.min, Math.min(region.end + deltaTime, boundaries.max));
         
-        // 🆕 Realtime cursor jump when dragging end handle (jump to end - 3s offset like main selection)
-        ultraSmoothRegionSync(Math.max(0, newEnd - 3), 'end');
+        // 🆕 Smart cursor positioning for end handle drag
+        const regionDuration = newEnd - region.start;
+        let cursorPosition;
+        
+        if (regionDuration < 3) {
+          // 🔧 For regions < 3s: limit cursor to start point (no overshoot)
+          cursorPosition = region.start;
+        } else {
+          // 🔧 For regions >= 3s: use 3s offset like main selection
+          cursorPosition = Math.max(region.start, newEnd - 3);
+        }
+        
+        ultraSmoothRegionSync(cursorPosition, 'end');
         
         return { ...region, end: newEnd };
       }
@@ -906,6 +1016,7 @@ const MP3CutterMain = React.memo(() => {
 
   useEffect(() => { animationRef.current.isPlaying = isPlaying; }, [isPlaying]);
   useAudioEventHandlers({ audioRef, audioFile, setDuration, setEndTime, setCurrentTime, setIsPlaying, setAudioError, jumpToTime, startTime, isInverted, fileValidation });
+  
   useEffect(() => {
     let animationId;
     const updateCursor = () => {
@@ -913,19 +1024,77 @@ const MP3CutterMain = React.memo(() => {
         const t = audioRef.current.currentTime;
         const autoReturn = getAutoReturnSetting();
         
-        if (isInverted && t >= startTime && t < endTime) {
-          audioRef.current.currentTime = endTime; 
-          setCurrentTime(endTime);
-        } else if (!isInverted && shouldPauseAtEndTime(t, endTime, duration, canvasRef)) {
-          audioRef.current.pause(); 
-          setIsPlaying(false); 
-          if (autoReturn) {
-            setTimeout(() => {
-              jumpToTime(startTime);
-              audioRef.current?.play?.();
-            }, 50);
+        // 🆕 Get active playback boundaries (region or main selection)
+        const playbackBounds = getActivePlaybackBoundaries();
+        const { start: playStart, end: playEnd } = playbackBounds;
+        
+        if (isInverted && t >= playStart && t < playEnd) {
+          audioRef.current.currentTime = playEnd; 
+          setCurrentTime(playEnd);
+        } else if (!isInverted && shouldPauseAtEndTime(t, playEnd, duration, canvasRef)) {
+          // 🆕 Check if we're in play all mode and should jump to next region
+          if (isPlayAllMode && (regions.length > 0 || (startTime < endTime))) {
+            // 🔧 Recreate the same sorted items logic as in handlePlayAllRegions
+            const allPlayableItems = [];
+            
+            // Add main selection if it exists
+            if (startTime < endTime && duration > 0) {
+              allPlayableItems.push({
+                id: 'main',
+                start: startTime,
+                end: endTime,
+                name: 'Main Selection',
+                type: 'main'
+              });
+            }
+            
+            // Add all regions
+            regions.forEach(region => {
+              allPlayableItems.push({
+                ...region,
+                type: 'region'
+              });
+            });
+            
+            const sortedItems = allPlayableItems.sort((a, b) => a.start - b.start);
+            const nextIndex = playAllIndex + 1;
+            
+            if (nextIndex < sortedItems.length) {
+              // Jump to next item
+              const nextItem = sortedItems[nextIndex];
+              console.log(`🎵 Auto-jumping to next item: ${nextItem.name} [${nextItem.start.toFixed(1)}s-${nextItem.end.toFixed(1)}s]`);
+              
+              setPlayAllIndex(nextIndex);
+              setActiveRegionIdDebounced(nextItem.id, 'playAllNext');
+              jumpToTime(nextItem.start);
+              // Continue playing (don't pause)
+              animationId = requestAnimationFrame(updateCursor);
+              return;
+            } else {
+              // Finished all items, stop play all mode
+              console.log('🎵 Finished playing all items (main + regions)');
+              setIsPlayAllMode(false);
+              setPlayAllIndex(0);
+              audioRef.current.pause(); 
+              setIsPlaying(false);
+              // Jump back to first item
+              const firstItem = sortedItems[0];
+              setActiveRegionIdDebounced(firstItem.id, 'playAllComplete');
+              jumpToTime(firstItem.start);
+              return;
+            }
           } else {
-            jumpToTime(startTime);
+            // Normal single region/selection behavior
+            audioRef.current.pause(); 
+            setIsPlaying(false); 
+            if (autoReturn) {
+              setTimeout(() => {
+                jumpToTime(playStart);
+                audioRef.current?.play?.();
+              }, 50);
+            } else {
+              jumpToTime(playStart);
+            }
           }
         } else {
           setCurrentTime(t);
@@ -934,7 +1103,7 @@ const MP3CutterMain = React.memo(() => {
       }
     };
     if (isPlaying && audioRef.current) animationId = requestAnimationFrame(updateCursor);
-    return () => { if (animationId) cancelAnimationFrame(animationId); };  }, [isPlaying, startTime, endTime, audioRef, setCurrentTime, setIsPlaying, isInverted, jumpToTime, duration, canvasRef]);
+    return () => { if (animationId) cancelAnimationFrame(animationId); };  }, [isPlaying, startTime, endTime, audioRef, setCurrentTime, setIsPlaying, isInverted, jumpToTime, duration, canvasRef, getActivePlaybackBoundaries, isPlayAllMode, regions, playAllIndex, setActiveRegionIdDebounced]);
 
   // 🆕 Region dragging now handled by pointer capture in WaveformUI, no global listeners needed
 
@@ -1163,6 +1332,31 @@ const MP3CutterMain = React.memo(() => {
     handleTimeDisplayChange('end', newTime);
   }, [handleTimeDisplayChange]);
 
+  // 🆕 Enhanced togglePlayPause that respects active region boundaries
+  const togglePlayPause = useCallback(() => {
+    if (!isPlaying) {
+      // 🔧 Before playing, ensure cursor is within active region boundaries
+      const playbackBounds = getActivePlaybackBoundaries();
+      const { start: playStart, end: playEnd } = playbackBounds;
+      
+      // If cursor is outside active region, jump to start of active region
+      if (currentTime < playStart || currentTime >= playEnd) {
+        console.log(`🎯 Cursor outside active region [${playStart.toFixed(1)}s - ${playEnd.toFixed(1)}s], jumping to start`);
+        jumpToTime(playStart);
+      }
+    } else {
+      // 🆕 When manually pausing, exit play all mode
+      if (isPlayAllMode) {
+        console.log('🎵 Manual pause - exiting play all mode');
+        setIsPlayAllMode(false);
+        setPlayAllIndex(0);
+      }
+    }
+    
+    // Call original toggle play pause
+    originalTogglePlayPause();
+  }, [isPlaying, currentTime, getActivePlaybackBoundaries, jumpToTime, originalTogglePlayPause, isPlayAllMode]);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-pink-50">
       <div className="container mx-auto px-6 py-6">
@@ -1261,6 +1455,7 @@ const MP3CutterMain = React.memo(() => {
               onAddRegion={handleAddRegion}
               onDeleteRegion={handleDeleteRegion}
               onClearAllRegions={handleClearAllRegions}
+              onPlayAllRegions={handlePlayAllRegions}
             />
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div className="fade-controls">

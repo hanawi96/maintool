@@ -540,14 +540,14 @@ const WaveformCanvas = React.memo(({
         x: isInverted ? regionStartX : regionStartX - handleW,
         y: 0, width: handleW, height: h,
         isActive: hoveredHandle === 'start' || isDragging === 'start',
-        color: isDragging === 'start' ? (isMainSelectionActive ? '#16a34a' : '#0d9488') : baseColor
+        color: baseColor
       },
       end: {
         visible: true,
         x: isInverted ? regionEndX - handleW : regionEndX,
         y: 0, width: handleW, height: h,
         isActive: hoveredHandle === 'end' || isDragging === 'end',
-        color: isDragging === 'end' ? (isMainSelectionActive ? '#16a34a' : '#0d9488') : baseColor
+        color: baseColor
       }
     };
   }, [canvasRef, duration, startTime, endTime, hoveredHandle, isDragging, containerWidth, isInverted, renderData, regions.length, activeRegionId]);

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Zap, RotateCcw, RotateCw, Repeat, Shuffle, TrendingUp, TrendingDown, Music, Sliders,
-  Plus, Minus, Trash2
+  Plus, Minus, Trash2, PlayCircle
 } from 'lucide-react';
 import CompactTimeSelector from './CompactTimeSelector';
 import { getAutoReturnSetting, setAutoReturnSetting } from '../../utils/safeStorage';
@@ -29,7 +29,8 @@ const UnifiedControlBar = React.memo(({
   canAddNewRegion = false, // 🆕 Whether can add new region based on available spaces
   onAddRegion = null, // Callback to add new region
   onDeleteRegion = null, // Callback to delete active region
-  onClearAllRegions = null // Callback to clear all regions
+  onClearAllRegions = null, // Callback to clear all regions
+  onPlayAllRegions = null // Callback to play all regions
 }) => {
   // Auto-return loop state
   const [autoReturnEnabled, setAutoReturnEnabled] = useState(() => getAutoReturnSetting());
@@ -374,10 +375,24 @@ const UnifiedControlBar = React.memo(({
             </span>
           </button>
 
+          {/* 🆕 15. Play All Items - Show when there are regions OR main selection */}
+          {(regions.length > 0 || (duration > 0 && startTime < endTime)) && (
+            <button
+              onClick={onPlayAllRegions}
+              disabled={disabled}
+              className="relative p-2 rounded-lg group transition-all duration-200 bg-gradient-to-r from-purple-100 to-indigo-100 hover:from-purple-200 hover:to-indigo-200 border border-purple-300 hover:border-purple-400 shadow-sm hover:shadow-md"
+              title={`🎵 PLAY ALL ITEMS (${(startTime < endTime ? 1 : 0) + regions.length} items) - Play main selection + regions in sequence`}>
+              <PlayCircle className="w-4 h-4 text-purple-700 group-hover:text-purple-800" />
+              <span className="absolute -top-1 -right-1 bg-purple-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center text-[10px] font-semibold">
+                {(startTime < endTime ? 1 : 0) + regions.length}
+              </span>
+            </button>
+          )}
+
           {/* 🚧 SEPARATOR */}
           <div className="border-l border-slate-300 h-8 mx-1"></div>
 
-          {/* 🆕 15. Delete Region */}
+          {/* 🆕 16. Delete Region */}
           <button
             onClick={onDeleteRegion}
             disabled={!canDeleteRegion}
@@ -399,7 +414,7 @@ const UnifiedControlBar = React.memo(({
             )}
           </button>
 
-          {/* 🆕 16. Clear All Regions */}
+          {/* 🆕 17. Clear All Regions */}
           <button
             onClick={handleClearAllRegions}
             disabled={!canClearAllRegions}
@@ -415,7 +430,7 @@ const UnifiedControlBar = React.memo(({
             )}
           </button>
 
-          {/* 17. Time Selector */}
+          {/* 18. Time Selector */}
           <div className="ml-auto">
             <CompactTimeSelector
               startTime={startTime}

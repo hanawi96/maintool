@@ -75,15 +75,14 @@ export const useInteractionHandlers = ({
     const manager = interactionManagerRef.current;
     const result = manager.handleMouseMove(x, canvasRef.current.width, duration, startTime, endTime, audioContext);
     
-    // 🎯 During dragging, use setStartTime/setEndTime directly to avoid saving history
-    // History will be saved only on mouse up
+    // 🎯 During dragging, use enhanced handlers to trigger active region updates
     if (result.action === 'updateRegion') {
-      if (result.startTime !== undefined) setStartTime(result.startTime);
-      if (result.endTime !== undefined) setEndTime(result.endTime);
+      if (result.startTime !== undefined) handleStartTimeChange(result.startTime);
+      if (result.endTime !== undefined) handleEndTimeChange(result.endTime);
     }
     if (result.action === 'hover' || result.cursor === 'ew-resize') setHoveredHandle(result.handle || null);
     rafIdRef.current = null;
-  }, [canvasRef, duration, startTime, endTime, setHoveredHandle, interactionManagerRef, audioContext, setStartTime, setEndTime, isDragging]);
+  }, [canvasRef, duration, startTime, endTime, setHoveredHandle, interactionManagerRef, audioContext, handleStartTimeChange, handleEndTimeChange, isDragging]);
 
   const handleCanvasMouseMove = useCallback((e) => {
     latestEventRef.current = e;
