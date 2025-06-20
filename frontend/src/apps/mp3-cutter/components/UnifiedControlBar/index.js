@@ -365,7 +365,9 @@ const UnifiedControlBar = React.memo(({
               : "Add New Region - Need >1s space outside current selection"
             }>
             <Plus className={`w-4 h-4 ${canAddRegion ? 'text-emerald-700 group-hover:text-emerald-800' : 'text-slate-500'}`} />
-            {canAddRegion && <div className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>}
+            <span className="absolute -top-1 -right-1 bg-emerald-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center text-[10px] font-semibold">
+              {1 + regions.length}
+            </span>
           </button>
 
           {/* 🚧 SEPARATOR */}
