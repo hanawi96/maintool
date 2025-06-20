@@ -252,7 +252,15 @@ const MP3CutterMain = React.memo(() => {
     isDragging, setStartTime, setEndTime, setIsDragging, setHoveredHandle, setCurrentTime,
     handleStartTimeChange: t => (enhancedHandlersRef.current.handleStartTimeChange ? enhancedHandlersRef.current.handleStartTimeChange(t) : setStartTime(t)),
     handleEndTimeChange: t => (enhancedHandlersRef.current.handleEndTimeChange ? enhancedHandlersRef.current.handleEndTimeChange(t) : setEndTime(t)),
-    jumpToTime, saveState, saveHistoryNow, historySavedRef, interactionManagerRef, audioContext
+    jumpToTime, saveState, saveHistoryNow, historySavedRef, interactionManagerRef, audioContext,
+    // 🆕 Region props for endpoint jumping
+    regions,
+    activeRegionId,
+    onRegionUpdate: (regionId, newStart, newEnd) => {
+      setRegions(prev => prev.map(r => 
+        r.id === regionId ? { ...r, start: newStart, end: newEnd } : r
+      ));
+    }
   });
 
   // 🆕 Helper function to calculate safe boundaries for main selection handles
