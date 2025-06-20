@@ -381,17 +381,12 @@ const WaveformCanvas = React.memo(({
         ctx.clip();
         ctx.drawImage(dynamicWaveformCacheRef.current, 0, 0);
       }      ctx.restore();
-      // 3. Selection overlay
-      const isMainSelectionActive = regions.length >= 1 && activeRegionId === 'main';
-      const overlayColor = isMainSelectionActive 
-        ? 'rgba(34, 197, 94, 0.15)' // Green when active (same as active regions)
-        : 'rgba(139,92,246,0.15)'; // Purple when inactive
-      
-      ctx.fillStyle = overlayColor;
+      // 3. Selection overlay - always use default purple background
+      ctx.fillStyle = WAVEFORM_CONFIG.COLORS.SELECTION_OVERLAY;
       ctx.fillRect(startX + (startTime / duration) * areaWidth, 0, ((endTime - startTime) / duration) * areaWidth, height);
     }
 
-    // 🆕 3.5. Purple waveform bars for regions (before region overlays)
+    // 🆕 3.5. Dynamic colored waveform bars for regions (before region overlays)
     if (regions?.length > 0 && duration > 0 && dynamicWaveformCacheRef.current) {
       regions.forEach(region => {
         const regionStartX = startX + (region.start / duration) * areaWidth;
@@ -400,30 +395,10 @@ const WaveformCanvas = React.memo(({
         
         if (regionWidth > 2) {
           ctx.save();
-          
-          // Create purple colored waveform for this region
-          ctx.fillStyle = '#7c3aed'; // Purple color for region waveform bars
-          const centerY = height / 2;
-          const FLAT_BAR = 1;
-          const MAX_PX = 65;
-          const vol = Math.max(0, Math.min(1, currentVolume));
-          const barW = areaWidth / renderData.waveformData.length;
-          
-          // Calculate which bars are in this region
-          const startBarIndex = Math.floor((region.start / duration) * renderData.waveformData.length);
-          const endBarIndex = Math.ceil((region.end / duration) * renderData.waveformData.length);
-          
-          // Draw purple bars for this region
-          for (let i = startBarIndex; i < endBarIndex && i < renderData.waveformData.length; i++) {
-            let h = FLAT_BAR + ((FLAT_BAR + (MAX_PX * renderData.waveformData[i]) - FLAT_BAR) * vol);
-            const x = startX + (i * barW);
-            
-            // Only draw if within region bounds
-            if (x >= regionStartX && x <= regionEndX) {
-              ctx.fillRect(Math.floor(x), centerY - h, barW, h * 2);
-            }
-          }
-          
+          ctx.beginPath();
+          ctx.rect(regionStartX, 0, regionWidth, height);
+          ctx.clip();
+          ctx.drawImage(dynamicWaveformCacheRef.current, 0, 0);
           ctx.restore();
         }
       });
@@ -440,10 +415,12 @@ const WaveformCanvas = React.memo(({
         if (regionWidth > 2) {
           const isActive = region.id === activeRegionId;
           
-          // 🎨 Simple background - green when active, light blue when inactive
-          ctx.fillStyle = isActive 
-            ? 'rgba(34, 197, 94, 0.15)' // Green for active (same opacity as main selection)
+          // 🎨 Unified background - always purple for active regions (same as main selection)
+          const regionBgColor = isActive 
+            ? WAVEFORM_CONFIG.COLORS.SELECTION_OVERLAY // Purple for active (same as main selection)
             : 'rgba(59, 130, 246, 0.1)'; // Light blue for inactive
+          
+          ctx.fillStyle = regionBgColor;
           ctx.fillRect(regionStartX, 0, regionWidth, height);
           
           // 🎨 Simple border - same style as main selection
