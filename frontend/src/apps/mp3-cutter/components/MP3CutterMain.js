@@ -400,7 +400,7 @@ const MP3CutterMain = React.memo(() => {
     } catch (error) {
       setAudioError({ type: 'upload', title: 'Upload Failed', message: error.message, suggestions: ['Check your internet connection', 'Try a different file', 'Restart the backend server'] });
     }
-  }, [uploadFile, generateWaveform, audioRef, duration, saveState, isConnected, testConnection]);
+  }, [uploadFile, generateWaveform, audioRef, duration, saveState, isConnected, testConnection, setActiveRegionIdDebounced]);
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !audioFile?.url) {
@@ -443,7 +443,7 @@ const MP3CutterMain = React.memo(() => {
       });
     }, 100);
     return () => clearTimeout(t);
-  }, [audioFile?.url, audioRef, connectAudioElement, disconnectAudioElement, isWebAudioSupported, setMasterVolumeSetter, setMasterVolume, volume]);
+  }, [audioFile?.url, audioRef, connectAudioElement, disconnectAudioElement, isWebAudioSupported, setMasterVolumeSetter, setMasterVolume, volume, audioConnected, fadeAudioContext, isEqualizerConnected]);
   
   // 🎵 Modern pitch change handler - zero audio interruption (like speed)
   const handlePitchChange = useCallback((newPitch) => {
@@ -540,30 +540,64 @@ const MP3CutterMain = React.memo(() => {
   const handleFadeInDragEnd = useCallback(finalFadeIn => saveState({ startTime, endTime, fadeIn: finalFadeIn, fadeOut, isInverted }), [startTime, endTime, fadeOut, saveState, isInverted]);
   const handleFadeOutDragEnd = useCallback(finalFadeOut => saveState({ startTime, endTime, fadeIn, fadeOut: finalFadeOut, isInverted }), [startTime, endTime, fadeIn, saveState, isInverted]);
   const handleFadeInToggle = useCallback(() => { const v = fadeIn > 0 ? 0 : 3.0; updateFade('in', v); saveState({ startTime, endTime, fadeIn: v, fadeOut, isInverted }); }, [fadeIn, fadeOut, startTime, endTime, isInverted, updateFade, saveState]);
-  const handleFadeOutToggle = useCallback(() => { const v = fadeOut > 0 ? 0 : 3.0; updateFade('out', v); saveState({ startTime, endTime, fadeIn, fadeOut: v, isInverted }); }, [fadeIn, fadeOut, startTime, endTime, isInverted, updateFade, saveState]);  const handlePresetApply = useCallback((newFadeIn, newFadeOut) => { setFadeIn(newFadeIn); setFadeOut(newFadeOut); updateFadeConfig({ fadeIn: newFadeIn, fadeOut: newFadeOut, startTime, endTime, isInverted, duration }); saveState({ startTime, endTime, fadeIn: newFadeIn, fadeOut: newFadeOut, isInverted }); }, [startTime, endTime, updateFadeConfig, saveState, isInverted, duration]);
+  const handleFadeOutToggle = useCallback(() => { const v = fadeOut > 0 ? 0 : 3.0; updateFade('out', v); saveState({ startTime, endTime, fadeIn, fadeOut: v, isInverted }); }, [fadeIn, fadeOut, startTime, endTime, isInverted, updateFade, saveState]);  const handlePresetApply = useCallback((newFadeIn, newFadeOut) => { setFadeIn(newFadeIn); setFadeOut(newFadeOut); updateFadeConfig({ fadeIn: newFadeIn, fadeOut: newFadeOut, startTime, endTime, isInverted, duration }); saveState({ startTime, endTime, fadeIn: newFadeIn, fadeOut: newFadeOut, isInverted }); }, [startTime, endTime, updateFadeConfig, saveState, isInverted, duration]);  // 🆕 Calculate minimum handle spacing to prevent overlap
+  const calculateMinimumHandleGap = useCallback(() => {
+    if (!canvasRef.current || duration <= 0) return 0;
+    
+    const canvas = canvasRef.current;
+    const canvasWidth = canvas.offsetWidth || 800;
+    
+    // Calculate handle width based on responsive design
+    const handleW = canvasWidth < 640 
+      ? Math.max(3, 8 * 0.75)  // Mobile: ~6px
+      : 8;                     // Desktop: 8px
+    
+    // Add 2px minimum gap between handles for clear separation
+    const requiredPixelGap = handleW + 2;
+    
+    // Convert pixel gap to time gap
+    const timeGap = (requiredPixelGap / canvasWidth) * duration;
+    
+    console.log('🔧 Calculated minimum handle gap:', {
+      canvasWidth,
+      handleW,
+      requiredPixelGap,
+      timeGap: timeGap.toFixed(3) + 's',
+      percentage: ((timeGap / duration) * 100).toFixed(2) + '%'
+    });
+    
+    return timeGap;
+  }, [canvasRef, duration]);
 
   // 🆕 Calculate available spaces between existing regions and main selection
   const calculateAvailableSpaces = useCallback(() => {
     if (duration <= 0) return [];
     
+    // 🔧 Calculate minimum gap needed between regions to prevent handle overlap
+    const minGap = calculateMinimumHandleGap();
+    
     // Collect occupied areas - always include both regions and main selection
     const occupiedAreas = [];
     
-    // Add existing regions
+    // Add existing regions with expanded boundaries to account for handle spacing
     regions.forEach(region => {
       occupiedAreas.push({
-        start: region.start,
-        end: region.end,
+        start: Math.max(0, region.start - minGap / 2),
+        end: Math.min(duration, region.end + minGap / 2),
+        originalStart: region.start,
+        originalEnd: region.end,
         type: 'region',
         id: region.id
       });
     });
     
-    // 🔧 Always add main selection as occupied area to prevent overlap
+    // 🔧 Always add main selection as occupied area with handle spacing
     if (startTime < endTime) {
       occupiedAreas.push({
-        start: startTime,
-        end: endTime,
+        start: Math.max(0, startTime - minGap / 2),
+        end: Math.min(duration, endTime + minGap / 2),
+        originalStart: startTime,
+        originalEnd: endTime,
         type: 'selection'
       });
     }
@@ -573,21 +607,26 @@ const MP3CutterMain = React.memo(() => {
       return [{
         start: 0,
         end: duration,
-        length: duration
+        length: duration,
+        hasMinGap: true
       }];
     }
     
-    // Sort occupied areas by start time
+    // Sort occupied areas by expanded start time
     const sortedAreas = occupiedAreas.sort((a, b) => a.start - b.start);
     const spaces = [];
     
     // Space before first occupied area
     if (sortedAreas[0].start > 0) {
-      spaces.push({
-        start: 0,
-        end: sortedAreas[0].start,
-        length: sortedAreas[0].start
-      });
+      const spaceLength = sortedAreas[0].start;
+      if (spaceLength >= minGap + 1.0) { // Ensure enough space for new region + minimum duration
+        spaces.push({
+          start: 0,
+          end: sortedAreas[0].start,
+          length: spaceLength,
+          hasMinGap: true
+        });
+      }
     }
     
     // Spaces between occupied areas
@@ -595,29 +634,44 @@ const MP3CutterMain = React.memo(() => {
       const currentEnd = sortedAreas[i].end;
       const nextStart = sortedAreas[i + 1].start;
       if (nextStart > currentEnd) {
-        spaces.push({
-          start: currentEnd,
-          end: nextStart,
-          length: nextStart - currentEnd
-        });
+        const spaceLength = nextStart - currentEnd;
+        if (spaceLength >= minGap + 1.0) { // Ensure enough space for new region + minimum duration
+          spaces.push({
+            start: currentEnd,
+            end: nextStart,
+            length: spaceLength,
+            hasMinGap: true
+          });
+        }
       }
     }
     
     // Space after last occupied area
     const lastArea = sortedAreas[sortedAreas.length - 1];
     if (lastArea.end < duration) {
-      spaces.push({
-        start: lastArea.end,
-        end: duration,
-        length: duration - lastArea.end
-      });
+      const spaceLength = duration - lastArea.end;
+      if (spaceLength >= minGap + 1.0) { // Ensure enough space for new region + minimum duration
+        spaces.push({
+          start: lastArea.end,
+          end: duration,
+          length: spaceLength,
+          hasMinGap: true
+        });
+      }
     }
     
-    // Filter spaces >= 1 second
-    const validSpaces = spaces.filter(space => space.length >= 1.0);
+    console.log('✨ Available spaces with handle gap protection:', {
+      minGap: minGap.toFixed(3) + 's',
+      totalSpaces: spaces.length,
+      spaces: spaces.map(s => ({
+        start: s.start.toFixed(1) + 's',
+        end: s.end.toFixed(1) + 's',
+        length: s.length.toFixed(1) + 's'
+      }))
+    });
     
-    return validSpaces;
-  }, [regions, duration, startTime, endTime]);
+    return spaces;
+  }, [regions, duration, startTime, endTime, calculateMinimumHandleGap]);
 
   // 🆕 Check if can add new region
   const canAddNewRegion = useMemo(() => {
@@ -625,15 +679,14 @@ const MP3CutterMain = React.memo(() => {
     const canAdd = availableSpaces.length > 0;
     return canAdd;
   }, [calculateAvailableSpaces]);
-
-  // 🆕 Region management functions - Updated to use available spaces
+  // 🆕 Region management functions - Updated to use available spaces with handle gap protection
   const generateRandomRegion = useCallback(() => {
     if (duration <= 0) return null;
     
     const availableSpaces = calculateAvailableSpaces();
     
     if (availableSpaces.length === 0) {
-      console.log('🚫 No available spaces for new region');
+      console.log('🚫 No available spaces for new region (after handle gap protection)');
       return null;
     }
     
@@ -642,25 +695,49 @@ const MP3CutterMain = React.memo(() => {
       current.length > best.length ? current : best
     );
     
-    // Calculate region size (10-60% of available space, min 1s, max 30s)
-    const minDuration = Math.max(1, bestSpace.length * 0.1);
-    const maxDuration = Math.min(30, bestSpace.length * 0.6);
+    // 🔧 Calculate minimum gap for handle spacing
+    const minGap = calculateMinimumHandleGap();
+    
+    // 🔧 Reserve space at both ends for handle spacing
+    const effectiveStart = bestSpace.start + minGap / 2;
+    const effectiveEnd = bestSpace.end - minGap / 2;
+    const effectiveLength = effectiveEnd - effectiveStart;
+    
+    // Calculate region size (10-60% of effective space, min 1s, max 30s)
+    const minDuration = Math.max(1, effectiveLength * 0.1);
+    const maxDuration = Math.min(30, effectiveLength * 0.6);
     const regionDuration = minDuration + Math.random() * (maxDuration - minDuration);
     
-    // Random position within the space
-    const maxStartPos = bestSpace.end - regionDuration;
-    const regionStart = bestSpace.start + Math.random() * Math.max(0, maxStartPos - bestSpace.start);
+    // Random position within the effective space
+    const maxStartPos = effectiveEnd - regionDuration;
+    const regionStart = effectiveStart + Math.random() * Math.max(0, maxStartPos - effectiveStart);
     
     const newRegion = {
       id: Date.now() + Math.random(),
-      start: Math.max(bestSpace.start, regionStart),
-      end: Math.min(bestSpace.end, regionStart + regionDuration),
+      start: Math.max(effectiveStart, regionStart),
+      end: Math.min(effectiveEnd, regionStart + regionDuration),
       name: `Region ${regions.length + 1}`
     };
     
-    console.log('✨ Generated new region:', newRegion.name, `[${newRegion.start.toFixed(1)}s - ${newRegion.end.toFixed(1)}s]`);
+    console.log('✨ Generated new region with handle gap protection:', {
+      regionName: newRegion.name,
+      timeRange: `${newRegion.start.toFixed(1)}s - ${newRegion.end.toFixed(1)}s`,
+      duration: (newRegion.end - newRegion.start).toFixed(1) + 's',
+      selectedSpace: {
+        start: bestSpace.start.toFixed(1) + 's',
+        end: bestSpace.end.toFixed(1) + 's',
+        length: bestSpace.length.toFixed(1) + 's'
+      },
+      effectiveSpace: {
+        start: effectiveStart.toFixed(1) + 's',
+        end: effectiveEnd.toFixed(1) + 's',
+        length: effectiveLength.toFixed(1) + 's'
+      },
+      minGap: minGap.toFixed(3) + 's'
+    });
+    
     return newRegion;
-  }, [duration, calculateAvailableSpaces, regions]);
+  }, [duration, calculateAvailableSpaces, regions, calculateMinimumHandleGap]);
 
   const handleAddRegion = useCallback(() => {
     if (!canAddNewRegion) {
@@ -904,7 +981,6 @@ const MP3CutterMain = React.memo(() => {
       console.log('🎯 Ultra smooth region sync:', newTime.toFixed(3));
     }
   }, [audioRef, setCurrentTime, isInverted]);
-
   // 🆕 Region drag handlers - Refactored to use proper pointer capture
   const handleRegionMouseDown = useCallback((regionId, handleType, e) => {
     setActiveRegionIdDebounced(regionId, 'regionMouseDown');
@@ -914,8 +990,7 @@ const MP3CutterMain = React.memo(() => {
     if (e.target && e.target.setPointerCapture && e.pointerId) {
       e.target.setPointerCapture(e.pointerId);
     }
-  }, [activeRegionId, setActiveRegionIdDebounced]);
-
+  }, [setActiveRegionIdDebounced]);
   // 🆕 Region body drag handlers - For moving entire regions
   const handleRegionBodyDown = useCallback((regionId, e) => {
     setActiveRegionIdDebounced(regionId, 'regionBodyDown');
@@ -925,7 +1000,7 @@ const MP3CutterMain = React.memo(() => {
     if (e.target && e.target.setPointerCapture && e.pointerId) {
       e.target.setPointerCapture(e.pointerId);
     }
-  }, [activeRegionId, setActiveRegionIdDebounced]);
+  }, [setActiveRegionIdDebounced]);
 
   const handleRegionMouseMove = useCallback((regionId, handleType, e) => {
     if (!draggingRegion || draggingRegion.regionId !== regionId || draggingRegion.handleType !== handleType) return;
