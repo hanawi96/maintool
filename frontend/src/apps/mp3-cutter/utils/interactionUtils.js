@@ -226,7 +226,8 @@ export class InteractionManager {
             targetTime: smartAction.handle === HANDLE_TYPES.START ? startTime : endTime,
             offsetForEnd: smartAction.handle === HANDLE_TYPES.END ? 3.0 : 0,
           },
-        };      case CLICK_ACTIONS.JUMP_TO_TIME:
+        };
+      case CLICK_ACTIONS.JUMP_TO_TIME:
         // 🔧 FIXED: Skip jump logic for main selection clicks but allow drag detection
         if (isMainSelectionClick) {
           console.log('🚫 InteractionManager: Main selection click - skipping jump but enabling drag potential');
@@ -255,19 +256,19 @@ export class InteractionManager {
         }
         return { action: 'pendingJump', time: smartAction.seekTime, regionDragPotential: !!smartAction.regionDragPotential };
       case CLICK_ACTIONS.UPDATE_START:
-        this.pending.handleUpdate = {
-          type: 'start', newTime: smartAction.newStartTime, oldTime: startTime, endTime: smartAction.newEndTime,
-          reason: smartAction.reason,
-        };
-        this.pending.hasHandleUpdate = true;
-        return { action: 'pendingHandleUpdate', handleType: 'start', newTime: smartAction.newStartTime, oldTime: startTime };
+        // 🚫 DISABLED: Let useInteractionHandlers handle endpoint jumping logic
+        console.log('🚫 InteractionManager: UPDATE_START disabled - redirecting to JUMP_TO_TIME');
+        this.pending.jumpTime = smartAction.seekTime || currentTime;
+        this.pending.hasJump = true;
+        this.pending.jumpBlockedByInvert = false;
+        return { action: 'pendingJump', time: smartAction.seekTime || currentTime };
       case CLICK_ACTIONS.UPDATE_END:
-        this.pending.handleUpdate = {
-          type: 'end', newTime: smartAction.newEndTime, oldTime: endTime, startTime: smartAction.newStartTime,
-          reason: smartAction.reason,
-        };
-        this.pending.hasHandleUpdate = true;
-        return { action: 'pendingHandleUpdate', handleType: 'end', newTime: smartAction.newEndTime, oldTime: endTime };
+        // 🚫 DISABLED: Let useInteractionHandlers handle endpoint jumping logic  
+        console.log('🚫 InteractionManager: UPDATE_END disabled - redirecting to JUMP_TO_TIME');
+        this.pending.jumpTime = smartAction.seekTime || currentTime;
+        this.pending.hasJump = true;
+        this.pending.jumpBlockedByInvert = false;
+        return { action: 'pendingJump', time: smartAction.seekTime || currentTime };
       case CLICK_ACTIONS.CREATE_SELECTION:
         this.state = INTERACTION_STATES.DRAGGING;
         this.activeHandle = HANDLE_TYPES.END;

@@ -163,9 +163,9 @@ export const useInteractionHandlers = ({
       regionsCount: regions.length
     });
     
-    // 🆕 Enhanced cursor jumping logic - Only for active regions, not selection clicks
+    // 🆕 Enhanced cursor jumping and endpoint jumping logic - Apply to ALL active regions including main
     if (!wasDragging && lastClickPositionRef.current !== null && activeRegionId && regions.length > 0) {
-      console.log('🔥 useInteractionHandlers: Entering cursor jumping logic...');
+      console.log('🔥 useInteractionHandlers: Entering cursor/endpoint jumping logic...');
       const canvas = canvasRef.current;
       if (canvas) {
         // 🔧 Check if region was ALREADY active at mouse down (not a selection click)
@@ -181,17 +181,17 @@ export const useInteractionHandlers = ({
           hasClickPosition: !!lastClickPositionRef.current
         });
         
-        // 🚫 Skip cursor jumping for selection clicks - let region selection handler take care of it
+        // 🚫 Skip for selection clicks - let region selection handler take care of it
         if (isSelectionClick) {
-          console.log('🚫 Selection click detected - skipping cursor jumping, letting region selection handle it');
+          console.log('🚫 Selection click detected - skipping jumping logic, letting region selection handle it');
           lastClickPositionRef.current = null;
           activeRegionAtMouseDownRef.current = null;
           return;
         }
         
-        // ✅ Proceed with cursor jumping only for already-active regions
+        // ✅ Proceed with cursor/endpoint jumping only for already-active regions
         if (wasAlreadyActive) {
-          console.log('✅ useInteractionHandlers: Proceeding with cursor jumping for already-active region');
+          console.log('✅ useInteractionHandlers: Proceeding with cursor/endpoint jumping for already-active region');
           const canvasWidth = canvas.offsetWidth || canvas.width || 800;
           const clickX = lastClickPositionRef.current;
           
@@ -208,6 +208,8 @@ export const useInteractionHandlers = ({
           if (activeRegion && clickTime >= 0 && clickTime <= duration) {
             const { start: regionStart, end: regionEnd } = activeRegion;
             
+            // 🆕 Additional validation: Only apply endpoint jumping for clicks OUTSIDE any region areas
+            // This ensures we don't interfere with region selection or internal region clicks
             const regionStartX = startX + (regionStart / duration) * areaWidth;
             const regionEndX = startX + (regionEnd / duration) * areaWidth;
             const startHandleLeft = regionStartX - handleW;
@@ -218,6 +220,35 @@ export const useInteractionHandlers = ({
             const isInStartHandle = clickX >= startHandleLeft && clickX <= startHandleRight;
             const isInEndHandle = clickX >= endHandleLeft && clickX <= endHandleRight;
             
+            // 🔍 Check if click is within ANY region area (not just active region)
+            let isClickInAnyRegionArea = false;
+            if (regions.length > 0) {
+              for (const region of regions) {
+                const regStartX = startX + (region.start / duration) * areaWidth;
+                const regEndX = startX + (region.end / duration) * areaWidth;
+                const regAreaLeft = regStartX - handleW;
+                const regAreaRight = regEndX + handleW;
+                
+                if (clickX >= regAreaLeft && clickX <= regAreaRight) {
+                  isClickInAnyRegionArea = true;
+                  console.log('🎯 Click detected within region area:', region.id || region.name);
+                  break;
+                }
+              }
+            }
+            
+            // 🔍 Check if click is within main selection area
+            const mainStartX = startX + (startTime / duration) * areaWidth;
+            const mainEndX = startX + (endTime / duration) * areaWidth;
+            const mainAreaLeft = mainStartX - handleW;
+            const mainAreaRight = mainEndX + handleW;
+            const isClickInMainArea = clickX >= mainAreaLeft && clickX <= mainAreaRight;
+            
+            if (isClickInMainArea && activeRegionId === 'main') {
+              isClickInAnyRegionArea = true;
+              console.log('🎯 Click detected within main selection area');
+            }
+            
             console.log('🎯 Active region click analysis:', {
               activeRegionId,
               clickTime: clickTime.toFixed(2),
@@ -225,78 +256,99 @@ export const useInteractionHandlers = ({
               regionEnd: regionEnd.toFixed(2),
               isInStartHandle,
               isInEndHandle,
-              isInsideRegion: clickTime >= regionStart && clickTime <= regionEnd
+              isInsideRegion: clickTime >= regionStart && clickTime <= regionEnd,
+              isBeforeStart: clickTime < regionStart,
+              isAfterEnd: clickTime > regionEnd,
+              isClickInAnyRegionArea,
+              isClickInMainArea,
+              shouldApplyEndpointJumping: !isClickInAnyRegionArea && !isInStartHandle && !isInEndHandle
             });
             
             // Skip if clicking on handles
             if (isInStartHandle || isInEndHandle) {
-              console.log('🚫 Click in handle area, skipping cursor jumping');
+              console.log('🚫 Click in handle area, skipping cursor/endpoint jumping');
               lastClickPositionRef.current = null;
               activeRegionAtMouseDownRef.current = null;
               return;
             }
             
-            // ✅ Click INSIDE already-active region - jump cursor to click point
-            if (clickTime >= regionStart && clickTime <= regionEnd) {
-              console.log('🎯 Click INSIDE already-active region - jumping cursor to click point:', clickTime.toFixed(2));
+            // 🆕 NEW CONDITION: Only apply logic if click is NOT within any region area
+            // This ensures endpoint jumping only works for clicks in empty waveform areas
+            if (isClickInAnyRegionArea) {
+              // ✅ Click INSIDE region area - jump cursor to click point (normal behavior)
+              if (clickTime >= regionStart && clickTime <= regionEnd) {
+                console.log('🎯 Click INSIDE already-active region - jumping cursor to click point:', clickTime.toFixed(2));
+                jumpToTime(clickTime);
+              } else {
+                console.log('🚫 Click within region area but outside active region - no action (let region selection handle)');
+              }
+              lastClickPositionRef.current = null;
+              activeRegionAtMouseDownRef.current = null;
+              return;
+            }
+            
+            // 🆕 NEW LOGIC: Click in EMPTY AREA outside all regions - apply endpoint jumping to active region
+            console.log('🔧 Click in EMPTY AREA - applying endpoint jumping to active region');
+            
+            // 🎯 Determine which endpoint to move based on click position relative to active region
+            const isBeforeStart = clickTime < regionStart;
+            const isAfterEnd = clickTime > regionEnd;
+            
+            // 🔧 Calculate safe boundary for endpoint jumping
+            let newTime = clickTime;
+            let updateType = null;
+            
+            if (isBeforeStart) {
+              // Click before active region start - move start point to click position
+              newTime = Math.max(0, Math.min(clickTime, regionEnd - 0.1));
+              updateType = 'start';
+              console.log('📍 Moving active region START point to click position:', newTime.toFixed(2));
+            } else if (isAfterEnd) {
+              // Click after active region end - move end point to click position
+              newTime = Math.max(regionStart + 0.1, Math.min(clickTime, duration));
+              updateType = 'end';
+              console.log('📍 Moving active region END point to click position:', newTime.toFixed(2));
+            } else {
+              // Click within active region - just jump cursor
+              console.log('🎯 Click within active region in empty area - jumping cursor to click point:', clickTime.toFixed(2));
               jumpToTime(clickTime);
               lastClickPositionRef.current = null;
               activeRegionAtMouseDownRef.current = null;
               return;
             }
             
-            // ✅ Click OUTSIDE already-active region - endpoint jumping
-            if (clickTime < regionStart || clickTime > regionEnd) {
-              const distanceToStart = Math.abs(clickTime - regionStart);
-              const distanceToEnd = Math.abs(clickTime - regionEnd);
-              const isCloserToStart = distanceToStart < distanceToEnd;
-              
-              console.log('🎯 Click OUTSIDE already-active region - jumping endpoint:', {
-                region: activeRegion.id,
-                clickTime: clickTime.toFixed(2),
-                distanceToStart: distanceToStart.toFixed(2),
-                distanceToEnd: distanceToEnd.toFixed(2),
-                jumpingEndpoint: isCloserToStart ? 'start' : 'end'
-              });
-              
-              // Calculate safe boundary for endpoint jumping
-              let newTime = clickTime;
-              if (isCloserToStart) {
-                newTime = Math.max(0, Math.min(clickTime, regionEnd - 0.1));
-              } else {
-                newTime = Math.max(regionStart + 0.1, Math.min(clickTime, duration));
-              }
-              
-              // Apply endpoint jumping
+            // 🆕 Apply endpoint jumping to BOTH main selection AND regions
+            if (updateType) {
               if (activeRegionId === 'main') {
-                if (isCloserToStart) {
-                  console.log('🎯 Jumping main start to:', newTime.toFixed(2));
+                // Update main selection
+                if (updateType === 'start') {
                   handleStartTimeChange(newTime);
+                  console.log('✅ Updated main selection START to:', newTime.toFixed(2));
                 } else {
-                  console.log('🎯 Jumping main end to:', newTime.toFixed(2));
                   handleEndTimeChange(newTime);
+                  console.log('✅ Updated main selection END to:', newTime.toFixed(2));
                 }
               } else {
-                console.log('🎯 Jumping region endpoint:', {
-                  regionId: activeRegionId,
-                  endpoint: isCloserToStart ? 'start' : 'end',
-                  newTime: newTime.toFixed(2)
-                });
-                
+                // Update region
                 if (onRegionUpdate) {
                   const updatedRegion = {
                     ...activeRegion,
-                    [isCloserToStart ? 'start' : 'end']: newTime
+                    [updateType]: newTime
                   };
                   onRegionUpdate(activeRegionId, updatedRegion.start, updatedRegion.end);
+                  console.log('✅ Updated region', activeRegionId, updateType.toUpperCase(), 'to:', newTime.toFixed(2));
                 }
               }
+              
+              lastClickPositionRef.current = null;
+              activeRegionAtMouseDownRef.current = null;
+              return;
             }
           }
         }
       }
     } else {
-      console.log('🚫 useInteractionHandlers: Skipping cursor jumping logic - conditions not met:', {
+      console.log('🚫 useInteractionHandlers: Skipping cursor/endpoint jumping logic - conditions not met:', {
         wasDragging,
         hasClickPosition: !!lastClickPositionRef.current,
         activeRegionId: !!activeRegionId,

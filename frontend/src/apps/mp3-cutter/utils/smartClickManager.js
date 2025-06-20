@@ -30,10 +30,11 @@ const DEFAULT_PREFS = {
   enableHoverProtection: true
 };
 
-const MOVE_DIST_THRESHOLD = 1.0;
-const EDGE_GAP = 0.1;
-const SMALL_MOVE = 0.5;
-const REENTRY_COOLDOWN = 500;
+// 🚫 DISABLED: Constants no longer used since we disabled UPDATE_START/UPDATE_END logic
+// const MOVE_DIST_THRESHOLD = 1.0;
+// const EDGE_GAP = 0.1;
+// const SMALL_MOVE = 0.5;
+// const REENTRY_COOLDOWN = 500;
 
 export class SmartClickManager {
   constructor() {
@@ -103,13 +104,14 @@ export class SmartClickManager {
         action.seekTime = clickTime;
         return action;
       }
-      if (this.preferences.enableSmartUpdate && shouldAllowHandleUpdate(zone, clickTime, startTime, endTime, duration, isActualClick, this.preferences, this)) {
-        action.action = CLICK_ACTIONS.UPDATE_START;
-        action.newStartTime = clickTime;
-      } else {
+      // 🚫 DISABLED: Let useInteractionHandlers handle endpoint jumping logic
+      // if (this.preferences.enableSmartUpdate && shouldAllowHandleUpdate(zone, clickTime, startTime, endTime, duration, isActualClick, this.preferences, this)) {
+      //   action.action = CLICK_ACTIONS.UPDATE_START;
+      //   action.newStartTime = clickTime;
+      // } else {
         action.action = CLICK_ACTIONS.JUMP_TO_TIME;
         action.seekTime = clickTime;
-      }
+      // }
       return validateDuration(action, this.preferences.requireMinSelection);
     }
 
@@ -120,13 +122,14 @@ export class SmartClickManager {
         action.seekTime = clickTime;
         return action;
       }
-      if (this.preferences.enableSmartUpdate && shouldAllowHandleUpdate(zone, clickTime, startTime, endTime, duration, isActualClick, this.preferences, this)) {
-        action.action = CLICK_ACTIONS.UPDATE_END;
-        action.newEndTime = clickTime;
-      } else {
+      // 🚫 DISABLED: Let useInteractionHandlers handle endpoint jumping logic
+      // if (this.preferences.enableSmartUpdate && shouldAllowHandleUpdate(zone, clickTime, startTime, endTime, duration, isActualClick, this.preferences, this)) {
+      //   action.action = CLICK_ACTIONS.UPDATE_END;
+      //   action.newEndTime = clickTime;
+      // } else {
         action.action = CLICK_ACTIONS.JUMP_TO_TIME;
         action.seekTime = clickTime;
-      }
+      // }
       return validateDuration(action, this.preferences.requireMinSelection);
     }
 
@@ -163,31 +166,32 @@ function validateDuration(action, minSelection) {
 }
 
 // --- Helper: Allow handle update? All logic giữ nguyên ---
-function shouldAllowHandleUpdate(zone, clickTime, startTime, endTime, duration, isActualClick, prefs, context) {
-  if (!isActualClick && prefs.enableHoverProtection) return false;
-  const startAtEdge = Math.abs(startTime) < EDGE_GAP;
-  const endAtEdge = Math.abs(endTime - duration) < EDGE_GAP;
-  if (zone === CLICK_ZONES.BEFORE_START) {
-    const dist = Math.abs(clickTime - startTime);
-    if (dist >= MOVE_DIST_THRESHOLD) return true;
-    if (startAtEdge && dist < SMALL_MOVE) return false;
-    return true;
-  }
-  if (zone === CLICK_ZONES.AFTER_END) {
-    const dist = Math.abs(clickTime - endTime);
-    if (dist >= MOVE_DIST_THRESHOLD) return true;
-    if (endAtEdge && dist < SMALL_MOVE) return false;
-    return true;
-  }
-  if (!isActualClick) {
-    const now = performance.now();
-    const last = context.lastInteractionTime;
-    if (last && now - last < REENTRY_COOLDOWN) return false;
-  } else {
-    context.lastInteractionTime = performance.now();
-  }
-  return true;
-}
+// 🚫 DISABLED: Function no longer used since we disabled UPDATE_START/UPDATE_END
+// function shouldAllowHandleUpdate(zone, clickTime, startTime, endTime, duration, isActualClick, prefs, context) {
+//   if (!isActualClick && prefs.enableHoverProtection) return false;
+//   const startAtEdge = Math.abs(startTime) < EDGE_GAP;
+//   const endAtEdge = Math.abs(endTime - duration) < EDGE_GAP;
+//   if (zone === CLICK_ZONES.BEFORE_START) {
+//     const dist = Math.abs(clickTime - startTime);
+//     if (dist >= MOVE_DIST_THRESHOLD) return true;
+//     if (startAtEdge && dist < SMALL_MOVE) return false;
+//     return true;
+//   }
+//   if (zone === CLICK_ZONES.AFTER_END) {
+//     const dist = Math.abs(clickTime - endTime);
+//     if (dist >= MOVE_DIST_THRESHOLD) return true;
+//     if (endAtEdge && dist < SMALL_MOVE) return false;
+//     return true;
+//   }
+//   if (!isActualClick) {
+//     const now = performance.now();
+//     const last = context.lastInteractionTime;
+//     if (last && now - last < REENTRY_COOLDOWN) return false;
+//   } else {
+//     context.lastInteractionTime = performance.now();
+//   }
+//   return true;
+// }
 
 // --- Utils giữ nguyên ---
 export const createSmartClickManager = () => new SmartClickManager();

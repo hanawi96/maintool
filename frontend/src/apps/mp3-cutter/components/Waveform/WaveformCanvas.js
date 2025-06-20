@@ -132,19 +132,31 @@ const WaveformCanvas = React.memo(({
         const regionEndX = startX + (endTime / duration) * areaWidth;
         
         const mainSelectionLeft = isInverted ? regionStartX : regionStartX - handleW;
-        const mainSelectionRight = isInverted ? regionEndX : regionEndX + handleW;        if (mouseX >= mainSelectionLeft && mouseX <= mainSelectionRight) {
+        const mainSelectionRight = isInverted ? regionEndX : regionEndX + handleW;
+        
+        // 🚀 Check if click is within any region area first (to exclude from main selection detection)
+        let isClickInRegionArea = false;
+        for (const region of regions) {
+          const regStartX = startX + (region.start / duration) * areaWidth;
+          const regEndX = startX + (region.end / duration) * areaWidth;
+          
+          // Region area includes handles: from left edge of start handle to right edge of end handle
+          const regAreaLeft = regStartX - handleW;
+          const regAreaRight = regEndX + handleW;
+          
+          if (mouseX >= regAreaLeft && mouseX <= regAreaRight) {
+            isClickInRegionArea = true;
+            break;
+          }
+        }
+        
+        // Only detect main selection click if NOT clicking in any region area
+        if (!isClickInRegionArea && mouseX >= mainSelectionLeft && mouseX <= mainSelectionRight) {
           const isMainAlreadyActive = activeRegionId === 'main';
           
           // 🎯 Always calculate click position for drag offset (needed for smooth dragging)
           const clickRatio = (mouseX - mainSelectionLeft) / (mainSelectionRight - mainSelectionLeft);
           const clickTime = startTime + (endTime - startTime) * clickRatio;
-          
-          console.log('🎯 WaveformCanvas: Main selection clicked!', {
-            mouseX,
-            clickTime: clickTime.toFixed(2),
-            wasActive: isMainAlreadyActive,
-            behavior: isMainAlreadyActive ? 'cursor_jump' : 'activate_only'
-          });
           
           // 🚀 Always pass click position (needed for drag), but mark if it's activation
           onMainSelectionClick?.(clickTime, { isActivation: !isMainAlreadyActive });
@@ -159,7 +171,7 @@ const WaveformCanvas = React.memo(({
       clearHoverTooltip();
     }
     onMouseDown?.(e);
-  }, [onMouseDown, updateCursor, clearHoverTooltip, canvasRef, regions.length, duration, startTime, endTime, hybridWaveformData, containerWidth, isInverted, onMainSelectionClick, activeRegionId]);
+  }, [onMouseDown, updateCursor, clearHoverTooltip, canvasRef, regions, duration, startTime, endTime, hybridWaveformData, containerWidth, isInverted, onMainSelectionClick, activeRegionId]);
   const handlePointerMove = useCallback((e) => {
     onMouseMove?.(e);
     const canvas = canvasRef.current;
@@ -428,23 +440,32 @@ const WaveformCanvas = React.memo(({
         if (regionWidth > 2) {
           const isActive = region.id === activeRegionId;
           
-          // 🎨 Unified background - always purple for active regions (same as main selection)
-          const regionBgColor = isActive 
-            ? WAVEFORM_CONFIG.COLORS.SELECTION_OVERLAY // Purple for active (same as main selection)
-            : 'rgba(59, 130, 246, 0.1)'; // Light blue for inactive
+          // 🎨 Unified background - always purple for all regions (same as main selection)
+          const regionBgColor = WAVEFORM_CONFIG.COLORS.SELECTION_OVERLAY; // Always purple for all regions
           
           ctx.fillStyle = regionBgColor;
           ctx.fillRect(regionStartX, 0, regionWidth, height);
           
-          // 🎨 Simple border - same style as main selection
-          ctx.strokeStyle = isActive ? '#22c55e' : '#3b82f6';
-          ctx.lineWidth = isActive ? 2 : 1;
-          ctx.strokeRect(regionStartX, 0, regionWidth, height);
+          // 🎨 Border - only when active (green top and bottom)
+          if (isActive) {
+            ctx.strokeStyle = '#22c55e';
+            ctx.lineWidth = 2;
+            // Top border
+            ctx.beginPath();
+            ctx.moveTo(regionStartX, 0);
+            ctx.lineTo(regionStartX + regionWidth, 0);
+            ctx.stroke();
+            // Bottom border
+            ctx.beginPath();
+            ctx.moveTo(regionStartX, height);
+            ctx.lineTo(regionStartX + regionWidth, height);
+            ctx.stroke();
+          }
           
-          // 🎨 Simple label - same style as main selection
+          // 🎨 Simple label - green for active, purple for inactive
           if (regionWidth > 40) {
             const labelText = region.name || `R${index + 1}`;
-            ctx.fillStyle = isActive ? '#16a34a' : '#2563eb';
+            ctx.fillStyle = isActive ? '#16a34a' : '#7c3aed';
             ctx.font = '11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
             ctx.textAlign = 'center';
             ctx.fillText(labelText, regionStartX + regionWidth / 2, 15);
@@ -452,7 +473,27 @@ const WaveformCanvas = React.memo(({
         }
       });    
     }
-    // 5. Current time cursor - Now rendered by React component only
+
+    // 🆕 5. Main selection border - only when active
+    if (startTime < endTime && duration > 0 && regions.length >= 1 && activeRegionId === 'main') {
+      const mainStartX = startX + (startTime / duration) * areaWidth;
+      const mainWidth = ((endTime - startTime) / duration) * areaWidth;
+      
+      ctx.strokeStyle = '#22c55e';
+      ctx.lineWidth = 2;
+      // Top border
+      ctx.beginPath();
+      ctx.moveTo(mainStartX, 0);
+      ctx.lineTo(mainStartX + mainWidth, 0);
+      ctx.stroke();
+      // Bottom border
+      ctx.beginPath();
+      ctx.moveTo(mainStartX, height);
+      ctx.lineTo(mainStartX + mainWidth, height);
+      ctx.stroke();
+    }
+
+    // 6. Current time cursor - Now rendered by React component only
   }, [canvasRef, renderData, regions, activeRegionId]);
 
   // ----- CACHE MANAGEMENT -----
@@ -522,7 +563,7 @@ const WaveformCanvas = React.memo(({
     
     // 🆕 Check if main selection is active (when 2+ regions exist)
     const isMainSelectionActive = regions.length >= 1 && activeRegionId === 'main';
-    const baseColor = isMainSelectionActive ? '#22c55e' : '#3b82f6'; // Green when active, blue when inactive
+    const baseColor = isMainSelectionActive ? '#22c55e' : '#8b5cf6'; // Green when active, purple when inactive
     
     return {
       start: {
@@ -601,7 +642,7 @@ const WaveformCanvas = React.memo(({
           y: 0,
           width: handleW,
           height: h,
-          color: isActive ? '#22c55e' : '#3b82f6'
+          color: isActive ? '#22c55e' : '#8b5cf6' // Green when active, purple when inactive
         },
         endHandle: {
           visible: true,
@@ -609,7 +650,7 @@ const WaveformCanvas = React.memo(({
           y: 0,
           width: handleW,
           height: h,
-          color: isActive ? '#22c55e' : '#3b82f6'
+          color: isActive ? '#22c55e' : '#8b5cf6' // Green when active, purple when inactive
         }
       };
     });
