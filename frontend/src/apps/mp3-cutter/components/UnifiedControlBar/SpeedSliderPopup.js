@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useEffect } from 'react';
+import React, { useCallback, useRef, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Zap, X, RotateCcw } from 'lucide-react';
 import usePopupPosition from './usePopupPosition';
@@ -8,12 +8,36 @@ const SpeedSliderPopup = ({
   onChange,
   onClose,
   isVisible = false,
-  buttonRef = null
+  buttonRef = null,
+  regions = [],
+  activeRegionId = null,
+  getCurrentSpeedValues = null,
+  playbackRate
 }) => {
   const popupRef = useRef(null);
   const { position, responsive, ready } = usePopupPosition(isVisible, buttonRef, popupRef, 5);
   const { screenSize, maxWidth } = responsive;
   const isMobile = screenSize === 'mobile';
+  
+  const [applyToAllState, setApplyToAllState] = useState(false);
+  const [speedBackup, setSpeedBackup] = useState(null);
+  
+  // 🔧 CRITICAL: Validate currentValue to prevent UI issues
+  let currentValue = getCurrentSpeedValues ? getCurrentSpeedValues().playbackRate : value;
+  
+  if (typeof currentValue !== 'number' || !isFinite(currentValue) || isNaN(currentValue)) {
+    console.error('🚨 INVALID currentValue in SpeedSliderPopup:', {
+      value: currentValue,
+      type: typeof currentValue,
+      fallbackValue: value
+    });
+    currentValue = typeof value === 'number' && isFinite(value) && !isNaN(value) ? value : 1.0;
+  }
+  
+  // Clamp to safe display range
+  currentValue = Math.max(0.5, Math.min(3.0, currentValue));
+  
+  const showGlobalOption = regions.length > 0;
 
   useEffect(() => {
     if (!isVisible) return;
@@ -30,14 +54,105 @@ const SpeedSliderPopup = ({
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [isVisible, onClose, buttonRef]);
+  
+  useEffect(() => {
+    if (applyToAllState) {
+      setApplyToAllState(false);
+      if (speedBackup) {
+        onChange(speedBackup.main, false, 'restore-main', speedBackup);
+        onChange(0, false, 'restore-regions', { 
+          regions: speedBackup.regions,
+          speedType: 'playbackRate'
+        });
+        setSpeedBackup(null);
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeRegionId]);
 
-  const handleSliderChange = useCallback((e) => onChange(parseFloat(e.target.value)), [onChange]);
-  const handleReset = useCallback(() => onChange(1.0), [onChange]);
+  const handleSliderChange = useCallback((e) => {
+    const value = parseFloat(e.target.value);
+    
+    // 🔧 CRITICAL: Validate slider value
+    if (typeof value !== 'number' || !isFinite(value) || isNaN(value)) {
+      console.error('🚨 INVALID speed from slider:', {
+        rawValue: e.target.value,
+        parsedValue: value,
+        type: typeof value
+      });
+      return; // Don't apply invalid values
+    }
+    
+    const clampedValue = Math.max(0.5, Math.min(3.0, value));
+    onChange(clampedValue, applyToAllState);
+  }, [onChange, applyToAllState]);
+  
+  const handleReset = useCallback(() => onChange(1.0, applyToAllState), [onChange, applyToAllState]);
+  
+  const handlePresetClick = useCallback((presetValue) => {
+    // 🔧 CRITICAL: Validate preset value
+    if (typeof presetValue !== 'number' || !isFinite(presetValue) || isNaN(presetValue)) {
+      console.error('🚨 INVALID preset speed value:', presetValue);
+      return; // Don't apply invalid values
+    }
+    
+    const clampedValue = Math.max(0.5, Math.min(3.0, presetValue));
+    onChange(clampedValue, applyToAllState);
+  }, [onChange, applyToAllState]);
+  
+  const handleApplyToAllChange = useCallback((checked) => {
+    if (checked) {
+      // 🔧 CRITICAL: Validate backup values before saving
+      const mainSpeed = typeof playbackRate === 'number' && isFinite(playbackRate) && !isNaN(playbackRate) 
+        ? Math.max(0.25, Math.min(4.0, playbackRate)) 
+        : 1.0;
+      
+      const backup = {
+        main: mainSpeed,
+        regions: regions.map(region => {
+          let regionSpeed = region.playbackRate !== undefined ? region.playbackRate : 1.0;
+          
+          // 🔧 CRITICAL: Validate region speed
+          if (typeof regionSpeed !== 'number' || !isFinite(regionSpeed) || isNaN(regionSpeed)) {
+            console.error('🚨 INVALID region speed in backup:', {
+              regionId: region.id,
+              speed: regionSpeed,
+              type: typeof regionSpeed
+            });
+            regionSpeed = 1.0; // Safe fallback
+          } else {
+            regionSpeed = Math.max(0.25, Math.min(4.0, regionSpeed));
+          }
+          
+          return {
+            id: region.id,
+            value: regionSpeed
+          };
+        })
+      };
+      
+      setSpeedBackup(backup);
+      setApplyToAllState(true);
+      
+      onChange(currentValue, true);
+    } else {
+      if (speedBackup) {
+        onChange(speedBackup.main, false, 'restore-main', speedBackup);
+        onChange(0, false, 'restore-regions', { 
+          regions: speedBackup.regions,
+          speedType: 'playbackRate'
+        });
+        setSpeedBackup(null);
+      }
+      setApplyToAllState(false);
+    }
+  }, [playbackRate, regions, currentValue, onChange, speedBackup]);
 
   if (!isVisible) return null;
-  const percent = ((value - 0.5) / 2.5) * 100;
+  const percent = ((currentValue - 0.5) / 2.5) * 100;
 
-  return createPortal(    <div
+  return createPortal(
+    <div
       ref={popupRef}
       className={`fixed bg-white border border-slate-300 rounded-2xl shadow-2xl pointer-events-auto ${isMobile ? 'p-3' : 'p-4'}`}
       style={{
@@ -64,10 +179,26 @@ const SpeedSliderPopup = ({
           <X className="w-4 h-4 text-slate-500" />
         </button>
       </div>
-      <div className="space-y-3">
+      
+      {showGlobalOption && (
+        <div className={`flex items-center gap-2 ${isMobile ? 'mb-2' : 'mb-3'} p-2 bg-slate-50 rounded-lg`}>
+          <input
+            type="checkbox"
+            id="applySpeedToAll"
+            checked={applyToAllState}
+            onChange={(e) => handleApplyToAllChange(e.target.checked)}
+            className="w-3 h-3 text-purple-600 border-slate-300 rounded focus:ring-purple-500"
+          />
+          <label htmlFor="applySpeedToAll" className={`text-slate-700 cursor-pointer ${isMobile ? 'text-xs' : 'text-sm'}`}>
+            Áp dụng cho tất cả
+          </label>
+        </div>
+      )}
+      
+      <div className={`space-y-${isMobile ? '2' : '3'}`}>
         <div className="flex items-center justify-between">
           <span className={`font-mono font-semibold text-slate-700 ${isMobile ? 'text-base' : 'text-lg'}`}>
-            {value.toFixed(2)}x
+            {currentValue.toFixed(2)}x
           </span>
           <span className={`text-slate-500 ${isMobile ? 'text-[10px]' : 'text-xs'}`}>
             0.5x-3.0x
@@ -79,7 +210,7 @@ const SpeedSliderPopup = ({
             min="0.5"
             max="3"
             step="0.01"
-            value={value}
+            value={currentValue}
             onChange={handleSliderChange}
             className="flex-1 h-2 bg-slate-200 rounded-full appearance-none cursor-pointer speed-popup-slider"
             style={{
@@ -96,7 +227,8 @@ const SpeedSliderPopup = ({
             <RotateCcw className="w-3 h-3" />
           </button>
         </div>
-        <div className={`flex items-center gap-2 ${isMobile ? 'flex-wrap' : ''}`}>
+        
+        <div className={`grid grid-cols-5 gap-1 ${isMobile ? 'mt-2' : 'mt-3'}`}>
           {[
             { label: '0.5x', value: 0.5 },
             { label: '1x', value: 1.0 },
@@ -106,7 +238,7 @@ const SpeedSliderPopup = ({
           ].map(({ label, value: presetValue }) => (
             <button
               key={label}
-              onClick={() => onChange(presetValue)}
+              onClick={() => handlePresetClick(presetValue)}
               className={`bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-lg transition-colors ${
                 isMobile ? 'px-2 py-1.5 text-[10px] flex-1' : 'px-3 py-1.5 text-xs flex-1'
               }`}

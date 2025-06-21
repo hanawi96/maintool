@@ -32,6 +32,7 @@ import {
 import { 
   useEnhancedFadeHandlers,
   useEnhancedVolumeHandlers,
+  useEnhancedSpeedHandlers,
   useSmartFadeConfigSync,
   usePitchHandler,
   useEqualizerHandlers,
@@ -197,6 +198,15 @@ const MP3CutterMain = React.memo(() => {
   const volumeHandlers = useEnhancedVolumeHandlers({ 
     volume, 
     updateVolume,
+    regions, 
+    activeRegionId,
+    dispatch
+  });
+
+  // 🚀 Speed handlers
+  const speedHandlers = useEnhancedSpeedHandlers({ 
+    playbackRate, 
+    updatePlaybackRate,
     regions, 
     activeRegionId,
     dispatch
@@ -584,6 +594,10 @@ const MP3CutterMain = React.memo(() => {
   const lastAppliedFadeRef = useRef({ fadeIn, fadeOut, startTime, endTime });
   const fadeAnimationRef = useRef(null);
   
+  // 🚀 Dynamic region speed during playback
+  const lastAppliedSpeedRef = useRef(playbackRate);
+  const speedAnimationRef = useRef(null);
+  
   useEffect(() => {
     if (!setMasterVolume) return;
     
@@ -737,6 +751,99 @@ const MP3CutterMain = React.memo(() => {
     };
   }, [isPlaying, regions, fadeIn, fadeOut, startTime, endTime, isInverted, duration, updateFadeConfig, audioRef]);
 
+  // 🚀 Dynamic region speed during playback
+  useEffect(() => {
+    if (!updatePlaybackRate) return;
+    
+    if (!isPlaying) {
+      // When not playing, ensure we use main speed
+      if (Math.abs(playbackRate - lastAppliedSpeedRef.current) > 0.001) {
+        updatePlaybackRate(playbackRate);
+        lastAppliedSpeedRef.current = playbackRate;
+      }
+      return;
+    }
+    
+    // Only run dynamic speed if there are regions with different speeds
+    const hasRegionSpeeds = regions.some(region => {
+      const regionSpeed = region.playbackRate;
+      // 🔧 CRITICAL: Validate region speed values
+      if (regionSpeed !== undefined) {
+        if (typeof regionSpeed !== 'number' || !isFinite(regionSpeed) || isNaN(regionSpeed)) {
+          console.error('🚨 INVALID region speed detected:', {
+            regionId: region.id,
+            speed: regionSpeed,
+            type: typeof regionSpeed,
+            isFinite: isFinite(regionSpeed),
+            isNaN: isNaN(regionSpeed)
+          });
+          return false; // Skip invalid regions
+        }
+        return Math.abs(regionSpeed - playbackRate) > 0.001;
+      }
+      return false;
+    });
+    
+    if (!hasRegionSpeeds) {
+      // No region speeds different from main, just ensure main speed is applied
+      if (Math.abs(playbackRate - lastAppliedSpeedRef.current) > 0.001) {
+        updatePlaybackRate(playbackRate);
+        lastAppliedSpeedRef.current = playbackRate;
+      }
+      return;
+    }
+    
+    const updateSpeedForCurrentTime = () => {
+      if (!audioRef.current || !isPlaying) return;
+      
+      const currentAudioTime = audioRef.current.currentTime;
+      
+      // Find which region contains current time
+      const activeRegion = regions.find(region => 
+        currentAudioTime >= region.start && currentAudioTime <= region.end
+      );
+      
+      let targetSpeed = playbackRate; // Default to main speed
+      
+      if (activeRegion && activeRegion.playbackRate !== undefined) {
+        const regionSpeed = activeRegion.playbackRate;
+        
+        // 🔧 CRITICAL: Validate region speed before using
+        if (typeof regionSpeed === 'number' && isFinite(regionSpeed) && !isNaN(regionSpeed)) {
+          targetSpeed = Math.max(0.25, Math.min(4.0, regionSpeed)); // Clamp to safe range
+        } else {
+          console.error('🚨 INVALID region speed in dynamic system:', {
+            regionId: activeRegion.id,
+            speed: regionSpeed,
+            type: typeof regionSpeed,
+            currentTime: currentAudioTime
+          });
+          // Use main speed as fallback
+          targetSpeed = playbackRate;
+        }
+      }
+      
+      // Only update if speed actually changed
+      if (Math.abs(targetSpeed - lastAppliedSpeedRef.current) > 0.001) {
+        updatePlaybackRate(targetSpeed);
+        lastAppliedSpeedRef.current = targetSpeed;
+      }
+      
+      // Continue animation
+      speedAnimationRef.current = requestAnimationFrame(updateSpeedForCurrentTime);
+    };
+    
+    // Start animation
+    speedAnimationRef.current = requestAnimationFrame(updateSpeedForCurrentTime);
+    
+    return () => {
+      if (speedAnimationRef.current) {
+        cancelAnimationFrame(speedAnimationRef.current);
+        speedAnimationRef.current = null;
+      }
+    };
+  }, [isPlaying, regions, playbackRate, updatePlaybackRate, audioRef]);
+
   // 🚀 Final render with all optimizations
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-pink-50">
@@ -815,7 +922,7 @@ const MP3CutterMain = React.memo(() => {
               onJumpToStart={handleJumpToStart}
               onJumpToEnd={handleJumpToEnd}
               onVolumeChange={volumeHandlers.handleVolumeChange}
-              onSpeedChange={updatePlaybackRate}
+              onSpeedChange={speedHandlers.handleSpeedChange}
               onPitchChange={handlePitchChange}
               onEqualizerChange={handleEqualizerChange}
               equalizerState={getCurrentEqualizerState()}
@@ -836,6 +943,7 @@ const MP3CutterMain = React.memo(() => {
               onFadeOutChange={fadeHandlers.handleFadeOutChange}
               getCurrentFadeValues={fadeHandlers.getCurrentFadeValues}
               getCurrentVolumeValues={volumeHandlers.getCurrentVolumeValues}
+              getCurrentSpeedValues={speedHandlers.getCurrentSpeedValues}
               canUndo={canUndo}
               canRedo={canRedo}
               onUndo={handleUndo}

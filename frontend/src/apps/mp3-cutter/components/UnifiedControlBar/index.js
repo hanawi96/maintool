@@ -23,6 +23,8 @@ const UnifiedControlBar = React.memo(({
   getCurrentFadeValues = null,
   // 🆕 Enhanced volume support
   getCurrentVolumeValues = null,
+  // 🆕 Enhanced speed support
+  getCurrentSpeedValues = null,
   canUndo, canRedo, onUndo, onRedo, historyIndex, historyLength,
   disabled = false,
   onEqualizerChange = null, // 🎚️ New prop for realtime equalizer updates
@@ -185,14 +187,21 @@ const UnifiedControlBar = React.memo(({
       onChange: onSpeedChange,
       onClose: () => closePopup('speed'),
       isVisible: popupState === 'speed',
-      buttonRef: refs.speed
-    },    pitch: {
+      buttonRef: refs.speed,
+      // 🆕 Enhanced speed support
+      regions,
+      activeRegionId,
+      getCurrentSpeedValues: getCurrentSpeedValues,
+      playbackRate // 🔧 Main speed for backup/restore
+    },
+    pitch: {
       value: pitch,
       onChange: onPitchChange,
       onClose: () => closePopup('pitch'),
       isVisible: popupState === 'pitch',
       buttonRef: refs.pitch
-    },    equalizer: {
+    },
+    equalizer: {
       onClose: () => closePopup('equalizer'),
       isVisible: popupState === 'equalizer',
       buttonRef: refs.equalizer,

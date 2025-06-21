@@ -118,8 +118,39 @@ export const useAudioPlayer = () => {
 
   // Cập nhật tốc độ phát
   const updatePlaybackRate = useCallback((rate) => {
-    setPlaybackRate(rate);
-    if (audioRef.current) audioRef.current.playbackRate = rate;
+    // 🔧 CRITICAL: Validate playbackRate to prevent non-finite errors
+    if (typeof rate !== 'number' || !isFinite(rate) || isNaN(rate)) {
+      console.error('🚨 INVALID playbackRate detected:', {
+        value: rate,
+        type: typeof rate,
+        isFinite: isFinite(rate),
+        isNaN: isNaN(rate),
+        stackTrace: new Error().stack
+      });
+      // Fallback to safe default
+      rate = 1.0;
+    }
+    
+    // Clamp to safe range
+    const clampedRate = Math.max(0.25, Math.min(4.0, rate));
+    
+    if (Math.abs(clampedRate - rate) > 0.001) {
+      console.warn('🔧 playbackRate clamped:', { original: rate, clamped: clampedRate });
+    }
+    
+    setPlaybackRate(clampedRate);
+    
+    if (audioRef.current) {
+      try {
+        audioRef.current.playbackRate = clampedRate;
+      } catch (error) {
+        console.error('🚨 Failed to set playbackRate:', {
+          rate: clampedRate,
+          error: error.message,
+          audioElement: !!audioRef.current
+        });
+      }
+    }
   }, []);
 
   // Chỉ expose những gì thực sự cần thiết

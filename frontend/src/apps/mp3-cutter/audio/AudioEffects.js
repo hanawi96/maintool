@@ -490,4 +490,153 @@ export const useEnhancedVolumeHandlers = ({
     handleVolumeChange,
     getCurrentVolumeValues
   };
+};
+
+// 🆕 Enhanced speed handlers for regions support
+export const useEnhancedSpeedHandlers = ({ 
+  playbackRate, 
+  updatePlaybackRate,
+  // 🆕 Region props
+  regions = [],
+  activeRegionId = null,
+  dispatch // 🔧 Cần dispatch cho regions
+}) => {
+  // 🚀 Get current speed values based on active region
+  const getCurrentSpeedValues = useCallback(() => {
+    if (!activeRegionId || activeRegionId === 'main') {
+      // 🔧 CRITICAL: Validate main playbackRate
+      if (typeof playbackRate !== 'number' || !isFinite(playbackRate) || isNaN(playbackRate)) {
+        console.error('🚨 INVALID main playbackRate in getCurrentSpeedValues:', {
+          value: playbackRate,
+          type: typeof playbackRate,
+          activeRegionId
+        });
+        return { playbackRate: 1.0 }; // Safe fallback
+      }
+      return { playbackRate: Math.max(0.25, Math.min(4.0, playbackRate)) };
+    }
+    
+    const activeRegion = regions.find(r => r.id === activeRegionId);
+    if (activeRegion) {
+      const regionSpeed = activeRegion.playbackRate;
+      
+      // 🔧 CRITICAL: Validate region playbackRate
+      if (regionSpeed !== undefined) {
+        if (typeof regionSpeed !== 'number' || !isFinite(regionSpeed) || isNaN(regionSpeed)) {
+          console.error('🚨 INVALID region playbackRate in getCurrentSpeedValues:', {
+            regionId: activeRegionId,
+            value: regionSpeed,
+            type: typeof regionSpeed
+          });
+          return { playbackRate: 1.0 }; // Safe fallback
+        }
+        return { playbackRate: Math.max(0.25, Math.min(4.0, regionSpeed)) };
+      }
+    }
+    
+    return { playbackRate: 1.0 }; // Safe default
+  }, [activeRegionId, regions, playbackRate]);
+
+  // 🚀 Apply speed to active region or globally
+  const applySpeed = useCallback((value, applyToAll = false) => {
+    // 🔧 CRITICAL: Validate speed value to prevent non-finite errors
+    if (typeof value !== 'number' || !isFinite(value) || isNaN(value)) {
+      console.error('🚨 INVALID speed value detected in applySpeed:', {
+        value,
+        type: typeof value,
+        isFinite: isFinite(value),
+        isNaN: isNaN(value),
+        applyToAll,
+        activeRegionId,
+        stackTrace: new Error().stack
+      });
+      // Fallback to safe default
+      value = 1.0;
+    }
+    
+    // Clamp to safe range
+    const clampedValue = Math.max(0.25, Math.min(4.0, value));
+    
+    if (Math.abs(clampedValue - value) > 0.001) {
+      console.warn('🔧 Speed value clamped in applySpeed:', { original: value, clamped: clampedValue });
+    }
+    
+    if (applyToAll && regions.length > 0) {
+      // Apply to all regions + main selection
+      const updatedRegions = regions.map(region => ({
+        ...region,
+        playbackRate: clampedValue
+      }));
+      
+      dispatch({ type: 'SET_REGIONS', regions: updatedRegions });
+      
+      // 🔧 CRITICAL FIX: Use updatePlaybackRate for main selection
+      updatePlaybackRate(clampedValue);
+      
+    } else if (!activeRegionId || activeRegionId === 'main') {
+      // Apply to main selection only
+      updatePlaybackRate(clampedValue);
+      
+    } else {
+      // Apply to specific region only
+      const updatedRegions = regions.map(region => 
+        region.id === activeRegionId 
+          ? { ...region, playbackRate: clampedValue }
+          : region
+      );
+      dispatch({ type: 'SET_REGIONS', regions: updatedRegions });
+    }
+  }, [activeRegionId, regions, updatePlaybackRate, dispatch]);
+
+  const handleSpeedChange = useCallback((value, applyToAll = false, operation = 'normal', data = null) => {
+    if (operation === 'restore-main' && data) {
+      // Restore main selection speed
+      const restoreValue = data.playbackRate;
+      
+      // 🔧 CRITICAL: Validate restore value
+      if (typeof restoreValue !== 'number' || !isFinite(restoreValue) || isNaN(restoreValue)) {
+        console.error('🚨 INVALID restore speed value:', {
+          value: restoreValue,
+          data,
+          stackTrace: new Error().stack
+        });
+        updatePlaybackRate(1.0); // Safe fallback
+      } else {
+        updatePlaybackRate(Math.max(0.25, Math.min(4.0, restoreValue)));
+      }
+    } else if (operation === 'restore-regions' && data) {
+      // Restore individual region speeds
+      const updatedRegions = regions.map(region => {
+        const backupRegion = data.regions.find(r => r.id === region.id);
+        if (backupRegion) {
+          let restoreValue = backupRegion.value;
+          
+          // 🔧 CRITICAL: Validate restore value
+          if (typeof restoreValue !== 'number' || !isFinite(restoreValue) || isNaN(restoreValue)) {
+            console.error('🚨 INVALID restore region speed value:', {
+              regionId: region.id,
+              value: restoreValue,
+              backupRegion,
+              stackTrace: new Error().stack
+            });
+            restoreValue = 1.0; // Safe fallback
+          } else {
+            restoreValue = Math.max(0.25, Math.min(4.0, restoreValue));
+          }
+          
+          return { ...region, playbackRate: restoreValue };
+        }
+        return region;
+      });
+      dispatch({ type: 'SET_REGIONS', regions: updatedRegions });
+    } else {
+      // Normal speed operation
+      applySpeed(value, applyToAll);
+    }
+  }, [applySpeed, updatePlaybackRate, dispatch, regions]);
+
+  return {
+    getCurrentSpeedValues,
+    handleSpeedChange
+  };
 }; 
