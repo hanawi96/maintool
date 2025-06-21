@@ -1,11 +1,69 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Scissors, Loader, AlertCircle, Save, Copy, Check } from 'lucide-react';
+import { Scissors, Loader, AlertCircle, Save, Copy, Check, X, CheckCircle } from 'lucide-react';
 import { audioApi } from '../../services/audioApi';
 import { formatTimeUnified } from '../../utils/timeFormatter';
 import { useWebSocketProgress } from '../../hooks/useCutProgress';
 import FormatPresets from './FormatSelector';
-import ProgressIndicator from './ProgressIndicator';
 import CloudUploadPanel from './CloudUploadPanel';
+
+// Toast Notification Component
+const Toast = ({ show, onClose, type = 'success', title, message }) => {
+  useEffect(() => {
+    if (show) {
+      const timer = setTimeout(() => {
+        onClose();
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [show, onClose]);
+
+  if (!show) return null;
+
+  return (
+    <div className="fixed top-4 right-4 z-50 animate-in slide-in-from-right duration-300">
+      <div className={`
+        max-w-sm w-full bg-white rounded-lg shadow-lg border-l-4 p-4
+        ${type === 'success' ? 'border-green-500' : type === 'error' ? 'border-red-500' : 'border-blue-500'}
+        transform transition-all duration-500 ease-out
+        ${show ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'}
+      `}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center">
+            <div className={`
+              flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center
+              ${type === 'success' ? 'bg-green-100' : type === 'error' ? 'bg-red-100' : 'bg-blue-100'}
+            `}>
+              {type === 'success' && <CheckCircle className="w-4 h-4 text-green-600" />}
+              {type === 'error' && <AlertCircle className="w-4 h-4 text-red-600" />}
+            </div>
+            <div className="ml-3">
+              <p className={`
+                text-sm font-medium
+                ${type === 'success' ? 'text-green-800' : type === 'error' ? 'text-red-800' : 'text-blue-800'}
+              `}>
+                {title}
+              </p>
+              {message && (
+                <p className={`
+                  text-sm mt-1
+                  ${type === 'success' ? 'text-green-600' : type === 'error' ? 'text-red-600' : 'text-blue-600'}
+                `}>
+                  {message}
+                </p>
+              )}
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="flex-shrink-0 ml-4 text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const CutDownload = ({
   audioFile,
@@ -36,9 +94,29 @@ const CutDownload = ({
   const [processingError, setProcessingError] = useState(null);
   const [processedFile, setProcessedFile] = useState(null);
   const [copyLinkSuccess, setCopyLinkSuccess] = useState(false);
+  // Toast notification state
+  const [toast, setToast] = useState({ show: false, type: 'success', title: '', message: '' });
 
   // WebSocket progress
   const { progress, startProgressSession, clearProgress } = useWebSocketProgress();
+
+  // Show toast notification
+  const showToast = useCallback((type, title, message = '') => {
+    setToast({ show: true, type, title, message });
+  }, []);
+
+  // Hide toast notification
+  const hideToast = useCallback(() => {
+    setToast(prev => ({ ...prev, show: false }));
+  }, []);
+
+  // Cancel processing function
+  const cancelProcessing = useCallback(() => {
+    setIsProcessing(false);
+    setProcessingError(null);
+    clearProgress();
+    showToast('info', 'Processing Cancelled', 'Audio cutting has been cancelled');
+  }, [clearProgress, showToast]);
 
   // --- Helpers ---
   const activeRegionDuration = useMemo(() => {
@@ -82,16 +160,23 @@ const CutDownload = ({
         icon: AlertCircle, text: 'No Active Regions', className: 'bg-orange-300 text-orange-700 cursor-not-allowed', disabled: true
       };
     if (isProcessing) return {
-      icon: Loader, text: 'Cutting...', className: 'bg-blue-500 text-white', disabled: true, spin: true
+      icon: Loader, 
+      text: progress?.percent ? `Cutting...${progress.percent}%` : 'Cutting...', 
+      className: 'bg-blue-500 text-white', 
+      disabled: true, 
+      spin: true
     };
     return {
       icon: Scissors, text: 'Cut Audio',
       className: 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white transform hover:scale-105',
       disabled: false
     };
-  }, [audioFile, disabled, isInverted, activeRegionDuration, isProcessing]);
+  }, [audioFile, disabled, isInverted, activeRegionDuration, isProcessing, progress?.percent]);
 
   const downloadButtonState = useMemo(() => {
+    if (isProcessing) return {
+      icon: X, text: 'Cancel', className: 'bg-red-500 hover:bg-red-600 text-white transform hover:scale-105', disabled: false
+    };
     if (!processedFile) return {
       icon: Save, text: 'Save', className: 'bg-gray-300 text-gray-500 cursor-not-allowed', disabled: true
     };
@@ -109,7 +194,7 @@ const CutDownload = ({
       className: 'bg-green-500 hover:bg-green-600 text-white transform hover:scale-105 shadow-md hover:shadow-lg',
       disabled: false
     };
-  }, [processedFile, outputFormat]);
+  }, [processedFile, outputFormat, isProcessing]);
 
   // Clear progress on complete (auto-fade)
   useEffect(() => {
@@ -346,6 +431,9 @@ const CutDownload = ({
       });
 
       setProcessedFile(processedFileData);
+      
+      // Show success toast notification
+      showToast('success', 'Audio Cut Successfully!', `Duration: ${formatTimeUnified(processedFileData.duration)}`);
 
     } catch (error) {
       // 🔍 ERROR LOG
@@ -377,6 +465,12 @@ const CutDownload = ({
   }, [audioFile, startTime, endTime, fadeIn, fadeOut, playbackRate, pitch, volume, equalizer, isInverted, normalizeVolume, outputFormat, clearProgress, activeRegionDuration, startProgressSession, regions]);
 
   const handleDownload = useCallback(async () => {
+    // If processing, cancel the operation
+    if (isProcessing) {
+      cancelProcessing();
+      return;
+    }
+
     if (!processedFile)
       return setProcessingError('No processed file available. Please cut audio first.');
 
@@ -396,7 +490,7 @@ const CutDownload = ({
     } catch (downloadError) {
       setProcessingError(`Download failed: ${downloadError.message}`);
     }
-  }, [processedFile]);
+  }, [processedFile, isProcessing, cancelProcessing]);
 
   const handleCopyLink = useCallback(async () => {
     if (!processedFile) return;
@@ -464,7 +558,6 @@ const CutDownload = ({
           </p>
         </div>
       )}
-      <ProgressIndicator progress={progress} className="mb-4" />
       <div className="flex gap-3">
         <button
           onClick={handleCutOnly}
@@ -494,53 +587,105 @@ const CutDownload = ({
         </div>
       )}
       {processedFile && !processingError && processedFile.outputFormat === outputFormat && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-          <div className="flex items-center gap-2 text-green-700 mb-2">
-            <Save className="w-4 h-4" />
-            <span className="font-medium">Ready to Download</span>
+        <div className="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-200 rounded-xl p-6 shadow-lg">
+          {/* Header */}
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center">
+              <CheckCircle className="w-7 h-7 text-white" />
+            </div>
+            <div>
+              <h3 className="text-xl font-bold text-green-800">Ready to Download!</h3>
+              <p className="text-green-600 text-sm">Your audio has been processed successfully</p>
+            </div>
           </div>
-          <div className="text-green-600 text-sm space-y-1 mb-3">
-            <div>✅ Duration: {formatTimeUnified(processedFile.duration)}</div>
-            <div>✅ Speed: {processedFile.playbackRate !== 1 ? `${processedFile.playbackRate}x` : 'Normal'}</div>
-            <div>✅ Pitch: {processedFile.pitch !== 0 ? `${processedFile.pitch > 0 ? '+' : ''}${processedFile.pitch} semitones` : 'Normal'}</div>
-            <div>✅ Format: {processedFile.outputFormat?.toUpperCase()}</div>
-            <div className={`${volume !== 1 ? 'font-semibold text-green-700' : ''}`}>
-              ✅ Volume: {volume !== 1 ? `${Math.round(volume * 100)}% (Identical to Preview)` : normalizeVolume ? 'Normalized' : 'Original'}
-              {volume !== 1 && (
-                <span className="ml-2 text-xs bg-green-100 px-1 rounded font-normal">MATCHED</span>
-              )}
+
+          {/* Audio Info Grid */}
+          <div className="grid grid-cols-2 gap-4 mb-6 p-4 bg-white/50 rounded-lg border border-green-100">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              <span className="text-sm text-green-700">Duration: <strong>{formatTimeUnified(processedFile.duration)}</strong></span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              <span className="text-sm text-green-700">Speed: <strong>{processedFile.playbackRate !== 1 ? `${processedFile.playbackRate}x` : 'Normal'}</strong></span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              <span className="text-sm text-green-700">Format: <strong>{processedFile.outputFormat?.toUpperCase()}</strong></span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              <span className="text-sm text-green-700">Pitch: <strong>{processedFile.pitch !== 0 ? `${processedFile.pitch > 0 ? '+' : ''}${processedFile.pitch} semitones` : 'Normal'}</strong></span>
+            </div>
+            <div className="flex items-center gap-2 col-span-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              <span className={`text-sm text-green-700 ${volume !== 1 ? 'font-semibold' : ''}`}>
+                Volume: <strong>{volume !== 1 ? `${Math.round(volume * 100)}%` : normalizeVolume ? 'Normalized' : 'Original'}</strong>
+                {volume !== 1 && (
+                  <span className="ml-2 text-xs bg-green-200 text-green-800 px-2 py-0.5 rounded-full font-normal">APPLIED</span>
+                )}
+              </span>
             </div>
             {processedFile.fileSize && (
-              <div>✅ Size: {(processedFile.fileSize / 1024 / 1024).toFixed(2)} MB</div>
+              <div className="flex items-center gap-2 col-span-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <span className="text-sm text-green-700">Size: <strong>{(processedFile.fileSize / 1024 / 1024).toFixed(2)} MB</strong></span>
+              </div>
             )}
           </div>
-          <div className="border-t border-green-200 pt-3">
-            <div className="text-green-700 text-xs font-medium mb-2">Share Download Link:</div>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={audioApi.getDownloadUrl(processedFile.filename)}
-                readOnly
-                className="flex-1 px-3 py-2 text-xs bg-white border border-green-200 rounded-md text-slate-600 font-mono"
-                onClick={e => e.target.select()}
-              />
-              <button
-                onClick={handleCopyLink}
-                className={`px-3 py-2 rounded-md text-xs font-medium transition-all duration-0 flex items-center gap-1
-                  ${copyLinkSuccess ? 'bg-green-600 text-white' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}
-              >
-                {copyLinkSuccess ? (
-                  <>
-                    <Check className="w-3 h-3" />Copied
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-3 h-3" />Copy
-                  </>
-                )}
-              </button>
+
+          {/* Download Button - Beautiful Modern Design */}
+          <div className="space-y-4">
+            <button
+              onClick={handleDownload}
+              className="w-full bg-gradient-to-r from-green-500 via-emerald-500 to-green-600 hover:from-green-600 hover:via-emerald-600 hover:to-green-700 text-white font-bold py-4 px-8 rounded-xl shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-300 ease-out flex items-center justify-center gap-3 group"
+            >
+              <Save className="w-6 h-6 group-hover:scale-110 transition-transform duration-300" />
+              <span className="text-lg">Download {processedFile.outputFormat?.toUpperCase()}</span>
+              <div className="ml-2 px-3 py-1 bg-white/20 rounded-full text-sm font-medium">
+                {(processedFile.fileSize / 1024 / 1024).toFixed(1)}MB
+              </div>
+            </button>
+
+            {/* Share Link Section */}
+            <div className="border-t border-green-200 pt-4">
+              <div className="text-green-700 text-sm font-medium mb-3 flex items-center gap-2">
+                <Copy className="w-4 h-4" />
+                Share Download Link:
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={audioApi.getDownloadUrl(processedFile.filename)}
+                  readOnly
+                  className="flex-1 px-4 py-3 text-sm bg-white border-2 border-green-200 rounded-lg text-slate-600 font-mono focus:outline-none focus:border-green-400 transition-colors"
+                  onClick={e => e.target.select()}
+                />
+                <button
+                  onClick={handleCopyLink}
+                  className={`px-4 py-3 rounded-lg text-sm font-medium transition-all duration-300 flex items-center gap-2 min-w-[100px] justify-center
+                    ${copyLinkSuccess 
+                      ? 'bg-green-600 text-white shadow-lg scale-105' 
+                      : 'bg-green-100 text-green-700 hover:bg-green-200 hover:scale-105 shadow-md'
+                    }`}
+                >
+                  {copyLinkSuccess ? (
+                    <>
+                      <Check className="w-4 h-4" />
+                      <span>Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-4 h-4" />
+                      <span>Copy</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
-          </div>        </div>      )}
+          </div>
+        </div>
+      )}
       
       {/* 🌤️ Cloud Upload Panel - Chỉ hiển thị khi đã cut audio thành công */}
       {processedFile && !processingError && (
@@ -553,6 +698,15 @@ const CutDownload = ({
           className="mt-4"
         />
       )}
+
+      {/* Toast Notification */}
+      <Toast 
+        show={toast.show}
+        onClose={hideToast}
+        type={toast.type}
+        title={toast.title}
+        message={toast.message}
+      />
     </div>
   );
 };
