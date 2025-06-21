@@ -38,8 +38,10 @@ function emitProgress(sessionId, data) {
       timestamp: new Date().toISOString()
     };
     
-    // Debug only key milestones for cleaner logs
-    if (percent === 0 || percent === 100 || percent % 20 === 0) {
+    // Enhanced debug for startup phase (0-10%)
+    if (percent <= 10) {
+      console.log(`📊 Backend Emit (Startup): ${percent}% - No Conflicts`);
+    } else if (percent === 100 || percent % 20 === 0) {
       console.log(`📊 Backend Emit: ${percent}%`);
     }
     
@@ -352,22 +354,31 @@ export class MP3Utils {
       emitProgress(sessionId, { percent: 0 });
       console.log('🎯 Smooth Progress: Starting at 0%');
       
+      // Track if we're in startup phase
+      let isStartupPhase = true;
+      let startupPercent = 0;
+      
       command
         .output(outputPath)
         .on('start', (commandLine) => {
           ffmpegCommand = commandLine;
           console.log('🚀 FFmpeg Command:', commandLine);
           
-          // Create immediate smooth progression 0% → 5% during startup
-          let startupPercent = 1;
-          const startupTimer = setInterval(() => {
-            emitProgress(sessionId, { percent: startupPercent });
-            console.log(`🎯 Smooth Progress: Startup ${startupPercent}%`);
-            startupPercent++;
-            if (startupPercent > 5) {
-              clearInterval(startupTimer);
+          // Single smooth startup progression without conflicts
+          const smoothStartup = () => {
+            if (isStartupPhase && startupPercent < 5) {
+              startupPercent++;
+              emitProgress(sessionId, { percent: startupPercent });
+              console.log(`🎯 Smooth Progress: Startup ${startupPercent}%`);
+              setTimeout(smoothStartup, 150); // Slower, more stable progression
+            } else {
+              isStartupPhase = false; // End startup phase
+              console.log('🎯 Startup phase completed, switching to FFmpeg progress');
             }
-          }, 80); // 80ms intervals for very smooth startup
+          };
+          
+          // Start smooth progression
+          setTimeout(smoothStartup, 100); // Small delay to ensure stability
           
           // 🔍 COMMAND ANALYSIS
           console.log('\n🔍 FFMPEG COMMAND ANALYSIS:');
@@ -382,12 +393,15 @@ export class MP3Utils {
           });
         })
         .on('progress', (progress) => {
+          // Only process FFmpeg progress after startup phase
+          if (isStartupPhase) return;
+          
           // Map FFmpeg progress (0-100%) to our range (5-95%) for smooth flow
           const rawPercent = progress.percent || 0;
           const mappedPercent = Math.round(5 + (rawPercent * 0.9)); // 5% + (0-100% * 90%)
           const clampedPercent = Math.max(5, Math.min(95, mappedPercent));
           
-          // Emit every 1% for ultra-smooth progression
+          // Emit smooth progression without conflicts
           const lastEmitted = emitProgress.lastEmitted?.[sessionId] || 0;
           if (clampedPercent > lastEmitted) {
             if (!emitProgress.lastEmitted) emitProgress.lastEmitted = {};
@@ -522,24 +536,31 @@ export class MP3Utils {
                 .on('start', (commandLine) => {
                   console.log('🚀 Retry FFmpeg Command:', commandLine);
                   
-                  // Smooth retry progression 0% → 5%
-                  let retryStartPercent = 1;
-                  const retryStartTimer = setInterval(() => {
-                    emitProgress(sessionId, { percent: retryStartPercent });
-                    console.log(`🎯 Smooth Progress: Retry Startup ${retryStartPercent}%`);
-                    retryStartPercent++;
-                    if (retryStartPercent > 5) {
-                      clearInterval(retryStartTimer);
+                  // Single smooth retry startup progression
+                  let retryStartupPhase = true;
+                  let retryStartupPercent = 0;
+                  
+                  const smoothRetryStartup = () => {
+                    if (retryStartupPhase && retryStartupPercent < 5) {
+                      retryStartupPercent++;
+                      emitProgress(sessionId, { percent: retryStartupPercent });
+                      console.log(`🎯 Smooth Progress: Retry Startup ${retryStartupPercent}%`);
+                      setTimeout(smoothRetryStartup, 150);
+                    } else {
+                      retryStartupPhase = false;
+                      console.log('🎯 Retry startup phase completed');
                     }
-                  }, 80);
+                  };
+                  
+                  setTimeout(smoothRetryStartup, 100);
                 })
                 .on('progress', (progress) => {
-                  // Map retry progress to 5-95% range
+                  // Map retry progress to 5-95% range (only after startup)
                   const rawPercent = progress.percent || 0;
                   const mappedPercent = Math.round(5 + (rawPercent * 0.9));
                   const clampedPercent = Math.max(5, Math.min(95, mappedPercent));
                   
-                  // Emit every 1% for retry smooth progression
+                  // Emit smooth retry progression
                   const lastEmitted = emitProgress.lastEmitted?.[sessionId] || 0;
                   if (clampedPercent > lastEmitted) {
                     if (!emitProgress.lastEmitted) emitProgress.lastEmitted = {};

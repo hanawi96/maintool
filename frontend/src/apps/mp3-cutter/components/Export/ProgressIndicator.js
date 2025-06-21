@@ -13,7 +13,7 @@ const ProgressIndicator = ({ progress, className = '' }) => {
 
     const targetPercent = Math.max(0, Math.min(100, progress.percent));
     
-    // Debug every progress update for smooth tracking
+    // Debug key progress updates
     if (targetPercent === 0 || targetPercent === 100 || targetPercent % 10 === 0) {
       console.log(`🎯 Frontend Received: ${targetPercent}%`);
     }
@@ -28,9 +28,10 @@ const ProgressIndicator = ({ progress, className = '' }) => {
     // Get current display percent at animation start
     const currentPercent = displayPercent;
 
-    // For very small changes (≤1%), update immediately for ultra-smooth feel
-    if (Math.abs(targetPercent - currentPercent) <= 1) {
+    // For first 10% (startup phase), use immediate updates to prevent flickering
+    if (targetPercent <= 10 || Math.abs(targetPercent - currentPercent) <= 1) {
       setDisplayPercent(targetPercent);
+      console.log(`🎯 Frontend: Immediate update ${currentPercent}% → ${targetPercent}%`);
       return;
     }
 
@@ -40,20 +41,21 @@ const ProgressIndicator = ({ progress, className = '' }) => {
       return;
     }
 
-    // Smooth animation for forward progress
+    // Smooth animation only for larger forward progress (>10%)
     const startTime = Date.now();
     const startPercent = currentPercent;
     const distance = targetPercent - startPercent;
-    // Faster animation for smaller distances, slower for larger jumps
-    const duration = Math.min(300, Math.max(100, distance * 15));
+    // Optimized duration for smooth progression
+    const duration = Math.min(200, Math.max(80, distance * 8));
+
+    console.log(`🎯 Frontend: Smooth animation ${startPercent}% → ${targetPercent}% (${duration}ms)`);
 
     const animate = () => {
       const elapsed = Date.now() - startTime;
       const progress = Math.min(elapsed / duration, 1);
       
-      // Ultra-smooth easing function (ease-out-cubic)
-      const easeProgress = 1 - Math.pow(1 - progress, 2);
-      const newPercent = Math.round(startPercent + distance * easeProgress);
+      // Smooth linear progression for consistency
+      const newPercent = Math.round(startPercent + distance * progress);
       setDisplayPercent(newPercent);
 
       if (progress < 1) {
