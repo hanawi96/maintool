@@ -22,10 +22,38 @@ export const useEnhancedFadeHandlers = ({
     }
     
     const activeRegion = regions.find(r => r.id === activeRegionId);
-    return activeRegion ? { 
-      fadeIn: activeRegion.fadeIn || 0, 
-      fadeOut: activeRegion.fadeOut || 0 
-    } : { fadeIn: 0, fadeOut: 0 };
+    if (activeRegion) {
+      const regionFadeIn = activeRegion.fadeIn;
+      const regionFadeOut = activeRegion.fadeOut;
+      
+      // 🔧 CRITICAL FIX: Return actual region fade values or defaults
+      // DO NOT fallback to main fade values - each region should be independent
+      const finalFadeIn = regionFadeIn !== undefined ? regionFadeIn : 0;
+      const finalFadeOut = regionFadeOut !== undefined ? regionFadeOut : 0;
+      
+      if (regionFadeIn === undefined || regionFadeOut === undefined) {
+        console.log('🎛️ Region has missing fade values, using defaults:', {
+          regionId: activeRegionId,
+          regionName: activeRegion.name || 'Unnamed',
+          fadeIn: finalFadeIn,
+          fadeOut: finalFadeOut,
+          hadFadeIn: regionFadeIn !== undefined,
+          hadFadeOut: regionFadeOut !== undefined
+        });
+      }
+      
+      return { 
+        fadeIn: finalFadeIn, 
+        fadeOut: finalFadeOut 
+      };
+    }
+    
+    // 🔧 If region not found, return safe defaults (should not happen)
+    console.warn('🚨 Active region not found, returning default fade values:', {
+      activeRegionId,
+      regionsCount: regions.length
+    });
+    return { fadeIn: 0, fadeOut: 0 };
   }, [activeRegionId, regions, fadeIn, fadeOut]);
 
   // 🚀 Apply fade to active region or globally
@@ -56,11 +84,11 @@ export const useEnhancedFadeHandlers = ({
     } else if (!activeRegionId || activeRegionId === 'main') {
       // Apply to main selection only
       console.log(`🎯 Applying ${type} fade to MAIN selection only`);
-      const newFadeIn = type === 'in' ? value : fadeIn;
-      const newFadeOut = type === 'out' ? value : fadeOut;
-      
-      dispatch({ type: 'SET_FADE', fadeIn: newFadeIn, fadeOut: newFadeOut });
-      updateFadeConfig({ fadeIn: newFadeIn, fadeOut: newFadeOut, startTime, endTime, isInverted, duration });
+    const newFadeIn = type === 'in' ? value : fadeIn;
+    const newFadeOut = type === 'out' ? value : fadeOut;
+    
+    dispatch({ type: 'SET_FADE', fadeIn: newFadeIn, fadeOut: newFadeOut });
+    updateFadeConfig({ fadeIn: newFadeIn, fadeOut: newFadeOut, startTime, endTime, isInverted, duration });
       
       console.log(`✅ Applied ${type} fade to main selection:`, { fadeIn: newFadeIn, fadeOut: newFadeOut });
       
@@ -136,7 +164,7 @@ export const useEnhancedFadeHandlers = ({
     applyFade('in', finalFadeIn, applyToAll);
     saveState({ startTime, endTime, fadeIn: applyToAll || !activeRegionId || activeRegionId === 'main' ? finalFadeIn : fadeIn, fadeOut, isInverted });
   }, [applyFade, startTime, endTime, fadeIn, fadeOut, isInverted, saveState, activeRegionId]);
-  
+
   const handleFadeOutDragEnd = useCallback((finalFadeOut, applyToAll = false, operation = 'normal', data = null) => {
     if (operation === 'restore-main' || operation === 'restore-regions') {
       // Restore operations don't need dragEnd handling
@@ -145,7 +173,7 @@ export const useEnhancedFadeHandlers = ({
     applyFade('out', finalFadeOut, applyToAll);
     saveState({ startTime, endTime, fadeIn, fadeOut: applyToAll || !activeRegionId || activeRegionId === 'main' ? finalFadeOut : fadeOut, isInverted });
   }, [applyFade, startTime, endTime, fadeIn, fadeOut, isInverted, saveState, activeRegionId]);
-
+  
   const handleFadeInToggle = useCallback((applyToAll = false) => { 
     const currentValues = getCurrentFadeValues();
     const v = currentValues.fadeIn > 0 ? 0 : 3.0; 
@@ -404,16 +432,42 @@ export const useEnhancedVolumeHandlers = ({
 }) => {
   // 🚀 Get current volume values based on active region
   const getCurrentVolumeValues = useCallback(() => {
-    const result = !activeRegionId || activeRegionId === 'main' 
-      ? { volume } 
-      : (() => {
-          const activeRegion = regions.find(r => r.id === activeRegionId);
-          return activeRegion ? { 
-            volume: activeRegion.volume !== undefined ? activeRegion.volume : 1.0
-          } : { volume: 1.0 };
-        })();
+    if (!activeRegionId || activeRegionId === 'main') {
+      return { volume };
+    }
     
-    return result;
+    const activeRegion = regions.find(r => r.id === activeRegionId);
+    if (activeRegion) {
+      const regionVolume = activeRegion.volume;
+      
+      if (regionVolume !== undefined) {
+        // 🔧 CRITICAL: Validate region volume
+        if (typeof regionVolume !== 'number' || !isFinite(regionVolume) || isNaN(regionVolume)) {
+          console.error('🚨 INVALID region volume in getCurrentVolumeValues:', {
+            regionId: activeRegionId,
+            value: regionVolume,
+            type: typeof regionVolume
+          });
+          return { volume: 1.0 }; // Safe fallback for invalid values
+        }
+        return { volume: Math.max(0, Math.min(2.0, regionVolume)) };
+      } else {
+        // 🔧 CRITICAL FIX: Return default volume for regions without volume set
+        // DO NOT fallback to main volume - each region should be independent
+        console.log('🔊 Region has no volume set, using default 1.0:', {
+          regionId: activeRegionId,
+          regionName: activeRegion.name || 'Unnamed'
+        });
+        return { volume: 1.0 }; // Default volume for regions
+      }
+    }
+    
+    // 🔧 If region not found, return safe default (should not happen)
+    console.warn('🚨 Active region not found, returning default volume:', {
+      activeRegionId,
+      regionsCount: regions.length
+    });
+    return { volume: 1.0 };
   }, [activeRegionId, regions, volume]);
 
   // 🚀 Apply volume to active region or globally
@@ -528,13 +582,26 @@ export const useEnhancedSpeedHandlers = ({
             value: regionSpeed,
             type: typeof regionSpeed
           });
-          return { playbackRate: 1.0 }; // Safe fallback
+          return { playbackRate: 1.0 }; // Safe fallback for invalid values
         }
         return { playbackRate: Math.max(0.25, Math.min(4.0, regionSpeed)) };
+      } else {
+        // 🔧 CRITICAL FIX: Return default speed for regions without speed set
+        // DO NOT fallback to main speed - each region should be independent
+        console.log('⚡ Region has no speed set, using default 1.0:', {
+          regionId: activeRegionId,
+          regionName: activeRegion.name || 'Unnamed'
+        });
+        return { playbackRate: 1.0 }; // Default speed for regions
       }
     }
     
-    return { playbackRate: 1.0 }; // Safe default
+    // 🔧 If region not found, return safe default (should not happen)
+    console.warn('🚨 Active region not found, returning default speed:', {
+      activeRegionId,
+      regionsCount: regions.length
+    });
+    return { playbackRate: 1.0 };
   }, [activeRegionId, regions, playbackRate]);
 
   // 🚀 Apply speed to active region or globally
@@ -678,14 +745,26 @@ export const useEnhancedPitchHandlers = ({
             value: regionPitch,
             type: typeof regionPitch
           });
-          return { pitch: 0.0 }; // Safe fallback
+          return { pitch: 0.0 }; // Safe fallback for invalid values
         }
         return { pitch: Math.max(-12, Math.min(12, regionPitch)) };
+      } else {
+        // 🔧 CRITICAL FIX: Return default pitch for regions without pitch set
+        // DO NOT fallback to main pitch - each region should be independent
+        console.log('🎵 Region has no pitch set, using default 0.0:', {
+          regionId: activeRegionId,
+          regionName: activeRegion.name || 'Unnamed'
+        });
+        return { pitch: 0.0 }; // Default pitch for regions
       }
     }
     
-    // Fallback to main pitch if region not found or no pitch set
-    return { pitch: typeof pitch === 'number' && isFinite(pitch) && !isNaN(pitch) ? Math.max(-12, Math.min(12, pitch)) : 0.0 };
+    // 🔧 If region not found, return safe default (should not happen)
+    console.warn('🚨 Active region not found, returning default pitch:', {
+      activeRegionId,
+      regionsCount: regions.length
+    });
+    return { pitch: 0.0 };
   }, [activeRegionId, regions, pitch]);
 
   // 🚀 Apply pitch to active region or globally

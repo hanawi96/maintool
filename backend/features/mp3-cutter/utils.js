@@ -24,11 +24,29 @@ const volumeCorrection = new VolumeCorrection();
 
 function emitProgress(sessionId, data) {
   if (sessionId && global.io) {
-    global.io.to(`progress-${sessionId}`).emit('cut-progress', {
-      sessionId, ...data, timestamp: new Date().toISOString()
-    });
+    const percent = Math.max(0, Math.min(100, Math.round(data.percent || 0)));
+    
+    // Ultra-efficient duplicate filtering
+    if (!emitProgress.lastPercent) emitProgress.lastPercent = {};
+    if (emitProgress.lastPercent[sessionId] === percent) return;
+    emitProgress.lastPercent[sessionId] = percent;
+    
+    const simpleProgress = {
+      sessionId,
+      percent,
+      message: percent >= 100 ? 'Completed' : 'Processing...',
+      timestamp: new Date().toISOString()
+    };
+    
+    // Debug only key milestones for cleaner logs
+    if (percent === 0 || percent === 100 || percent % 20 === 0) {
+      console.log(`📊 Backend Emit: ${percent}%`);
+    }
+    
+    global.io.to(`progress-${sessionId}`).emit('cut-progress', simpleProgress);
   }
 }
+
 function buildAtempoFilters(rate) {
   // Chaining atempo cho speed <0.5 hoặc >2.0
   const filters = [];
@@ -330,12 +348,26 @@ export class MP3Utils {
       let ffmpegCommand = '';
       let ffmpegStartTime = Date.now();
 
-      emitProgress(sessionId, { stage: 'initializing', percent: 0, message: 'Initializing FFmpeg...' });
+      // Start smooth progression immediately
+      emitProgress(sessionId, { percent: 0 });
+      console.log('🎯 Smooth Progress: Starting at 0%');
+      
       command
         .output(outputPath)
         .on('start', (commandLine) => {
           ffmpegCommand = commandLine;
           console.log('🚀 FFmpeg Command:', commandLine);
+          
+          // Create immediate smooth progression 0% → 5% during startup
+          let startupPercent = 1;
+          const startupTimer = setInterval(() => {
+            emitProgress(sessionId, { percent: startupPercent });
+            console.log(`🎯 Smooth Progress: Startup ${startupPercent}%`);
+            startupPercent++;
+            if (startupPercent > 5) {
+              clearInterval(startupTimer);
+            }
+          }, 80); // 80ms intervals for very smooth startup
           
           // 🔍 COMMAND ANALYSIS
           console.log('\n🔍 FFMPEG COMMAND ANALYSIS:');
@@ -348,33 +380,41 @@ export class MP3Utils {
             filters: commandLine.includes('-filter:a') ? commandLine.match(/-filter:a\s+[^-]+/)?.[0] : 'No filters',
             outputFile: commandLine.match(/[^\s]+\.mp3$/)?.[0] || 'Unknown output'
           });
-          
-          emitProgress(sessionId, { stage: 'processing', percent: 5, message: 'Started...' });
         })
         .on('progress', (progress) => {
-          // 🔍 PROGRESS ANALYSIS
-          if (Math.random() < 0.1) { // Log 10% of progress updates to avoid spam
-            console.log('📊 FFmpeg Progress:', {
-              percent: progress.percent?.toFixed(1) + '%',
-              currentTime: progress.timemark,
-              targetFps: progress.targetFps,
-              currentFps: progress.currentFps,
-              currentKbps: progress.currentKbps,
-              elapsedTime: ((Date.now() - ffmpegStartTime) / 1000).toFixed(1) + 's'
-            });
-          }
+          // Map FFmpeg progress (0-100%) to our range (5-95%) for smooth flow
+          const rawPercent = progress.percent || 0;
+          const mappedPercent = Math.round(5 + (rawPercent * 0.9)); // 5% + (0-100% * 90%)
+          const clampedPercent = Math.max(5, Math.min(95, mappedPercent));
           
-          emitProgress(sessionId, {
-            stage: 'processing',
-            percent: Math.min(95, Math.max(5, Math.round(progress.percent || 0))),
-            currentTime: progress.timemark,
-            message: `Processing...`
-          });
+          // Emit every 1% for ultra-smooth progression
+          const lastEmitted = emitProgress.lastEmitted?.[sessionId] || 0;
+          if (clampedPercent > lastEmitted) {
+            if (!emitProgress.lastEmitted) emitProgress.lastEmitted = {};
+            emitProgress.lastEmitted[sessionId] = clampedPercent;
+            emitProgress(sessionId, { percent: clampedPercent });
+            
+            // Debug every 10%
+            if (clampedPercent % 10 === 0) {
+              console.log(`🎯 Smooth Progress: Processing ${clampedPercent}%`);
+            }
+          }
         })
         .on('end', () => {
           const processingTime = ((Date.now() - ffmpegStartTime) / 1000).toFixed(2);
           
           console.log('✅ FFmpeg processing completed successfully!\n');
+          
+          // Create smooth final progression 95% → 100%
+          let finalPercent = 96;
+          const finishTimer = setInterval(() => {
+            emitProgress(sessionId, { percent: finalPercent });
+            console.log(`🎯 Smooth Progress: Finishing ${finalPercent}%`);
+            finalPercent++;
+            if (finalPercent > 100) {
+              clearInterval(finishTimer);
+            }
+          }, 60); // 60ms intervals for smooth finish
           
           // 🔍 POST-PROCESSING ANALYSIS
           console.log('🎯 FFMPEG COMPLETION ANALYSIS:', {
@@ -400,7 +440,6 @@ export class MP3Utils {
             }
           });
           
-          emitProgress(sessionId, { stage: 'completed', percent: 100, message: 'Completed' });
           resolve({ success: true, outputPath, inputPath });
         })
         .on('error', (err) => {
@@ -482,29 +521,56 @@ export class MP3Utils {
                 .output(outputPath)
                 .on('start', (commandLine) => {
                   console.log('🚀 Retry FFmpeg Command:', commandLine);
-                  emitProgress(sessionId, { stage: 'processing', percent: 10, message: 'Retrying with fallback EQ...' });
+                  
+                  // Smooth retry progression 0% → 5%
+                  let retryStartPercent = 1;
+                  const retryStartTimer = setInterval(() => {
+                    emitProgress(sessionId, { percent: retryStartPercent });
+                    console.log(`🎯 Smooth Progress: Retry Startup ${retryStartPercent}%`);
+                    retryStartPercent++;
+                    if (retryStartPercent > 5) {
+                      clearInterval(retryStartTimer);
+                    }
+                  }, 80);
                 })
-                .on('progress', (progress) => emitProgress(sessionId, {
-                  stage: 'processing',
-                  percent: Math.min(95, Math.max(10, Math.round(progress.percent || 0))),
-                  currentTime: progress.timemark,
-                  message: `Processing with fallback EQ...`
-                }))
+                .on('progress', (progress) => {
+                  // Map retry progress to 5-95% range
+                  const rawPercent = progress.percent || 0;
+                  const mappedPercent = Math.round(5 + (rawPercent * 0.9));
+                  const clampedPercent = Math.max(5, Math.min(95, mappedPercent));
+                  
+                  // Emit every 1% for retry smooth progression
+                  const lastEmitted = emitProgress.lastEmitted?.[sessionId] || 0;
+                  if (clampedPercent > lastEmitted) {
+                    if (!emitProgress.lastEmitted) emitProgress.lastEmitted = {};
+                    emitProgress.lastEmitted[sessionId] = clampedPercent;
+                    emitProgress(sessionId, { percent: clampedPercent });
+                  }
+                })
                 .on('end', () => {
                   console.log('✅ FFmpeg retry with fallback EQ completed successfully!\n');
-                  emitProgress(sessionId, { stage: 'completed', percent: 100, message: 'Completed with fallback EQ' });
+                  
+                  // Smooth retry finish 95% → 100%
+                  let retryFinalPercent = 96;
+                  const retryFinishTimer = setInterval(() => {
+                    emitProgress(sessionId, { percent: retryFinalPercent });
+                    console.log(`🎯 Smooth Progress: Retry Finishing ${retryFinalPercent}%`);
+                    retryFinalPercent++;
+                    if (retryFinalPercent > 100) {
+                      clearInterval(retryFinishTimer);
+                    }
+                  }, 60);
+                  
                   resolve({ success: true, outputPath, inputPath });
                 })
                 .on('error', (retryErr) => {
                   console.log('❌ FFmpeg retry also failed:', retryErr.message);
-                  emitProgress(sessionId, { stage: 'error', percent: 0, message: retryErr.message });
                   reject(new Error(`Audio cutting failed (retry also failed): ${retryErr.message}`));
                 }).run();
               return; // Exit without rejecting, let retry handle it
             }
           }
           
-          emitProgress(sessionId, { stage: 'error', percent: 0, message: err.message });
           reject(new Error(`Audio cutting failed: ${err.message}`));
         }).run();
     });
@@ -639,22 +705,20 @@ export class MP3Utils {
         } else if (format === 'flac') command = command.format('flac');
         else if (format === 'ogg') command = command.format('ogg');
 
-        emitProgress(sessionId, { stage: 'initializing', percent: 0, message: 'Initializing FFmpeg (Invert Mode)...' });
+        emitProgress(sessionId, { percent: 0 });
         command
           .output(outputPath)
-          .on('start', () => emitProgress(sessionId, { stage: 'processing', percent: 5, message: 'Processing inverted cut...' }))
-          .on('progress', (progress) => emitProgress(sessionId, {
-            stage: 'processing',
-            percent: Math.min(95, Math.max(5, Math.round(progress.percent || 0))),
-            currentTime: progress.timemark,
-            message: `Processing inverted cut...`
-          }))
+          .on('start', () => emitProgress(sessionId, { percent: 1 }))
+          .on('progress', (progress) => {
+            const rawPercent = progress.percent || 0;
+            const smoothPercent = Math.max(1, Math.min(99, Math.round(rawPercent)));
+            emitProgress(sessionId, { percent: smoothPercent });
+          })
           .on('end', () => {
-            emitProgress(sessionId, { stage: 'completed', percent: 100, message: 'Completed' });
+            emitProgress(sessionId, { percent: 100 });
             resolve({ success: true, outputPath, inputPath });
           })
           .on('error', (err) => {
-            emitProgress(sessionId, { stage: 'error', percent: 0, message: err.message });
             reject(new Error(`Inverted audio cutting failed: ${err.message}`));
           }).run();
       }).catch(err => {
@@ -792,6 +856,10 @@ export class MP3Utils {
     const segmentFiles = [];
     let totalDuration = 0;
     
+    // 🔧 SMOOTH PROGRESS: Calculate progress steps for cleaner UI
+    const totalSegments = timeline.length;
+    const progressPerSegment = 80 / totalSegments; // Reserve 80% for segment processing, 20% for concatenation
+    
     try {
       // Process each segment
       for (let i = 0; i < timeline.length; i++) {
@@ -807,6 +875,12 @@ export class MP3Utils {
           effects: segment.effects
         });
         
+        // 🔧 SMOOTH PROGRESS: Send clean progress updates per segment
+        const segmentProgress = Math.round((i / totalSegments) * 80);
+        emitProgress(globalParams.sessionId, {
+          percent: Math.min(75, segmentProgress)
+        });
+        
         // Extract and process segment
         await this.cutAudio(inputPath, segmentPath, {
           startTime: segment.start,
@@ -820,7 +894,7 @@ export class MP3Utils {
           format: 'wav', // Use WAV for intermediate files to avoid quality loss
           quality: 'high',
           normalizeVolume: false, // Apply normalization at the end
-          sessionId: globalParams.sessionId
+          sessionId: null // 🔧 CRITICAL: Don't emit sub-progress for individual segments to prevent UI chaos
         });
         
         segmentFiles.push(segmentPath);
@@ -831,6 +905,11 @@ export class MP3Utils {
         
         console.log(`✅ Segment ${i + 1} processed: ${segmentDuration.toFixed(2)}s`);
       }
+      
+      // 🔧 SMOOTH PROGRESS: Signal completion of segment processing
+      emitProgress(globalParams.sessionId, {
+        percent: 80
+      });
       
       // Concatenate all segments
       console.log('🔗 Concatenating', segmentFiles.length, 'segments...');
@@ -901,30 +980,63 @@ export class MP3Utils {
       
       console.log('🔗 Starting concatenation...');
       
-      emitProgress(sessionId, { stage: 'concatenating', percent: 0, message: 'Concatenating segments...' });
+      // Continue smooth progression from where segments left off (usually 80%)
+      const startPercent = sessionId ? 80 : 0; // If part of sequential processing, start from 80%
+      emitProgress(sessionId, { percent: startPercent });
+      console.log(`🎯 Smooth Progress: Concatenation starting at ${startPercent}%`);
       
       command
         .output(outputPath)
         .on('start', (commandLine) => {
           console.log('🚀 Concatenation Command:', commandLine);
-          emitProgress(sessionId, { stage: 'concatenating', percent: 10, message: 'Started concatenation...' });
+          
+          // Smooth concatenation startup
+          let concatStartPercent = startPercent + 1;
+          const targetStart = startPercent + 5;
+          const concatStartTimer = setInterval(() => {
+            emitProgress(sessionId, { percent: concatStartPercent });
+            console.log(`🎯 Smooth Progress: Concat Startup ${concatStartPercent}%`);
+            concatStartPercent++;
+            if (concatStartPercent > targetStart) {
+              clearInterval(concatStartTimer);
+            }
+          }, 100);
         })
         .on('progress', (progress) => {
-          emitProgress(sessionId, {
-            stage: 'concatenating',
-            percent: Math.min(95, Math.max(10, Math.round(progress.percent || 0))),
-            currentTime: progress.timemark,
-            message: 'Concatenating segments...'
-          });
+          // Map concatenation progress to remaining range
+          const rawPercent = progress.percent || 0;
+          const progressRange = sessionId ? 15 : 90; // 80-95% if sequential, 5-95% if standalone
+          const basePercent = sessionId ? 85 : 5;
+          const mappedPercent = Math.round(basePercent + (rawPercent * (progressRange / 100)));
+          const maxPercent = sessionId ? 95 : 95;
+          const clampedPercent = Math.max(basePercent, Math.min(maxPercent, mappedPercent));
+          
+          // Emit smooth concatenation progress
+          const lastEmitted = emitProgress.lastEmitted?.[sessionId] || 0;
+          if (clampedPercent > lastEmitted) {
+            if (!emitProgress.lastEmitted) emitProgress.lastEmitted = {};
+            emitProgress.lastEmitted[sessionId] = clampedPercent;
+            emitProgress(sessionId, { percent: clampedPercent });
+          }
         })
         .on('end', () => {
           console.log('✅ Concatenation completed successfully!');
-          emitProgress(sessionId, { stage: 'completed', percent: 100, message: 'Concatenation completed' });
+          
+          // Smooth concatenation finish → 100%
+          let concatFinalPercent = 96;
+          const concatFinishTimer = setInterval(() => {
+            emitProgress(sessionId, { percent: concatFinalPercent });
+            console.log(`🎯 Smooth Progress: Concat Finishing ${concatFinalPercent}%`);
+            concatFinalPercent++;
+            if (concatFinalPercent > 100) {
+              clearInterval(concatFinishTimer);
+            }
+          }, 60);
+          
           resolve({ success: true, outputPath });
         })
         .on('error', (err) => {
           console.error('❌ Concatenation failed:', err.message);
-          emitProgress(sessionId, { stage: 'error', percent: 0, message: err.message });
           reject(new Error(`Concatenation failed: ${err.message}`));
         })
         .run();

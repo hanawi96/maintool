@@ -32,7 +32,7 @@ export const useWebSocketProgress = () => {
     socket.on('progress-room-joined', () => {});
     socket.on('cut-progress', (progressData) => {
       setProgress(progressData);
-      if (progressData.stage === 'completed' || progressData.stage === 'error') {
+      if (progressData.percent >= 100) {
         setTimeout(() => setProgress(null), 3000);
       }
     });

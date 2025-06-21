@@ -35,14 +35,35 @@ export const useRegionManagement = ({
     const maxStartPos = effectiveEnd - regionDuration;
     const regionStart = effectiveStart + Math.random() * Math.max(0, maxStartPos - effectiveStart);
     
-    return {
-      id: Date.now() + Math.random(),
+    // 🔧 CRITICAL FIX: Add default audio effect values for new regions
+    const newRegion = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       start: Math.max(effectiveStart, regionStart),
       end: Math.min(effectiveEnd, regionStart + regionDuration),
       name: `Region ${regions.length + 1}`,
+      // 🎛️ Default fade values
       fadeIn: 0,
-      fadeOut: 0
+      fadeOut: 0,
+      // 🔊 Default audio effect values - ALWAYS use defaults, not inherit from main
+      volume: 1.0,          // Default volume (100%)
+      playbackRate: 1.0,    // Default speed (100%)
+      pitch: 0.0            // Default pitch (0 semitones)
     };
+    
+    console.log('🆕 Created new region with default audio values:', {
+      id: newRegion.id,
+      name: newRegion.name,
+      duration: (newRegion.end - newRegion.start).toFixed(2) + 's',
+      audioEffects: {
+        volume: newRegion.volume,
+        playbackRate: newRegion.playbackRate,
+        pitch: newRegion.pitch,
+        fadeIn: newRegion.fadeIn,
+        fadeOut: newRegion.fadeOut
+      }
+    });
+    
+    return newRegion;
   }, [duration, availableSpaces, minimumHandleGap, regions.length]);
 
   // 🚀 Optimized region management
