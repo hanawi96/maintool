@@ -109,11 +109,17 @@ const WaveformCanvas = React.memo(({
   onMouseUp,
   onMouseLeave,
   onMainSelectionClick
-}) => {// Cache ref for static gray/dynamic canvas
+}) => {
+  // Cache ref for static gray/dynamic canvas
   const backgroundCacheRef = useRef(null);
   const dynamicWaveformCacheRef = useRef(null);
   const lastCacheKey = useRef(null);
   const lastDynamicCacheKey = useRef(null);
+  
+  // 🔧 Ref to store pending main selection click info
+  const pendingMainSelectionClickRef = useRef(null);
+  const pointerDownPositionRef = useRef(null);
+  const hasDraggedRef = useRef(false);
 
   // Tooltip, cursor, waveform render hooks
   const {
@@ -140,6 +146,10 @@ const WaveformCanvas = React.memo(({
     if (canvas) {
       const rect = canvas.getBoundingClientRect();
       const mouseX = e.clientX - rect.left;
+      
+      // 🔧 Reset drag tracking
+      pointerDownPositionRef.current = { x: mouseX, y: e.clientY - rect.top };
+      hasDraggedRef.current = false;
       
       // 🆕 Check if click is within main selection area when 1+ regions exist
       if (regions.length >= 1 && duration > 0 && startTime < endTime && hybridWaveformData?.data?.length) {
@@ -170,8 +180,12 @@ const WaveformCanvas = React.memo(({
           const clickRatio = (mouseX - mainSelectionLeft) / (mainSelectionRight - mainSelectionLeft);
           const clickTime = startTime + (endTime - startTime) * clickRatio;
           
-          // 🚀 Always pass click position (needed for drag), but mark if it's activation
-          onMainSelectionClick?.(clickTime, { isActivation: !isMainAlreadyActive });
+          // 🔧 CRITICAL FIX: Store the main selection click info instead of calling immediately
+          // This ensures cursor jumping happens at mouse up, not mouse down (consistent with no-regions behavior)
+          pendingMainSelectionClickRef.current = {
+            clickTime,
+            isActivation: !isMainAlreadyActive
+          };
           
           // 🔧 Mark this event as main selection click to prevent double jumping
           e.isMainSelectionClick = true;
@@ -183,8 +197,28 @@ const WaveformCanvas = React.memo(({
       clearHoverTooltip();
     }
     onMouseDown?.(e);
-  }, [onMouseDown, updateCursor, clearHoverTooltip, canvasRef, regions, duration, startTime, endTime, hybridWaveformData, containerWidth, isInverted, onMainSelectionClick, activeRegionId]);
+  }, [onMouseDown, updateCursor, clearHoverTooltip, canvasRef, regions, duration, startTime, endTime, hybridWaveformData, containerWidth, isInverted, activeRegionId]);
   const handlePointerMove = useCallback((e) => {
+    // 🔧 Track dragging to prevent false main selection clicks
+    if (pointerDownPositionRef.current && !hasDraggedRef.current) {
+      const canvas = canvasRef.current;
+      if (canvas) {
+        const rect = canvas.getBoundingClientRect();
+        const currentX = e.clientX - rect.left;
+        const currentY = e.clientY - rect.top;
+        const dragDistance = Math.sqrt(
+          Math.pow(currentX - pointerDownPositionRef.current.x, 2) + 
+          Math.pow(currentY - pointerDownPositionRef.current.y, 2)
+        );
+        
+        if (dragDistance > 3) { // 3px threshold
+          hasDraggedRef.current = true;
+          // Clear pending main selection click if dragging is detected
+          pendingMainSelectionClickRef.current = null;
+        }
+      }
+    }
+    
     onMouseMove?.(e);
     const canvas = canvasRef.current;
     if (canvas) {
@@ -196,9 +230,23 @@ const WaveformCanvas = React.memo(({
   }, [onMouseMove, updateCursor, updateHoverTooltip, canvasRef]);
 
   const handlePointerUp = useCallback((e) => {
+    // 🔧 CRITICAL FIX: Handle pending main selection click at mouse up (not mouse down)
+    // This ensures consistent behavior with no-regions scenario
+    // Only process if no dragging occurred
+    if (pendingMainSelectionClickRef.current && onMainSelectionClick && !hasDraggedRef.current) {
+      const { clickTime, isActivation } = pendingMainSelectionClickRef.current;
+      console.log('🎯 Processing pending main selection click at mouse up:', { clickTime, isActivation });
+      onMainSelectionClick(clickTime, { isActivation });
+    }
+    
+    // Clear pending click and reset drag tracking
+    pendingMainSelectionClickRef.current = null;
+    pointerDownPositionRef.current = null;
+    hasDraggedRef.current = false;
+    
     onMouseUp?.(e);
     canvasRef.current?.releasePointerCapture(e.pointerId);
-  }, [onMouseUp, canvasRef]);
+  }, [onMouseUp, canvasRef, onMainSelectionClick]);
 
   const handlePointerLeave = useCallback((e) => {
     onMouseLeave?.(e);
@@ -524,20 +572,20 @@ const WaveformCanvas = React.memo(({
         dynamicWaveformCacheRef.current = await createDynamicWaveformCache(
           renderData.waveformData, canvas.width, canvas.height, containerWidth,
           renderData.volume ?? 1,
-          renderData.fadeIn,
-          renderData.fadeOut,
-          renderData.startTime,
-          renderData.endTime,
+          renderData.fadeIn ?? 0,
+          renderData.fadeOut ?? 0,
+          renderData.startTime ?? 0,
+          renderData.endTime ?? 0,
           renderData.duration
         );
         lastDynamicCacheKey.current = dynamicKey;
         needsRedraw = true;
       }
-      if (needsRedraw && mounted) requestRedraw(drawWaveform);
+      if (needsRedraw) drawWaveform();
     };
     updateCaches();
     return () => { mounted = false };
-  }, [renderData, containerWidth, canvasRef, createBackgroundCache, createDynamicWaveformCache, requestRedraw, drawWaveform, generateCacheKey, generateDynamicCacheKey]);
+  }, [renderData, containerWidth, canvasRef, createBackgroundCache, createDynamicWaveformCache, drawWaveform, generateCacheKey, generateDynamicCacheKey]);
 
   // ----- REDRAW CONTROL (minimize effect triggers) -----
   useEffect(() => {

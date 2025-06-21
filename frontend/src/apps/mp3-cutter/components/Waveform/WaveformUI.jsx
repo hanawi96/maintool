@@ -91,6 +91,11 @@ export const WaveformUI = memo(({
   const renderCountRef = useRef(0);
   const WAVEFORM_HEIGHT = WAVEFORM_CONFIG.HEIGHT;
 
+  // 🔧 Ref to track pending region clicks (similar to main selection fix)
+  const pendingRegionClickRef = useRef(null);
+  const pointerDownPositionRef = useRef(null);
+  const hasDraggedRef = useRef(false);
+
   // Performance tracking (production optimized)
   useEffect(() => {
     renderCountRef.current++;
@@ -369,6 +374,10 @@ export const WaveformUI = memo(({
               e.preventDefault();
               e.stopPropagation();
               
+              // 🔧 Reset drag tracking
+              pointerDownPositionRef.current = { x: e.clientX, y: e.clientY };
+              hasDraggedRef.current = false;
+              
               // 🆕 Calculate click position as time
               const rect = e.currentTarget.getBoundingClientRect();
               const clickX = e.clientX - rect.left;
@@ -389,22 +398,59 @@ export const WaveformUI = memo(({
                 calculatedClickTime: clickTime.toFixed(2)
               });
               
-              // 🔧 FIX: Single handler for both region selection AND drag start
-              // This prevents race condition between onClick and onPointerDown
+              // 🔧 SMART LOGIC: Immediate activation for inactive regions, delayed for active regions
+              const isRegionActive = region.isActive;
               
-              // First: Select the region (always happens)
-              onRegionClick?.(region.id, clickTime);
+              if (!isRegionActive) {
+                // 🚀 IMMEDIATE: Region not active → activate immediately + jump to start
+                console.log('🎯 Immediate region activation:', region.id);
+                onRegionClick?.(region.id, null); // Pass null to trigger start point jump
+              } else {
+                // 🔧 DELAYED: Region already active → store for mouse up processing
+                pendingRegionClickRef.current = {
+                  regionId: region.id,
+                  clickTime: clickTime
+                };
+              }
               
-              // Then: Start drag if needed (only if dragging is intended)
+              // Start drag preparation
               e.target.style.cursor = 'grabbing';
               onRegionBodyDown?.(region.id, e);
             }}
             onPointerMove={(e) => {
+              // 🔧 Track dragging to prevent false region clicks
+              if (pointerDownPositionRef.current && !hasDraggedRef.current) {
+                const dragDistance = Math.sqrt(
+                  Math.pow(e.clientX - pointerDownPositionRef.current.x, 2) + 
+                  Math.pow(e.clientY - pointerDownPositionRef.current.y, 2)
+                );
+                
+                if (dragDistance > 3) { // 3px threshold
+                  hasDraggedRef.current = true;
+                  // Clear pending region click if dragging is detected
+                  pendingRegionClickRef.current = null;
+                }
+              }
+              
               onRegionBodyMove?.(region.id, e);
             }}
             onPointerUp={(e) => {
               e.preventDefault();
               e.stopPropagation();
+              
+              // 🔧 CRITICAL FIX: Only process pending region clicks for already-active regions
+              // (Inactive regions are handled immediately at mouse down)
+              if (pendingRegionClickRef.current && onRegionClick && !hasDraggedRef.current) {
+                const { regionId, clickTime } = pendingRegionClickRef.current;
+                console.log('🎯 Processing pending click for active region at mouse up:', { regionId, clickTime });
+                onRegionClick(regionId, clickTime);
+              }
+              
+              // Clear pending click and reset drag tracking
+              pendingRegionClickRef.current = null;
+              pointerDownPositionRef.current = null;
+              hasDraggedRef.current = false;
+              
               e.target.style.cursor = 'grab';
               onRegionBodyUp?.(region.id, e);
             }}
