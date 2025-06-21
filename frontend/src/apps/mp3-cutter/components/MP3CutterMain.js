@@ -570,19 +570,24 @@ const MP3CutterMain = React.memo(() => {
         
         if (mainSelectionExists) {
           setActiveRegionIdDebounced('main', 'deleteRegion');
+          jumpToTime(startTime);
         } else if (remaining.length > 0) {
           setActiveRegionIdDebounced(remaining[0].id, 'deleteRegion');
+          jumpToTime(remaining[0].start);
         } else {
           setActiveRegionIdDebounced(null, 'deleteRegion');
         }
       }
     }
-  }, [activeRegionId, regions, startTime, endTime, duration, setStartTime, setEndTime, setActiveRegionIdDebounced]);
+  }, [activeRegionId, regions, startTime, endTime, duration, setStartTime, setEndTime, setActiveRegionIdDebounced, jumpToTime]);
 
   const handleClearAllRegions = useCallback(() => {
     dispatch({ type: 'SET_REGIONS', regions: [] });
-    setActiveRegionIdDebounced(null, 'clearAllRegions');
-  }, [setActiveRegionIdDebounced]);
+    setActiveRegionIdDebounced('main', 'clearAllRegions');
+    if (startTime < endTime && duration > 0) {
+      jumpToTime(startTime);
+    }
+  }, [setActiveRegionIdDebounced, jumpToTime, startTime, endTime, duration]);
 
   // 🚀 Optimized Play All Regions
   const handlePlayAllRegions = useCallback(() => {
