@@ -381,6 +381,8 @@ export const useInteractionHandlers = ({
           const { startX, areaWidth, handleW } = getWaveformArea(canvasWidth);
           const clickTime = ((clickX - startX) / areaWidth) * duration;
           
+          console.log('🔍 DEBUG: Cursor jump calc:', { canvasWidth, startX, areaWidth, clickX, clickTime: clickTime.toFixed(2) });
+          
           let activeRegion = null;
           if (activeRegionId === 'main') {
             activeRegion = { id: 'main', start: startTime, end: endTime };

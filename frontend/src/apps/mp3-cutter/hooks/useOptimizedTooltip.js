@@ -22,6 +22,21 @@ const clampTooltipX = (x, start, end, type = 'default') => {
   return Math.max(HALF_WIDTH, Math.min(end - HALF_WIDTH, x));
 };
 
+const getResponsiveHandleWidth = (width) =>
+  width < WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT
+    ? Math.max(3, WAVEFORM_CONFIG.MODERN_HANDLE_WIDTH * 0.75)
+    : WAVEFORM_CONFIG.MODERN_HANDLE_WIDTH;
+
+const getWaveformArea = (width) => {
+  const handleW = getResponsiveHandleWidth(width);
+  return {
+    startX: handleW,
+    endX: width - handleW,
+    areaWidth: width - 2 * handleW,
+    handleW
+  };
+};
+
 export const useOptimizedTooltip = (
   canvasRef, duration, currentTime, isPlaying, audioRef, startTime, endTime, hoveredHandle, isDragging, isInverted = false, draggingRegion = null
 ) => {
@@ -30,30 +45,31 @@ export const useOptimizedTooltip = (
   const hoverTimeoutRef = useRef(null);
   const formatTime = useCallback(formatTimeUnified, []);
 
-  const getArea = useCallback((canvas) => {
-    const width = canvas.getBoundingClientRect().width;
-    const { MODERN_HANDLE_WIDTH, RESPONSIVE } = WAVEFORM_CONFIG;
-    const hWidth = width < RESPONSIVE.MOBILE_BREAKPOINT ? Math.max(3, MODERN_HANDLE_WIDTH * 0.75) : MODERN_HANDLE_WIDTH;
-    return { width, startX: hWidth, endX: width - hWidth, areaWidth: width - hWidth * 2, hWidth };
+  const getCanvasWidth = useCallback((canvas) => {
+    return canvas.offsetWidth || canvas.width || canvas.getBoundingClientRect().width || 800;
   }, []);
 
   const calcMainCursor = useCallback(() => {
     if (!canvasRef?.current || !duration || typeof currentTime !== 'number') return null;
-    const { startX, endX, areaWidth } = getArea(canvasRef.current);
+    const canvasWidth = getCanvasWidth(canvasRef.current);
+    const { startX, endX, areaWidth } = getWaveformArea(canvasWidth);
     const x = startX + (currentTime / duration) * areaWidth;
+    console.log('🔍 DEBUG: Tooltip mainCursor calc:', { canvasWidth, startX, areaWidth, currentTime, x: x.toFixed(2) });
     return { visible: true, x: clampTooltipX(x, startX, endX, 'main'), time: currentTime, formattedTime: formatTime(currentTime) };
-  }, [canvasRef, duration, currentTime, formatTime, getArea]);
+  }, [canvasRef, duration, currentTime, formatTime, getCanvasWidth]);
 
   const calcHandle = useCallback(() => {
     const canvas = canvasRef?.current;
     if (!canvas || !duration || startTime >= endTime) return { start: null, end: null, selectionDuration: null };
-    const { startX, endX, areaWidth } = getArea(canvas);
+    const canvasWidth = getCanvasWidth(canvas);
+    const { startX, endX, areaWidth } = getWaveformArea(canvasWidth);
     const sX = startX + (startTime / duration) * areaWidth;
     const eX = startX + (endTime / duration) * areaWidth;
     const selection = endTime - startTime;
     const midX = (sX + eX) / 2;
     const regionPx = Math.abs(eX - sX);
     const showDuration = selection >= 0.1 && regionPx >= DURATION_TOOLTIP.MIN_REGION_WIDTH;
+    console.log('🔍 DEBUG: Tooltip handle calc:', { canvasWidth, startX, areaWidth, startTime, endTime, sX: sX.toFixed(2), eX: eX.toFixed(2) });
     return {
       start: { visible: true, x: clampTooltipX(sX, startX, endX, 'start'), time: startTime, formattedTime: formatTime(startTime) },
       end: { visible: true, x: clampTooltipX(eX, startX, endX, 'end'), time: endTime, formattedTime: formatTime(endTime) },
@@ -61,19 +77,22 @@ export const useOptimizedTooltip = (
         visible: true, x: clampTooltipX(midX, startX, endX, 'center'), duration: selection, formattedTime: formatTime(selection)
       } : null
     };
-  }, [canvasRef, duration, startTime, endTime, formatTime, getArea]);
+  }, [canvasRef, duration, startTime, endTime, formatTime, getCanvasWidth]);
 
   const calcHover = useCallback(() => {
     if (!isHoverActive || !hoverPos || !canvasRef?.current || !duration ||
         ['start', 'end', 'region', 'region-potential'].includes(isDragging) ||
         draggingRegion) return null;
     const canvas = canvasRef.current;
-    const { x } = hoverPos, { startX, endX, areaWidth, width } = getArea(canvas);
+    const canvasWidth = getCanvasWidth(canvas);
+    const { x } = hoverPos;
+    const { startX, endX, areaWidth } = getWaveformArea(canvasWidth);
     if (x < startX || x > endX) return null;
     const t = ((x - startX) / areaWidth) * duration;
     if (t < 0 || t > duration) return null;
-    return { visible: true, x: clampTooltipX(x, startX, width, 'hover'), time: t, formattedTime: formatTime(t) };
-  }, [isHoverActive, hoverPos, canvasRef, duration, formatTime, isDragging, draggingRegion, getArea]);
+    console.log('🔍 DEBUG: Tooltip hover calc:', { canvasWidth, startX, areaWidth, x, t: t.toFixed(2) });
+    return { visible: true, x: clampTooltipX(x, startX, canvasWidth, 'hover'), time: t, formattedTime: formatTime(t) };
+  }, [isHoverActive, hoverPos, canvasRef, duration, formatTime, isDragging, draggingRegion, getCanvasWidth]);
 
   const updateHoverTooltip = useCallback(e => {
     if (!canvasRef?.current || !duration) {
