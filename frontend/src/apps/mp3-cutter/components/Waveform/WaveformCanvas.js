@@ -644,9 +644,22 @@ const WaveformCanvas = React.memo(({
     const w = containerWidth || canvas.width || 800, h = canvas.height || WAVEFORM_CONFIG.HEIGHT;
     const { startX, areaWidth } = getWaveformArea(w);
     const mainCursorX = currentTime >= 0 ? startX + (currentTime / duration) * areaWidth : -1;
+    
+    // 🎯 SIMPLIFIED LOGIC: Always show hover line when hovering (except when dragging handles)
     const shouldShowHover = hoverTooltip && hoverTooltip.visible &&
       isDragging !== 'start' && isDragging !== 'end' &&
-      isDragging !== 'region' && isDragging !== 'region-potential';    return {
+      isDragging !== 'region' && isDragging !== 'region-potential';
+      
+    // 🐛 Debug: Simple hover line state
+    if (window.debugHoverLine && shouldShowHover) {
+      console.log('🔍 Hover line shown:', {
+        hoverX: hoverTooltip.x.toFixed(2),
+        isDragging,
+        visible: hoverTooltip.visible
+      });
+    }
+
+    return {
       mainCursor: {
         visible: currentTime >= 0 && duration > 0 && mainCursorX >= startX && mainCursorX <= (w - startX),
         x: mainCursorX,
@@ -747,6 +760,9 @@ const WaveformCanvas = React.memo(({
           onHandleMouseDown={handleHandlePointerDown}
           onHandleMouseMove={handleHandlePointerMove}
           onHandleMouseUp={handleHandlePointerUp}
+          // 🔧 CRITICAL FIX: Pass hover tooltip functions to regions
+          updateHoverTooltip={updateHoverTooltip}
+          clearHoverTooltip={clearHoverTooltip}
           isPlaying={isPlaying}
           isDragging={isDragging}
           isInverted={isInverted}

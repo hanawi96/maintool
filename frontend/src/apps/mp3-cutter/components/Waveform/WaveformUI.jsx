@@ -86,7 +86,9 @@ export const WaveformUI = memo(({
   onHandleMouseUp,
   isPlaying,
   isDragging,
-  isInverted
+  isInverted,
+  updateHoverTooltip,
+  clearHoverTooltip
 }) => {
   const renderCountRef = useRef(0);
   const WAVEFORM_HEIGHT = WAVEFORM_CONFIG.HEIGHT;
@@ -370,6 +372,40 @@ export const WaveformUI = memo(({
               backgroundColor: 'transparent',
               cursor: 'grab'
             }}
+            onPointerEnter={(e) => {
+              // 🔧 CRITICAL FIX: Update hover tooltip when entering region
+              if (updateHoverTooltip) {
+                updateHoverTooltip(e);
+              }
+            }}
+            onPointerMove={(e) => {
+              // 🔧 CRITICAL FIX: Continuously update hover tooltip while moving over region
+              if (updateHoverTooltip) {
+                updateHoverTooltip(e);
+              }
+              
+              // 🔧 Track dragging to prevent false region clicks
+              if (pointerDownPositionRef.current && !hasDraggedRef.current) {
+                const dragDistance = Math.sqrt(
+                  Math.pow(e.clientX - pointerDownPositionRef.current.x, 2) + 
+                  Math.pow(e.clientY - pointerDownPositionRef.current.y, 2)
+                );
+                
+                if (dragDistance > 3) { // 3px threshold
+                  hasDraggedRef.current = true;
+                  // Clear pending region click if dragging is detected
+                  pendingRegionClickRef.current = null;
+                }
+              }
+              
+              onRegionBodyMove?.(region.id, e);
+            }}
+            onPointerLeave={(e) => {
+              // 🔧 CRITICAL FIX: Clear hover tooltip when leaving region  
+              if (clearHoverTooltip) {
+                clearHoverTooltip();
+              }
+            }}
             onPointerDown={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -416,23 +452,6 @@ export const WaveformUI = memo(({
               // Start drag preparation
               e.target.style.cursor = 'grabbing';
               onRegionBodyDown?.(region.id, e);
-            }}
-            onPointerMove={(e) => {
-              // 🔧 Track dragging to prevent false region clicks
-              if (pointerDownPositionRef.current && !hasDraggedRef.current) {
-                const dragDistance = Math.sqrt(
-                  Math.pow(e.clientX - pointerDownPositionRef.current.x, 2) + 
-                  Math.pow(e.clientY - pointerDownPositionRef.current.y, 2)
-                );
-                
-                if (dragDistance > 3) { // 3px threshold
-                  hasDraggedRef.current = true;
-                  // Clear pending region click if dragging is detected
-                  pendingRegionClickRef.current = null;
-                }
-              }
-              
-              onRegionBodyMove?.(region.id, e);
             }}
             onPointerUp={(e) => {
               e.preventDefault();
