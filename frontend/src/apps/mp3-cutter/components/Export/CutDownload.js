@@ -1,67 +1,53 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Scissors, Loader, AlertCircle, Save, Copy, Check, X, CheckCircle } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Scissors, Loader, AlertCircle, Save, Copy, Check, CheckCircle } from 'lucide-react';
 import { audioApi } from '../../services/audioApi';
 import { formatTimeUnified } from '../../utils/timeFormatter';
 import { useWebSocketProgress } from '../../hooks/useCutProgress';
 import FormatPresets from './FormatSelector';
-import CloudUploadPanel from './CloudUploadPanel';
 
-// Toast Notification Component
+// Toast Notification Component with Portal
 const Toast = ({ show, onClose, type = 'success', title, message }) => {
   useEffect(() => {
     if (show) {
+      console.log('🍞 Toast showing:', { type, title, message });
       const timer = setTimeout(() => {
+        console.log('🍞 Toast auto-closing after 2s');
         onClose();
-      }, 3000);
+      }, 2000); // Auto-close after 2s
       return () => clearTimeout(timer);
     }
-  }, [show, onClose]);
+  }, [show, onClose, type, title, message]);
 
   if (!show) return null;
 
-  return (
-    <div className="fixed top-4 right-4 z-50 animate-in slide-in-from-right duration-300">
+  // Use Portal to render outside parent containers
+  return createPortal(
+    <div className="fixed top-6 right-6 z-[9999] pointer-events-none">
       <div className={`
-        max-w-sm w-full bg-white rounded-lg shadow-lg border-l-4 p-4
-        ${type === 'success' ? 'border-green-500' : type === 'error' ? 'border-red-500' : 'border-blue-500'}
-        transform transition-all duration-500 ease-out
-        ${show ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'}
+        w-72 rounded-lg shadow-2xl p-3 pointer-events-auto backdrop-blur-sm
+        ${type === 'success' 
+          ? 'bg-green-500 text-white' 
+          : type === 'error' 
+          ? 'bg-red-500 text-white' 
+          : 'bg-blue-500 text-white'
+        }
+        transform transition-all duration-300 ease-out
+        ${show ? 'translate-x-0 opacity-100 scale-100' : 'translate-x-full opacity-0 scale-95'}
+        hover:scale-[1.02]
       `}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center">
-            <div className={`
-              flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center
-              ${type === 'success' ? 'bg-green-100' : type === 'error' ? 'bg-red-100' : 'bg-blue-100'}
-            `}>
-              {type === 'success' && <CheckCircle className="w-4 h-4 text-green-600" />}
-              {type === 'error' && <AlertCircle className="w-4 h-4 text-red-600" />}
-            </div>
-            <div className="ml-3">
-              <p className={`
-                text-sm font-medium
-                ${type === 'success' ? 'text-green-800' : type === 'error' ? 'text-red-800' : 'text-blue-800'}
-              `}>
-                {title}
-              </p>
-              {message && (
-                <p className={`
-                  text-sm mt-1
-                  ${type === 'success' ? 'text-green-600' : type === 'error' ? 'text-red-600' : 'text-blue-600'}
-                `}>
-                  {message}
-                </p>
-              )}
-            </div>
+        <div className="flex items-center gap-2">
+          <div className="flex-shrink-0">
+            {type === 'success' && <CheckCircle className="w-5 h-5" />}
+            {type === 'error' && <AlertCircle className="w-5 h-5" />}
           </div>
-          <button
-            onClick={onClose}
-            className="flex-shrink-0 ml-4 text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <p className="text-sm font-medium">
+            {title}
+          </p>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
@@ -102,6 +88,7 @@ const CutDownload = ({
 
   // Show toast notification
   const showToast = useCallback((type, title, message = '') => {
+    console.log('🚀 showToast called:', { type, title, message, timestamp: new Date().toISOString() });
     setToast({ show: true, type, title, message });
   }, []);
 
@@ -109,14 +96,6 @@ const CutDownload = ({
   const hideToast = useCallback(() => {
     setToast(prev => ({ ...prev, show: false }));
   }, []);
-
-  // Cancel processing function
-  const cancelProcessing = useCallback(() => {
-    setIsProcessing(false);
-    setProcessingError(null);
-    clearProgress();
-    showToast('info', 'Processing Cancelled', 'Audio cutting has been cancelled');
-  }, [clearProgress, showToast]);
 
   // --- Helpers ---
   const activeRegionDuration = useMemo(() => {
@@ -162,7 +141,7 @@ const CutDownload = ({
     if (isProcessing) return {
       icon: Loader, 
       text: progress?.percent ? `Cutting...${progress.percent}%` : 'Cutting...', 
-      className: 'bg-blue-500 text-white', 
+      className: 'bg-blue-500 text-white cursor-not-allowed', 
       disabled: true, 
       spin: true
     };
@@ -174,9 +153,6 @@ const CutDownload = ({
   }, [audioFile, disabled, isInverted, activeRegionDuration, isProcessing, progress?.percent]);
 
   const downloadButtonState = useMemo(() => {
-    if (isProcessing) return {
-      icon: X, text: 'Cancel', className: 'bg-red-500 hover:bg-red-600 text-white transform hover:scale-105', disabled: false
-    };
     if (!processedFile) return {
       icon: Save, text: 'Save', className: 'bg-gray-300 text-gray-500 cursor-not-allowed', disabled: true
     };
@@ -194,7 +170,7 @@ const CutDownload = ({
       className: 'bg-green-500 hover:bg-green-600 text-white transform hover:scale-105 shadow-md hover:shadow-lg',
       disabled: false
     };
-  }, [processedFile, outputFormat, isProcessing]);
+  }, [processedFile, outputFormat]);
 
   // Clear progress on complete (auto-fade)
   useEffect(() => {
@@ -227,6 +203,7 @@ const CutDownload = ({
       return setProcessingError('Selected audio segment is too short (minimum 0.1 seconds)');
 
     setIsProcessing(true);
+    
     try {
       const sessionId = `cut-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
       startProgressSession(sessionId);
@@ -243,7 +220,6 @@ const CutDownload = ({
         isInverted,
         normalizeVolume,
         quality: 'high',
-        sessionId,
         // 🆕 Add regions with enhanced effects
         regions: regions.map(region => {
           return {
@@ -273,7 +249,6 @@ const CutDownload = ({
       console.log('\n🚀 FRONTEND TO BACKEND - DETAILED PARAMETERS:');
       console.log('📤 Sending to Backend:', {
         timestamp: new Date().toISOString(),
-        sessionId: sessionId,
         audioFile: {
           filename: audioFile.filename,
           originalName: audioFile.originalName,
@@ -332,64 +307,9 @@ const CutDownload = ({
       // 🔍 DETAILED FRONTEND LOG - Response received from backend
       console.log('\n📥 BACKEND TO FRONTEND - DETAILED RESPONSE:');
       console.log('📤 Received from Backend:', {
-        timestamp: new Date().toISOString(),
-        sessionId: sessionId,
         success: result?.success,
-        error: result?.error,
-        rawResult: result,
-        processedData: {
-          input: result.data?.input || result.input,
-          output: result.data?.output || result.output,
-          processing: result.data?.processing || result.processing,
-          urls: result.data?.urls || result.urls
-        }
+        error: result?.error
       });
-
-      // 🔍 DETAILED COMPARISON - Frontend vs Backend
-      if (result?.success) {
-        const backendOutput = result.data?.output || result.output;
-        const backendProcessing = result.data?.processing || result.processing;
-        
-        console.log('\n🔄 FRONTEND ↔️ BACKEND COMPARISON:');
-        console.log('📊 Duration Comparison:', {
-          frontend: {
-            selectedDuration: cutParams.endTime - cutParams.startTime,
-            expectedOutputDuration: (cutParams.endTime - cutParams.startTime) / cutParams.playbackRate,
-            playbackRate: cutParams.playbackRate,
-            pitch: cutParams.pitch
-          },
-          backend: {
-            reportedDuration: backendOutput?.duration,
-            inputDuration: result.data?.input?.duration || result.input?.duration,
-            processingParams: backendProcessing
-          },
-          comparison: {
-            durationMatch: Math.abs((backendOutput?.duration || 0) - ((cutParams.endTime - cutParams.startTime) / cutParams.playbackRate)) < 0.1,
-            durationDifference: (backendOutput?.duration || 0) - ((cutParams.endTime - cutParams.startTime) / cutParams.playbackRate),
-            percentageDifference: backendOutput?.duration ? 
-              (((backendOutput.duration - ((cutParams.endTime - cutParams.startTime) / cutParams.playbackRate)) / backendOutput.duration) * 100).toFixed(2) + '%' : 'N/A'
-          }
-        });
-        
-        console.log('📊 Parameters Comparison:', {
-          frontend: {
-            volume: cutParams.volume,
-            playbackRate: cutParams.playbackRate,
-            pitch: cutParams.pitch,
-            fadeIn: cutParams.fadeIn,
-            fadeOut: cutParams.fadeOut,
-            format: cutParams.outputFormat,
-            quality: cutParams.quality
-          },
-          backend: backendProcessing,
-          matches: {
-            volumeMatch: backendProcessing?.volume === cutParams.volume,
-            speedMatch: backendProcessing?.playbackRate === cutParams.playbackRate,
-            pitchMatch: backendProcessing?.pitch === cutParams.pitch,
-            formatMatch: backendProcessing?.outputFormat === cutParams.outputFormat
-          }
-        });
-      }
 
       if (!result?.success)
         throw new Error(result?.error || 'Cut operation failed - invalid response');
@@ -405,13 +325,11 @@ const CutDownload = ({
         pitch: cutParams.pitch,
         outputFormat: cutParams.outputFormat,
         processedAt: new Date().toISOString(),
-        sessionId
       };
 
       // 🔍 FINAL FRONTEND LOG - Processed file data
       console.log('\n✅ FRONTEND FINAL RESULT:', {
         timestamp: new Date().toISOString(),
-        sessionId: sessionId,
         processedFile: processedFileData,
         originalRequest: {
           startTime: cutParams.startTime,
@@ -433,20 +351,14 @@ const CutDownload = ({
       setProcessedFile(processedFileData);
       
       // Show success toast notification
-      showToast('success', 'Audio Cut Successfully!', `Duration: ${formatTimeUnified(processedFileData.duration)}`);
+      console.log('✅ Audio processing completed, showing success toast:', { 
+        processedFileData, 
+        willShowToast: true 
+      });
+      showToast('success', 'Audio Cut Successfully!');
 
     } catch (error) {
-      // 🔍 ERROR LOG
-      console.error('\n❌ FRONTEND ERROR DETAILS:', {
-        timestamp: new Date().toISOString(),
-        error: error.message,
-        stack: error.stack,
-        requestParams: {
-          startTime, endTime, playbackRate, pitch, volume,
-          expectedDuration: endTime - startTime
-        }
-      });
-
+      // Handle other errors
       let msg = error.message;
       if (msg.includes('Network error'))
         msg = 'Cannot connect to server. Please check if the backend is running.';
@@ -458,19 +370,14 @@ const CutDownload = ({
         msg = 'Audio file not found on server. Please upload again.';
       else if (msg.includes('500') || msg.includes('processing failed'))
         msg = 'Server error during processing. Please try again.';
+      
       setProcessingError(msg);
     } finally {
       setIsProcessing(false);
     }
-  }, [audioFile, startTime, endTime, fadeIn, fadeOut, playbackRate, pitch, volume, equalizer, isInverted, normalizeVolume, outputFormat, clearProgress, activeRegionDuration, startProgressSession, regions]);
+  }, [audioFile, startTime, endTime, fadeIn, fadeOut, playbackRate, pitch, volume, equalizer, isInverted, normalizeVolume, outputFormat, clearProgress, activeRegionDuration, startProgressSession, regions, showToast]);
 
   const handleDownload = useCallback(async () => {
-    // If processing, cancel the operation
-    if (isProcessing) {
-      cancelProcessing();
-      return;
-    }
-
     if (!processedFile)
       return setProcessingError('No processed file available. Please cut audio first.');
 
@@ -490,7 +397,7 @@ const CutDownload = ({
     } catch (downloadError) {
       setProcessingError(`Download failed: ${downloadError.message}`);
     }
-  }, [processedFile, isProcessing, cancelProcessing]);
+  }, [processedFile]);
 
   const handleCopyLink = useCallback(async () => {
     if (!processedFile) return;
@@ -567,15 +474,19 @@ const CutDownload = ({
           <cutButtonState.icon className={`w-4 h-4 ${cutButtonState.spin ? 'animate-spin' : ''}`} />
           {cutButtonState.text}
         </button>
-        <button
-          onClick={handleDownload}
-          disabled={downloadButtonState.disabled}
-          className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium transition-all duration-0 disabled:cursor-not-allowed ${downloadButtonState.className}`}
-          title={downloadButtonState.tooltip || `Download processed ${outputFormat?.toUpperCase()} file`}
-        >
-          <downloadButtonState.icon className="w-4 h-4" />
-          {downloadButtonState.text}
-        </button>
+        
+        {/* 🎯 DOWNLOAD BUTTON when not processing */}
+        {!isProcessing && (
+          <button
+            onClick={handleDownload}
+            disabled={downloadButtonState.disabled}
+            className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium transition-all duration-0 disabled:cursor-not-allowed ${downloadButtonState.className}`}
+            title={downloadButtonState.tooltip || `Download processed ${outputFormat?.toUpperCase()} file`}
+          >
+            <downloadButtonState.icon className="w-4 h-4" />
+            {downloadButtonState.text}
+          </button>
+        )}
       </div>
       {processingError && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-3">
@@ -687,18 +598,6 @@ const CutDownload = ({
         </div>
       )}
       
-      {/* 🌤️ Cloud Upload Panel - Chỉ hiển thị khi đã cut audio thành công */}
-      {processedFile && !processingError && (
-        <CloudUploadPanel 
-          processedFile={processedFile}
-          isEnabled={true}
-          onUploadComplete={(serviceId, result) => {
-            console.log(`Upload completed to ${serviceId}:`, result);
-          }}
-          className="mt-4"
-        />
-      )}
-
       {/* Toast Notification */}
       <Toast 
         show={toast.show}

@@ -11,6 +11,11 @@ class LazyErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
+    // Skip logging AbortError to prevent console spam
+    if (error?.name === 'AbortError' && error?.message?.includes('signal is aborted without reason')) {
+      console.log('🛑 [LazyErrorBoundary] AbortError caught and suppressed:', error.message);
+      return;
+    }
     console.error('🚨 Lazy loading error:', error, errorInfo);
   }
 

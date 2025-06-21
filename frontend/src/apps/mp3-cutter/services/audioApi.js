@@ -104,6 +104,9 @@ export const audioApi = {
   async cutAudioByFileId(params) {
     const url = `${API_BASE_URL}${API_ENDPOINTS.CUT_BY_FILEID}`;
     const sessionId = params.sessionId || `cut-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
+    
+    console.log('🔄 Starting cut request with sessionId:', sessionId);
+    
     let res;
     try {
       res = await fetch(url, {
@@ -111,12 +114,16 @@ export const audioApi = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...params, sessionId })
       });
+      
+      if (!res.ok) await handleApiError(res, 'Cut by FileId');
+      const result = await safeJsonParse(res);
+      console.log('✅ Cut request completed for sessionId:', sessionId);
+      return { ...result, sessionId };
+      
     } catch (err) {
+      console.log('❌ Cut request failed for sessionId:', sessionId, 'Error:', err.message);
       throw new Error(`Network error: ${err.message}. Is backend running at ${API_BASE_URL}?`);
     }
-    if (!res.ok) await handleApiError(res, 'Cut by FileId');
-    const result = await safeJsonParse(res);
-    return { ...result, sessionId };
   },
 
   async changeSpeedByFileId(params) {

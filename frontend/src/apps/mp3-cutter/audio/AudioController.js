@@ -1,7 +1,6 @@
 import React, { useMemo, useCallback, useEffect, useRef } from 'react';
 import { 
-  validateAudioFile, getAudioErrorMessage, getFormatDisplayName, 
-  generateCompatibilityReport, createSafeAudioURL, validateAudioURL 
+  getAudioErrorMessage, getFormatDisplayName, validateAudioURL 
 } from '../utils/audioUtils';
 import { getAutoReturnSetting } from '../utils/safeStorage';
 
