@@ -49,6 +49,8 @@ export const useInteractionHandlers = ({
   const rafIdRef = useRef(null);
   const latestEventRef = useRef(null);
   const lastClickPositionRef = useRef(null);
+  const dragStartPositionRef = useRef(null); // 🆕 Track drag start to detect actual dragging
+  const hasDraggedRef = useRef(false); // 🆕 Track if actual dragging occurred
   
   // 🆕 Track the activeRegionId at the moment of mouse down to detect selection vs active click
   const activeRegionAtMouseDownRef = useRef(null);
@@ -65,6 +67,10 @@ export const useInteractionHandlers = ({
       activeRegionId,
       regionsCount: regions.length
     });
+    
+    // 🆕 Reset drag tracking
+    dragStartPositionRef.current = x;
+    hasDraggedRef.current = false;
     
     // 🆕 Capture activeRegionId at mouse down to detect if this is a selection click or active click
     activeRegionAtMouseDownRef.current = activeRegionId;
@@ -107,12 +113,6 @@ export const useInteractionHandlers = ({
       result.action === 'createSelection'
     ) {
       historySavedRef.current = false;
-    }    if (
-      result.action === 'startDrag' ||
-      (result.action === 'pendingJump' && result.regionDragPotential) ||
-      result.action === 'createSelection'
-    ) {
-      historySavedRef.current = false;
     }
     if (result.action === 'startDrag') {
       // Handle both regular drag and main selection drag
@@ -134,6 +134,16 @@ export const useInteractionHandlers = ({
     if (!e || !canvasRef.current || duration <= 0) return;
     const rect = cachedRectRef.current || canvasRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
+    
+    // 🆕 Detect if actual dragging is occurring
+    if (dragStartPositionRef.current !== null) {
+      const dragDistance = Math.abs(x - dragStartPositionRef.current);
+      if (dragDistance > 3) { // 3px threshold for drag detection
+        hasDraggedRef.current = true;
+        console.log('🔄 Drag detected, distance:', dragDistance);
+      }
+    }
+    
     const manager = interactionManagerRef.current;
     const result = manager.handleMouseMove(x, canvasRef.current.width, duration, startTime, endTime, audioContext);
     
@@ -153,19 +163,26 @@ export const useInteractionHandlers = ({
     const manager = interactionManagerRef.current;
     const result = manager.handleMouseUp(startTime, endTime, audioContext, duration);
     const wasDragging = isDragging !== null;
+    const hadRealDrag = hasDraggedRef.current; // 🆕 Check if actual dragging occurred
     setIsDragging(null);
     
     console.log('🎯 useInteractionHandlers: handleCanvasMouseUp called!', {
       wasDragging,
+      hadRealDrag, // 🆕 Log real drag status
       hasClickPosition: !!lastClickPositionRef.current,
       activeRegionId,
       activeAtMouseDown: activeRegionAtMouseDownRef.current,
       regionsCount: regions.length
     });
     
+    // 🆕 Reset drag tracking
+    dragStartPositionRef.current = null;
+    hasDraggedRef.current = false;
+    
     // 🆕 Enhanced cursor jumping and endpoint jumping logic - Apply to ALL active regions including main
-    if (!wasDragging && lastClickPositionRef.current !== null && activeRegionId && regions.length > 0) {
-      console.log('🔥 useInteractionHandlers: Entering cursor/endpoint jumping logic...');
+    // 🔧 CRITICAL FIX: Only execute if NO real dragging occurred
+    if (!wasDragging && !hadRealDrag && lastClickPositionRef.current !== null && activeRegionId && regions.length > 0) {
+      console.log('🔥 useInteractionHandlers: Entering cursor/endpoint jumping logic (no drag detected)...');
       const canvas = canvasRef.current;
       if (canvas) {
         // 🔧 Check if region was ALREADY active at mouse down (not a selection click)
@@ -178,7 +195,8 @@ export const useInteractionHandlers = ({
           wasAlreadyActive,
           isSelectionClick,
           shouldJumpCursor: wasAlreadyActive,
-          hasClickPosition: !!lastClickPositionRef.current
+          hasClickPosition: !!lastClickPositionRef.current,
+          hadRealDrag
         });
         
         // 🚫 Skip for selection clicks - let region selection handler take care of it
@@ -261,7 +279,8 @@ export const useInteractionHandlers = ({
               isAfterEnd: clickTime > regionEnd,
               isClickInAnyRegionArea,
               isClickInMainArea,
-              shouldApplyEndpointJumping: !isClickInAnyRegionArea && !isInStartHandle && !isInEndHandle
+              shouldApplyEndpointJumping: !isClickInAnyRegionArea && !isInStartHandle && !isInEndHandle,
+              hadRealDrag
             });
             
             // Skip if clicking on handles
@@ -337,58 +356,48 @@ export const useInteractionHandlers = ({
                   };
                   onRegionUpdate(activeRegionId, updatedRegion.start, updatedRegion.end);
                   console.log('✅ Updated region', activeRegionId, updateType.toUpperCase(), 'to:', newTime.toFixed(2));
+                } else {
+                  console.warn('⚠️ onRegionUpdate not provided, cannot update region');
                 }
               }
-              
-              lastClickPositionRef.current = null;
-              activeRegionAtMouseDownRef.current = null;
-              return;
             }
+          } else {
+            console.log('🚫 Invalid active region or click time outside bounds');
           }
+        } else {
+          console.log('🚫 Region was not already active, skipping cursor/endpoint jumping');
         }
+      } else {
+        console.log('🚫 Canvas not found, skipping cursor/endpoint jumping');
       }
-    } else {
-      console.log('🚫 useInteractionHandlers: Skipping cursor/endpoint jumping logic - conditions not met:', {
-        wasDragging,
-        hasClickPosition: !!lastClickPositionRef.current,
-        activeRegionId: !!activeRegionId,
-        hasRegions: regions.length > 0
-      });
+    } else if (hadRealDrag) {
+      console.log('🚫 Real drag detected, skipping cursor/endpoint jumping');
+    } else if (wasDragging) {
+      console.log('🚫 Was dragging state, skipping cursor/endpoint jumping');
+    } else if (!lastClickPositionRef.current) {
+      console.log('🚫 No click position stored, skipping cursor/endpoint jumping');
+    } else if (!activeRegionId || regions.length === 0) {
+      console.log('🚫 No active region or no regions, skipping cursor/endpoint jumping');
     }
     
-    // 🔧 Reset tracking refs
-    console.log('🔧 useInteractionHandlers: Resetting tracking refs');
+    // Clean up
     lastClickPositionRef.current = null;
     activeRegionAtMouseDownRef.current = null;
     
-    if (wasDragging) {
-      saveHistoryNow();
-    } else if (result.saveHistory && !historySavedRef.current) {
-      historySavedRef.current = true;
-      saveState({ startTime, endTime, fadeIn, fadeOut, isInverted: audioContext?.isInverted || false });
+    // Handle pending operations from interaction manager
+    if (result.executePendingJump && result.pendingJumpTime !== null) {
+      console.log('🎯 Executing pending jump to:', result.pendingJumpTime);
+      setCurrentTime(result.pendingJumpTime);
     }
     
-    if (result.executePendingJump && result.pendingJumpTime !== null) {
-      jumpToTime(result.pendingJumpTime);
-      if (audioRef.current) {
-        audioRef.current.currentTime = result.pendingJumpTime;
-        setCurrentTime(result.pendingJumpTime);
-      }
-    }
-    if (result.executePendingHandleUpdate && result.pendingHandleUpdate !== null) {
+    if (result.executePendingHandleUpdate && result.pendingHandleUpdate) {
       const updateData = result.pendingHandleUpdate;
-      if (audioContext?.isInverted) {
-        jumpToTime(updateData.newTime);
-        if (audioRef.current) {
-          audioRef.current.currentTime = updateData.newTime;
-          setCurrentTime(updateData.newTime);
-        }
-      } else {
-        if (updateData.type === 'start') handleStartTimeChange(updateData.newTime);
-        else if (updateData.type === 'end') handleEndTimeChange(updateData.newTime);
-      }
+      console.log('🎯 Executing pending handle update:', updateData);
+      setCurrentTime(updateData.newTime);
     }
-  }, [startTime, endTime, fadeIn, fadeOut, duration, saveState, saveHistoryNow, setIsDragging, audioRef, setCurrentTime, jumpToTime, interactionManagerRef, audioContext, handleStartTimeChange, handleEndTimeChange, historySavedRef, activeRegionId, regions, canvasRef, onRegionUpdate, isDragging]);
+    
+    if (result.saveHistory) saveHistoryNow();
+  }, [startTime, endTime, duration, saveHistoryNow, setIsDragging, setCurrentTime, jumpToTime, interactionManagerRef, audioContext, handleStartTimeChange, handleEndTimeChange, activeRegionId, regions, canvasRef, onRegionUpdate, isDragging]);
 
   const handleCanvasMouseLeave = useCallback(() => {
     const manager = interactionManagerRef.current;
@@ -398,6 +407,9 @@ export const useInteractionHandlers = ({
     handleCanvasMouseDown,
     handleCanvasMouseMove,
     handleCanvasMouseUp,
-    handleCanvasMouseLeave
+    handleCanvasMouseLeave,
+    // 🆕 Expose drag tracking refs for debugging if needed
+    dragStartPositionRef,
+    hasDraggedRef
   };
 };

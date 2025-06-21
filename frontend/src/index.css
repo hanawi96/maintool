@@ -259,7 +259,7 @@ body {
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
     sans-serif;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  -moz-osx-font-smoothing: auto !important;
 }
 
 /* 🎯 ENHANCED: Modern slider styling for all controls */
@@ -671,8 +671,7 @@ canvas[style*="height"] {
   image-rendering: -webkit-crisp-edges !important;
   
   /* 🎯 **DISABLE ANTIALIASING**: For ultra-sharp lines and cursors */
-  -webkit-font-smoothing: none !important;
-  -moz-osx-font-smoothing: unset !important;
+  -moz-osx-font-smoothing: auto !important;
   
   /* 🔧 **CANVAS Z-INDEX**: Ensure canvas stays below tooltips */
   z-index: 1 !important;
@@ -809,7 +808,7 @@ html body div.bg-white\/70.backdrop-blur-sm {
 
 /* 🎯 **WAVEFORM TOOLTIP CUSTOM CLASS** - Override all CSS conflicts */
 .waveform-tooltip-custom {
-  font-size: 0.65rem !important; /* Force 0.5rem font size theo yêu cầu user */
+  font-size: 0.65rem !important; /* Force 0.65rem font size theo yêu cầu user */
   line-height: normal !important; /* Reset line height để không ảnh hưởng positioning */
   font-family: monospace !important; /* Ensure monospace font */
   font-weight: 400 !important; /* Normal weight */
@@ -834,6 +833,10 @@ html body div.bg-white\/70.backdrop-blur-sm {
   font-style: normal !important;
   font-variant: normal !important;
   font-stretch: normal !important;
+  
+  /* 🔥 **ANTI-BLACKENING FIX**: Only fix the blackening issue, keep original styling */
+  -webkit-font-smoothing: antialiased !important; /* 🆕 Fix blackening by using antialiased instead of none */
+  -moz-osx-font-smoothing: grayscale !important; /* 🆕 Use grayscale for consistency */
 }
 
 /* 🔇 **SILENCE REGION TOOLTIP**: Simple tooltip for silence regions */
