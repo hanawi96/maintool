@@ -420,17 +420,19 @@ const CutDownload = ({
       </div>
       {audioFile && (
         <div className="bg-gray-50 p-3 rounded-lg text-sm">
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
             <div>Duration: {formatTimeUnified(activeRegionDuration)}</div>
-            <div>Speed: {playbackRate !== 1 ? `${playbackRate}x` : 'Normal'}</div>
             <div>Format: {outputFormat?.toUpperCase() || 'MP3'}</div>
-            <div>Pitch: {pitch !== 0 ? `${pitch > 0 ? '+' : ''}${pitch} semitones` : 'Normal'}</div>
-            <div>Mode: {isInverted ? 'Invert (Remove)' : 'Normal (Keep)'}</div>            <div className={`${volume !== 1 ? 'font-semibold text-blue-600' : ''}`}>
+            <div className={`${volume !== 1 ? 'font-semibold text-blue-600' : ''}`}>
               Volume: {volume !== 1 ? `${Math.round(volume * 100)}%` : normalizeVolume ? 'Normalized' : 'Original'}
               {volume !== 1 && (
                 <span className="ml-1 text-xs bg-blue-100 px-1 rounded">APPLIED</span>
               )}
-            </div>          </div>
+            </div>
+            <div>Speed: {playbackRate !== 1 ? `${playbackRate}x` : 'Normal'}</div>
+            <div>Pitch: {pitch !== 0 ? `${pitch > 0 ? '+' : ''}${pitch} semitones` : 'Normal'}</div>
+            <div>Mode: {isInverted ? 'Invert (Remove)' : 'Normal (Keep)'}</div>
+          </div>
         </div>
       )}
       {audioFile && isInverted && activeRegionDuration < 0.1 && (
@@ -477,24 +479,16 @@ const CutDownload = ({
           </div>
 
           {/* Audio Info Grid */}
-          <div className="grid grid-cols-2 gap-4 mb-6 p-4 bg-white/50 rounded-lg border border-green-100">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6 p-4 bg-white/50 rounded-lg border border-green-100">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 bg-green-500 rounded-full"></div>
               <span className="text-sm text-green-700">Duration: <strong>{formatTimeUnified(processedFile.duration)}</strong></span>
             </div>
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-              <span className="text-sm text-green-700">Speed: <strong>{processedFile.playbackRate !== 1 ? `${processedFile.playbackRate}x` : 'Normal'}</strong></span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
               <span className="text-sm text-green-700">Format: <strong>{processedFile.outputFormat?.toUpperCase()}</strong></span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-              <span className="text-sm text-green-700">Pitch: <strong>{processedFile.pitch !== 0 ? `${processedFile.pitch > 0 ? '+' : ''}${processedFile.pitch} semitones` : 'Normal'}</strong></span>
-            </div>
-            <div className="flex items-center gap-2 col-span-2">
               <div className="w-2 h-2 bg-green-500 rounded-full"></div>
               <span className={`text-sm text-green-700 ${volume !== 1 ? 'font-semibold' : ''}`}>
                 Volume: <strong>{volume !== 1 ? `${Math.round(volume * 100)}%` : normalizeVolume ? 'Normalized' : 'Original'}</strong>
@@ -503,8 +497,16 @@ const CutDownload = ({
                 )}
               </span>
             </div>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              <span className="text-sm text-green-700">Speed: <strong>{processedFile.playbackRate !== 1 ? `${processedFile.playbackRate}x` : 'Normal'}</strong></span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              <span className="text-sm text-green-700">Pitch: <strong>{processedFile.pitch !== 0 ? `${processedFile.pitch > 0 ? '+' : ''}${processedFile.pitch} semitones` : 'Normal'}</strong></span>
+            </div>
             {processedFile.fileSize && (
-              <div className="flex items-center gap-2 col-span-2">
+              <div className="flex items-center gap-2">
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                 <span className="text-sm text-green-700">Size: <strong>{(processedFile.fileSize / 1024 / 1024).toFixed(2)} MB</strong></span>
               </div>
