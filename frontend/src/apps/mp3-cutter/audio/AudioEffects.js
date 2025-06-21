@@ -724,9 +724,21 @@ export const useEnhancedPitchHandlers = ({
       // 🔧 CRITICAL FIX: Use updatePitch for main selection
       updatePitch(clampedValue);
       
+      // 🔧 IMMEDIATE REAL-TIME APPLICATION: Apply to audio system immediately
+      if (setPitchValue) {
+        setPitchValue(clampedValue);
+        console.log('🎵 Applied pitch to all regions + real-time audio:', clampedValue);
+      }
+      
     } else if (!activeRegionId || activeRegionId === 'main') {
       // Apply to main selection only
       updatePitch(clampedValue);
+      
+      // 🔧 IMMEDIATE REAL-TIME APPLICATION: Apply to audio system immediately
+      if (setPitchValue) {
+        setPitchValue(clampedValue);
+        console.log('🎵 Applied pitch to main + real-time audio:', clampedValue);
+      }
       
     } else {
       // Apply to specific region only
@@ -736,8 +748,17 @@ export const useEnhancedPitchHandlers = ({
           : region
       );
       dispatch({ type: 'SET_REGIONS', regions: updatedRegions });
+      
+      // 🔧 IMMEDIATE REAL-TIME APPLICATION: Apply to audio system immediately for active region
+      if (setPitchValue) {
+        setPitchValue(clampedValue);
+        console.log('🎵 Applied pitch to region + real-time audio:', {
+          regionId: activeRegionId,
+          pitch: clampedValue
+        });
+      }
     }
-  }, [activeRegionId, regions, updatePitch, dispatch]);
+  }, [activeRegionId, regions, updatePitch, dispatch, setPitchValue]);
 
   const handlePitchChange = useCallback((value, applyToAll = false, operation = 'normal', data = null) => {
     if (operation === 'restore-main' && data) {

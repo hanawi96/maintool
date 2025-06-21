@@ -20,7 +20,12 @@ const Export = ({
   disabled = false,
   // 🆕 Region props for total duration calculation
   regions = [],
-  activeRegionId = null
+  activeRegionId = null,
+  // 🆕 Enhanced handlers for getting current values per region
+  getCurrentFadeValues = null,
+  getCurrentVolumeValues = null,
+  getCurrentSpeedValues = null,
+  getCurrentPitchValues = null
 }) => {
   return (
     <div className="bg-white/70 backdrop-blur-sm rounded-xl p-4 border border-slate-200/50 shadow-sm">
@@ -47,6 +52,11 @@ const Export = ({
           // 🆕 Region props for total duration calculation
           regions={regions}
           activeRegionId={activeRegionId}
+          // 🆕 Enhanced handlers for getting current values per region
+          getCurrentFadeValues={getCurrentFadeValues}
+          getCurrentVolumeValues={getCurrentVolumeValues}
+          getCurrentSpeedValues={getCurrentSpeedValues}
+          getCurrentPitchValues={getCurrentPitchValues}
         />
       </div>
     </div>

@@ -25,7 +25,12 @@ const CutDownload = ({
   disabled = false,
   // 🆕 Region props for total duration calculation
   regions = [],
-  activeRegionId = null
+  activeRegionId = null,
+  // 🆕 Enhanced handlers for getting current values per region
+  getCurrentFadeValues = null,
+  getCurrentVolumeValues = null,
+  getCurrentSpeedValues = null,
+  getCurrentPitchValues = null
 }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingError, setProcessingError] = useState(null);
@@ -139,7 +144,9 @@ const CutDownload = ({
     setIsProcessing(true);
     try {
       const sessionId = `cut-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
-      startProgressSession(sessionId);      const cutParams = {
+      startProgressSession(sessionId);
+
+      const cutParams = {
         fileId: audioFile.filename,
         startTime, endTime,
         outputFormat: outputFormat || 'mp3',
@@ -151,8 +158,72 @@ const CutDownload = ({
         isInverted,
         normalizeVolume,
         quality: 'high',
-        sessionId
-      };      // 🎯 Debug log for volume parameter
+        sessionId,
+        // 🆕 Add regions with enhanced effects
+        regions: regions.map(region => {
+          return {
+            id: region.id,
+            name: region.name || `Region ${regions.indexOf(region) + 1}`,
+            start: region.start,
+            end: region.end,
+            volume: region.volume !== undefined ? region.volume : 1.0,
+            playbackRate: region.playbackRate !== undefined ? region.playbackRate : 1.0,
+            pitch: region.pitch !== undefined ? region.pitch : 0.0,
+            fadeIn: region.fadeIn || 0,
+            fadeOut: region.fadeOut || 0
+          };
+        }),
+        mainSelection: (startTime < endTime) ? {
+          start: startTime,
+          end: endTime,
+          volume: volume,
+          playbackRate: playbackRate,
+          pitch: pitch,
+          fadeIn: fadeIn || 0,
+          fadeOut: fadeOut || 0
+        } : null
+      };
+
+      // 🔍 DETAILED FRONTEND LOG - Parameters being sent to backend
+      console.log('\n🚀 FRONTEND TO BACKEND - DETAILED PARAMETERS:');
+      console.log('📤 Sending to Backend:', {
+        timestamp: new Date().toISOString(),
+        sessionId: sessionId,
+        audioFile: {
+          filename: audioFile.filename,
+          originalName: audioFile.originalName,
+          duration: audioFile.duration,
+          size: audioFile.size
+        },
+        cutParameters: {
+          fileId: cutParams.fileId,
+          startTime: cutParams.startTime,
+          endTime: cutParams.endTime,
+          expectedDuration: cutParams.endTime - cutParams.startTime,
+          volume: cutParams.volume,
+          playbackRate: cutParams.playbackRate,
+          pitch: cutParams.pitch,
+          fadeIn: cutParams.fadeIn,
+          fadeOut: cutParams.fadeOut,
+          equalizer: cutParams.equalizer,
+          isInverted: cutParams.isInverted,
+          normalizeVolume: cutParams.normalizeVolume,
+          outputFormat: cutParams.outputFormat,
+          quality: cutParams.quality
+        },
+        regions: cutParams.regions,
+        mainSelection: cutParams.mainSelection,
+        calculations: {
+          originalDuration: audioFile.duration,
+          selectedDuration: cutParams.endTime - cutParams.startTime,
+          expectedOutputDuration: (cutParams.endTime - cutParams.startTime) / cutParams.playbackRate,
+          pitchEffect: cutParams.pitch !== 0 ? `${cutParams.pitch} semitones` : 'No pitch change',
+          speedEffect: cutParams.playbackRate !== 1 ? `${cutParams.playbackRate}x speed` : 'Normal speed',
+          volumeEffect: cutParams.volume !== 1 ? `${Math.round(cutParams.volume * 100)}% volume` : 'Original volume'
+        }
+      });
+
+      // 🎯 Debug log for volume parameter
       console.log('🔊 Frontend Volume Debug:', {
         volume: volume,
         volumeType: typeof volume,
@@ -173,13 +244,75 @@ const CutDownload = ({
 
       const result = await audioApi.cutAudioByFileId(cutParams);
 
+      // 🔍 DETAILED FRONTEND LOG - Response received from backend
+      console.log('\n📥 BACKEND TO FRONTEND - DETAILED RESPONSE:');
+      console.log('📤 Received from Backend:', {
+        timestamp: new Date().toISOString(),
+        sessionId: sessionId,
+        success: result?.success,
+        error: result?.error,
+        rawResult: result,
+        processedData: {
+          input: result.data?.input || result.input,
+          output: result.data?.output || result.output,
+          processing: result.data?.processing || result.processing,
+          urls: result.data?.urls || result.urls
+        }
+      });
+
+      // 🔍 DETAILED COMPARISON - Frontend vs Backend
+      if (result?.success) {
+        const backendOutput = result.data?.output || result.output;
+        const backendProcessing = result.data?.processing || result.processing;
+        
+        console.log('\n🔄 FRONTEND ↔️ BACKEND COMPARISON:');
+        console.log('📊 Duration Comparison:', {
+          frontend: {
+            selectedDuration: cutParams.endTime - cutParams.startTime,
+            expectedOutputDuration: (cutParams.endTime - cutParams.startTime) / cutParams.playbackRate,
+            playbackRate: cutParams.playbackRate,
+            pitch: cutParams.pitch
+          },
+          backend: {
+            reportedDuration: backendOutput?.duration,
+            inputDuration: result.data?.input?.duration || result.input?.duration,
+            processingParams: backendProcessing
+          },
+          comparison: {
+            durationMatch: Math.abs((backendOutput?.duration || 0) - ((cutParams.endTime - cutParams.startTime) / cutParams.playbackRate)) < 0.1,
+            durationDifference: (backendOutput?.duration || 0) - ((cutParams.endTime - cutParams.startTime) / cutParams.playbackRate),
+            percentageDifference: backendOutput?.duration ? 
+              (((backendOutput.duration - ((cutParams.endTime - cutParams.startTime) / cutParams.playbackRate)) / backendOutput.duration) * 100).toFixed(2) + '%' : 'N/A'
+          }
+        });
+        
+        console.log('📊 Parameters Comparison:', {
+          frontend: {
+            volume: cutParams.volume,
+            playbackRate: cutParams.playbackRate,
+            pitch: cutParams.pitch,
+            fadeIn: cutParams.fadeIn,
+            fadeOut: cutParams.fadeOut,
+            format: cutParams.outputFormat,
+            quality: cutParams.quality
+          },
+          backend: backendProcessing,
+          matches: {
+            volumeMatch: backendProcessing?.volume === cutParams.volume,
+            speedMatch: backendProcessing?.playbackRate === cutParams.playbackRate,
+            pitchMatch: backendProcessing?.pitch === cutParams.pitch,
+            formatMatch: backendProcessing?.outputFormat === cutParams.outputFormat
+          }
+        });
+      }
+
       if (!result?.success)
         throw new Error(result?.error || 'Cut operation failed - invalid response');
       const outputFile = result.data?.output?.filename || result.output?.filename || result.data?.outputFile;
       if (!outputFile)
         throw new Error('No output file received from server');
 
-      setProcessedFile({
+      const processedFileData = {
         filename: outputFile,
         duration: result.data?.output?.duration || result.output?.duration || (endTime - startTime),
         fileSize: result.data?.output?.size || result.output?.size,
@@ -188,9 +321,44 @@ const CutDownload = ({
         outputFormat: cutParams.outputFormat,
         processedAt: new Date().toISOString(),
         sessionId
+      };
+
+      // 🔍 FINAL FRONTEND LOG - Processed file data
+      console.log('\n✅ FRONTEND FINAL RESULT:', {
+        timestamp: new Date().toISOString(),
+        sessionId: sessionId,
+        processedFile: processedFileData,
+        originalRequest: {
+          startTime: cutParams.startTime,
+          endTime: cutParams.endTime,
+          expectedDuration: cutParams.endTime - cutParams.startTime,
+          playbackRate: cutParams.playbackRate,
+          pitch: cutParams.pitch
+        },
+        durationAnalysis: {
+          originalSelection: cutParams.endTime - cutParams.startTime,
+          expectedWithSpeed: (cutParams.endTime - cutParams.startTime) / cutParams.playbackRate,
+          actualReceived: processedFileData.duration,
+          speedAdjusted: cutParams.playbackRate !== 1,
+          pitchAdjusted: cutParams.pitch !== 0,
+          durationCorrect: Math.abs(processedFileData.duration - ((cutParams.endTime - cutParams.startTime) / cutParams.playbackRate)) < 0.1
+        }
       });
 
+      setProcessedFile(processedFileData);
+
     } catch (error) {
+      // 🔍 ERROR LOG
+      console.error('\n❌ FRONTEND ERROR DETAILS:', {
+        timestamp: new Date().toISOString(),
+        error: error.message,
+        stack: error.stack,
+        requestParams: {
+          startTime, endTime, playbackRate, pitch, volume,
+          expectedDuration: endTime - startTime
+        }
+      });
+
       let msg = error.message;
       if (msg.includes('Network error'))
         msg = 'Cannot connect to server. Please check if the backend is running.';
@@ -206,7 +374,7 @@ const CutDownload = ({
     } finally {
       setIsProcessing(false);
     }
-  }, [audioFile, startTime, endTime, fadeIn, fadeOut, playbackRate, pitch, volume, equalizer, isInverted, normalizeVolume, outputFormat, clearProgress, activeRegionDuration, startProgressSession]);
+  }, [audioFile, startTime, endTime, fadeIn, fadeOut, playbackRate, pitch, volume, equalizer, isInverted, normalizeVolume, outputFormat, clearProgress, activeRegionDuration, startProgressSession, regions]);
 
   const handleDownload = useCallback(async () => {
     if (!processedFile)

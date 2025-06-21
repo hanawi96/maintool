@@ -160,7 +160,8 @@ export class MP3Utils {
     console.log('📍 Paths:', {
       input: inputPath,
       output: outputPath
-    });    console.log('⚙️ FFmpeg Options:', {
+    });
+    console.log('⚙️ FFmpeg Options:', {
       startTime: `${startTime}s`,
       endTime: endTime ? `${endTime}s` : 'Not set',
       duration: endTime ? `${endTime - startTime}s` : 'Full duration',
@@ -177,12 +178,52 @@ export class MP3Utils {
       isInverted: isInverted
     });
 
+    // 🔍 DETAILED FFMPEG PROCESSING LOG
+    console.log('\n🎬 FFMPEG PROCESSING ANALYSIS:');
+    console.log('📊 Input Analysis:', {
+      inputPath: inputPath,
+      startTime: startTime,
+      endTime: endTime,
+      originalDuration: endTime ? endTime - startTime : 'Full file',
+      processingMode: isInverted ? 'Inverted (Remove selection)' : 'Normal (Keep selection)'
+    });
+
+    console.log('🎛️ Effects Analysis:', {
+      pitch: {
+        value: pitch,
+        semitones: `${pitch} semitones`,
+        pitchRatio: Math.pow(2, pitch/12),
+        durationImpact: pitch !== 0 ? 'Will affect duration due to pitch processing' : 'No duration impact',
+        ffmpegFilter: pitch !== 0 ? `asetrate=44100*${Math.pow(2, pitch/12)}, aresample=44100, atempo=${1/Math.pow(2, pitch/12)}` : 'None'
+      },
+      speed: {
+        value: playbackRate,
+        percentage: `${playbackRate * 100}%`,
+        durationImpact: playbackRate !== 1 ? `Duration will be ${(1/playbackRate).toFixed(3)}x original` : 'No duration impact',
+        ffmpegFilter: playbackRate !== 1 ? buildAtempoFilters(playbackRate).join(', ') : 'None'
+      },
+      volume: {
+        value: volume,
+        percentage: `${volume * 100}%`,
+        durationImpact: 'No duration impact',
+        ffmpegFilter: volume !== 1 ? `volume=${volume}` : 'None'
+      },
+      combinedDurationEffect: {
+        originalDuration: endTime ? endTime - startTime : 'Unknown',
+        speedAdjustedDuration: endTime ? (endTime - startTime) / playbackRate : 'Unknown',
+        pitchNote: pitch !== 0 ? 'Pitch processing may cause additional duration changes' : 'No pitch effect',
+        finalExpectedDuration: endTime ? (endTime - startTime) / playbackRate : 'Unknown'
+      }
+    });
+
     if (isInverted && endTime) return this.cutAudioInvertMode(inputPath, outputPath, opts);
 
     return new Promise((resolve, reject) => {
       let command = ffmpeg(inputPath);
       if (startTime > 0) command = command.seekInput(startTime);
-      if (endTime && endTime > startTime) command = command.duration(endTime - startTime);      // 🎯 Build filters with proper pitch handling
+      if (endTime && endTime > startTime) command = command.duration(endTime - startTime);
+
+      // 🎯 Build filters with proper pitch handling
       const pitchRatio = Math.pow(2, pitch/12);
       const eqFilter = buildEqualizerFilter(equalizer);
       
@@ -255,6 +296,24 @@ export class MP3Utils {
       // 🎯 Log applied filters
       console.log('🎛️ Applied Audio Filters:', filters.length > 0 ? filters : ['None']);
 
+      // 🔍 DETAILED FILTER ANALYSIS
+      console.log('🔍 Filter Chain Analysis:', {
+        totalFilters: filters.length,
+        filterBreakdown: {
+          volumeFilters: filters.filter(f => f.includes('volume')),
+          equalizerFilters: filters.filter(f => f.includes('equalizer') || f.includes('bass') || f.includes('treble')),
+          speedFilters: filters.filter(f => f.includes('atempo')),
+          pitchFilters: filters.filter(f => f.includes('asetrate') || f.includes('aresample')),
+          fadeFilters: filters.filter(f => f.includes('afade')),
+          normalizeFilters: filters.filter(f => f.includes('loudnorm'))
+        },
+        durationAffectingFilters: {
+          speedFilters: filters.filter(f => f.includes('atempo')),
+          pitchFilters: filters.filter(f => f.includes('asetrate') || f.includes('aresample')),
+          note: 'These filters may affect final duration'
+        }
+      });
+
       if (filters.length) command = command.audioFilters(filters);
 
       const { codec, bitrate } = getFormatSettings(format, quality);
@@ -267,31 +326,101 @@ export class MP3Utils {
 
       console.log('🎬 Starting FFmpeg processing...\n');
 
+      // 🔍 FFMPEG EXECUTION LOG
+      let ffmpegCommand = '';
+      let ffmpegStartTime = Date.now();
+
       emitProgress(sessionId, { stage: 'initializing', percent: 0, message: 'Initializing FFmpeg...' });
       command
         .output(outputPath)
         .on('start', (commandLine) => {
+          ffmpegCommand = commandLine;
           console.log('🚀 FFmpeg Command:', commandLine);
+          
+          // 🔍 COMMAND ANALYSIS
+          console.log('\n🔍 FFMPEG COMMAND ANALYSIS:');
+          console.log('📋 Command Breakdown:', {
+            inputSeek: commandLine.includes('-ss') ? commandLine.match(/-ss\s+[\d.]+/)?.[0] : 'No seek',
+            inputFile: commandLine.match(/-i\s+[^\s]+/)?.[0] || 'No input',
+            duration: commandLine.includes('-t') ? commandLine.match(/-t\s+[\d.]+/)?.[0] : 'Full duration',
+            audioCodec: commandLine.match(/-acodec\s+\w+/)?.[0] || 'Default codec',
+            bitrate: commandLine.match(/-b:a\s+\w+/)?.[0] || 'Default bitrate',
+            filters: commandLine.includes('-filter:a') ? commandLine.match(/-filter:a\s+[^-]+/)?.[0] : 'No filters',
+            outputFile: commandLine.match(/[^\s]+\.mp3$/)?.[0] || 'Unknown output'
+          });
+          
           emitProgress(sessionId, { stage: 'processing', percent: 5, message: 'Started...' });
         })
-        .on('progress', (progress) => emitProgress(sessionId, {
-          stage: 'processing',
-          percent: Math.min(95, Math.max(5, Math.round(progress.percent || 0))),
-          currentTime: progress.timemark,
-          message: `Processing...`
-        }))
+        .on('progress', (progress) => {
+          // 🔍 PROGRESS ANALYSIS
+          if (Math.random() < 0.1) { // Log 10% of progress updates to avoid spam
+            console.log('📊 FFmpeg Progress:', {
+              percent: progress.percent?.toFixed(1) + '%',
+              currentTime: progress.timemark,
+              targetFps: progress.targetFps,
+              currentFps: progress.currentFps,
+              currentKbps: progress.currentKbps,
+              elapsedTime: ((Date.now() - ffmpegStartTime) / 1000).toFixed(1) + 's'
+            });
+          }
+          
+          emitProgress(sessionId, {
+            stage: 'processing',
+            percent: Math.min(95, Math.max(5, Math.round(progress.percent || 0))),
+            currentTime: progress.timemark,
+            message: `Processing...`
+          });
+        })
         .on('end', () => {
+          const processingTime = ((Date.now() - ffmpegStartTime) / 1000).toFixed(2);
+          
           console.log('✅ FFmpeg processing completed successfully!\n');
+          
+          // 🔍 POST-PROCESSING ANALYSIS
+          console.log('🎯 FFMPEG COMPLETION ANALYSIS:', {
+            processingTime: processingTime + 's',
+            command: ffmpegCommand,
+            outputPath: outputPath,
+            inputParams: {
+              startTime: startTime,
+              endTime: endTime,
+              originalDuration: endTime ? endTime - startTime : 'Full file'
+            },
+            effects: {
+              pitch: pitch,
+              speed: playbackRate,
+              volume: volume,
+              hasEqualizer: !!eqFilter,
+              hasFades: fadeIn > 0 || fadeOut > 0
+            },
+            expectedResults: {
+              durationWithoutEffects: endTime ? endTime - startTime : 'Unknown',
+              durationWithSpeed: endTime ? (endTime - startTime) / playbackRate : 'Unknown',
+              pitchNote: pitch !== 0 ? 'Pitch may have affected final duration' : 'No pitch effect'
+            }
+          });
+          
           emitProgress(sessionId, { stage: 'completed', percent: 100, message: 'Completed' });
           resolve({ success: true, outputPath, inputPath });
-        })        .on('error', (err) => {
+        })
+        .on('error', (err) => {
+          const processingTime = ((Date.now() - ffmpegStartTime) / 1000).toFixed(2);
+          
           console.log('❌ FFmpeg processing failed:', err.message);
           console.log('🔍 FFmpeg Error Details:', {
             error: err.message,
             command: 'Cut with filters',
+            processingTime: processingTime + 's',
             hasEqualizerFilter: !!eqFilter,
             equalizerFilter: eqFilter || 'None',
-            allFilters: filters
+            allFilters: filters,
+            inputParams: {
+              startTime: startTime,
+              endTime: endTime,
+              pitch: pitch,
+              speed: playbackRate,
+              volume: volume
+            }
           });
           
           // 🎚️ Check if this is an equalizer filter error and retry with fallback
@@ -650,6 +779,156 @@ export class MP3Utils {
   // Alias for service compatibility
   static async changeSpeed(inputPath, outputPath, opts = {}) {
     return this.changeAudioSpeed(inputPath, outputPath, opts);
+  }
+
+  // 🆕 Process regions sequentially and concatenate
+  static async processRegionsSequentially(inputPath, outputPath, timeline, globalParams = {}) {
+    console.log('\n🔧 SEQUENTIAL REGIONS PROCESSING');
+    console.log('📋 Timeline:', timeline.length, 'segments');
+    
+    const tempDir = path.resolve(MP3_CONFIG.PATHS.PROCESSED, 'temp');
+    await this.ensureDirectory(tempDir);
+    
+    const segmentFiles = [];
+    let totalDuration = 0;
+    
+    try {
+      // Process each segment
+      for (let i = 0; i < timeline.length; i++) {
+        const segment = timeline[i];
+        const segmentFilename = `segment_${i}_${Date.now()}.wav`;
+        const segmentPath = path.resolve(tempDir, segmentFilename);
+        
+        console.log(`🔧 Processing segment ${i + 1}/${timeline.length}:`, {
+          start: segment.start,
+          end: segment.end,
+          duration: segment.end - segment.start,
+          type: segment.type,
+          effects: segment.effects
+        });
+        
+        // Extract and process segment
+        await this.cutAudio(inputPath, segmentPath, {
+          startTime: segment.start,
+          endTime: segment.end,
+          volume: segment.effects.volume,
+          playbackRate: segment.effects.playbackRate,
+          pitch: segment.effects.pitch,
+          fadeIn: segment.effects.fadeIn,
+          fadeOut: segment.effects.fadeOut,
+          equalizer: globalParams.equalizer,
+          format: 'wav', // Use WAV for intermediate files to avoid quality loss
+          quality: 'high',
+          normalizeVolume: false, // Apply normalization at the end
+          sessionId: globalParams.sessionId
+        });
+        
+        segmentFiles.push(segmentPath);
+        
+        // Calculate duration (may be affected by speed changes)
+        const segmentDuration = (segment.end - segment.start) / (segment.effects.playbackRate || 1);
+        totalDuration += segmentDuration;
+        
+        console.log(`✅ Segment ${i + 1} processed: ${segmentDuration.toFixed(2)}s`);
+      }
+      
+      // Concatenate all segments
+      console.log('🔗 Concatenating', segmentFiles.length, 'segments...');
+      await this.concatenateAudioFiles(segmentFiles, outputPath, {
+        format: globalParams.outputFormat || 'mp3',
+        quality: globalParams.quality || 'medium',
+        normalizeVolume: globalParams.normalizeVolume,
+        sessionId: globalParams.sessionId
+      });
+      
+      console.log('✅ Sequential processing completed');
+      
+      return {
+        totalDuration,
+        segmentsProcessed: timeline.length,
+        outputPath
+      };
+      
+    } finally {
+      // Cleanup temp files
+      for (const tempFile of segmentFiles) {
+        try {
+          await fs.unlink(tempFile);
+        } catch (error) {
+          console.warn('⚠️ Failed to cleanup temp file:', tempFile);
+        }
+      }
+    }
+  }
+
+  // 🆕 Concatenate multiple audio files
+  static async concatenateAudioFiles(inputFiles, outputPath, opts = {}) {
+    const { format = 'mp3', quality = 'medium', normalizeVolume = false, sessionId = null } = opts;
+    
+    return new Promise((resolve, reject) => {
+      let command = ffmpeg();
+      
+      // Add all input files
+      inputFiles.forEach(file => {
+        command = command.input(file);
+      });
+      
+      // Build filter for concatenation
+      const inputsFilter = inputFiles.map((_, i) => `[${i}:0]`).join('');
+      const concatFilter = `${inputsFilter}concat=n=${inputFiles.length}:v=0:a=1[out]`;
+      
+      // Apply filters
+      const filters = [concatFilter];
+      if (normalizeVolume) {
+        filters.push('[out]loudnorm=I=-16:TP=-1.5:LRA=11:print_format=none[normalized]');
+        command = command.complexFilter(filters.join(';')).map('[normalized]');
+      } else {
+        command = command.complexFilter(concatFilter).map('[out]');
+      }
+      
+      // Set output format
+      const { codec, bitrate } = getFormatSettings(format, quality);
+      command = command.audioCodec(codec);
+      if (bitrate) command = command.audioBitrate(bitrate);
+      
+      if (['m4r', 'm4a'].includes(format)) {
+        command = command.format('mp4').outputOptions(['-f', 'mp4', '-movflags', '+faststart']);
+      } else if (format === 'flac') {
+        command = command.format('flac');
+      } else if (format === 'ogg') {
+        command = command.format('ogg');
+      }
+      
+      console.log('🔗 Starting concatenation...');
+      
+      emitProgress(sessionId, { stage: 'concatenating', percent: 0, message: 'Concatenating segments...' });
+      
+      command
+        .output(outputPath)
+        .on('start', (commandLine) => {
+          console.log('🚀 Concatenation Command:', commandLine);
+          emitProgress(sessionId, { stage: 'concatenating', percent: 10, message: 'Started concatenation...' });
+        })
+        .on('progress', (progress) => {
+          emitProgress(sessionId, {
+            stage: 'concatenating',
+            percent: Math.min(95, Math.max(10, Math.round(progress.percent || 0))),
+            currentTime: progress.timemark,
+            message: 'Concatenating segments...'
+          });
+        })
+        .on('end', () => {
+          console.log('✅ Concatenation completed successfully!');
+          emitProgress(sessionId, { stage: 'completed', percent: 100, message: 'Concatenation completed' });
+          resolve({ success: true, outputPath });
+        })
+        .on('error', (err) => {
+          console.error('❌ Concatenation failed:', err.message);
+          emitProgress(sessionId, { stage: 'error', percent: 0, message: err.message });
+          reject(new Error(`Concatenation failed: ${err.message}`));
+        })
+        .run();
+    });
   }
 
   static async generateWaveform(filePath, samples = 1000) {

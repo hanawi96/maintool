@@ -85,7 +85,12 @@ export const validateWaveformParams = (req, res, next) => {
 
 // New validation for cut by file ID (no audioInfo required)
 export const validateCutParamsById = (req, res, next) => {
-  const { startTime, endTime, fadeIn = 0, fadeOut = 0, playbackRate = 1, pitch = 0, volume = 1, equalizer } = req.body;
+  const { 
+    startTime, endTime, fadeIn = 0, fadeOut = 0, playbackRate = 1, pitch = 0, volume = 1, equalizer,
+    // 🆕 Region support
+    regions = [],
+    mainSelection = null
+  } = req.body;
   
   // 🎯 Debug log for received parameters
   console.log('\n🔍 BACKEND VALIDATION DEBUG:');
@@ -95,6 +100,40 @@ export const validateCutParamsById = (req, res, next) => {
     volumeType: typeof volume,
     volumeDefault: volume === 1 ? 'Using default' : 'Custom value'
   });
+  
+  // 🆕 Debug log for regions
+  if (regions && regions.length > 0) {
+    console.log('🎯 Regions from req.body:', {
+      regionsCount: regions.length,
+      regions: regions.map(r => ({
+        id: r.id,
+        start: r.start,
+        end: r.end,
+        duration: r.end - r.start,
+        volume: r.volume,
+        playbackRate: r.playbackRate,
+        pitch: r.pitch,
+        fadeIn: r.fadeIn,
+        fadeOut: r.fadeOut
+      }))
+    });
+  } else {
+    console.log('🎯 No regions data received from frontend');
+  }
+  
+  // 🆕 Debug log for main selection
+  if (mainSelection) {
+    console.log('🎯 Main Selection from req.body:', {
+      start: mainSelection.start,
+      end: mainSelection.end,
+      duration: mainSelection.end - mainSelection.start,
+      volume: mainSelection.volume,
+      playbackRate: mainSelection.playbackRate,
+      pitch: mainSelection.pitch,
+      fadeIn: mainSelection.fadeIn,
+      fadeOut: mainSelection.fadeOut
+    });
+  }
   
   // 🎚️ Debug log for equalizer parameters
   if (equalizer) {
@@ -109,32 +148,132 @@ export const validateCutParamsById = (req, res, next) => {
     console.log('🎚️ No equalizer data received from frontend');
   }
   
-  // Parse parameters
+  // Parse parameters for backward compatibility (legacy main selection)
   const start = parseParam(startTime);
   const end = parseParam(endTime);
   const rate = parseParam(playbackRate, 1);
   const pitchSemitones = parseParam(pitch, 0);
-  const volumeLevel = parseParam(volume, 1); // 🎯 Add volume parsing
+  const volumeLevel = parseParam(volume, 1);
   
-  // Basic validation
-  if (start >= end) {
-    return errorRes(res, 'Invalid time range: startTime must be less than endTime');
-  }
-  if (start < 0) {
-    return errorRes(res, 'Invalid startTime: must be >= 0');
-  }
-  if (!isValidRate(rate)) {
-    return errorRes(res, 'Invalid playback rate. Must be between 0.25x and 4x');
+  // 🆕 Validate regions if provided
+  let validatedRegions = [];
+  if (regions && Array.isArray(regions)) {
+    for (let i = 0; i < regions.length; i++) {
+      const region = regions[i];
+      
+      // Validate region structure
+      if (!region.id || typeof region.id !== 'string') {
+        return errorRes(res, `Region ${i}: id is required and must be a string`);
+      }
+      
+      const regionStart = parseParam(region.start);
+      const regionEnd = parseParam(region.end);
+      
+      if (regionStart >= regionEnd) {
+        return errorRes(res, `Region ${i} (${region.id}): startTime must be less than endTime`);
+      }
+      
+      if (regionStart < 0) {
+        return errorRes(res, `Region ${i} (${region.id}): startTime must be >= 0`);
+      }
+      
+      // Validate region effects
+      const regionRate = parseParam(region.playbackRate, 1);
+      const regionPitch = parseParam(region.pitch, 0);
+      const regionVolume = parseParam(region.volume, 1);
+      
+      if (!isValidRate(regionRate)) {
+        return errorRes(res, `Region ${i} (${region.id}): invalid playback rate. Must be between 0.25x and 4x`);
+      }
+      
+      if (regionVolume < 0 || regionVolume > 2.0) {
+        return errorRes(res, `Region ${i} (${region.id}): invalid volume. Must be between 0% and 200%`);
+      }
+      
+      if (regionPitch < -24 || regionPitch > 24) {
+        return errorRes(res, `Region ${i} (${region.id}): invalid pitch. Must be between -24 and +24 semitones`);
+      }
+      
+      validatedRegions.push({
+        id: region.id,
+        name: region.name || `Region ${i + 1}`,
+        start: regionStart,
+        end: regionEnd,
+        volume: regionVolume,
+        playbackRate: regionRate,
+        pitch: regionPitch,
+        fadeIn: parseParam(region.fadeIn, 0),
+        fadeOut: parseParam(region.fadeOut, 0)
+      });
+    }
+    
+    console.log('🎯 Validated regions:', validatedRegions.length);
   }
   
-  // 🎯 Validate volume range (0-2.0 for 200% boost)
-  if (volumeLevel < 0 || volumeLevel > 2.0) {
-    return errorRes(res, 'Invalid volume: must be between 0% and 200%');
+  // 🆕 Validate main selection if provided
+  let validatedMainSelection = null;
+  if (mainSelection) {
+    const mainStart = parseParam(mainSelection.start);
+    const mainEnd = parseParam(mainSelection.end);
+    
+    if (mainStart >= mainEnd) {
+      return errorRes(res, 'Main selection: startTime must be less than endTime');
+    }
+    
+    if (mainStart < 0) {
+      return errorRes(res, 'Main selection: startTime must be >= 0');
+    }
+    
+    const mainRate = parseParam(mainSelection.playbackRate, 1);
+    const mainPitch = parseParam(mainSelection.pitch, 0);
+    const mainVolume = parseParam(mainSelection.volume, 1);
+    
+    if (!isValidRate(mainRate)) {
+      return errorRes(res, 'Main selection: invalid playback rate. Must be between 0.25x and 4x');
+    }
+    
+    if (mainVolume < 0 || mainVolume > 2.0) {
+      return errorRes(res, 'Main selection: invalid volume. Must be between 0% and 200%');
+    }
+    
+    if (mainPitch < -24 || mainPitch > 24) {
+      return errorRes(res, 'Main selection: invalid pitch. Must be between -24 and +24 semitones');
+    }
+    
+    validatedMainSelection = {
+      start: mainStart,
+      end: mainEnd,
+      volume: mainVolume,
+      playbackRate: mainRate,
+      pitch: mainPitch,
+      fadeIn: parseParam(mainSelection.fadeIn, 0),
+      fadeOut: parseParam(mainSelection.fadeOut, 0)
+    };
+    
+    console.log('🎯 Validated main selection:', validatedMainSelection);
   }
   
-  // Validate pitch range (typically -24 to +24 semitones)
-  if (pitchSemitones < -24 || pitchSemitones > 24) {
-    return errorRes(res, 'Invalid pitch: must be between -24 and +24 semitones');
+  // Legacy validation for backward compatibility
+  if (!validatedMainSelection && (startTime !== undefined || endTime !== undefined)) {
+    if (start >= end) {
+      return errorRes(res, 'Invalid time range: startTime must be less than endTime');
+    }
+    if (start < 0) {
+      return errorRes(res, 'Invalid startTime: must be >= 0');
+    }
+    if (!isValidRate(rate)) {
+      return errorRes(res, 'Invalid playback rate. Must be between 0.25x and 4x');
+    }
+    
+    // 🎯 Validate volume range (0-2.0 for 200% boost)
+    if (volumeLevel < 0 || volumeLevel > 2.0) {
+      return errorRes(res, 'Invalid volume: must be between 0% and 200%');
+    }
+    
+    // Validate pitch range (typically -24 to +24 semitones)
+    if (pitchSemitones < -24 || pitchSemitones > 24) {
+      return errorRes(res, 'Invalid pitch: must be between -24 and +24 semitones');
+    }
   }
   
   // 🎚️ Validate equalizer parameters
@@ -157,14 +296,19 @@ export const validateCutParamsById = (req, res, next) => {
   }
   
   req.cutParams = { 
+    // Legacy parameters for backward compatibility
     startTime: start, 
     endTime: end, 
     fadeIn: parseParam(fadeIn), 
     fadeOut: parseParam(fadeOut), 
     playbackRate: rate,
     pitch: pitchSemitones,
-    volume: volumeLevel, // 🎯 Add volume to cutParams
-    equalizer: validatedEqualizer, // 🎚️ Add equalizer to cutParams
+    volume: volumeLevel,
+    equalizer: validatedEqualizer,
+    // 🆕 New region support
+    regions: validatedRegions,
+    mainSelection: validatedMainSelection,
+    // Other parameters
     outputFormat: req.body.outputFormat || 'mp3',
     quality: req.body.quality || 'medium',
     isInverted: Boolean(req.body.isInverted),

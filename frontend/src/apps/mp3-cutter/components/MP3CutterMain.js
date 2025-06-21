@@ -916,6 +916,113 @@ const MP3CutterMain = React.memo(() => {
     };
   }, [isPlaying, regions, playbackRate, updatePlaybackRate, audioRef]);
 
+  // 🚀 Dynamic region pitch during playback
+  const lastAppliedPitchRef = useRef(pitchValue);
+  const pitchAnimationRef = useRef(null);
+  
+  useEffect(() => {
+    if (!setPitchValue) return;
+    
+    if (!isPlaying) {
+      // When not playing, ensure we use main pitch
+      if (Math.abs(pitchValue - lastAppliedPitchRef.current) > 0.001) {
+        setPitchValue(pitchValue);
+        lastAppliedPitchRef.current = pitchValue;
+        console.log('🎵 Dynamic Pitch: Applied main pitch (not playing):', pitchValue);
+      }
+      return;
+    }
+    
+    // Only run dynamic pitch if there are regions with different pitches
+    const hasRegionPitches = regions.some(region => {
+      const regionPitch = region.pitch;
+      // 🔧 CRITICAL: Validate region pitch values
+      if (regionPitch !== undefined) {
+        if (typeof regionPitch !== 'number' || !isFinite(regionPitch) || isNaN(regionPitch)) {
+          console.error('🚨 INVALID region pitch detected:', {
+            regionId: region.id,
+            pitch: regionPitch,
+            type: typeof regionPitch,
+            isFinite: isFinite(regionPitch),
+            isNaN: isNaN(regionPitch)
+          });
+          return false; // Skip invalid regions
+        }
+        return Math.abs(regionPitch - pitchValue) > 0.001;
+      }
+      return false;
+    });
+    
+    if (!hasRegionPitches) {
+      // No region pitches different from main, just ensure main pitch is applied
+      if (Math.abs(pitchValue - lastAppliedPitchRef.current) > 0.001) {
+        setPitchValue(pitchValue);
+        lastAppliedPitchRef.current = pitchValue;
+        console.log('🎵 Dynamic Pitch: Applied main pitch (no region differences):', pitchValue);
+      }
+      return;
+    }
+    
+    console.log('🎵 Dynamic Pitch: Starting animation loop - regions have different pitches');
+    
+    const updatePitchForCurrentTime = () => {
+      if (!audioRef.current || !isPlaying) return;
+      
+      const currentAudioTime = audioRef.current.currentTime;
+      
+      // Find which region contains current time
+      const activeRegion = regions.find(region => 
+        currentAudioTime >= region.start && currentAudioTime <= region.end
+      );
+      
+      let targetPitch = pitchValue; // Default to main pitch
+      
+      if (activeRegion && activeRegion.pitch !== undefined) {
+        const regionPitch = activeRegion.pitch;
+        
+        // 🔧 CRITICAL: Validate region pitch before using
+        if (typeof regionPitch === 'number' && isFinite(regionPitch) && !isNaN(regionPitch)) {
+          targetPitch = Math.max(-12, Math.min(12, regionPitch)); // Clamp to safe range
+        } else {
+          console.error('🚨 INVALID region pitch in dynamic system:', {
+            regionId: activeRegion.id,
+            pitch: regionPitch,
+            type: typeof regionPitch,
+            currentTime: currentAudioTime
+          });
+          // Use main pitch as fallback
+          targetPitch = pitchValue;
+        }
+      }
+      
+      // Only update if pitch actually changed
+      if (Math.abs(targetPitch - lastAppliedPitchRef.current) > 0.001) {
+        setPitchValue(targetPitch);
+        lastAppliedPitchRef.current = targetPitch;
+        console.log('🎵 Dynamic Pitch: Applied during playback:', {
+          time: currentAudioTime.toFixed(2),
+          region: activeRegion ? activeRegion.id : 'main',
+          pitch: targetPitch,
+          previousPitch: lastAppliedPitchRef.current
+        });
+      }
+      
+      // Continue animation
+      pitchAnimationRef.current = requestAnimationFrame(updatePitchForCurrentTime);
+    };
+    
+    // Start animation
+    pitchAnimationRef.current = requestAnimationFrame(updatePitchForCurrentTime);
+    
+    return () => {
+      if (pitchAnimationRef.current) {
+        cancelAnimationFrame(pitchAnimationRef.current);
+        pitchAnimationRef.current = null;
+        console.log('🎵 Dynamic Pitch: Animation stopped');
+      }
+    };
+  }, [isPlaying, regions, pitchValue, setPitchValue, audioRef]);
+
   // 🚀 Final render with all optimizations
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-pink-50">
@@ -1069,6 +1176,10 @@ const MP3CutterMain = React.memo(() => {
                   disabled={!audioFile}
                   regions={regions}
                   activeRegionId={activeRegionId}
+                  getCurrentFadeValues={fadeHandlers.getCurrentFadeValues}
+                  getCurrentVolumeValues={volumeHandlers.getCurrentVolumeValues}
+                  getCurrentSpeedValues={speedHandlers.getCurrentSpeedValues}
+                  getCurrentPitchValues={pitchHandlers.getCurrentPitchValues}
                 />
               </div>
             </div>
