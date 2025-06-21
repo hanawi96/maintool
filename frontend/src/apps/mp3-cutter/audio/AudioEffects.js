@@ -34,6 +34,7 @@ export const useEnhancedFadeHandlers = ({
     
     if (applyToAll && regions.length > 0) {
       // Apply to all regions + main selection
+      console.log(`🌐 Applying ${type} fade to ALL ${regions.length} regions + main selection`);
       const updatedRegions = regions.map(region => ({
         ...region,
         [type === 'in' ? 'fadeIn' : 'fadeOut']: value
@@ -47,35 +48,100 @@ export const useEnhancedFadeHandlers = ({
       dispatch({ type: 'SET_FADE', fadeIn: newMainFadeIn, fadeOut: newMainFadeOut });
       updateFadeConfig({ fadeIn: newMainFadeIn, fadeOut: newMainFadeOut, startTime, endTime, isInverted, duration });
       
+      console.log(`✅ Applied ${type} fade to all regions + main:`, { 
+        regionsUpdated: updatedRegions.length, 
+        mainFade: { fadeIn: newMainFadeIn, fadeOut: newMainFadeOut } 
+      });
+      
     } else if (!activeRegionId || activeRegionId === 'main') {
       // Apply to main selection only
+      console.log(`🎯 Applying ${type} fade to MAIN selection only`);
       const newFadeIn = type === 'in' ? value : fadeIn;
       const newFadeOut = type === 'out' ? value : fadeOut;
       
       dispatch({ type: 'SET_FADE', fadeIn: newFadeIn, fadeOut: newFadeOut });
       updateFadeConfig({ fadeIn: newFadeIn, fadeOut: newFadeOut, startTime, endTime, isInverted, duration });
       
+      console.log(`✅ Applied ${type} fade to main selection:`, { fadeIn: newFadeIn, fadeOut: newFadeOut });
+      
     } else {
       // Apply to specific region only
-      console.log(`🎛️ Updating region ${activeRegionId} ${type} fade to ${value}s (no updateFadeConfig)`);
+      console.log(`🎯 Applying ${type} fade to REGION ${activeRegionId} only (no audio effect)`);
       const updatedRegions = regions.map(region => 
         region.id === activeRegionId 
           ? { ...region, [type === 'in' ? 'fadeIn' : 'fadeOut']: value }
           : region
       );
       dispatch({ type: 'SET_REGIONS', regions: updatedRegions });
+      
+      const updatedRegion = updatedRegions.find(r => r.id === activeRegionId);
+      console.log(`✅ Applied ${type} fade to region ${activeRegionId}:`, { 
+        fadeIn: updatedRegion?.fadeIn || 0, 
+        fadeOut: updatedRegion?.fadeOut || 0 
+      });
     }
   }, [activeRegionId, regions, fadeIn, fadeOut, startTime, endTime, isInverted, duration, updateFadeConfig, dispatch]);
 
-  const handleFadeInChange = useCallback((value, applyToAll = false) => applyFade('in', value, applyToAll), [applyFade]);
-  const handleFadeOutChange = useCallback((value, applyToAll = false) => applyFade('out', value, applyToAll), [applyFade]);
+  const handleFadeInChange = useCallback((value, applyToAll = false, operation = 'normal', data = null) => {
+    if (operation === 'restore-main' && data) {
+      // Restore main selection fade
+      console.log(`🔄 Restoring main fade:`, data);
+      dispatch({ type: 'SET_FADE', fadeIn: data.fadeIn, fadeOut: data.fadeOut });
+      updateFadeConfig({ fadeIn: data.fadeIn, fadeOut: data.fadeOut, startTime, endTime, isInverted, duration });
+    } else if (operation === 'restore-regions' && data) {
+      // Restore individual region fades
+      console.log(`🔄 Restoring region fades:`, data);
+      const updatedRegions = regions.map(region => {
+        const backupRegion = data.regions.find(r => r.id === region.id);
+        if (backupRegion) {
+          return { ...region, [data.fadeType]: backupRegion.value };
+        }
+        return region;
+      });
+      dispatch({ type: 'SET_REGIONS', regions: updatedRegions });
+    } else {
+      // Normal fade operation
+      applyFade('in', value, applyToAll);
+    }
+  }, [applyFade, dispatch, updateFadeConfig, startTime, endTime, isInverted, duration, regions]);
   
-  const handleFadeInDragEnd = useCallback((finalFadeIn, applyToAll = false) => {
+  const handleFadeOutChange = useCallback((value, applyToAll = false, operation = 'normal', data = null) => {
+    if (operation === 'restore-main' && data) {
+      // Restore main selection fade
+      console.log(`🔄 Restoring main fade:`, data);
+      dispatch({ type: 'SET_FADE', fadeIn: data.fadeIn, fadeOut: data.fadeOut });
+      updateFadeConfig({ fadeIn: data.fadeIn, fadeOut: data.fadeOut, startTime, endTime, isInverted, duration });
+    } else if (operation === 'restore-regions' && data) {
+      // Restore individual region fades
+      console.log(`🔄 Restoring region fades:`, data);
+      const updatedRegions = regions.map(region => {
+        const backupRegion = data.regions.find(r => r.id === region.id);
+        if (backupRegion) {
+          return { ...region, [data.fadeType]: backupRegion.value };
+        }
+        return region;
+      });
+      dispatch({ type: 'SET_REGIONS', regions: updatedRegions });
+    } else {
+      // Normal fade operation
+      applyFade('out', value, applyToAll);
+    }
+  }, [applyFade, dispatch, updateFadeConfig, startTime, endTime, isInverted, duration, regions]);
+  
+  const handleFadeInDragEnd = useCallback((finalFadeIn, applyToAll = false, operation = 'normal', data = null) => {
+    if (operation === 'restore-main' || operation === 'restore-regions') {
+      // Restore operations don't need dragEnd handling
+      return;
+    }
     applyFade('in', finalFadeIn, applyToAll);
     saveState({ startTime, endTime, fadeIn: applyToAll || !activeRegionId || activeRegionId === 'main' ? finalFadeIn : fadeIn, fadeOut, isInverted });
   }, [applyFade, startTime, endTime, fadeIn, fadeOut, isInverted, saveState, activeRegionId]);
   
-  const handleFadeOutDragEnd = useCallback((finalFadeOut, applyToAll = false) => {
+  const handleFadeOutDragEnd = useCallback((finalFadeOut, applyToAll = false, operation = 'normal', data = null) => {
+    if (operation === 'restore-main' || operation === 'restore-regions') {
+      // Restore operations don't need dragEnd handling
+      return;
+    }
     applyFade('out', finalFadeOut, applyToAll);
     saveState({ startTime, endTime, fadeIn, fadeOut: applyToAll || !activeRegionId || activeRegionId === 'main' ? finalFadeOut : fadeOut, isInverted });
   }, [applyFade, startTime, endTime, fadeIn, fadeOut, isInverted, saveState, activeRegionId]);

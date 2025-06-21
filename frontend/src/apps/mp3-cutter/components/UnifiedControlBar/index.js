@@ -145,7 +145,10 @@ const UnifiedControlBar = React.memo(({
       // 🆕 Region support props
       regions,
       activeRegionId,
-      getCurrentFadeValues: getCurrentFadeValues
+      getCurrentFadeValues: getCurrentFadeValues,
+      // 🔧 CRITICAL FIX: Add main fade values for backup/restore
+      fadeIn,
+      fadeOut
     },
     fadeOut: {
       type: 'out',
@@ -157,7 +160,10 @@ const UnifiedControlBar = React.memo(({
       // 🆕 Region support props
       regions,
       activeRegionId,
-      getCurrentFadeValues: getCurrentFadeValues
+      getCurrentFadeValues: getCurrentFadeValues,
+      // 🔧 CRITICAL FIX: Add main fade values for backup/restore
+      fadeIn,
+      fadeOut
     },
     volume: {
       value: volume,
