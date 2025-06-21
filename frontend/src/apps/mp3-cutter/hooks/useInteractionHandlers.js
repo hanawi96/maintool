@@ -181,8 +181,14 @@ export const useInteractionHandlers = ({
     
     // 🆕 Enhanced cursor jumping and endpoint jumping logic - Apply to ALL active regions including main
     // 🔧 CRITICAL FIX: Only execute if NO real dragging occurred
-    if (!wasDragging && !hadRealDrag && lastClickPositionRef.current !== null && activeRegionId && regions.length > 0) {
-      console.log('🔥 useInteractionHandlers: Entering cursor/endpoint jumping logic (no drag detected)...');
+    // 🔧 MAIN FIX: Allow endpoint jumping for main region even when regions.length === 0
+    if (!wasDragging && !hadRealDrag && lastClickPositionRef.current !== null && activeRegionId) {
+      console.log('🔥 useInteractionHandlers: Entering cursor/endpoint jumping logic (no drag detected)...', {
+        activeRegionId,
+        regionsCount: regions.length,
+        isMainOnly: activeRegionId === 'main' && regions.length === 0
+      });
+      
       const canvas = canvasRef.current;
       if (canvas) {
         // 🔧 Check if region was ALREADY active at mouse down (not a selection click)
@@ -196,7 +202,8 @@ export const useInteractionHandlers = ({
           isSelectionClick,
           shouldJumpCursor: wasAlreadyActive,
           hasClickPosition: !!lastClickPositionRef.current,
-          hadRealDrag
+          hadRealDrag,
+          isMainOnly: activeRegionId === 'main' && regions.length === 0
         });
         
         // 🚫 Skip for selection clicks - let region selection handler take care of it
@@ -280,7 +287,8 @@ export const useInteractionHandlers = ({
               isClickInAnyRegionArea,
               isClickInMainArea,
               shouldApplyEndpointJumping: !isClickInAnyRegionArea && !isInStartHandle && !isInEndHandle,
-              hadRealDrag
+              hadRealDrag,
+              isMainOnly: activeRegionId === 'main' && regions.length === 0
             });
             
             // Skip if clicking on handles
@@ -291,8 +299,7 @@ export const useInteractionHandlers = ({
               return;
             }
             
-            // 🆕 NEW CONDITION: Only apply logic if click is NOT within any region area
-            // This ensures endpoint jumping only works for clicks in empty waveform areas
+            // 🆕 UPDATED CONDITION: Apply endpoint jumping for clicks OUTSIDE region areas OR for main-only scenarios
             if (isClickInAnyRegionArea) {
               // ✅ Click INSIDE region area - jump cursor to click point (normal behavior)
               if (clickTime >= regionStart && clickTime <= regionEnd) {
@@ -306,8 +313,14 @@ export const useInteractionHandlers = ({
               return;
             }
             
-            // 🆕 NEW LOGIC: Click in EMPTY AREA outside all regions - apply endpoint jumping to active region
-            console.log('🔧 Click in EMPTY AREA - applying endpoint jumping to active region');
+            // 🆕 ENDPOINT JUMPING LOGIC: Works for empty area clicks OR main-only scenarios
+            const isMainOnly = activeRegionId === 'main' && regions.length === 0;
+            
+            if (isMainOnly) {
+              console.log('🔧 Main-only scenario - applying endpoint jumping for clicks outside main region');
+            } else {
+              console.log('🔧 Click in EMPTY AREA - applying endpoint jumping to active region');
+            }
             
             // 🎯 Determine which endpoint to move based on click position relative to active region
             const isBeforeStart = clickTime < regionStart;
@@ -329,7 +342,7 @@ export const useInteractionHandlers = ({
               console.log('📍 Moving active region END point to click position:', newTime.toFixed(2));
             } else {
               // Click within active region - just jump cursor
-              console.log('🎯 Click within active region in empty area - jumping cursor to click point:', clickTime.toFixed(2));
+              console.log('🎯 Click within active region - jumping cursor to click point:', clickTime.toFixed(2));
               jumpToTime(clickTime);
               lastClickPositionRef.current = null;
               activeRegionAtMouseDownRef.current = null;
@@ -376,8 +389,8 @@ export const useInteractionHandlers = ({
       console.log('🚫 Was dragging state, skipping cursor/endpoint jumping');
     } else if (!lastClickPositionRef.current) {
       console.log('🚫 No click position stored, skipping cursor/endpoint jumping');
-    } else if (!activeRegionId || regions.length === 0) {
-      console.log('🚫 No active region or no regions, skipping cursor/endpoint jumping');
+    } else if (!activeRegionId) {
+      console.log('🚫 No active region, skipping cursor/endpoint jumping');
     }
     
     // Clean up
