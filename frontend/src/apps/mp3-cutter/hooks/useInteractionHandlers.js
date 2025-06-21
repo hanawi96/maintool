@@ -200,6 +200,9 @@ export const useInteractionHandlers = ({
     dragStartPositionRef.current = null;
     hasDraggedRef.current = false;
     
+    // 🆕 Track if endpoint jumping was applied to prevent overriding cursor position
+    let endpointJumpingApplied = false;
+    
     // 🆕 Enhanced cursor jumping and endpoint jumping logic - Apply to ALL active regions including main
     // 🔧 CRITICAL FIX: Use hadRealDrag instead of wasDragging for the main condition
     // 🔧 MAIN FIX: Allow endpoint jumping for main region even when regions.length === 0
@@ -375,9 +378,18 @@ export const useInteractionHandlers = ({
                 if (updateType === 'start') {
                   handleStartTimeChange(newTime);
                   console.log('✅ Updated main selection START to:', newTime.toFixed(2));
+                  // Jump cursor to start position
+                  jumpToTime(newTime);
+                  endpointJumpingApplied = true; // 🎯 Mark that endpoint jumping was applied
                 } else {
                   handleEndTimeChange(newTime);
                   console.log('✅ Updated main selection END to:', newTime.toFixed(2));
+                  // 🎯 MAIN FIX: Set cursor 3 seconds before endpoint (like drag handle right)
+                  const regionDuration = newTime - regionStart;
+                  const cursorPosition = regionDuration < 3 ? regionStart : Math.max(regionStart, newTime - 3);
+                  jumpToTime(cursorPosition);
+                  console.log('🎯 Set cursor position for main selection END:', cursorPosition.toFixed(2), '(3 seconds before endpoint)');
+                  endpointJumpingApplied = true; // 🎯 Mark that endpoint jumping was applied
                 }
               } else {
                 // Update region
@@ -388,6 +400,20 @@ export const useInteractionHandlers = ({
                   };
                   onRegionUpdate(activeRegionId, updatedRegion.start, updatedRegion.end);
                   console.log('✅ Updated region', activeRegionId, updateType.toUpperCase(), 'to:', newTime.toFixed(2));
+                  
+                  // 🎯 MAIN FIX: Set cursor position for region updates (like drag handle)
+                  if (updateType === 'start') {
+                    jumpToTime(newTime);
+                    console.log('🎯 Set cursor position for region START:', newTime.toFixed(2));
+                    endpointJumpingApplied = true; // 🎯 Mark that endpoint jumping was applied
+                  } else {
+                    // Set cursor 3 seconds before endpoint (like drag handle right)
+                    const regionDuration = newTime - updatedRegion.start;
+                    const cursorPosition = regionDuration < 3 ? updatedRegion.start : Math.max(updatedRegion.start, newTime - 3);
+                    jumpToTime(cursorPosition);
+                    console.log('🎯 Set cursor position for region END:', cursorPosition.toFixed(2), '(3 seconds before endpoint)');
+                    endpointJumpingApplied = true; // 🎯 Mark that endpoint jumping was applied
+                  }
                 } else {
                   console.warn('⚠️ onRegionUpdate not provided, cannot update region');
                 }
@@ -421,20 +447,25 @@ export const useInteractionHandlers = ({
     lastClickPositionRef.current = null;
     activeRegionAtMouseDownRef.current = null;
     
-    // Handle pending operations from interaction manager
-    if (result.executePendingJump && result.pendingJumpTime !== null) {
-      console.log('🎯 Executing pending jump to:', result.pendingJumpTime);
-      setCurrentTime(result.pendingJumpTime);
-    }
-    
-    if (result.executePendingHandleUpdate && result.pendingHandleUpdate) {
-      const updateData = result.pendingHandleUpdate;
-      console.log('🎯 Executing pending handle update:', updateData);
-      setCurrentTime(updateData.newTime);
+    // 🎯 MAIN FIX: Only execute pending operations if endpoint jumping was NOT applied
+    if (!endpointJumpingApplied) {
+      // Handle pending operations from interaction manager
+      if (result.executePendingJump && result.pendingJumpTime !== null) {
+        console.log('🎯 Executing pending jump to:', result.pendingJumpTime);
+        setCurrentTime(result.pendingJumpTime);
+      }
+      
+      if (result.executePendingHandleUpdate && result.pendingHandleUpdate) {
+        const updateData = result.pendingHandleUpdate;
+        console.log('🎯 Executing pending handle update:', updateData);
+        setCurrentTime(updateData.newTime);
+      }
+    } else {
+      console.log('🚫 Skipping pending operations - endpoint jumping was applied, preserving cursor position');
     }
     
     if (result.saveHistory) saveHistoryNow();
-  }, [startTime, endTime, duration, saveHistoryNow, setIsDragging, setCurrentTime, jumpToTime, interactionManagerRef, audioContext, handleStartTimeChange, handleEndTimeChange, activeRegionId, regions, canvasRef, onRegionUpdate, isDragging]);
+  }, [startTime, endTime, duration, saveHistoryNow, setIsDragging, setCurrentTime, jumpToTime, interactionManagerRef, audioContext, handleStartTimeChange, handleEndTimeChange, activeRegionId, regions, canvasRef, onRegionUpdate, isDragging, audioRef]);
 
   const handleCanvasMouseLeave = useCallback(() => {
     const manager = interactionManagerRef.current;
