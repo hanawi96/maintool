@@ -391,4 +391,103 @@ export const useFadeHandlers = ({
     handleFadeOutToggle,
     handlePresetApply
   };
+};
+
+// 🆕 Enhanced volume handlers for regions support
+export const useEnhancedVolumeHandlers = ({ 
+  volume, 
+  updateVolume,
+  // 🆕 Region props
+  regions = [],
+  activeRegionId = null,
+  dispatch
+}) => {
+  // 🚀 Get current volume values based on active region
+  const getCurrentVolumeValues = useCallback(() => {
+    const result = !activeRegionId || activeRegionId === 'main' 
+      ? { volume } 
+      : (() => {
+          const activeRegion = regions.find(r => r.id === activeRegionId);
+          return activeRegion ? { 
+            volume: activeRegion.volume !== undefined ? activeRegion.volume : 1.0
+          } : { volume: 1.0 };
+        })();
+    
+    return result;
+  }, [activeRegionId, regions, volume]);
+
+  // 🚀 Apply volume to active region or globally
+  const applyVolume = useCallback((value, applyToAll = false) => {
+    console.log(`🔊 Applying volume: ${value}, applyToAll: ${applyToAll}, activeRegion: ${activeRegionId}`);
+    
+    if (applyToAll && regions.length > 0) {
+      // Apply to all regions + main selection
+      console.log(`🌐 Applying volume to ALL ${regions.length} regions + main selection`);
+      const updatedRegions = regions.map(region => ({
+        ...region,
+        volume: value
+      }));
+      
+      dispatch({ type: 'SET_REGIONS', regions: updatedRegions });
+      
+      // 🔧 CRITICAL FIX: Use updateVolume for main selection
+      updateVolume(value);
+      
+      console.log(`✅ Applied volume to all regions + main:`, { 
+        regionsUpdated: updatedRegions.length, 
+        mainVolume: value 
+      });
+      
+    } else if (!activeRegionId || activeRegionId === 'main') {
+      // Apply to main selection only
+      console.log(`🎯 Applying volume to MAIN selection only`);
+      // 🔧 CRITICAL FIX: Use updateVolume instead of dispatch
+      updateVolume(value);
+      
+      console.log(`✅ Applied volume to main selection:`, { volume: value });
+      
+    } else {
+      // Apply to specific region only
+      console.log(`🎯 Applying volume to REGION ${activeRegionId} only`);
+      const updatedRegions = regions.map(region => 
+        region.id === activeRegionId 
+          ? { ...region, volume: value }
+          : region
+      );
+      dispatch({ type: 'SET_REGIONS', regions: updatedRegions });
+      
+      const updatedRegion = updatedRegions.find(r => r.id === activeRegionId);
+      console.log(`✅ Applied volume to region ${activeRegionId}:`, { 
+        volume: updatedRegion?.volume || 1.0
+      });
+    }
+  }, [activeRegionId, regions, updateVolume, dispatch]);
+
+  const handleVolumeChange = useCallback((value, applyToAll = false, operation = 'normal', data = null) => {
+    if (operation === 'restore-main' && data) {
+      // Restore main selection volume
+      console.log(`🔄 Restoring main volume:`, data);
+      // 🔧 CRITICAL FIX: Use updateVolume instead of dispatch
+      updateVolume(data.volume);
+    } else if (operation === 'restore-regions' && data) {
+      // Restore individual region volumes
+      console.log(`🔄 Restoring region volumes:`, data);
+      const updatedRegions = regions.map(region => {
+        const backupRegion = data.regions.find(r => r.id === region.id);
+        if (backupRegion) {
+          return { ...region, volume: backupRegion.value };
+        }
+        return region;
+      });
+      dispatch({ type: 'SET_REGIONS', regions: updatedRegions });
+    } else {
+      // Normal volume operation
+      applyVolume(value, applyToAll);
+    }
+  }, [applyVolume, updateVolume, dispatch, regions]);
+
+  return {
+    handleVolumeChange,
+    getCurrentVolumeValues
+  };
 }; 

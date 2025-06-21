@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useEffect } from 'react';
+import React, { useCallback, useRef, useEffect, useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Volume2, VolumeX, X, RotateCcw } from 'lucide-react';
 import usePopupPosition from './usePopupPosition';
@@ -35,12 +35,95 @@ const VolumeSliderPopup = ({
   onChange,
   onClose,
   isVisible = false,
-  buttonRef = null
+  buttonRef = null,
+  regions = [],
+  activeRegionId = null,
+  getCurrentVolumeValues = null,
+  volume = 1.0
 }) => {
   const popupRef = useRef(null);
   const { position, responsive, ready } = usePopupPosition(isVisible, buttonRef, popupRef, 5);
   const { screenSize, maxWidth } = responsive;
   const isMobile = screenSize === 'mobile';
+
+  const [applyToAllState, setApplyToAllState] = useState({});
+  
+  const [volumeBackup, setVolumeBackup] = useState({});
+  
+  const currentApplyToAll = useMemo(() => {
+    const key = `${activeRegionId || 'main'}-volume`;
+    return applyToAllState[key] || false;
+  }, [applyToAllState, activeRegionId]);
+  
+  const setCurrentApplyToAll = useCallback((checked) => {
+    console.log(`🔧 Setting applyToAll for ${activeRegionId || 'main'}-volume: ${checked}`);
+    
+    const key = `${activeRegionId || 'main'}-volume`;
+    
+    if (checked) {
+      const backup = {
+        main: volume,
+        regions: regions.map(region => ({
+          id: region.id,
+          value: region.volume !== undefined ? region.volume : 1.0
+        }))
+      };
+      
+      console.log(`💾 Backing up volume values:`, backup);
+      setVolumeBackup(prev => ({
+        ...prev,
+        [key]: backup
+      }));
+      
+      const currentRegionValue = getCurrentVolumeValues().volume;
+      console.log(`🌐 Applying volume ${currentRegionValue} to ALL regions + main`);
+      onChange(currentRegionValue, true);
+      
+    } else {
+      const backup = volumeBackup[key];
+      if (backup) {
+        console.log(`🔄 Restoring volume values from backup:`, backup);
+        
+        if (backup.main !== undefined) {
+          console.log(`🎯 Restoring main volume to ${backup.main}`);
+          onChange(backup.main, false, 'restore-main', { volume: backup.main });
+        }
+        
+        if (backup.regions && backup.regions.length > 0) {
+          console.log(`🎯 Restoring ${backup.regions.length} region volume values`);
+          onChange(0, false, 'restore-regions', { regions: backup.regions });
+        }
+        
+        setVolumeBackup(prev => {
+          const newBackup = { ...prev };
+          delete newBackup[key];
+          return newBackup;
+        });
+      }
+    }
+    
+    setApplyToAllState(prev => ({
+      ...prev,
+      [key]: checked
+    }));
+  }, [activeRegionId, regions, volume, getCurrentVolumeValues, onChange, volumeBackup]);
+  
+  useEffect(() => {
+    if (!isVisible) return;
+    
+    const currentKey = `${activeRegionId || 'main'}-volume`;
+    setApplyToAllState(prev => {
+      const newState = {};
+      newState[currentKey] = prev[currentKey] || false;
+      
+      console.log(`🔄 Region switched to ${activeRegionId || 'main'}, cleared other applyToAll states`);
+      return newState;
+    });
+  }, [activeRegionId, isVisible]);
+  
+  const currentValue = getCurrentVolumeValues ? getCurrentVolumeValues().volume : value;
+  
+  const showGlobalOption = regions.length > 0;
 
   useEffect(() => {
     if (!isVisible) return;
@@ -58,15 +141,16 @@ const VolumeSliderPopup = ({
     };
   }, [isVisible, onClose, buttonRef]);
 
-  const handleSliderChange = useCallback((e) => onChange(parseFloat(e.target.value)), [onChange]);
-  const handleReset = useCallback(() => onChange(1.0), [onChange]);
+  const handleSliderChange = useCallback((e) => onChange(parseFloat(e.target.value), currentApplyToAll), [onChange, currentApplyToAll]);
+  const handleReset = useCallback(() => onChange(1.0, currentApplyToAll), [onChange, currentApplyToAll]);
+  const handlePresetClick = useCallback((presetValue) => onChange(presetValue, currentApplyToAll), [onChange, currentApplyToAll]);
 
   if (!isVisible) return null;
-  const isMuted = value === 0;
-  const isBoost = value > 1;
-  const percent = (value / 2) * 100;
-  const displayPercent = value * 100;
-  const dynamicColor = getVolumeColor(value);
+  const isMuted = currentValue === 0;
+  const isBoost = currentValue > 1;
+  const percent = (currentValue / 2) * 100;
+  const displayPercent = currentValue * 100;
+  const dynamicColor = getVolumeColor(currentValue);
 
   return createPortal(    <div
       ref={popupRef}
@@ -114,7 +198,7 @@ const VolumeSliderPopup = ({
             min="0"
             max="2"
             step="0.02"
-            value={value}
+            value={currentValue}
             onChange={handleSliderChange}
             className="flex-1 h-2 bg-slate-200 rounded-full appearance-none cursor-pointer volume-popup-slider"
             style={{
@@ -130,6 +214,25 @@ const VolumeSliderPopup = ({
             <RotateCcw className="w-3 h-3" />
           </button>
         </div>
+        
+        {showGlobalOption && (
+          <div className="flex items-center gap-2 py-2 border-t border-slate-200">
+            <input
+              type="checkbox"
+              id="apply-all-volume"
+              checked={currentApplyToAll}
+              onChange={(e) => setCurrentApplyToAll(e.target.checked)}
+              className="w-4 h-4 text-purple-600 bg-gray-100 border-gray-300 rounded focus:ring-purple-500 focus:ring-2"
+            />
+            <label 
+              htmlFor="apply-all-volume" 
+              className={`text-slate-700 cursor-pointer select-none ${isMobile ? 'text-xs' : 'text-sm'}`}
+            >
+              Áp dụng cho tất cả ({regions.length + 1} items)
+            </label>
+          </div>
+        )}
+        
         <div className={`grid gap-1.5 ${isMobile ? 'grid-cols-3' : 'grid-cols-5'}`}>
           {[
             { label: '25%', value: 0.25 },
@@ -142,7 +245,7 @@ const VolumeSliderPopup = ({
           ].map(({ label, value: presetValue }) => (
             <button
               key={label}
-              onClick={() => onChange(presetValue)}
+              onClick={() => handlePresetClick(presetValue)}
               className={`rounded-lg transition-colors ${
                 presetValue > 1 
                   ? 'bg-orange-100 hover:bg-orange-200 text-orange-700'
@@ -163,7 +266,7 @@ const VolumeSliderPopup = ({
             ].map(({ label, value: presetValue }) => (
               <button
                 key={label}
-                onClick={() => onChange(presetValue)}
+                onClick={() => handlePresetClick(presetValue)}
                 className="px-2 py-1.5 text-[10px] bg-orange-100 hover:bg-orange-200 text-orange-700 rounded-lg transition-colors"
               >
                 {label}

@@ -31,6 +31,7 @@ import {
 } from '../audio/AudioController';
 import { 
   useEnhancedFadeHandlers,
+  useEnhancedVolumeHandlers,
   useSmartFadeConfigSync,
   usePitchHandler,
   useEqualizerHandlers,
@@ -190,6 +191,15 @@ const MP3CutterMain = React.memo(() => {
   const fadeHandlers = useEnhancedFadeHandlers({ 
     fadeIn, fadeOut, startTime, endTime, isInverted, duration, updateFadeConfig, saveState, dispatch,
     regions, activeRegionId
+  });
+
+  // 🚀 Volume handlers
+  const volumeHandlers = useEnhancedVolumeHandlers({ 
+    volume, 
+    updateVolume,
+    regions, 
+    activeRegionId,
+    dispatch
   });
 
   // 🚀 Pitch handler
@@ -566,6 +576,73 @@ const MP3CutterMain = React.memo(() => {
 
   const handleCanPlay = useCallback(() => {}, []);
 
+  // 🚀 Dynamic region volume during playback
+  const lastAppliedVolumeRef = useRef(volume);
+  const volumeAnimationRef = useRef(null);
+  
+  useEffect(() => {
+    if (!setMasterVolume) return;
+    
+    if (!isPlaying) {
+      // When not playing, ensure we use main volume
+      if (Math.abs(volume - lastAppliedVolumeRef.current) > 0.001) {
+        setMasterVolume(volume);
+        lastAppliedVolumeRef.current = volume;
+      }
+      return;
+    }
+    
+    // Only run dynamic volume if there are regions with different volumes
+    const hasRegionVolumes = regions.some(region => 
+      region.volume !== undefined && Math.abs(region.volume - volume) > 0.001
+    );
+    
+    if (!hasRegionVolumes) {
+      // No region volumes different from main, just ensure main volume is applied
+      if (Math.abs(volume - lastAppliedVolumeRef.current) > 0.001) {
+        setMasterVolume(volume);
+        lastAppliedVolumeRef.current = volume;
+      }
+      return;
+    }
+    
+    const updateVolumeForCurrentTime = () => {
+      if (!audioRef.current || !isPlaying) return;
+      
+      const currentAudioTime = audioRef.current.currentTime;
+      
+      // Find which region contains current time
+      const activeRegion = regions.find(region => 
+        currentAudioTime >= region.start && currentAudioTime <= region.end
+      );
+      
+      let targetVolume = volume; // Default to main volume
+      
+      if (activeRegion && activeRegion.volume !== undefined) {
+        targetVolume = activeRegion.volume;
+      }
+      
+      // Only update if volume actually changed
+      if (Math.abs(targetVolume - lastAppliedVolumeRef.current) > 0.001) {
+        setMasterVolume(targetVolume);
+        lastAppliedVolumeRef.current = targetVolume;
+      }
+      
+      // Continue animation
+      volumeAnimationRef.current = requestAnimationFrame(updateVolumeForCurrentTime);
+    };
+    
+    // Start animation
+    volumeAnimationRef.current = requestAnimationFrame(updateVolumeForCurrentTime);
+    
+    return () => {
+      if (volumeAnimationRef.current) {
+        cancelAnimationFrame(volumeAnimationRef.current);
+        volumeAnimationRef.current = null;
+      }
+    };
+  }, [isPlaying, regions, volume, setMasterVolume, audioRef]);
+
   // 🚀 Final render with all optimizations
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-pink-50">
@@ -643,7 +720,7 @@ const MP3CutterMain = React.memo(() => {
               onTogglePlayPause={togglePlayPause}
               onJumpToStart={handleJumpToStart}
               onJumpToEnd={handleJumpToEnd}
-              onVolumeChange={updateVolume}
+              onVolumeChange={volumeHandlers.handleVolumeChange}
               onSpeedChange={updatePlaybackRate}
               onPitchChange={handlePitchChange}
               onEqualizerChange={handleEqualizerChange}
@@ -664,6 +741,7 @@ const MP3CutterMain = React.memo(() => {
               onFadeInChange={fadeHandlers.handleFadeInChange}
               onFadeOutChange={fadeHandlers.handleFadeOutChange}
               getCurrentFadeValues={fadeHandlers.getCurrentFadeValues}
+              getCurrentVolumeValues={volumeHandlers.getCurrentVolumeValues}
               canUndo={canUndo}
               canRedo={canRedo}
               onUndo={handleUndo}

@@ -21,6 +21,8 @@ const UnifiedControlBar = React.memo(({
   fadeIn = 0, fadeOut = 0, onFadeInToggle, onFadeOutToggle, onFadeInChange, onFadeOutChange,
   // 🆕 Enhanced fade support
   getCurrentFadeValues = null,
+  // 🆕 Enhanced volume support
+  getCurrentVolumeValues = null,
   canUndo, canRedo, onUndo, onRedo, historyIndex, historyLength,
   disabled = false,
   onEqualizerChange = null, // 🎚️ New prop for realtime equalizer updates
@@ -170,7 +172,13 @@ const UnifiedControlBar = React.memo(({
       onChange: onVolumeChange,
       onClose: () => closePopup('volume'),
       isVisible: popupState === 'volume',
-      buttonRef: refs.volume
+      buttonRef: refs.volume,
+      // 🆕 Region support props
+      regions,
+      activeRegionId,
+      getCurrentVolumeValues: getCurrentVolumeValues,
+      // 🔧 CRITICAL FIX: Add main volume for backup/restore
+      volume
     },
     speed: {
       value: playbackRate,

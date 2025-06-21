@@ -509,11 +509,13 @@ const WaveformCanvas = React.memo(({
           ctx.clip();
           
           // 🔧 CRITICAL FIX: Always render regions independently from raw data
-          console.log(`🎨 Rendering region ${region.id} independently (fadeIn: ${region.fadeIn || 0}, fadeOut: ${region.fadeOut || 0})`);
+          console.log(`🎨 Rendering region ${region.id} independently (fadeIn: ${region.fadeIn || 0}, fadeOut: ${region.fadeOut || 0}, volume: ${region.volume !== undefined ? region.volume : 1.0})`);
           
-          ctx.fillStyle = getWaveformColor(currentVolume);
+          // 🆕 Use region-specific volume or fallback to 1.0
+          const regionVolume = region.volume !== undefined ? region.volume : 1.0;
+          ctx.fillStyle = getWaveformColor(regionVolume);
           const centerY = height / 2, FLAT_BAR = 1, MAX_PX = 65;
-          const vol = Math.max(0, Math.min(1, currentVolume));
+          const vol = Math.max(0, Math.min(1, regionVolume));
           const barW = areaWidth / renderData.waveformData.length;
           
           // Get region-specific fade values
@@ -527,9 +529,9 @@ const WaveformCanvas = React.memo(({
             if (time >= region.start && time <= region.end) {
               let h = FLAT_BAR + ((FLAT_BAR + (MAX_PX * renderData.waveformData[i]) - FLAT_BAR) * vol);
               
-              // Apply volume boost if needed
-              if (currentVolume > 1) {
-                const volumePercent = currentVolume * 100;
+              // Apply region-specific volume boost if needed
+              if (regionVolume > 1) {
+                const volumePercent = regionVolume * 100;
                 const heightBoost = Math.min((volumePercent - 100) / 100, 1) * 0.2;
                 h = h * (1 + heightBoost);
               }
