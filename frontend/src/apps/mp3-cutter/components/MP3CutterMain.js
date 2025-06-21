@@ -33,8 +33,8 @@ import {
   useEnhancedFadeHandlers,
   useEnhancedVolumeHandlers,
   useEnhancedSpeedHandlers,
+  useEnhancedPitchHandlers,
   useSmartFadeConfigSync,
-  usePitchHandler,
   useEqualizerHandlers,
   useAudioEffectsConnection
 } from '../audio/AudioEffects';
@@ -212,8 +212,15 @@ const MP3CutterMain = React.memo(() => {
     dispatch
   });
 
-  // 🚀 Pitch handler
-  const { handlePitchChange } = usePitchHandler(updatePitch, setPitchValue);
+  // 🚀 Pitch handlers
+  const pitchHandlers = useEnhancedPitchHandlers({ 
+    pitch: pitchValue, 
+    updatePitch,
+    setPitchValue,
+    regions, 
+    activeRegionId,
+    dispatch
+  });
 
   // 🚀 Equalizer handlers
   const { handleEqualizerChange, getCurrentEqualizerState } = useEqualizerHandlers({
@@ -988,7 +995,7 @@ const MP3CutterMain = React.memo(() => {
               onJumpToEnd={handleJumpToEnd}
               onVolumeChange={volumeHandlers.handleVolumeChange}
               onSpeedChange={speedHandlers.handleSpeedChange}
-              onPitchChange={handlePitchChange}
+              onPitchChange={pitchHandlers.handlePitchChange}
               onEqualizerChange={handleEqualizerChange}
               equalizerState={getCurrentEqualizerState()}
               startTime={timeDisplayValues.displayStartTime}
@@ -1009,6 +1016,7 @@ const MP3CutterMain = React.memo(() => {
               getCurrentFadeValues={fadeHandlers.getCurrentFadeValues}
               getCurrentVolumeValues={volumeHandlers.getCurrentVolumeValues}
               getCurrentSpeedValues={speedHandlers.getCurrentSpeedValues}
+              getCurrentPitchValues={pitchHandlers.getCurrentPitchValues}
               canUndo={canUndo}
               canRedo={canRedo}
               onUndo={handleUndo}

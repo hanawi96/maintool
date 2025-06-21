@@ -25,6 +25,8 @@ const UnifiedControlBar = React.memo(({
   getCurrentVolumeValues = null,
   // 🆕 Enhanced speed support
   getCurrentSpeedValues = null,
+  // 🆕 Enhanced pitch support
+  getCurrentPitchValues = null,
   canUndo, canRedo, onUndo, onRedo, historyIndex, historyLength,
   disabled = false,
   onEqualizerChange = null, // 🎚️ New prop for realtime equalizer updates
@@ -199,7 +201,12 @@ const UnifiedControlBar = React.memo(({
       onChange: onPitchChange,
       onClose: () => closePopup('pitch'),
       isVisible: popupState === 'pitch',
-      buttonRef: refs.pitch
+      buttonRef: refs.pitch,
+      // 🆕 Enhanced pitch support
+      regions,
+      activeRegionId,
+      getCurrentPitchValues: getCurrentPitchValues,
+      pitch // 🔧 Main pitch for backup/restore
     },
     equalizer: {
       onClose: () => closePopup('equalizer'),

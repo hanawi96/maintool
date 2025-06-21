@@ -639,4 +639,155 @@ export const useEnhancedSpeedHandlers = ({
     getCurrentSpeedValues,
     handleSpeedChange
   };
+};
+
+// 🆕 Enhanced pitch handlers for regions support
+export const useEnhancedPitchHandlers = ({ 
+  pitch, 
+  updatePitch,
+  setPitchValue,
+  // 🆕 Region props
+  regions = [],
+  activeRegionId = null,
+  dispatch
+}) => {
+  // 🚀 Get current pitch values based on active region
+  const getCurrentPitchValues = useCallback(() => {
+    if (!activeRegionId || activeRegionId === 'main') {
+      // 🔧 CRITICAL: Validate main pitch
+      if (typeof pitch !== 'number' || !isFinite(pitch) || isNaN(pitch)) {
+        console.error('🚨 INVALID main pitch in getCurrentPitchValues:', {
+          value: pitch,
+          type: typeof pitch,
+          activeRegionId
+        });
+        return { pitch: 0.0 }; // Safe fallback
+      }
+      return { pitch: Math.max(-12, Math.min(12, pitch)) };
+    }
+    
+    const activeRegion = regions.find(r => r.id === activeRegionId);
+    if (activeRegion) {
+      const regionPitch = activeRegion.pitch;
+      
+      // 🔧 CRITICAL: Validate region pitch
+      if (regionPitch !== undefined) {
+        if (typeof regionPitch !== 'number' || !isFinite(regionPitch) || isNaN(regionPitch)) {
+          console.error('🚨 INVALID region pitch in getCurrentPitchValues:', {
+            regionId: activeRegionId,
+            value: regionPitch,
+            type: typeof regionPitch
+          });
+          return { pitch: 0.0 }; // Safe fallback
+        }
+        return { pitch: Math.max(-12, Math.min(12, regionPitch)) };
+      }
+    }
+    
+    // Fallback to main pitch if region not found or no pitch set
+    return { pitch: typeof pitch === 'number' && isFinite(pitch) && !isNaN(pitch) ? Math.max(-12, Math.min(12, pitch)) : 0.0 };
+  }, [activeRegionId, regions, pitch]);
+
+  // 🚀 Apply pitch to active region or globally
+  const applyPitch = useCallback((value, applyToAll = false) => {
+    // 🔧 CRITICAL: Validate pitch value to prevent non-finite errors
+    if (typeof value !== 'number' || !isFinite(value) || isNaN(value)) {
+      console.error('🚨 INVALID pitch value detected in applyPitch:', {
+        value,
+        type: typeof value,
+        isFinite: isFinite(value),
+        isNaN: isNaN(value),
+        applyToAll,
+        activeRegionId,
+        stackTrace: new Error().stack
+      });
+      // Fallback to safe default
+      value = 0.0;
+    }
+    
+    // Clamp to safe range
+    const clampedValue = Math.max(-12, Math.min(12, value));
+    
+    if (Math.abs(clampedValue - value) > 0.001) {
+      console.warn('🔧 Pitch value clamped in applyPitch:', { original: value, clamped: clampedValue });
+    }
+    
+    if (applyToAll && regions.length > 0) {
+      // Apply to all regions + main selection
+      const updatedRegions = regions.map(region => ({
+        ...region,
+        pitch: clampedValue
+      }));
+      
+      dispatch({ type: 'SET_REGIONS', regions: updatedRegions });
+      
+      // 🔧 CRITICAL FIX: Use updatePitch for main selection
+      updatePitch(clampedValue);
+      
+    } else if (!activeRegionId || activeRegionId === 'main') {
+      // Apply to main selection only
+      updatePitch(clampedValue);
+      
+    } else {
+      // Apply to specific region only
+      const updatedRegions = regions.map(region => 
+        region.id === activeRegionId 
+          ? { ...region, pitch: clampedValue }
+          : region
+      );
+      dispatch({ type: 'SET_REGIONS', regions: updatedRegions });
+    }
+  }, [activeRegionId, regions, updatePitch, dispatch]);
+
+  const handlePitchChange = useCallback((value, applyToAll = false, operation = 'normal', data = null) => {
+    if (operation === 'restore-main' && data) {
+      // Restore main selection pitch
+      const restoreValue = data.pitch;
+      
+      // 🔧 CRITICAL: Validate restore value
+      if (typeof restoreValue !== 'number' || !isFinite(restoreValue) || isNaN(restoreValue)) {
+        console.error('🚨 INVALID restore pitch value:', {
+          value: restoreValue,
+          data,
+          stackTrace: new Error().stack
+        });
+        updatePitch(0.0); // Safe fallback
+      } else {
+        updatePitch(Math.max(-12, Math.min(12, restoreValue)));
+      }
+    } else if (operation === 'restore-regions' && data) {
+      // Restore individual region pitches
+      const updatedRegions = regions.map(region => {
+        const backupRegion = data.regions.find(r => r.id === region.id);
+        if (backupRegion) {
+          let restoreValue = backupRegion.value;
+          
+          // 🔧 CRITICAL: Validate restore value
+          if (typeof restoreValue !== 'number' || !isFinite(restoreValue) || isNaN(restoreValue)) {
+            console.error('🚨 INVALID restore region pitch value:', {
+              regionId: region.id,
+              value: restoreValue,
+              backupRegion,
+              stackTrace: new Error().stack
+            });
+            restoreValue = 0.0; // Safe fallback
+          } else {
+            restoreValue = Math.max(-12, Math.min(12, restoreValue));
+          }
+          
+          return { ...region, pitch: restoreValue };
+        }
+        return region;
+      });
+      dispatch({ type: 'SET_REGIONS', regions: updatedRegions });
+    } else {
+      // Normal pitch operation
+      applyPitch(value, applyToAll);
+    }
+  }, [applyPitch, updatePitch, dispatch, regions]);
+
+  return {
+    getCurrentPitchValues,
+    handlePitchChange
+  };
 }; 
