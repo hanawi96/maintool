@@ -189,19 +189,6 @@ const VolumeSliderPopup = ({
           </button>
         </div>
         
-        {showGlobalOption && (
-          <div className="py-2 border-t border-slate-200">
-            <ToggleSwitch
-              id="apply-all-volume"
-              checked={currentApplyToAll}
-              onChange={setCurrentApplyToAll}
-              label={`Áp dụng cho tất cả (${regions.length + 1} items)`}
-              color="purple"
-              debug={true}
-            />
-          </div>
-        )}
-        
         <div className={`grid gap-1.5 ${isMobile ? 'grid-cols-3' : 'grid-cols-5'}`}>
           {[
             { label: '25%', value: 0.25 },
@@ -243,6 +230,20 @@ const VolumeSliderPopup = ({
             ))}
           </div>
         )}
+        
+        {showGlobalOption && (
+          <div className="pt-2 border-t border-slate-200">
+            <ToggleSwitch
+              id="apply-all-volume"
+              checked={currentApplyToAll}
+              onChange={setCurrentApplyToAll}
+              label={`Áp dụng cho tất cả (${regions.length + 1} items)`}
+              color="purple"
+              debug={true}
+            />
+          </div>
+        )}
+        
         {isBoost && (
           <div className="bg-orange-50 border border-orange-200 rounded-lg p-2">
             <p className={`text-orange-700 ${isMobile ? 'text-[10px]' : 'text-xs'}`}>

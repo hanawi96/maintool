@@ -163,20 +163,6 @@ const FadeSliderPopup = ({
           </button>
         </div>
         
-        {/* 🆕 Global Apply Checkbox - Only show when regions exist */}
-        {showGlobalOption && (
-          <div className="py-2 border-t border-slate-200">
-            <ToggleSwitch
-              id={`apply-all-${type}`}
-              checked={currentApplyToAll}
-              onChange={setCurrentApplyToAll}
-              label={`Áp dụng cho tất cả (${regions.length + 1} items)`}
-              color="purple"
-              debug={true}
-            />
-          </div>
-        )}
-        
         <div className={`flex items-center gap-2 ${isMobile ? 'flex-wrap' : ''}`}>
           {[
             { label: '1s', value: 1.0, color: colorClass },
@@ -203,6 +189,19 @@ const FadeSliderPopup = ({
             >
               7s
             </button>
+          </div>
+        )}
+        
+        {showGlobalOption && (
+          <div className="pt-2 border-t border-slate-200">
+            <ToggleSwitch
+              id={`apply-all-${type}`}
+              checked={currentApplyToAll}
+              onChange={setCurrentApplyToAll}
+              label={`Áp dụng cho tất cả (${regions.length + 1} items)`}
+              color="purple"
+              debug={true}
+            />
           </div>
         )}
       </div>
