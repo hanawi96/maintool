@@ -128,7 +128,7 @@ const useRegionCalculations = (regions, startTime, endTime, duration, canvasRef)
     const handleW = canvasWidth < 640 ? Math.max(3, 8 * 0.75) : 8;
     const requiredPixelGap = handleW + 2;
     return (requiredPixelGap / canvasWidth) * duration;
-  }, [canvasRef.current?.offsetWidth, duration]);
+  }, [canvasRef, duration]);
 
   // Memoized handle edge positions
   const handleEdgePositions = useMemo(() => {
@@ -632,27 +632,17 @@ const MP3CutterMain = React.memo(() => {
     }
   }, [audioRef, setCurrentTime, isInverted]);
 
-  // 🚀 Optimized region drag handlers
-  const handleRegionMouseDown = useCallback((regionId, handleType, e) => {
-    setActiveRegionIdDebounced(regionId, 'regionMouseDown');
+  // 🚀 Consolidated region event handlers (eliminates redundancy)
+  const handleRegionPointerDown = useCallback((regionId, handleType, e) => {
+    setActiveRegionIdDebounced(regionId, `region${handleType}Down`);
     dispatch({ type: 'SET_DRAGGING', dragging: { regionId, handleType, startX: e.clientX } });
     
-    if (e.target && e.target.setPointerCapture && e.pointerId) {
+    if (e.target?.setPointerCapture && e.pointerId) {
       e.target.setPointerCapture(e.pointerId);
     }
   }, [setActiveRegionIdDebounced]);
 
-  const handleRegionBodyDown = useCallback((regionId, e) => {
-    setActiveRegionIdDebounced(regionId, 'regionBodyDown');
-    dispatch({ type: 'SET_DRAGGING', dragging: { regionId, handleType: 'body', startX: e.clientX } });
-    
-    if (e.target && e.target.setPointerCapture && e.pointerId) {
-      e.target.setPointerCapture(e.pointerId);
-    }
-  }, [setActiveRegionIdDebounced]);
-
-  // 🚀 Optimized region move handlers
-  const handleRegionMouseMove = useCallback((regionId, handleType, e) => {
+  const handleRegionPointerMove = useCallback((regionId, handleType, e) => {
     if (!draggingRegion || draggingRegion.regionId !== regionId || draggingRegion.handleType !== handleType) return;
     if (!duration) return;
     
@@ -668,226 +658,43 @@ const MP3CutterMain = React.memo(() => {
       regions: regions.map(region => {
         if (region.id !== regionId) return region;
         
-        const boundaries = getRegionBoundaries(regionId, handleType);
-        
-        if (handleType === 'start') {
+        if (handleType === 'body') {
+          // Body drag: move entire region
+          const boundaries = getRegionBodyBoundaries(regionId);
+          const regionDuration = region.end - region.start;
           const newStart = Math.max(boundaries.min, Math.min(region.start + deltaTime, boundaries.max));
+          const newEnd = newStart + regionDuration;
+          
           ultraSmoothRegionSync(newStart);
-          return { ...region, start: newStart };
+          return { ...region, start: newStart, end: newEnd };
         } else {
-          const newEnd = Math.max(boundaries.min, Math.min(region.end + deltaTime, boundaries.max));
-          const regionDuration = newEnd - region.start;
-          const cursorPosition = regionDuration < 3 ? region.start : Math.max(region.start, newEnd - 3);
-          ultraSmoothRegionSync(cursorPosition, 'end');
-          return { ...region, end: newEnd };
+          // Handle drag: resize region
+          const boundaries = getRegionBoundaries(regionId, handleType);
+          
+          if (handleType === 'start') {
+            const newStart = Math.max(boundaries.min, Math.min(region.start + deltaTime, boundaries.max));
+            ultraSmoothRegionSync(newStart);
+            return { ...region, start: newStart };
+          } else { // handleType === 'end'
+            const newEnd = Math.max(boundaries.min, Math.min(region.end + deltaTime, boundaries.max));
+            const regionDuration = newEnd - region.start;
+            const cursorPosition = regionDuration < 3 ? region.start : Math.max(region.start, newEnd - 3);
+            ultraSmoothRegionSync(cursorPosition, 'end');
+            return { ...region, end: newEnd };
+          }
         }
       })
     });
     
     dispatch({ type: 'SET_DRAGGING', dragging: { ...draggingRegion, startX: e.clientX } });
-  }, [draggingRegion, duration, canvasRef, getRegionBoundaries, regions, ultraSmoothRegionSync]);
+  }, [draggingRegion, duration, canvasRef, getRegionBoundaries, getRegionBodyBoundaries, regions, ultraSmoothRegionSync]);
 
-  const handleRegionBodyMove = useCallback((regionId, e) => {
-    if (!draggingRegion || draggingRegion.regionId !== regionId || draggingRegion.handleType !== 'body') return;
-    if (!duration) return;
-    
-    const deltaX = e.clientX - draggingRegion.startX;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    
-    const canvasWidth = canvas.offsetWidth;
-    const deltaTime = (deltaX / canvasWidth) * duration;
-    
-    dispatch({
-      type: 'SET_REGIONS',
-      regions: regions.map(region => {
-        if (region.id !== regionId) return region;
-        
-        const boundaries = getRegionBodyBoundaries(regionId);
-        const regionDuration = region.end - region.start;
-        const newStart = Math.max(boundaries.min, Math.min(region.start + deltaTime, boundaries.max));
-        const newEnd = newStart + regionDuration;
-        
-        ultraSmoothRegionSync(newStart);
-        return { ...region, start: newStart, end: newEnd };
-      })
-    });
-    
-    dispatch({ type: 'SET_DRAGGING', dragging: { ...draggingRegion, startX: e.clientX } });
-  }, [draggingRegion, duration, canvasRef, getRegionBodyBoundaries, regions, ultraSmoothRegionSync]);
-
-  const handleRegionMouseUp = useCallback((regionId, handleType, e) => {
-    if (e.target && e.target.releasePointerCapture && e.pointerId) {
+  const handleRegionPointerUp = useCallback((regionId, handleType, e) => {
+    if (e.target?.releasePointerCapture && e.pointerId) {
       e.target.releasePointerCapture(e.pointerId);
     }
     dispatch({ type: 'SET_DRAGGING', dragging: null });
   }, []);
-
-  const handleRegionBodyUp = useCallback((regionId, e) => {
-    if (e.target && e.target.releasePointerCapture && e.pointerId) {
-      e.target.releasePointerCapture(e.pointerId);
-    }
-    dispatch({ type: 'SET_DRAGGING', dragging: null });
-  }, []);
-
-  // 🚀 Optimized file upload
-  const handleFileUpload = useCallback(async (file) => {
-    window.lastFileUploadTime = Date.now();
-    dispatch({ type: 'RESET_FILE' });
-    setIsInverted(false);
-    window.preventInvertStateRestore = true;
-    setTimeout(() => { window.preventInvertStateRestore = false; }, 10000);
-    window.currentAudioFile = file;
-    
-    try {
-      const validation = validateAudioFile(file);
-      dispatch({ type: 'SET_AUDIO_STATE', payload: { fileValidation: validation } });
-      
-      if (!validation.valid) {
-        dispatch({ 
-          type: 'SET_AUDIO_STATE', 
-          payload: { 
-            audioError: { 
-              type: 'validation', 
-              title: 'File Validation Failed', 
-              message: validation.errors.join('; '), 
-              suggestions: ['Convert to MP3 or WAV format', 'Check if file is corrupted', 'Try a smaller file size'], 
-              supportedFormats: ['MP3', 'WAV', 'M4A', 'MP4'] 
-            } 
-          } 
-        });
-        return;
-      }
-      
-      if (isConnected === false) {
-        const connected = await testConnection();
-        if (!connected) throw new Error('Backend server is not available.');
-        setIsConnected(true);
-        setConnectionError(null);
-      }
-      
-      await uploadFile(file);
-      const immediateAudioUrl = createSafeAudioURL(file);
-      if (!immediateAudioUrl) throw new Error('Failed to create audio URL');
-      
-      if (audioRef.current) {
-        audioRef.current.src = immediateAudioUrl;
-        audioRef.current.load();
-        dispatch({ type: 'SET_AUDIO_STATE', payload: { audioError: null } });
-      }
-      
-      const waveformResult = await generateWaveform(file);
-      const audioDuration = waveformResult.duration || audioRef.current?.duration || duration || 0;
-      
-      if (audioDuration > 0) {
-        saveState({ startTime: 0, endTime: audioDuration, fadeIn: 0, fadeOut: 0, isInverted: false });
-      }
-    } catch (error) {
-      dispatch({ 
-        type: 'SET_AUDIO_STATE', 
-        payload: { 
-          audioError: { 
-            type: 'upload', 
-            title: 'Upload Failed', 
-            message: error.message, 
-            suggestions: ['Check your internet connection', 'Try a different file', 'Restart the backend server'] 
-          } 
-        } 
-      });
-    }
-  }, [uploadFile, generateWaveform, audioRef, duration, saveState, isConnected, testConnection]);
-
-  // 🚀 Optimized pitch change handler
-  const handlePitchChange = useCallback((newPitch) => {
-    updatePitch(newPitch);
-    
-    if (setPitchValue(newPitch)) {
-      console.log(`✅ Main: Pitch updated to ${newPitch}st (zero interruption)`);
-    } else {
-      console.log('🎵 Main: Pitch will be applied when audio connects');
-    }
-  }, [updatePitch, setPitchValue]);
-
-  // 🚀 Optimized equalizer change handler
-  const handleEqualizerChange = useCallback((type, data) => {
-    if (!isEqualizerConnected) return;
-
-    switch (type) {
-      case 'band':
-        const { index, value } = data;
-        updateEqualizerBand(index, value);
-        dispatch({
-          type: 'SET_AUDIO_STATE',
-          payload: {
-            currentEqualizerValues: currentEqualizerValues.map((v, i) => i === index ? value : v)
-          }
-        });
-        break;
-      
-      case 'preset':
-        updateEqualizerValues(data.values);
-        dispatch({
-          type: 'SET_AUDIO_STATE',
-          payload: { currentEqualizerValues: [...data.values] }
-        });
-        break;
-      
-      case 'reset':
-        resetEqualizer();
-        dispatch({
-          type: 'SET_AUDIO_STATE',
-          payload: { currentEqualizerValues: Array(10).fill(0) }
-        });
-        break;
-    }
-  }, [isEqualizerConnected, updateEqualizerBand, updateEqualizerValues, resetEqualizer, currentEqualizerValues]);
-
-  // 🚀 Optimized getCurrentEqualizerState
-  const getCurrentEqualizerState = useCallback(() => {
-    if (currentEqualizerValues.some(v => v !== 0)) {
-      return currentEqualizerValues;
-    }
-    
-    if (!isEqualizerConnected || !getEqualizerState) return null;
-    
-    const eqState = getEqualizerState();
-    return eqState?.bands ? eqState.bands.map(band => band.gain) : null;
-  }, [currentEqualizerValues, isEqualizerConnected, getEqualizerState]);
-
-  // 🚀 Optimized region click handlers
-  const handleRegionClick = useCallback((regionId, clickPosition = null) => {
-    if (draggingRegion) return;
-    
-    const selectedRegion = regions.find(r => r.id === regionId);
-    if (!selectedRegion) return;
-    
-    const wasAlreadyActive = activeRegionId === regionId;
-    
-    if (wasAlreadyActive && clickPosition !== null) {
-      jumpToTime(clickPosition);
-    } else {
-      setActiveRegionIdDebounced(regionId, 'regionClick');
-      jumpToTime(selectedRegion.start);
-    }
-  }, [regions, jumpToTime, draggingRegion, setActiveRegionIdDebounced, activeRegionId]);
-
-  const handleMainSelectionClick = useCallback((clickPosition = null, options = {}) => {
-    if (regions.length >= 1) {
-      const now = Date.now();
-      if (mainSelectionClickRef.current && now - mainSelectionClickRef.current < 100) return;
-      mainSelectionClickRef.current = now;
-      
-      const wasAlreadyActive = activeRegionId === 'main';
-      const isActivation = options.isActivation || false;
-      
-      if (isActivation) {
-        setActiveRegionIdDebounced('main', 'mainSelectionClick');
-        jumpToTime(startTime);
-      } else if (wasAlreadyActive && clickPosition !== null) {
-        jumpToTime(clickPosition);
-      }
-    }
-  }, [regions.length, setActiveRegionIdDebounced, jumpToTime, startTime, activeRegionId]);
 
   // 🚀 Memoized time display values
   const timeDisplayValues = useMemo(() => {
@@ -1007,11 +814,114 @@ const MP3CutterMain = React.memo(() => {
     jumpToTime(newInvert ? (startTime >= 3 ? startTime - 3 : 0) : startTime);
   }, [duration, startTime, endTime, isInverted, saveState, fadeIn, fadeOut, jumpToTime, updateFadeConfig]);
 
+  // 🚀 Optimized file upload - MOVED UP to fix initialization order
+  const handleFileUpload = useCallback(async (file) => {
+    console.log('🎯 handleFileUpload called with file:', file?.name);
+    window.lastFileUploadTime = Date.now();
+    dispatch({ type: 'RESET_FILE' });
+    setIsInverted(false);
+    window.preventInvertStateRestore = true;
+    setTimeout(() => { window.preventInvertStateRestore = false; }, 10000);
+    window.currentAudioFile = file;
+    
+    try {
+      const validation = validateAudioFile(file);
+      dispatch({ type: 'SET_AUDIO_STATE', payload: { fileValidation: validation } });
+      
+      if (!validation.valid) {
+        dispatch({ 
+          type: 'SET_AUDIO_STATE', 
+          payload: { 
+            audioError: { 
+              type: 'validation', 
+              title: 'File Validation Failed', 
+              message: validation.errors.join('; '), 
+              suggestions: ['Convert to MP3 or WAV format', 'Check if file is corrupted', 'Try a smaller file size'], 
+              supportedFormats: ['MP3', 'WAV', 'M4A', 'MP4'] 
+            } 
+          } 
+        });
+        return;
+      }
+      
+      if (isConnected === false) {
+        const connected = await testConnection();
+        if (!connected) throw new Error('Backend server is not available.');
+        setIsConnected(true);
+        setConnectionError(null);
+      }
+      
+      await uploadFile(file);
+      const immediateAudioUrl = createSafeAudioURL(file);
+      if (!immediateAudioUrl) throw new Error('Failed to create audio URL');
+      
+      if (audioRef.current) {
+        audioRef.current.src = immediateAudioUrl;
+        audioRef.current.load();
+        dispatch({ type: 'SET_AUDIO_STATE', payload: { audioError: null } });
+      }
+      
+      const waveformResult = await generateWaveform(file);
+      const audioDuration = waveformResult.duration || audioRef.current?.duration || duration || 0;
+      
+      if (audioDuration > 0) {
+        saveState({ startTime: 0, endTime: audioDuration, fadeIn: 0, fadeOut: 0, isInverted: false });
+      }
+    } catch (error) {
+      console.error('🔥 handleFileUpload error:', error);
+      dispatch({ 
+        type: 'SET_AUDIO_STATE', 
+        payload: { 
+          audioError: { 
+            type: 'upload', 
+            title: 'Upload Failed', 
+            message: error.message, 
+            suggestions: ['Check your internet connection', 'Try a different file', 'Restart the backend server'] 
+          } 
+        } 
+      });
+    }
+  }, [uploadFile, generateWaveform, audioRef, duration, saveState, isConnected, testConnection, setIsInverted, setIsConnected, setConnectionError]);
+
   const handleDrop = useCallback((e) => {
     e.preventDefault();
     const files = Array.from(e.dataTransfer.files);
+    console.log('🎯 handleDrop called with files:', files.length);
     if (files.length > 0) handleFileUpload(files[0]);
   }, [handleFileUpload]);
+
+  // 🚀 Consolidated audio error handler
+  const handleError = useCallback((e) => {
+    const error = e.target.error;
+    const filename = audioFile?.name || 'audio file';
+    const details = getAudioErrorMessage(error, filename);
+    
+    console.error('🔥 Audio error:', { error, filename, details });
+    
+    dispatch({
+      type: 'SET_AUDIO_STATE',
+      payload: {
+        audioError: {
+          type: 'playback',
+          title: details.title,
+          message: details.message,
+          suggestion: details.suggestion,
+          code: details.code,
+          filename: details.filename,
+          supportedFormats: details.supportedFormats,
+          compatibilityInfo: fileValidation?.info?.browserSupport,
+          detectedFormat: fileValidation?.info?.detectedMimeType ? 
+            getFormatDisplayName(fileValidation.info.detectedMimeType) : 'Unknown'
+        }
+      }
+    });
+    
+    if (window.requestIdleCallback) {
+      window.requestIdleCallback(() => setIsPlaying(false));
+    } else {
+      setTimeout(() => setIsPlaying(false), 0);
+    }
+  }, [audioFile?.name, fileValidation, setIsPlaying]);
 
   // 🚀 Optimized audio event handlers
   const useAudioEventHandlers = ({ audioRef, audioFile, setDuration, setEndTime, setCurrentTime, setIsPlaying, jumpToTime, startTime, isInverted, fileValidation }) => {
@@ -1053,49 +963,19 @@ const MP3CutterMain = React.memo(() => {
       
       const onPlay = () => setTimeout(() => setIsPlaying(true), 16);
       const onPause = () => setTimeout(() => setIsPlaying(false), 16);
-      
-      const onError = e => {
-        const error = e.target.error;
-        const filename = audioFile?.name || 'audio file';
-        const details = getAudioErrorMessage(error, filename);
-        
-        dispatch({
-          type: 'SET_AUDIO_STATE',
-          payload: {
-            audioError: {
-              type: 'playback',
-              title: details.title,
-              message: details.message,
-              suggestion: details.suggestion,
-              code: details.code,
-              filename: details.filename,
-              supportedFormats: details.supportedFormats,
-              compatibilityInfo: fileValidation?.info?.browserSupport,
-              detectedFormat: fileValidation?.info?.detectedMimeType ? 
-                getFormatDisplayName(fileValidation.info.detectedMimeType) : 'Unknown'
-            }
-          }
-        });
-        
-        if (window.requestIdleCallback) {
-          window.requestIdleCallback(() => setIsPlaying(false));
-        } else {
-          setTimeout(() => setIsPlaying(false), 0);
-        }
-      };
 
       audio.addEventListener('loadedmetadata', onLoadedMetadata);
       audio.addEventListener('ended', onEnded);
       audio.addEventListener('play', onPlay);
       audio.addEventListener('pause', onPause);
-      audio.addEventListener('error', onError);
+      audio.addEventListener('error', handleError);
 
       return () => {
         audio.removeEventListener('loadedmetadata', onLoadedMetadata);
         audio.removeEventListener('ended', onEnded);
         audio.removeEventListener('play', onPlay);
         audio.removeEventListener('pause', onPause);
-        audio.removeEventListener('error', onError);
+        audio.removeEventListener('error', handleError);
       };
     }, [audioFile?.name, audioFile?.url, audioRef, setCurrentTime, setDuration, setIsPlaying, setEndTime, fileValidation, jumpToTime, startTime, isInverted]);
   };
@@ -1347,35 +1227,101 @@ const MP3CutterMain = React.memo(() => {
 
   const handleCanPlay = useCallback(() => {}, []);
 
-  const handleError = useCallback((e) => {
-    const error = e.target.error;
-    const filename = audioFile?.name || 'audio file';
-    const details = getAudioErrorMessage(error, filename);
+  // 🚀 Optimized pitch change handler
+  const handlePitchChange = useCallback((newPitch) => {
+    updatePitch(newPitch);
     
-    dispatch({
-      type: 'SET_AUDIO_STATE',
-      payload: {
-        audioError: {
-          type: 'playback',
-          title: details.title,
-          message: details.message,
-          suggestion: details.suggestion,
-          code: details.code,
-          filename: details.filename,
-          supportedFormats: details.supportedFormats,
-          compatibilityInfo: fileValidation?.info?.browserSupport,
-          detectedFormat: fileValidation?.info?.detectedMimeType ? 
-            getFormatDisplayName(fileValidation.info.detectedMimeType) : 'Unknown'
-        }
-      }
-    });
-    
-    if (window.requestIdleCallback) {
-      window.requestIdleCallback(() => setIsPlaying(false));
+    if (setPitchValue(newPitch)) {
+      console.log(`✅ Main: Pitch updated to ${newPitch}st (zero interruption)`);
     } else {
-      setTimeout(() => setIsPlaying(false), 0);
+      console.log('🎵 Main: Pitch will be applied when audio connects');
     }
-  }, [audioFile?.name, fileValidation, setIsPlaying]);
+  }, [updatePitch, setPitchValue]);
+
+  // 🚀 Optimized equalizer change handler
+  const handleEqualizerChange = useCallback((type, data) => {
+    if (!isEqualizerConnected) return;
+
+    switch (type) {
+      case 'band':
+        const { index, value } = data;
+        updateEqualizerBand(index, value);
+        dispatch({
+          type: 'SET_AUDIO_STATE',
+          payload: {
+            currentEqualizerValues: currentEqualizerValues.map((v, i) => i === index ? value : v)
+          }
+        });
+        break;
+      
+      case 'preset':
+        updateEqualizerValues(data.values);
+        dispatch({
+          type: 'SET_AUDIO_STATE',
+          payload: { currentEqualizerValues: [...data.values] }
+        });
+        break;
+      
+      case 'reset':
+        resetEqualizer();
+        dispatch({
+          type: 'SET_AUDIO_STATE',
+          payload: { currentEqualizerValues: Array(10).fill(0) }
+        });
+        break;
+      
+      default:
+        console.warn('🎵 Unknown equalizer action type:', type);
+        break;
+    }
+  }, [isEqualizerConnected, updateEqualizerBand, updateEqualizerValues, resetEqualizer, currentEqualizerValues]);
+
+  // 🚀 Optimized getCurrentEqualizerState
+  const getCurrentEqualizerState = useCallback(() => {
+    if (currentEqualizerValues.some(v => v !== 0)) {
+      return currentEqualizerValues;
+    }
+    
+    if (!isEqualizerConnected || !getEqualizerState) return null;
+    
+    const eqState = getEqualizerState();
+    return eqState?.bands ? eqState.bands.map(band => band.gain) : null;
+  }, [currentEqualizerValues, isEqualizerConnected, getEqualizerState]);
+
+  // 🚀 Optimized region click handlers
+  const handleRegionClick = useCallback((regionId, clickPosition = null) => {
+    if (draggingRegion) return;
+    
+    const selectedRegion = regions.find(r => r.id === regionId);
+    if (!selectedRegion) return;
+    
+    const wasAlreadyActive = activeRegionId === regionId;
+    
+    if (wasAlreadyActive && clickPosition !== null) {
+      jumpToTime(clickPosition);
+    } else {
+      setActiveRegionIdDebounced(regionId, 'regionClick');
+      jumpToTime(selectedRegion.start);
+    }
+  }, [regions, jumpToTime, draggingRegion, setActiveRegionIdDebounced, activeRegionId]);
+
+  const handleMainSelectionClick = useCallback((clickPosition = null, options = {}) => {
+    if (regions.length >= 1) {
+      const now = Date.now();
+      if (mainSelectionClickRef.current && now - mainSelectionClickRef.current < 100) return;
+      mainSelectionClickRef.current = now;
+      
+      const wasAlreadyActive = activeRegionId === 'main';
+      const isActivation = options.isActivation || false;
+      
+      if (isActivation) {
+        setActiveRegionIdDebounced('main', 'mainSelectionClick');
+        jumpToTime(startTime);
+      } else if (wasAlreadyActive && clickPosition !== null) {
+        jumpToTime(clickPosition);
+      }
+    }
+  }, [regions.length, setActiveRegionIdDebounced, jumpToTime, startTime, activeRegionId]);
 
   // 🚀 Final render with all optimizations
   return (
@@ -1432,12 +1378,12 @@ const MP3CutterMain = React.memo(() => {
                 });
               }}
               onRegionClick={handleRegionClick}
-              onRegionHandleDown={handleRegionMouseDown}
-              onRegionHandleMove={handleRegionMouseMove}
-              onRegionHandleUp={handleRegionMouseUp}
-              onRegionBodyDown={handleRegionBodyDown}
-              onRegionBodyMove={handleRegionBodyMove}
-              onRegionBodyUp={handleRegionBodyUp}
+              onRegionHandleDown={(regionId, handleType, e) => handleRegionPointerDown(regionId, handleType, e)}
+              onRegionHandleMove={(regionId, handleType, e) => handleRegionPointerMove(regionId, handleType, e)}
+              onRegionHandleUp={(regionId, handleType, e) => handleRegionPointerUp(regionId, handleType, e)}
+              onRegionBodyDown={(regionId, e) => handleRegionPointerDown(regionId, 'body', e)}
+              onRegionBodyMove={(regionId, e) => handleRegionPointerMove(regionId, 'body', e)}
+              onRegionBodyUp={(regionId, e) => handleRegionPointerUp(regionId, 'body', e)}
               onMainSelectionClick={handleMainSelectionClick}
               onMouseDown={handleCanvasMouseDown}
               onMouseMove={handleCanvasMouseMove}

@@ -17,6 +17,23 @@ const getWaveformArea = (width) => {
   };
 };
 
+// Helper: calculate region area boundaries (reduces redundancy)
+const getRegionAreaBounds = (region, startX, areaWidth, handleW, duration) => {
+  const regionStartX = startX + (region.start / duration) * areaWidth;
+  const regionEndX = startX + (region.end / duration) * areaWidth;
+  return {
+    startX: regionStartX,
+    endX: regionEndX,
+    width: regionEndX - regionStartX,
+    areaLeft: regionStartX - handleW,
+    areaRight: regionEndX + handleW,
+    handleStartLeft: regionStartX - handleW,
+    handleStartRight: regionStartX,
+    handleEndLeft: regionEndX,
+    handleEndRight: regionEndX + handleW
+  };
+};
+
 export const useInteractionHandlers = ({
   canvasRef,
   duration,
@@ -232,29 +249,18 @@ export const useInteractionHandlers = ({
           
           if (activeRegion && clickTime >= 0 && clickTime <= duration) {
             const { start: regionStart, end: regionEnd } = activeRegion;
+            const regionBounds = getRegionAreaBounds(activeRegion, startX, areaWidth, handleW, duration);
             
-            // 🆕 Additional validation: Only apply endpoint jumping for clicks OUTSIDE any region areas
-            // This ensures we don't interfere with region selection or internal region clicks
-            const regionStartX = startX + (regionStart / duration) * areaWidth;
-            const regionEndX = startX + (regionEnd / duration) * areaWidth;
-            const startHandleLeft = regionStartX - handleW;
-            const startHandleRight = regionStartX;
-            const endHandleLeft = regionEndX;
-            const endHandleRight = regionEndX + handleW;
-            
-            const isInStartHandle = clickX >= startHandleLeft && clickX <= startHandleRight;
-            const isInEndHandle = clickX >= endHandleLeft && clickX <= endHandleRight;
+            const isInStartHandle = clickX >= regionBounds.handleStartLeft && clickX <= regionBounds.handleStartRight;
+            const isInEndHandle = clickX >= regionBounds.handleEndLeft && clickX <= regionBounds.handleEndRight;
             
             // 🔍 Check if click is within ANY region area (not just active region)
             let isClickInAnyRegionArea = false;
             if (regions.length > 0) {
               for (const region of regions) {
-                const regStartX = startX + (region.start / duration) * areaWidth;
-                const regEndX = startX + (region.end / duration) * areaWidth;
-                const regAreaLeft = regStartX - handleW;
-                const regAreaRight = regEndX + handleW;
+                const bounds = getRegionAreaBounds(region, startX, areaWidth, handleW, duration);
                 
-                if (clickX >= regAreaLeft && clickX <= regAreaRight) {
+                if (clickX >= bounds.areaLeft && clickX <= bounds.areaRight) {
                   isClickInAnyRegionArea = true;
                   console.log('🎯 Click detected within region area:', region.id || region.name);
                   break;
@@ -263,11 +269,11 @@ export const useInteractionHandlers = ({
             }
             
             // 🔍 Check if click is within main selection area
-            const mainStartX = startX + (startTime / duration) * areaWidth;
-            const mainEndX = startX + (endTime / duration) * areaWidth;
-            const mainAreaLeft = mainStartX - handleW;
-            const mainAreaRight = mainEndX + handleW;
-            const isClickInMainArea = clickX >= mainAreaLeft && clickX <= mainAreaRight;
+            const mainBounds = getRegionAreaBounds(
+              { start: startTime, end: endTime }, 
+              startX, areaWidth, handleW, duration
+            );
+            const isClickInMainArea = clickX >= mainBounds.areaLeft && clickX <= mainBounds.areaRight;
             
             if (isClickInMainArea && activeRegionId === 'main') {
               isClickInAnyRegionArea = true;

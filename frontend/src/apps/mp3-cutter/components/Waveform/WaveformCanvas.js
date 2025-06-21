@@ -59,6 +59,23 @@ const interpolateColor = (color1, color2, ratio) => {
   return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
 };
 
+// Helper: calculate region area boundaries (reduces redundancy)
+const getRegionAreaBounds = (region, startX, areaWidth, handleW, duration) => {
+  const regionStartX = startX + (region.start / duration) * areaWidth;
+  const regionEndX = startX + (region.end / duration) * areaWidth;
+  return {
+    startX: regionStartX,
+    endX: regionEndX,
+    width: regionEndX - regionStartX,
+    areaLeft: regionStartX - handleW,
+    areaRight: regionEndX + handleW,
+    handleStartLeft: regionStartX - handleW,
+    handleStartRight: regionStartX,
+    handleEndLeft: regionEndX,
+    handleEndRight: regionEndX + handleW
+  };
+};
+
 const WaveformCanvas = React.memo(({
   canvasRef,
   waveformData = [],
@@ -137,14 +154,9 @@ const WaveformCanvas = React.memo(({
         // 🚀 Check if click is within any region area first (to exclude from main selection detection)
         let isClickInRegionArea = false;
         for (const region of regions) {
-          const regStartX = startX + (region.start / duration) * areaWidth;
-          const regEndX = startX + (region.end / duration) * areaWidth;
+          const bounds = getRegionAreaBounds(region, startX, areaWidth, handleW, duration);
           
-          // Region area includes handles: from left edge of start handle to right edge of end handle
-          const regAreaLeft = regStartX - handleW;
-          const regAreaRight = regEndX + handleW;
-          
-          if (mouseX >= regAreaLeft && mouseX <= regAreaRight) {
+          if (mouseX >= bounds.areaLeft && mouseX <= bounds.areaRight) {
             isClickInRegionArea = true;
             break;
           }
@@ -374,7 +386,7 @@ const WaveformCanvas = React.memo(({
     ctx.clearRect(0, 0, width, height);
 
     const { duration, startTime, endTime, volume: currentVolume, isInverted } = renderData;
-    const { startX, areaWidth } = getWaveformArea(width);
+    const { startX, areaWidth, handleW } = getWaveformArea(width);
 
     // 1. Gray bg
     if (backgroundCacheRef.current) {
@@ -414,14 +426,12 @@ const WaveformCanvas = React.memo(({
     // 🆕 3.5. Dynamic colored waveform bars for regions (before region overlays)
     if (regions?.length > 0 && duration > 0 && dynamicWaveformCacheRef.current) {
       regions.forEach(region => {
-        const regionStartX = startX + (region.start / duration) * areaWidth;
-        const regionEndX = startX + (region.end / duration) * areaWidth;
-        const regionWidth = regionEndX - regionStartX;
+        const bounds = getRegionAreaBounds(region, startX, areaWidth, handleW, duration);
         
-        if (regionWidth > 2) {
+        if (bounds.width > 2) {
           ctx.save();
           ctx.beginPath();
-          ctx.rect(regionStartX, 0, regionWidth, height);
+          ctx.rect(bounds.startX, 0, bounds.width, height);
           ctx.clip();
           ctx.drawImage(dynamicWaveformCacheRef.current, 0, 0);
           ctx.restore();
@@ -432,19 +442,15 @@ const WaveformCanvas = React.memo(({
     // 4. Regions overlay - Simple design matching main selection
     if (regions?.length > 0 && duration > 0) {
       regions.forEach((region, index) => {
-        const regionStartX = startX + (region.start / duration) * areaWidth;
-        const regionEndX = startX + (region.end / duration) * areaWidth;
-        const regionWidth = regionEndX - regionStartX;
+        const bounds = getRegionAreaBounds(region, startX, areaWidth, handleW, duration);
         
         // Only draw if region has reasonable width
-        if (regionWidth > 2) {
+        if (bounds.width > 2) {
           const isActive = region.id === activeRegionId;
           
           // 🎨 Unified background - always purple for all regions (same as main selection)
-          const regionBgColor = WAVEFORM_CONFIG.COLORS.SELECTION_OVERLAY; // Always purple for all regions
-          
-          ctx.fillStyle = regionBgColor;
-          ctx.fillRect(regionStartX, 0, regionWidth, height);
+          ctx.fillStyle = WAVEFORM_CONFIG.COLORS.SELECTION_OVERLAY;
+          ctx.fillRect(bounds.startX, 0, bounds.width, height);
           
           // 🎨 Border - only when active (green top and bottom)
           if (isActive) {
@@ -452,23 +458,23 @@ const WaveformCanvas = React.memo(({
             ctx.lineWidth = 2;
             // Top border
             ctx.beginPath();
-            ctx.moveTo(regionStartX, 0);
-            ctx.lineTo(regionStartX + regionWidth, 0);
+            ctx.moveTo(bounds.startX, 0);
+            ctx.lineTo(bounds.startX + bounds.width, 0);
             ctx.stroke();
             // Bottom border
             ctx.beginPath();
-            ctx.moveTo(regionStartX, height);
-            ctx.lineTo(regionStartX + regionWidth, height);
+            ctx.moveTo(bounds.startX, height);
+            ctx.lineTo(bounds.startX + bounds.width, height);
             ctx.stroke();
           }
           
           // 🎨 Simple label - green for active, purple for inactive
-          if (regionWidth > 40) {
+          if (bounds.width > 40) {
             const labelText = region.name || `R${index + 1}`;
             ctx.fillStyle = isActive ? '#16a34a' : '#7c3aed';
             ctx.font = '11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText(labelText, regionStartX + regionWidth / 2, 15);
+            ctx.fillText(labelText, bounds.startX + bounds.width / 2, 15);
           }
         }
       });    
@@ -621,14 +627,9 @@ const WaveformCanvas = React.memo(({
     const { startX, areaWidth, handleW } = getWaveformArea(w);
     
     return regions.map(region => {
-      const regionStartX = startX + (region.start / duration) * areaWidth;
-      const regionEndX = startX + (region.end / duration) * areaWidth;
+      const bounds = getRegionAreaBounds(region, startX, areaWidth, handleW, duration);
       const isActive = region.id === activeRegionId;
-      
-      // 🔧 Use same positioning logic as main selection to prevent cursor overlap
-      // Start handle: fully to the left of region start point
-      // End handle: fully to the right of region end point
-      // This ensures no overlap with main cursor line at time boundaries
+      const handleColor = isActive ? '#22c55e' : '#8b5cf6';
       
       return {
         id: region.id,
@@ -638,19 +639,19 @@ const WaveformCanvas = React.memo(({
         endTime: region.end,
         startHandle: {
           visible: true,
-          x: regionStartX - handleW, // Same as main selection: fully left of region start
+          x: bounds.handleStartLeft,
           y: 0,
           width: handleW,
           height: h,
-          color: isActive ? '#22c55e' : '#8b5cf6' // Green when active, purple when inactive
+          color: handleColor
         },
         endHandle: {
           visible: true,
-          x: regionEndX, // Same as main selection: fully right of region end
+          x: bounds.handleEndLeft,
           y: 0,
           width: handleW,
           height: h,
-          color: isActive ? '#22c55e' : '#8b5cf6' // Green when active, purple when inactive
+          color: handleColor
         }
       };
     });
