@@ -370,7 +370,7 @@ export const WaveformUI = memo(({
               height: `${region.startHandle.height}px`,
               zIndex: 15,
               backgroundColor: 'transparent',
-              cursor: 'grab'
+              cursor: 'pointer'
             }}
             onPointerEnter={(e) => {
               // 🔧 CRITICAL FIX: Update hover tooltip when entering region
@@ -449,7 +449,7 @@ export const WaveformUI = memo(({
                 };
               }
               
-              // Start drag preparation
+              // 🔧 FIX: Change cursor to grabbing when dragging
               e.target.style.cursor = 'grabbing';
               onRegionBodyDown?.(region.id, e);
             }}
@@ -457,8 +457,8 @@ export const WaveformUI = memo(({
               e.preventDefault();
               e.stopPropagation();
               
-              // 🔧 CRITICAL: Clear drag state FIRST before processing region click
-              e.target.style.cursor = 'grab';
+              // 🔧 FIX: Restore pointer cursor when drag ends
+              e.target.style.cursor = 'pointer';
               onRegionBodyUp?.(region.id, e);
               
               // 🔧 CRITICAL FIX: Only process pending region clicks for already-active regions

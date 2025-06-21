@@ -23,7 +23,7 @@ const clampTooltipX = (x, start, end, type = 'default') => {
 };
 
 export const useOptimizedTooltip = (
-  canvasRef, duration, currentTime, isPlaying, audioRef, startTime, endTime, hoveredHandle, isDragging, isInverted = false
+  canvasRef, duration, currentTime, isPlaying, audioRef, startTime, endTime, hoveredHandle, isDragging, isInverted = false, draggingRegion = null
 ) => {
   const [hoverPos, setHoverPos] = useState(null);
   const [isHoverActive, setIsHoverActive] = useState(false);
@@ -65,29 +65,36 @@ export const useOptimizedTooltip = (
 
   const calcHover = useCallback(() => {
     if (!isHoverActive || !hoverPos || !canvasRef?.current || !duration ||
-        ['start', 'end', 'region', 'region-potential'].includes(isDragging)) return null;
+        ['start', 'end', 'region', 'region-potential'].includes(isDragging) ||
+        draggingRegion) return null;
     const canvas = canvasRef.current;
     const { x } = hoverPos, { startX, endX, areaWidth, width } = getArea(canvas);
     if (x < startX || x > endX) return null;
     const t = ((x - startX) / areaWidth) * duration;
     if (t < 0 || t > duration) return null;
     return { visible: true, x: clampTooltipX(x, startX, width, 'hover'), time: t, formattedTime: formatTime(t) };
-  }, [isHoverActive, hoverPos, canvasRef, duration, formatTime, isDragging, getArea]);
+  }, [isHoverActive, hoverPos, canvasRef, duration, formatTime, isDragging, draggingRegion, getArea]);
 
   const updateHoverTooltip = useCallback(e => {
-    if (!canvasRef?.current || !duration) return setHoverPos(null), setIsHoverActive(false);
+    if (!canvasRef?.current || !duration) {
+      setHoverPos(null);
+      setIsHoverActive(false);
+      return;
+    }
     const rect = canvasRef.current.getBoundingClientRect();
     setHoverPos({ x: e.clientX - rect.left });
     setIsHoverActive(true);
     if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
     hoverTimeoutRef.current = setTimeout(() => {
-      setIsHoverActive(false); setHoverPos(null);
+      setIsHoverActive(false);
+      setHoverPos(null);
     }, 2000);
   }, [canvasRef, duration]);
 
   const clearHoverTooltip = useCallback(() => {
     if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
-    setIsHoverActive(false); setHoverPos(null);
+    setIsHoverActive(false);
+    setHoverPos(null);
   }, []);
 
   useEffect(() => () => { if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current); }, []);

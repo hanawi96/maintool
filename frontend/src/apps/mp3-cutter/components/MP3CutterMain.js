@@ -603,6 +603,7 @@ const MP3CutterMain = React.memo(() => {
               endTime={endTime}
               hoveredHandle={hoveredHandle}
               isDragging={isDragging}
+              draggingRegion={draggingRegion}
               isPlaying={isPlaying}
               volume={volume}
               isGenerating={isGenerating}

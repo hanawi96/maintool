@@ -85,6 +85,7 @@ const WaveformCanvas = React.memo(({
   endTime = 0,
   hoveredHandle = null,
   isDragging = false,
+  draggingRegion = null,
   isPlaying = false,
   volume = 1,
   isGenerating = false,
@@ -130,7 +131,7 @@ const WaveformCanvas = React.memo(({
     clearHoverTooltip
   } = useOptimizedTooltip(
     canvasRef, duration, currentTime, isPlaying,
-    audioRef, startTime, endTime, hoveredHandle, isDragging, isInverted
+    audioRef, startTime, endTime, hoveredHandle, isDragging, isInverted, draggingRegion
   );
   const { updateCursor } = useWaveformCursor(canvasRef, duration, startTime, endTime, isDragging);
   const {
@@ -645,20 +646,13 @@ const WaveformCanvas = React.memo(({
     const { startX, areaWidth } = getWaveformArea(w);
     const mainCursorX = currentTime >= 0 ? startX + (currentTime / duration) * areaWidth : -1;
     
-    // 🎯 SIMPLIFIED LOGIC: Always show hover line when hovering (except when dragging handles)
+    // 🎯 ENHANCED LOGIC: Hide hover line when dragging handles OR regions
     const shouldShowHover = hoverTooltip && hoverTooltip.visible &&
       isDragging !== 'start' && isDragging !== 'end' &&
-      isDragging !== 'region' && isDragging !== 'region-potential';
+      isDragging !== 'region' && isDragging !== 'region-potential' &&
+      // 🔧 CRITICAL FIX: Hide hover line when dragging regions
+      !draggingRegion;
       
-    // 🐛 Debug: Simple hover line state
-    if (window.debugHoverLine && shouldShowHover) {
-      console.log('🔍 Hover line shown:', {
-        hoverX: hoverTooltip.x.toFixed(2),
-        isDragging,
-        visible: hoverTooltip.visible
-      });
-    }
-
     return {
       mainCursor: {
         visible: currentTime >= 0 && duration > 0 && mainCursorX >= startX && mainCursorX <= (w - startX),
@@ -676,7 +670,8 @@ const WaveformCanvas = React.memo(({
         height: h,
         color: 'rgba(156,163,175,0.6)'
       }
-    };  }, [canvasRef, duration, currentTime, hoverTooltip, isDragging, containerWidth, renderData]);
+    };
+  }, [canvasRef, duration, currentTime, hoverTooltip, isDragging, draggingRegion, containerWidth, renderData]);
 
   // 🆕 ----- REGION POSITIONS CALC -----
   const regionPositions = useMemo(() => {
@@ -765,6 +760,8 @@ const WaveformCanvas = React.memo(({
           clearHoverTooltip={clearHoverTooltip}
           isPlaying={isPlaying}
           isDragging={isDragging}
+          // 🔧 CRITICAL FIX: Pass draggingRegion state for consistency
+          draggingRegion={draggingRegion}
           isInverted={isInverted}
         />
       )}
