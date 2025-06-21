@@ -68,6 +68,7 @@ export const useInteractionHandlers = ({
   const lastClickPositionRef = useRef(null);
   const dragStartPositionRef = useRef(null); // 🆕 Track drag start to detect actual dragging
   const hasDraggedRef = useRef(false); // 🆕 Track if actual dragging occurred
+  const currentMousePositionRef = useRef(null); // 🆕 Track current mouse position for accurate endpoint jumping
   
   // 🆕 Track the activeRegionId at the moment of mouse down to detect selection vs active click
   const activeRegionAtMouseDownRef = useRef(null);
@@ -152,12 +153,16 @@ export const useInteractionHandlers = ({
     const rect = cachedRectRef.current || canvasRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     
+    // 🆕 Update current mouse position
+    currentMousePositionRef.current = x;
+    
     // 🆕 Detect if actual dragging is occurring
     if (dragStartPositionRef.current !== null) {
       const dragDistance = Math.abs(x - dragStartPositionRef.current);
-      if (dragDistance > 3) { // 3px threshold for drag detection
+      const boundsCheck = x >= 0 && x <= (canvasRef.current.width || 800);
+      if (dragDistance > 3 && boundsCheck) { // 3px threshold for drag detection
         hasDraggedRef.current = true;
-        console.log('🔄 Drag detected, distance:', dragDistance);
+        console.log('🔄 Real drag detected, distance:', dragDistance, 'bounds check:', boundsCheck);
       }
     }
     
@@ -203,10 +208,137 @@ export const useInteractionHandlers = ({
     // 🆕 Track if endpoint jumping was applied to prevent overriding cursor position
     let endpointJumpingApplied = false;
     
+    // 🆕 MAIN FIX: Handle drag from outside region to move endpoint and cursor to mouse up position
+    if (hadRealDrag && lastClickPositionRef.current !== null && activeRegionId) {
+      console.log('🔥 useInteractionHandlers: Real drag detected, checking if we should apply endpoint jumping...', {
+        activeRegionId,
+        regionsCount: regions.length,
+        isMainOnly: activeRegionId === 'main' && regions.length === 0,
+        hadRealDrag
+      });
+      
+      const canvas = canvasRef.current;
+      if (canvas) {
+        const canvasWidth = canvas.offsetWidth || canvas.width || 800;
+        const { startX, areaWidth, handleW } = getWaveformArea(canvasWidth);
+        
+        // 🔧 FIXED: Use current mouse position for accurate endpoint jumping
+        const mouseUpX = currentMousePositionRef.current;
+        
+        if (mouseUpX !== null && mouseUpX >= 0 && mouseUpX <= canvasWidth) {
+          const mouseUpTime = ((mouseUpX - startX) / areaWidth) * duration;
+          
+          let activeRegion = null;
+          if (activeRegionId === 'main') {
+            activeRegion = { id: 'main', start: startTime, end: endTime };
+          } else {
+            activeRegion = regions.find(r => r.id === activeRegionId);
+          }
+          
+          if (activeRegion && mouseUpTime >= 0 && mouseUpTime <= duration) {
+            const { start: regionStart, end: regionEnd } = activeRegion;
+            
+            console.log('🎯 Drag endpoint analysis:', {
+              activeRegionId,
+              mouseUpX: mouseUpX.toFixed(2),
+              mouseUpTime: mouseUpTime.toFixed(2),
+              regionStart: regionStart.toFixed(2),
+              regionEnd: regionEnd.toFixed(2),
+              isBeforeStart: mouseUpTime < regionStart,
+              isAfterEnd: mouseUpTime > regionEnd,
+              isMainOnly: activeRegionId === 'main' && regions.length === 0
+            });
+            
+            // 🎯 Determine which endpoint to move based on mouse up position relative to active region
+            const isBeforeStart = mouseUpTime < regionStart;
+            const isAfterEnd = mouseUpTime > regionEnd;
+            
+            if (isBeforeStart || isAfterEnd) {
+              // 🔧 Calculate safe boundary for endpoint jumping
+              let newTime = mouseUpTime;
+              let updateType = null;
+              
+              if (isBeforeStart) {
+                // Mouse up before active region start - move start point to mouse up position
+                newTime = Math.max(0, Math.min(mouseUpTime, regionEnd - 0.1));
+                updateType = 'start';
+                console.log('🎯 Drag ended BEFORE active region start - applying endpoint jumping to move start point');
+              } else if (isAfterEnd) {
+                // Mouse up after active region end - move end point to mouse up position
+                newTime = Math.max(regionStart + 0.1, Math.min(mouseUpTime, duration));
+                updateType = 'end';
+                console.log('🎯 Drag ended AFTER active region end - applying endpoint jumping to move end point');
+              }
+              
+              // 🆕 Apply endpoint jumping to BOTH main selection AND regions
+              if (updateType) {
+                if (activeRegionId === 'main') {
+                  // Update main selection
+                  if (updateType === 'start') {
+                    handleStartTimeChange(newTime);
+                    console.log('✅ Updated main selection START to:', newTime.toFixed(2));
+                    // Jump cursor to start position
+                    jumpToTime(newTime);
+                    console.log('🎯 Set cursor to new start position:', newTime.toFixed(2));
+                    endpointJumpingApplied = true; // 🎯 Mark that endpoint jumping was applied
+                  } else {
+                    handleEndTimeChange(newTime);
+                    console.log('✅ Updated main selection END to:', newTime.toFixed(2));
+                    // 🎯 Set cursor 3 seconds before endpoint (like drag handle right)
+                    const regionDuration = newTime - regionStart;
+                    const cursorPosition = regionDuration < 3 ? regionStart : Math.max(regionStart, newTime - 3);
+                    jumpToTime(cursorPosition);
+                    console.log('🎯 Set cursor position for main selection END:', cursorPosition.toFixed(2), '(3 seconds before endpoint)');
+                    endpointJumpingApplied = true; // 🎯 Mark that endpoint jumping was applied
+                  }
+                } else {
+                  // Update region
+                  if (onRegionUpdate) {
+                    const updatedRegion = {
+                      ...activeRegion,
+                      [updateType]: newTime
+                    };
+                    onRegionUpdate(activeRegionId, updatedRegion.start, updatedRegion.end);
+                    console.log('✅ Updated region', activeRegionId, updateType.toUpperCase(), 'to:', newTime.toFixed(2));
+                    
+                    // 🎯 Set cursor position for region updates (like drag handle)
+                    if (updateType === 'start') {
+                      jumpToTime(newTime);
+                      console.log('🎯 Set cursor to new start position:', newTime.toFixed(2));
+                      endpointJumpingApplied = true; // 🎯 Mark that endpoint jumping was applied
+                    } else {
+                      // Set cursor 3 seconds before endpoint (like drag handle right)
+                      const regionDuration = newTime - updatedRegion.start;
+                      const cursorPosition = regionDuration < 3 ? updatedRegion.start : Math.max(updatedRegion.start, newTime - 3);
+                      jumpToTime(cursorPosition);
+                      console.log('🎯 Set cursor position for region END:', cursorPosition.toFixed(2), '(3 seconds before endpoint)');
+                      endpointJumpingApplied = true; // 🎯 Mark that endpoint jumping was applied
+                    }
+                  } else {
+                    console.warn('⚠️ onRegionUpdate not provided, cannot update region');
+                  }
+                }
+              }
+            } else {
+              // Mouse up within active region - just jump cursor to mouse up position
+              console.log('🎯 Drag ended within active region - jumping cursor to mouse up position:', mouseUpTime.toFixed(2));
+              jumpToTime(mouseUpTime);
+              endpointJumpingApplied = true;
+            }
+          } else {
+            console.log('🚫 Invalid active region or mouse up time outside bounds');
+          }
+        } else {
+          console.log('🚫 Invalid mouse up position:', mouseUpX);
+        }
+      } else {
+        console.log('🚫 Canvas not found, skipping drag endpoint jumping');
+      }
+    }
     // 🆕 Enhanced cursor jumping and endpoint jumping logic - Apply to ALL active regions including main
     // 🔧 CRITICAL FIX: Use hadRealDrag instead of wasDragging for the main condition
     // 🔧 MAIN FIX: Allow endpoint jumping for main region even when regions.length === 0
-    if (!hadRealDrag && lastClickPositionRef.current !== null && activeRegionId) {
+    else if (!hadRealDrag && lastClickPositionRef.current !== null && activeRegionId) {
       console.log('🔥 useInteractionHandlers: Entering cursor/endpoint jumping logic (no real drag detected)...', {
         activeRegionId,
         regionsCount: regions.length,
@@ -294,6 +426,7 @@ export const useInteractionHandlers = ({
               clickTime: clickTime.toFixed(2),
               regionStart: regionStart.toFixed(2),
               regionEnd: regionEnd.toFixed(2),
+              clickX: clickX,
               isInStartHandle,
               isInEndHandle,
               isInsideRegion: clickTime >= regionStart && clickTime <= regionEnd,
@@ -356,12 +489,12 @@ export const useInteractionHandlers = ({
               // Click before active region start - move start point to click position
               newTime = Math.max(0, Math.min(clickTime, regionEnd - 0.1));
               updateType = 'start';
-              console.log('📍 Moving active region START point to click position:', newTime.toFixed(2));
+              console.log('🎯 Click BEFORE active region start - applying endpoint jumping to move start point');
             } else if (isAfterEnd) {
               // Click after active region end - move end point to click position
               newTime = Math.max(regionStart + 0.1, Math.min(clickTime, duration));
               updateType = 'end';
-              console.log('📍 Moving active region END point to click position:', newTime.toFixed(2));
+              console.log('🎯 Click AFTER active region end - applying endpoint jumping to move end point');
             } else {
               // Click within active region - just jump cursor
               console.log('🎯 Click within active region - jumping cursor to click point:', clickTime.toFixed(2));
@@ -380,11 +513,12 @@ export const useInteractionHandlers = ({
                   console.log('✅ Updated main selection START to:', newTime.toFixed(2));
                   // Jump cursor to start position
                   jumpToTime(newTime);
+                  console.log('🎯 Set cursor to new start position:', newTime.toFixed(2));
                   endpointJumpingApplied = true; // 🎯 Mark that endpoint jumping was applied
                 } else {
                   handleEndTimeChange(newTime);
                   console.log('✅ Updated main selection END to:', newTime.toFixed(2));
-                  // 🎯 MAIN FIX: Set cursor 3 seconds before endpoint (like drag handle right)
+                  // 🎯 Set cursor 3 seconds before endpoint (like drag handle right)
                   const regionDuration = newTime - regionStart;
                   const cursorPosition = regionDuration < 3 ? regionStart : Math.max(regionStart, newTime - 3);
                   jumpToTime(cursorPosition);
@@ -401,10 +535,10 @@ export const useInteractionHandlers = ({
                   onRegionUpdate(activeRegionId, updatedRegion.start, updatedRegion.end);
                   console.log('✅ Updated region', activeRegionId, updateType.toUpperCase(), 'to:', newTime.toFixed(2));
                   
-                  // 🎯 MAIN FIX: Set cursor position for region updates (like drag handle)
+                  // 🎯 Set cursor position for region updates (like drag handle)
                   if (updateType === 'start') {
                     jumpToTime(newTime);
-                    console.log('🎯 Set cursor position for region START:', newTime.toFixed(2));
+                    console.log('🎯 Set cursor to new start position:', newTime.toFixed(2));
                     endpointJumpingApplied = true; // 🎯 Mark that endpoint jumping was applied
                   } else {
                     // Set cursor 3 seconds before endpoint (like drag handle right)
@@ -446,6 +580,7 @@ export const useInteractionHandlers = ({
     // Clean up
     lastClickPositionRef.current = null;
     activeRegionAtMouseDownRef.current = null;
+    currentMousePositionRef.current = null;
     
     // 🎯 MAIN FIX: Only execute pending operations if endpoint jumping was NOT applied
     if (!endpointJumpingApplied) {
@@ -478,6 +613,7 @@ export const useInteractionHandlers = ({
     handleCanvasMouseLeave,
     // 🆕 Expose drag tracking refs for debugging if needed
     dragStartPositionRef,
-    hasDraggedRef
+    hasDraggedRef,
+    currentMousePositionRef
   };
 };
