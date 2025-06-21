@@ -14,17 +14,6 @@ const SkeletonLoader = ({ type }) => {
           </div>
         </div>
       );
-    case 'fade':
-      return (
-        <div className="bg-white/70 backdrop-blur-sm rounded-xl p-4 border border-slate-200/50 shadow-sm animate-pulse">
-          <div className="h-4 bg-slate-200 rounded w-24 mb-4"></div>
-          <div className="space-y-3">
-            <div className="h-3 bg-slate-200 rounded w-full"></div>
-            <div className="h-3 bg-slate-200 rounded w-full"></div>
-            <div className="h-6 bg-slate-200 rounded w-full"></div>
-          </div>
-        </div>
-      );
     case 'export':
       return (
         <div className="bg-gradient-to-br from-white/80 to-slate-50/80 backdrop-blur-sm rounded-xl p-6 border border-slate-200/50 shadow-sm animate-pulse">
@@ -76,10 +65,6 @@ export const SmartWaveformLazy = createLazyComponent(
   () => import('../apps/mp3-cutter/components/Waveform/SmartWaveform'),
   'waveform'
 );
-export const FadeControlsLazy = createLazyComponent(
-  () => import('../apps/mp3-cutter/components/Effects/FadeControls'),
-  'fade'
-);
 export const ExportPanelLazy = createLazyComponent(
   () => import('../apps/mp3-cutter/components/Export'),
   'export'
@@ -101,7 +86,6 @@ export const WaveformCanvasLazy = createLazyComponent(
 export const preloadHeavyComponents = (list) => {
   const preloadList = list || [
     () => import('../apps/mp3-cutter/components/Waveform/SmartWaveform'),
-    () => import('../apps/mp3-cutter/components/Effects/FadeControls'),
     () => import('../apps/mp3-cutter/components/Export'),
     () => import('../apps/mp3-cutter/components/UnifiedControlBar')
   ];

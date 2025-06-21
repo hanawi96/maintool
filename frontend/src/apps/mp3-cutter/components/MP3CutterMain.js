@@ -53,7 +53,7 @@ import ConnectionErrorAlert from './ErrorAlert/ConnectionErrorAlert';
 import FileUploadSection from './FileUploadSection';
 
 import { 
-  SmartWaveformLazy, FadeControlsLazy, ExportPanelLazy, 
+  SmartWaveformLazy, ExportPanelLazy, 
   UnifiedControlBarLazy
 } from '../../../components/LazyComponents';
 
@@ -1140,48 +1140,30 @@ const MP3CutterMain = React.memo(() => {
               onPlayAllRegions={handlePlayAllRegions}
             />
             
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <div className="fade-controls">
-                <FadeControlsLazy
-                  fadeIn={fadeIn}
-                  fadeOut={fadeOut}
-                  maxDuration={duration}
-                  onFadeInChange={fadeHandlers.handleFadeInChange}
-                  onFadeOutChange={fadeHandlers.handleFadeOutChange}
-                  onFadeInDragEnd={fadeHandlers.handleFadeInDragEnd}
-                  onFadeOutDragEnd={fadeHandlers.handleFadeOutDragEnd}
-                  onFadeInToggle={fadeHandlers.handleFadeInToggle}
-                  onFadeOutToggle={fadeHandlers.handleFadeOutToggle}
-                  onPresetApply={fadeHandlers.handlePresetApply}
-                  disabled={!audioFile}
-                />
-              </div>
-              
-              <div className="export-controls">
-                <ExportPanelLazy
-                  outputFormat={outputFormat}
-                  onFormatChange={setOutputFormat}
-                  audioFile={audioFile}
-                  startTime={startTime}
-                  endTime={endTime}
-                  fadeIn={fadeIn}
-                  fadeOut={fadeOut}
-                  playbackRate={playbackRate}
-                  pitch={pitchValue}
-                  volume={volume}
-                  equalizer={getCurrentEqualizerState()}
-                  isInverted={isInverted}
-                  normalizeVolume={normalizeVolume}
-                  onNormalizeVolumeChange={setNormalizeVolume}
-                  disabled={!audioFile}
-                  regions={regions}
-                  activeRegionId={activeRegionId}
-                  getCurrentFadeValues={fadeHandlers.getCurrentFadeValues}
-                  getCurrentVolumeValues={volumeHandlers.getCurrentVolumeValues}
-                  getCurrentSpeedValues={speedHandlers.getCurrentSpeedValues}
-                  getCurrentPitchValues={pitchHandlers.getCurrentPitchValues}
-                />
-              </div>
+            <div className="export-controls">
+              <ExportPanelLazy
+                outputFormat={outputFormat}
+                onFormatChange={setOutputFormat}
+                audioFile={audioFile}
+                startTime={startTime}
+                endTime={endTime}
+                fadeIn={fadeIn}
+                fadeOut={fadeOut}
+                playbackRate={playbackRate}
+                pitch={pitchValue}
+                volume={volume}
+                equalizer={getCurrentEqualizerState()}
+                isInverted={isInverted}
+                normalizeVolume={normalizeVolume}
+                onNormalizeVolumeChange={setNormalizeVolume}
+                disabled={!audioFile}
+                regions={regions}
+                activeRegionId={activeRegionId}
+                getCurrentFadeValues={fadeHandlers.getCurrentFadeValues}
+                getCurrentVolumeValues={volumeHandlers.getCurrentVolumeValues}
+                getCurrentSpeedValues={speedHandlers.getCurrentSpeedValues}
+                getCurrentPitchValues={pitchHandlers.getCurrentPitchValues}
+              />
             </div>
           </div>
         )}
