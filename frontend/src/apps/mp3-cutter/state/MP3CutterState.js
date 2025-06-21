@@ -50,8 +50,9 @@ export const useAppState = () => {
 
   // 🚀 Optimized debounced setActiveRegionId
   const setActiveRegionIdDebounced = useCallback((newRegionId, source = 'unknown') => {
-    if (source === 'addRegion' || source === 'regionClick') {
-      // 🔧 IMMEDIATE: No delay for region clicks and new region additions
+    if (source === 'addRegion' || source === 'regionClick' || 
+        source === 'playAllRegions' || source === 'playAllNext' || source === 'playAllComplete') {
+      // 🔧 IMMEDIATE: No delay for region clicks, new regions, and Play All operations
       dispatch({ type: 'SET_ACTIVE_REGION', id: newRegionId });
       return;
     }

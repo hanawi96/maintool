@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useEffect, useState } from 'react';
+import React, { useCallback, useRef, useEffect, useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Zap, X, RotateCcw } from 'lucide-react';
 import usePopupPosition from './usePopupPosition';
@@ -19,8 +19,14 @@ const SpeedSliderPopup = ({
   const { screenSize, maxWidth } = responsive;
   const isMobile = screenSize === 'mobile';
   
-  const [applyToAllState, setApplyToAllState] = useState(false);
-  const [speedBackup, setSpeedBackup] = useState(null);
+  const [applyToAllState, setApplyToAllState] = useState({});
+  const [speedBackup, setSpeedBackup] = useState({});
+  
+  // 🚀 Get current applyToAll state for active region
+  const currentApplyToAll = useMemo(() => {
+    const key = `${activeRegionId || 'main'}-speed`;
+    return applyToAllState[key] || false;
+  }, [applyToAllState, activeRegionId]);
   
   // 🔧 CRITICAL: Validate currentValue to prevent UI issues
   let currentValue = getCurrentSpeedValues ? getCurrentSpeedValues().playbackRate : value;
@@ -55,20 +61,20 @@ const SpeedSliderPopup = ({
     };
   }, [isVisible, onClose, buttonRef]);
   
+  // 🔧 CRITICAL FIX: Auto-uncheck when switching regions
   useEffect(() => {
-    if (applyToAllState) {
-      setApplyToAllState(false);
-      if (speedBackup) {
-        onChange(speedBackup.main, false, 'restore-main', speedBackup);
-        onChange(0, false, 'restore-regions', { 
-          regions: speedBackup.regions,
-          speedType: 'playbackRate'
-        });
-        setSpeedBackup(null);
-      }
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeRegionId]);
+    if (!isVisible) return;
+    
+    // Clear applyToAll for other regions when switching
+    const currentKey = `${activeRegionId || 'main'}-speed`;
+    setApplyToAllState(prev => {
+      const newState = {};
+      // Keep only current region's state, clear others
+      newState[currentKey] = prev[currentKey] || false;
+      
+      return newState;
+    });
+  }, [activeRegionId, isVisible]);
 
   const handleSliderChange = useCallback((e) => {
     const value = parseFloat(e.target.value);
@@ -84,10 +90,10 @@ const SpeedSliderPopup = ({
     }
     
     const clampedValue = Math.max(0.5, Math.min(3.0, value));
-    onChange(clampedValue, applyToAllState);
-  }, [onChange, applyToAllState]);
+    onChange(clampedValue, currentApplyToAll);
+  }, [onChange, currentApplyToAll]);
   
-  const handleReset = useCallback(() => onChange(1.0, applyToAllState), [onChange, applyToAllState]);
+  const handleReset = useCallback(() => onChange(1.0, currentApplyToAll), [onChange, currentApplyToAll]);
   
   const handlePresetClick = useCallback((presetValue) => {
     // 🔧 CRITICAL: Validate preset value
@@ -97,10 +103,12 @@ const SpeedSliderPopup = ({
     }
     
     const clampedValue = Math.max(0.5, Math.min(3.0, presetValue));
-    onChange(clampedValue, applyToAllState);
-  }, [onChange, applyToAllState]);
+    onChange(clampedValue, currentApplyToAll);
+  }, [onChange, currentApplyToAll]);
   
   const handleApplyToAllChange = useCallback((checked) => {
+    const key = `${activeRegionId || 'main'}-speed`;
+    
     if (checked) {
       // 🔧 CRITICAL: Validate backup values before saving
       const mainSpeed = typeof playbackRate === 'number' && isFinite(playbackRate) && !isNaN(playbackRate) 
@@ -131,22 +139,41 @@ const SpeedSliderPopup = ({
         })
       };
       
-      setSpeedBackup(backup);
-      setApplyToAllState(true);
+      setSpeedBackup(prev => ({
+        ...prev,
+        [key]: backup
+      }));
       
       onChange(currentValue, true);
+      
     } else {
-      if (speedBackup) {
-        onChange(speedBackup.main, false, 'restore-main', speedBackup);
-        onChange(0, false, 'restore-regions', { 
-          regions: speedBackup.regions,
-          speedType: 'playbackRate'
+      // 🔄 RESTORE: Restore backed up speed values
+      const backup = speedBackup[key];
+      if (backup) {
+        if (backup.main !== undefined) {
+          onChange(backup.main, false, 'restore-main', { playbackRate: backup.main });
+        }
+        
+        if (backup.regions && backup.regions.length > 0) {
+          onChange(0, false, 'restore-regions', { 
+            regions: backup.regions,
+            speedType: 'playbackRate'
+          });
+        }
+        
+        setSpeedBackup(prev => {
+          const newBackup = { ...prev };
+          delete newBackup[key];
+          return newBackup;
         });
-        setSpeedBackup(null);
       }
-      setApplyToAllState(false);
     }
-  }, [playbackRate, regions, currentValue, onChange, speedBackup]);
+    
+    setApplyToAllState(prev => ({
+      ...prev,
+      [key]: checked
+    }));
+  }, [activeRegionId, playbackRate, regions, currentValue, onChange, speedBackup]);
 
   if (!isVisible) return null;
   const percent = ((currentValue - 0.5) / 2.5) * 100;
@@ -185,7 +212,7 @@ const SpeedSliderPopup = ({
           <input
             type="checkbox"
             id="applySpeedToAll"
-            checked={applyToAllState}
+            checked={currentApplyToAll}
             onChange={(e) => handleApplyToAllChange(e.target.checked)}
             className="w-3 h-3 text-purple-600 border-slate-300 rounded focus:ring-purple-500"
           />
@@ -228,7 +255,7 @@ const SpeedSliderPopup = ({
           </button>
         </div>
         
-        <div className={`grid grid-cols-5 gap-1 ${isMobile ? 'mt-2' : 'mt-3'}`}>
+        <div className={`flex items-center gap-2 ${isMobile ? 'flex-wrap' : ''}`}>
           {[
             { label: '0.5x', value: 0.5 },
             { label: '1x', value: 1.0 },

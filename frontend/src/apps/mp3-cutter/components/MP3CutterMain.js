@@ -361,16 +361,43 @@ const MP3CutterMain = React.memo(() => {
     
     const sortedItems = allPlayableItems.sort((a, b) => a.start - b.start);
     
+    console.log('🎵 Starting Play All with', sortedItems.length, 'items:', 
+      sortedItems.map(item => `${item.name} (${item.start.toFixed(1)}s-${item.end.toFixed(1)}s)`));
+    
     dispatch({ type: 'SET_PLAY_ALL', mode: true, index: 0 });
     
     const firstItem = sortedItems[0];
     setActiveRegionIdDebounced(firstItem.id, 'playAllRegions');
-    jumpToTime(firstItem.start);
     
-    if (!isPlaying) {
-      setTimeout(() => originalTogglePlayPause(), 100);
-    }
-  }, [regions, startTime, endTime, duration, setActiveRegionIdDebounced, jumpToTime, isPlaying, originalTogglePlayPause, dispatch]);
+    // 🔧 SMOOTH START: Ensure smooth beginning
+    const smoothStart = () => {
+      if (audioRef.current) {
+        const wasPlaying = !audioRef.current.paused;
+        
+        if (wasPlaying) {
+          audioRef.current.pause();
+        }
+        
+        // Short delay for smooth start
+        setTimeout(() => {
+          if (audioRef.current) {
+            audioRef.current.currentTime = firstItem.start;
+            setCurrentTime(firstItem.start);
+            
+            if (!isPlaying) {
+              audioRef.current.play().then(() => {
+                setIsPlaying(true);
+              }).catch((error) => {
+                console.error('🚨 Failed to start Play All:', error);
+              });
+            }
+          }
+        }, 2); // Reduced from 5ms to 2ms for faster start
+      }
+    };
+    
+    smoothStart();
+  }, [regions, startTime, endTime, duration, setActiveRegionIdDebounced, isPlaying, audioRef, setCurrentTime, setIsPlaying, dispatch]);
 
   // 🚀 Optimized undo/redo handlers
   const handleUndo = useCallback(() => {
@@ -522,9 +549,47 @@ const MP3CutterMain = React.memo(() => {
             
             if (nextIndex < sortedItems.length) {
               const nextItem = sortedItems[nextIndex];
+              
+              // 🚀 SMOOTH TRANSITION: Add debug info and implement smooth switching
+              console.log('🔄 Play All: Transitioning to next region:', {
+                from: sortedItems[playAllIndex]?.name || 'Unknown',
+                to: nextItem.name,
+                fromTime: t.toFixed(3),
+                toTime: nextItem.start.toFixed(3),
+                gap: (nextItem.start - t).toFixed(3)
+              });
+              
               dispatch({ type: 'SET_PLAY_ALL', mode: true, index: nextIndex });
               setActiveRegionIdDebounced(nextItem.id, 'playAllNext');
-              jumpToTime(nextItem.start);
+              
+              // 🔧 CRITICAL FIX: Smooth transition to avoid audio glitch
+              const smoothTransition = () => {
+                // Pause briefly to avoid audio buffer interruption
+                const wasPlaying = !audioRef.current.paused;
+                if (wasPlaying) {
+                  audioRef.current.pause();
+                }
+                
+                // Short delay to let audio buffer settle
+                setTimeout(() => {
+                  // Jump to new position
+                  if (audioRef.current) {
+                    audioRef.current.currentTime = nextItem.start;
+                    setCurrentTime(nextItem.start);
+                    
+                    // Resume playback smoothly
+                    if (wasPlaying) {
+                      audioRef.current.play().then(() => {
+                        // Removed verbose log for cleaner code
+                      }).catch((error) => {
+                        console.error('🚨 Failed to resume after transition:', error);
+                      });
+                    }
+                  }
+                }, 3); // Reduced from 10ms to 3ms for faster transition
+              };
+              
+              smoothTransition();
               animationId = requestAnimationFrame(updateCursor);
               return;
             } else {

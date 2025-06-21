@@ -71,21 +71,33 @@ export const useAudioPlayer = () => {
     const newTime = Math.max(0, Math.min(duration, time));
     
     if (Math.abs(audio.currentTime - newTime) > 0.01) {
-      audio.currentTime = newTime;
-      
-      // 🎯 CRITICAL: If audio was playing, ensure it continues playing after time change
+      // 🔧 CRITICAL: Smooth transition to prevent audio glitch
       if (wasPlaying) {
-        // Use setTimeout to ensure currentTime change is processed first
+        // For playing audio, use smoother transition
+        audio.pause();
+        
+        // Very short delay to let audio buffer settle before jumping
         setTimeout(() => {
-          if (audio.paused) {
-            audio.play().catch(() => {
-              console.warn('🚨 Failed to resume playback after jump');
+          if (audio) {
+            audio.currentTime = newTime;
+            setCurrentTime(newTime);
+            
+            // Resume playback smoothly
+            audio.play().catch((error) => {
+              console.warn('🚨 Failed to resume playback after smooth jump:', error);
+              setIsPlaying(false);
             });
           }
-        }, 0);
+        }, 2); // Reduced from 5ms to 2ms for faster transition
+      } else {
+        // For paused audio, direct jump is fine
+        audio.currentTime = newTime;
+        setCurrentTime(newTime);
       }
+    } else {
+      // No significant time change needed, just update state
+      setCurrentTime(newTime);
     }
-    setCurrentTime(newTime);
   }, [duration]);
 
   // Cập nhật master volume (0-2.0 range for 200% boost)
