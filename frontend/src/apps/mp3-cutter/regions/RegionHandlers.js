@@ -39,7 +39,9 @@ export const useRegionManagement = ({
       id: Date.now() + Math.random(),
       start: Math.max(effectiveStart, regionStart),
       end: Math.min(effectiveEnd, regionStart + regionDuration),
-      name: `Region ${regions.length + 1}`
+      name: `Region ${regions.length + 1}`,
+      fadeIn: 0,
+      fadeOut: 0
     };
   }, [duration, availableSpaces, minimumHandleGap, regions.length]);
 

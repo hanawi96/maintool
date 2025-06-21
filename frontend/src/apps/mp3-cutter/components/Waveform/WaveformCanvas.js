@@ -76,6 +76,31 @@ const getRegionAreaBounds = (region, startX, areaWidth, handleW, duration) => {
   };
 };
 
+// Helper: calculate fade multiplier for any region
+const getRegionFadeMultiplier = (time, regionStart, regionEnd, regionFadeIn, regionFadeOut, duration) => {
+  if (!regionFadeIn && !regionFadeOut) return 1;
+  
+  const regionDuration = regionEnd - regionStart;
+  if (regionDuration <= 0) return 1;
+  
+  const relativeTime = time - regionStart;
+  const relativePosition = relativeTime / regionDuration;
+  
+  let multiplier = 1;
+  
+  // Fade In
+  if (regionFadeIn > 0 && relativePosition < (regionFadeIn / regionDuration)) {
+    multiplier *= Math.max(0.05, relativePosition / (regionFadeIn / regionDuration));
+  }
+  
+  // Fade Out  
+  if (regionFadeOut > 0 && relativePosition > (1 - regionFadeOut / regionDuration)) {
+    multiplier *= Math.max(0.05, (1 - relativePosition) / (regionFadeOut / regionDuration));
+  }
+  
+  return multiplier;
+};
+
 const WaveformCanvas = React.memo(({
   canvasRef,
   waveformData = [],
@@ -472,8 +497,8 @@ const WaveformCanvas = React.memo(({
       ctx.fillRect(startX + (startTime / duration) * areaWidth, 0, ((endTime - startTime) / duration) * areaWidth, height);
     }
 
-    // 🆕 3.5. Dynamic colored waveform bars for regions (before region overlays)
-    if (regions?.length > 0 && duration > 0 && dynamicWaveformCacheRef.current) {
+    // 🆕 3.5. Dynamic colored waveform bars for regions with individual fade effects
+    if (regions?.length > 0 && duration > 0 && renderData?.waveformData) {
       regions.forEach(region => {
         const bounds = getRegionAreaBounds(region, startX, areaWidth, handleW, duration);
         
@@ -482,7 +507,44 @@ const WaveformCanvas = React.memo(({
           ctx.beginPath();
           ctx.rect(bounds.startX, 0, bounds.width, height);
           ctx.clip();
-          ctx.drawImage(dynamicWaveformCacheRef.current, 0, 0);
+          
+          // 🔧 CRITICAL FIX: Always render regions independently from raw data
+          console.log(`🎨 Rendering region ${region.id} independently (fadeIn: ${region.fadeIn || 0}, fadeOut: ${region.fadeOut || 0})`);
+          
+          ctx.fillStyle = getWaveformColor(currentVolume);
+          const centerY = height / 2, FLAT_BAR = 1, MAX_PX = 65;
+          const vol = Math.max(0, Math.min(1, currentVolume));
+          const barW = areaWidth / renderData.waveformData.length;
+          
+          // Get region-specific fade values
+          const regionFadeIn = region.fadeIn || 0;
+          const regionFadeOut = region.fadeOut || 0;
+          
+          for (let i = 0; i < renderData.waveformData.length; i++) {
+            const time = (i / renderData.waveformData.length) * duration;
+            
+            // Only render bars within this region
+            if (time >= region.start && time <= region.end) {
+              let h = FLAT_BAR + ((FLAT_BAR + (MAX_PX * renderData.waveformData[i]) - FLAT_BAR) * vol);
+              
+              // Apply volume boost if needed
+              if (currentVolume > 1) {
+                const volumePercent = currentVolume * 100;
+                const heightBoost = Math.min((volumePercent - 100) / 100, 1) * 0.2;
+                h = h * (1 + heightBoost);
+              }
+              
+              // Apply region-specific fade (independent from main fade)
+              if (regionFadeIn > 0 || regionFadeOut > 0) {
+                const fadeMultiplier = getRegionFadeMultiplier(time, region.start, region.end, regionFadeIn, regionFadeOut, duration);
+                h = FLAT_BAR + (h - FLAT_BAR) * fadeMultiplier;
+              }
+              
+              const x = startX + (i * barW);
+              ctx.fillRect(Math.floor(x), centerY - h, barW, h * 2);
+            }
+          }
+          
           ctx.restore();
         }
       });

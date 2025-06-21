@@ -19,6 +19,8 @@ const UnifiedControlBar = React.memo(({
   mainSelectionStartTime, mainSelectionEndTime,
   onInvertSelection, isInverted = false,
   fadeIn = 0, fadeOut = 0, onFadeInToggle, onFadeOutToggle, onFadeInChange, onFadeOutChange,
+  // 🆕 Enhanced fade support
+  getCurrentFadeValues = null,
   canUndo, canRedo, onUndo, onRedo, historyIndex, historyLength,
   disabled = false,
   onEqualizerChange = null, // 🎚️ New prop for realtime equalizer updates
@@ -139,7 +141,11 @@ const UnifiedControlBar = React.memo(({
       onChange: onFadeInChange,
       onClose: () => closePopup('fadeIn'),
       isVisible: popupState === 'fadeIn',
-      buttonRef: refs.fadeIn
+      buttonRef: refs.fadeIn,
+      // 🆕 Region support props
+      regions,
+      activeRegionId,
+      getCurrentFadeValues: getCurrentFadeValues
     },
     fadeOut: {
       type: 'out',
@@ -147,7 +153,11 @@ const UnifiedControlBar = React.memo(({
       onChange: onFadeOutChange,
       onClose: () => closePopup('fadeOut'),
       isVisible: popupState === 'fadeOut',
-      buttonRef: refs.fadeOut
+      buttonRef: refs.fadeOut,
+      // 🆕 Region support props
+      regions,
+      activeRegionId,
+      getCurrentFadeValues: getCurrentFadeValues
     },
     volume: {
       value: volume,

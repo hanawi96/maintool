@@ -1,7 +1,7 @@
 import { useCallback, useRef, useEffect } from 'react';
 
-// Fade effect handlers
-export const useFadeHandlers = ({ 
+// 🆕 Enhanced fade handlers for regions support
+export const useEnhancedFadeHandlers = ({ 
   fadeIn, 
   fadeOut, 
   startTime, 
@@ -10,45 +10,95 @@ export const useFadeHandlers = ({
   duration, 
   updateFadeConfig, 
   saveState, 
-  dispatch 
+  dispatch,
+  // 🆕 Region props
+  regions = [],
+  activeRegionId = null
 }) => {
-  // 🚀 Optimized fade handlers
-  const updateFade = useCallback((type, value) => {
-    const newFadeIn = type === 'in' ? value : fadeIn;
-    const newFadeOut = type === 'out' ? value : fadeOut;
+  // 🚀 Get current fade values based on active region
+  const getCurrentFadeValues = useCallback(() => {
+    if (!activeRegionId || activeRegionId === 'main') {
+      return { fadeIn, fadeOut };
+    }
     
-    dispatch({ type: 'SET_FADE', fadeIn: newFadeIn, fadeOut: newFadeOut });
-    updateFadeConfig({ fadeIn: newFadeIn, fadeOut: newFadeOut, startTime, endTime, isInverted, duration });
-  }, [fadeIn, fadeOut, startTime, endTime, isInverted, duration, updateFadeConfig, dispatch]);
+    const activeRegion = regions.find(r => r.id === activeRegionId);
+    return activeRegion ? { 
+      fadeIn: activeRegion.fadeIn || 0, 
+      fadeOut: activeRegion.fadeOut || 0 
+    } : { fadeIn: 0, fadeOut: 0 };
+  }, [activeRegionId, regions, fadeIn, fadeOut]);
 
-  const handleFadeInChange = useCallback(newFadeIn => updateFade('in', newFadeIn), [updateFade]);
-  const handleFadeOutChange = useCallback(newFadeOut => updateFade('out', newFadeOut), [updateFade]);
-  
-  const handleFadeInDragEnd = useCallback(finalFadeIn => {
-    saveState({ startTime, endTime, fadeIn: finalFadeIn, fadeOut, isInverted });
-  }, [startTime, endTime, fadeOut, saveState, isInverted]);
-  
-  const handleFadeOutDragEnd = useCallback(finalFadeOut => {
-    saveState({ startTime, endTime, fadeIn, fadeOut: finalFadeOut, isInverted });
-  }, [startTime, endTime, fadeIn, saveState, isInverted]);
+  // 🚀 Apply fade to active region or globally
+  const applyFade = useCallback((type, value, applyToAll = false) => {
+    console.log(`🎛️ Applying ${type} fade: ${value}s, applyToAll: ${applyToAll}, activeRegion: ${activeRegionId}`);
+    
+    if (applyToAll && regions.length > 0) {
+      // Apply to all regions + main selection
+      const updatedRegions = regions.map(region => ({
+        ...region,
+        [type === 'in' ? 'fadeIn' : 'fadeOut']: value
+      }));
+      
+      dispatch({ type: 'SET_REGIONS', regions: updatedRegions });
+      
+      // Also update main selection
+      const newMainFadeIn = type === 'in' ? value : fadeIn;
+      const newMainFadeOut = type === 'out' ? value : fadeOut;
+      dispatch({ type: 'SET_FADE', fadeIn: newMainFadeIn, fadeOut: newMainFadeOut });
+      updateFadeConfig({ fadeIn: newMainFadeIn, fadeOut: newMainFadeOut, startTime, endTime, isInverted, duration });
+      
+    } else if (!activeRegionId || activeRegionId === 'main') {
+      // Apply to main selection only
+      const newFadeIn = type === 'in' ? value : fadeIn;
+      const newFadeOut = type === 'out' ? value : fadeOut;
+      
+      dispatch({ type: 'SET_FADE', fadeIn: newFadeIn, fadeOut: newFadeOut });
+      updateFadeConfig({ fadeIn: newFadeIn, fadeOut: newFadeOut, startTime, endTime, isInverted, duration });
+      
+    } else {
+      // Apply to specific region only
+      console.log(`🎛️ Updating region ${activeRegionId} ${type} fade to ${value}s (no updateFadeConfig)`);
+      const updatedRegions = regions.map(region => 
+        region.id === activeRegionId 
+          ? { ...region, [type === 'in' ? 'fadeIn' : 'fadeOut']: value }
+          : region
+      );
+      dispatch({ type: 'SET_REGIONS', regions: updatedRegions });
+    }
+  }, [activeRegionId, regions, fadeIn, fadeOut, startTime, endTime, isInverted, duration, updateFadeConfig, dispatch]);
 
-  const handleFadeInToggle = useCallback(() => { 
-    const v = fadeIn > 0 ? 0 : 3.0; 
-    updateFade('in', v); 
-    saveState({ startTime, endTime, fadeIn: v, fadeOut, isInverted }); 
-  }, [fadeIn, fadeOut, startTime, endTime, isInverted, updateFade, saveState]);
+  const handleFadeInChange = useCallback((value, applyToAll = false) => applyFade('in', value, applyToAll), [applyFade]);
+  const handleFadeOutChange = useCallback((value, applyToAll = false) => applyFade('out', value, applyToAll), [applyFade]);
   
-  const handleFadeOutToggle = useCallback(() => { 
-    const v = fadeOut > 0 ? 0 : 3.0; 
-    updateFade('out', v); 
-    saveState({ startTime, endTime, fadeIn, fadeOut: v, isInverted }); 
-  }, [fadeIn, fadeOut, startTime, endTime, isInverted, updateFade, saveState]);
+  const handleFadeInDragEnd = useCallback((finalFadeIn, applyToAll = false) => {
+    applyFade('in', finalFadeIn, applyToAll);
+    saveState({ startTime, endTime, fadeIn: applyToAll || !activeRegionId || activeRegionId === 'main' ? finalFadeIn : fadeIn, fadeOut, isInverted });
+  }, [applyFade, startTime, endTime, fadeIn, fadeOut, isInverted, saveState, activeRegionId]);
+  
+  const handleFadeOutDragEnd = useCallback((finalFadeOut, applyToAll = false) => {
+    applyFade('out', finalFadeOut, applyToAll);
+    saveState({ startTime, endTime, fadeIn, fadeOut: applyToAll || !activeRegionId || activeRegionId === 'main' ? finalFadeOut : fadeOut, isInverted });
+  }, [applyFade, startTime, endTime, fadeIn, fadeOut, isInverted, saveState, activeRegionId]);
 
-  const handlePresetApply = useCallback((newFadeIn, newFadeOut) => { 
-    dispatch({ type: 'SET_FADE', fadeIn: newFadeIn, fadeOut: newFadeOut });
-    updateFadeConfig({ fadeIn: newFadeIn, fadeOut: newFadeOut, startTime, endTime, isInverted, duration }); 
-    saveState({ startTime, endTime, fadeIn: newFadeIn, fadeOut: newFadeOut, isInverted }); 
-  }, [startTime, endTime, updateFadeConfig, saveState, isInverted, duration, dispatch]);
+  const handleFadeInToggle = useCallback((applyToAll = false) => { 
+    const currentValues = getCurrentFadeValues();
+    const v = currentValues.fadeIn > 0 ? 0 : 3.0; 
+    handleFadeInChange(v, applyToAll);
+    handleFadeInDragEnd(v, applyToAll);
+  }, [getCurrentFadeValues, handleFadeInChange, handleFadeInDragEnd]);
+  
+  const handleFadeOutToggle = useCallback((applyToAll = false) => { 
+    const currentValues = getCurrentFadeValues();
+    const v = currentValues.fadeOut > 0 ? 0 : 3.0; 
+    handleFadeOutChange(v, applyToAll);
+    handleFadeOutDragEnd(v, applyToAll);
+  }, [getCurrentFadeValues, handleFadeOutChange, handleFadeOutDragEnd]);
+
+  const handlePresetApply = useCallback((newFadeIn, newFadeOut, applyToAll = false) => { 
+    handleFadeInChange(newFadeIn, applyToAll);
+    handleFadeOutChange(newFadeOut, applyToAll);
+    saveState({ startTime, endTime, fadeIn: applyToAll || !activeRegionId || activeRegionId === 'main' ? newFadeIn : fadeIn, fadeOut: applyToAll || !activeRegionId || activeRegionId === 'main' ? newFadeOut : fadeOut, isInverted }); 
+  }, [handleFadeInChange, handleFadeOutChange, startTime, endTime, fadeIn, fadeOut, isInverted, saveState, activeRegionId]);
 
   return {
     handleFadeInChange,
@@ -57,7 +107,8 @@ export const useFadeHandlers = ({
     handleFadeOutDragEnd,
     handleFadeInToggle,
     handleFadeOutToggle,
-    handlePresetApply
+    handlePresetApply,
+    getCurrentFadeValues
   };
 };
 
@@ -213,4 +264,65 @@ export const useAudioEffectsConnection = ({
       return;
     }
   }, [audioFile?.url, audioFile?.name, audioRef, audioConnected, disconnectAudioElement]);
+};
+
+// 🔄 Legacy fade handlers for backward compatibility
+export const useFadeHandlers = ({ 
+  fadeIn, 
+  fadeOut, 
+  startTime, 
+  endTime, 
+  isInverted, 
+  duration, 
+  updateFadeConfig, 
+  saveState, 
+  dispatch 
+}) => {
+  // 🚀 Optimized fade handlers
+  const updateFade = useCallback((type, value) => {
+    const newFadeIn = type === 'in' ? value : fadeIn;
+    const newFadeOut = type === 'out' ? value : fadeOut;
+    
+    dispatch({ type: 'SET_FADE', fadeIn: newFadeIn, fadeOut: newFadeOut });
+    updateFadeConfig({ fadeIn: newFadeIn, fadeOut: newFadeOut, startTime, endTime, isInverted, duration });
+  }, [fadeIn, fadeOut, startTime, endTime, isInverted, duration, updateFadeConfig, dispatch]);
+
+  const handleFadeInChange = useCallback(newFadeIn => updateFade('in', newFadeIn), [updateFade]);
+  const handleFadeOutChange = useCallback(newFadeOut => updateFade('out', newFadeOut), [updateFade]);
+  
+  const handleFadeInDragEnd = useCallback(finalFadeIn => {
+    saveState({ startTime, endTime, fadeIn: finalFadeIn, fadeOut, isInverted });
+  }, [startTime, endTime, fadeOut, saveState, isInverted]);
+  
+  const handleFadeOutDragEnd = useCallback(finalFadeOut => {
+    saveState({ startTime, endTime, fadeIn, fadeOut: finalFadeOut, isInverted });
+  }, [startTime, endTime, fadeIn, saveState, isInverted]);
+
+  const handleFadeInToggle = useCallback(() => { 
+    const v = fadeIn > 0 ? 0 : 3.0; 
+    updateFade('in', v); 
+    saveState({ startTime, endTime, fadeIn: v, fadeOut, isInverted }); 
+  }, [fadeIn, fadeOut, startTime, endTime, isInverted, updateFade, saveState]);
+  
+  const handleFadeOutToggle = useCallback(() => { 
+    const v = fadeOut > 0 ? 0 : 3.0; 
+    updateFade('out', v); 
+    saveState({ startTime, endTime, fadeIn, fadeOut: v, isInverted }); 
+  }, [fadeIn, fadeOut, startTime, endTime, isInverted, updateFade, saveState]);
+
+  const handlePresetApply = useCallback((newFadeIn, newFadeOut) => { 
+    dispatch({ type: 'SET_FADE', fadeIn: newFadeIn, fadeOut: newFadeOut });
+    updateFadeConfig({ fadeIn: newFadeIn, fadeOut: newFadeOut, startTime, endTime, isInverted, duration }); 
+    saveState({ startTime, endTime, fadeIn: newFadeIn, fadeOut: newFadeOut, isInverted }); 
+  }, [startTime, endTime, updateFadeConfig, saveState, isInverted, duration, dispatch]);
+
+  return {
+    handleFadeInChange,
+    handleFadeOutChange,
+    handleFadeInDragEnd,
+    handleFadeOutDragEnd,
+    handleFadeInToggle,
+    handleFadeOutToggle,
+    handlePresetApply
+  };
 }; 

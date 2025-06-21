@@ -30,7 +30,7 @@ import {
   useJumpHandlers
 } from '../audio/AudioController';
 import { 
-  useFadeHandlers,
+  useEnhancedFadeHandlers,
   useSmartFadeConfigSync,
   usePitchHandler,
   useEqualizerHandlers,
@@ -187,8 +187,9 @@ const MP3CutterMain = React.memo(() => {
   const { handleJumpToStart, handleJumpToEnd } = useJumpHandlers(getActivePlaybackBoundaries, jumpToTime);
 
   // 🚀 Fade handlers
-  const fadeHandlers = useFadeHandlers({ 
-    fadeIn, fadeOut, startTime, endTime, isInverted, duration, updateFadeConfig, saveState, dispatch 
+  const fadeHandlers = useEnhancedFadeHandlers({ 
+    fadeIn, fadeOut, startTime, endTime, isInverted, duration, updateFadeConfig, saveState, dispatch,
+    regions, activeRegionId
   });
 
   // 🚀 Pitch handler
@@ -662,6 +663,7 @@ const MP3CutterMain = React.memo(() => {
               onFadeOutToggle={fadeHandlers.handleFadeOutToggle}
               onFadeInChange={fadeHandlers.handleFadeInChange}
               onFadeOutChange={fadeHandlers.handleFadeOutChange}
+              getCurrentFadeValues={fadeHandlers.getCurrentFadeValues}
               canUndo={canUndo}
               canRedo={canRedo}
               onUndo={handleUndo}
