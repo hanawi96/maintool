@@ -438,6 +438,10 @@ export const WaveformUI = memo(({
               e.preventDefault();
               e.stopPropagation();
               
+              // 🔧 CRITICAL: Clear drag state FIRST before processing region click
+              e.target.style.cursor = 'grab';
+              onRegionBodyUp?.(region.id, e);
+              
               // 🔧 CRITICAL FIX: Only process pending region clicks for already-active regions
               // (Inactive regions are handled immediately at mouse down)
               if (pendingRegionClickRef.current && onRegionClick && !hasDraggedRef.current) {
@@ -450,9 +454,6 @@ export const WaveformUI = memo(({
               pendingRegionClickRef.current = null;
               pointerDownPositionRef.current = null;
               hasDraggedRef.current = false;
-              
-              e.target.style.cursor = 'grab';
-              onRegionBodyUp?.(region.id, e);
             }}
           />
         );

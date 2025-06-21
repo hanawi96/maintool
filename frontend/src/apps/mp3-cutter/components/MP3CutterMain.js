@@ -332,7 +332,8 @@ const MP3CutterMain = React.memo(() => {
 
   // 🚀 Optimized debounced setActiveRegionId
   const setActiveRegionIdDebounced = useCallback((newRegionId, source = 'unknown') => {
-    if (source === 'addRegion') {
+    if (source === 'addRegion' || source === 'regionClick') {
+      // 🔧 IMMEDIATE: No delay for region clicks and new region additions
       dispatch({ type: 'SET_ACTIVE_REGION', id: newRegionId });
       return;
     }
@@ -1295,8 +1296,6 @@ const MP3CutterMain = React.memo(() => {
 
   // 🚀 Optimized region click handlers
   const handleRegionClick = useCallback((regionId, clickPosition = null) => {
-    if (draggingRegion) return;
-    
     const selectedRegion = regions.find(r => r.id === regionId);
     if (!selectedRegion) return;
     
@@ -1308,7 +1307,7 @@ const MP3CutterMain = React.memo(() => {
       setActiveRegionIdDebounced(regionId, 'regionClick');
       jumpToTime(selectedRegion.start);
     }
-  }, [regions, jumpToTime, draggingRegion, setActiveRegionIdDebounced, activeRegionId]);
+  }, [regions, jumpToTime, setActiveRegionIdDebounced, activeRegionId]);
 
   const handleMainSelectionClick = useCallback((clickPosition = null, options = {}) => {
     if (regions.length >= 1) {
