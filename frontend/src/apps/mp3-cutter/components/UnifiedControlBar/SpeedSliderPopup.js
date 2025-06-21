@@ -2,6 +2,7 @@ import React, { useCallback, useRef, useEffect, useState, useMemo } from 'react'
 import { createPortal } from 'react-dom';
 import { Zap, X, RotateCcw } from 'lucide-react';
 import usePopupPosition from './usePopupPosition';
+import ToggleSwitch from './ToggleSwitch';
 
 const SpeedSliderPopup = ({
   value = 1,
@@ -61,21 +62,6 @@ const SpeedSliderPopup = ({
     };
   }, [isVisible, onClose, buttonRef]);
   
-  // 🔧 CRITICAL FIX: Auto-uncheck when switching regions
-  useEffect(() => {
-    if (!isVisible) return;
-    
-    // Clear applyToAll for other regions when switching
-    const currentKey = `${activeRegionId || 'main'}-speed`;
-    setApplyToAllState(prev => {
-      const newState = {};
-      // Keep only current region's state, clear others
-      newState[currentKey] = prev[currentKey] || false;
-      
-      return newState;
-    });
-  }, [activeRegionId, isVisible]);
-
   const handleSliderChange = useCallback((e) => {
     const value = parseFloat(e.target.value);
     
@@ -107,10 +93,12 @@ const SpeedSliderPopup = ({
   }, [onChange, currentApplyToAll]);
   
   const handleApplyToAllChange = useCallback((checked) => {
+    console.log(`🔧 Speed Toggle: ${activeRegionId || 'main'} -> ${checked}`);
+    
     const key = `${activeRegionId || 'main'}-speed`;
     
     if (checked) {
-      // 🔧 CRITICAL: Validate backup values before saving
+      // Backup và apply to all
       const mainSpeed = typeof playbackRate === 'number' && isFinite(playbackRate) && !isNaN(playbackRate) 
         ? Math.max(0.25, Math.min(4.0, playbackRate)) 
         : 1.0;
@@ -119,48 +107,31 @@ const SpeedSliderPopup = ({
         main: mainSpeed,
         regions: regions.map(region => {
           let regionSpeed = region.playbackRate !== undefined ? region.playbackRate : 1.0;
-          
-          // 🔧 CRITICAL: Validate region speed
           if (typeof regionSpeed !== 'number' || !isFinite(regionSpeed) || isNaN(regionSpeed)) {
-            console.error('🚨 INVALID region speed in backup:', {
-              regionId: region.id,
-              speed: regionSpeed,
-              type: typeof regionSpeed
-            });
-            regionSpeed = 1.0; // Safe fallback
+            regionSpeed = 1.0;
           } else {
             regionSpeed = Math.max(0.25, Math.min(4.0, regionSpeed));
           }
-          
-          return {
-            id: region.id,
-            value: regionSpeed
-          };
+          return { id: region.id, value: regionSpeed };
         })
       };
       
-      setSpeedBackup(prev => ({
-        ...prev,
-        [key]: backup
-      }));
-      
+      setSpeedBackup(prev => ({ ...prev, [key]: backup }));
       onChange(currentValue, true);
       
     } else {
-      // 🔄 RESTORE: Restore backed up speed values
+      // Restore từ backup
       const backup = speedBackup[key];
       if (backup) {
         if (backup.main !== undefined) {
           onChange(backup.main, false, 'restore-main', { playbackRate: backup.main });
         }
-        
-        if (backup.regions && backup.regions.length > 0) {
+        if (backup.regions?.length > 0) {
           onChange(0, false, 'restore-regions', { 
             regions: backup.regions,
             speedType: 'playbackRate'
           });
         }
-        
         setSpeedBackup(prev => {
           const newBackup = { ...prev };
           delete newBackup[key];
@@ -169,10 +140,7 @@ const SpeedSliderPopup = ({
       }
     }
     
-    setApplyToAllState(prev => ({
-      ...prev,
-      [key]: checked
-    }));
+    setApplyToAllState(prev => ({ ...prev, [key]: checked }));
   }, [activeRegionId, playbackRate, regions, currentValue, onChange, speedBackup]);
 
   if (!isVisible) return null;
@@ -206,21 +174,6 @@ const SpeedSliderPopup = ({
           <X className="w-4 h-4 text-slate-500" />
         </button>
       </div>
-      
-      {showGlobalOption && (
-        <div className={`flex items-center gap-2 ${isMobile ? 'mb-2' : 'mb-3'} p-2 bg-slate-50 rounded-lg`}>
-          <input
-            type="checkbox"
-            id="applySpeedToAll"
-            checked={currentApplyToAll}
-            onChange={(e) => handleApplyToAllChange(e.target.checked)}
-            className="w-3 h-3 text-purple-600 border-slate-300 rounded focus:ring-purple-500"
-          />
-          <label htmlFor="applySpeedToAll" className={`text-slate-700 cursor-pointer ${isMobile ? 'text-xs' : 'text-sm'}`}>
-            Áp dụng cho tất cả
-          </label>
-        </div>
-      )}
       
       <div className={`space-y-${isMobile ? '2' : '3'}`}>
         <div className="flex items-center justify-between">
@@ -274,6 +227,19 @@ const SpeedSliderPopup = ({
             </button>
           ))}
         </div>
+        
+        {showGlobalOption && (
+          <div className="pt-2 border-t border-slate-200">
+            <ToggleSwitch
+              id="applySpeedToAll"
+              checked={currentApplyToAll}
+              onChange={handleApplyToAllChange}
+              label="Áp dụng cho tất cả"
+              color="purple"
+              debug={true}
+            />
+          </div>
+        )}
       </div>
     </div>,
     document.body

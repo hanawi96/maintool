@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { TrendingUp, TrendingDown, X, RotateCcw } from 'lucide-react';
 import { FADE_CONFIG } from '../../utils/constants';
 import usePopupPosition from './usePopupPosition';
+import ToggleSwitch from './ToggleSwitch';
 
 const FadeSliderPopup = ({
   type = 'in',
@@ -22,27 +23,22 @@ const FadeSliderPopup = ({
   const { screenSize, maxWidth } = responsive;
   const isMobile = screenSize === 'mobile';
 
-  // 🔧 CRITICAL FIX: Store applyToAll state per region + fade type
   const [applyToAllState, setApplyToAllState] = useState({});
-  
-  // 🆕 BACKUP SYSTEM: Store original fade values before applying to all
   const [fadeBackup, setFadeBackup] = useState({});
   
-  // 🚀 Get current applyToAll state for active region + fade type
   const currentApplyToAll = useMemo(() => {
     const key = `${activeRegionId || 'main'}-${type}`;
     return applyToAllState[key] || false;
   }, [applyToAllState, activeRegionId, type]);
   
-  // 🚀 Update applyToAll state with backup/restore logic
   const setCurrentApplyToAll = useCallback((checked) => {
-    console.log(`🔧 Setting applyToAll for ${activeRegionId || 'main'}-${type}: ${checked}`);
+    console.log(`🔧 Fade ${type} Toggle: ${activeRegionId || 'main'} -> ${checked}`);
     
     const key = `${activeRegionId || 'main'}-${type}`;
     const fadeType = type === 'in' ? 'fadeIn' : 'fadeOut';
     
     if (checked) {
-      // 🔄 BACKUP: Store current fade values before applying to all
+      // Backup và apply to all
       const backup = {
         main: type === 'in' ? fadeIn : fadeOut,
         regions: regions.map(region => ({
@@ -51,40 +47,22 @@ const FadeSliderPopup = ({
         }))
       };
       
-      console.log(`💾 Backing up ${type} fade values:`, backup);
-      setFadeBackup(prev => ({
-        ...prev,
-        [key]: backup
-      }));
-      
-      // Apply current region's fade to all regions + main
-      const currentRegionValue = getCurrentFadeValues()[fadeType];
-      console.log(`🌐 Applying ${type} fade ${currentRegionValue}s to ALL regions + main`);
-      onChange(currentRegionValue, true);
+      setFadeBackup(prev => ({ ...prev, [key]: backup }));
+      const currentValue = getCurrentFadeValues()[fadeType];
+      onChange(currentValue, true);
       
     } else {
-      // 🔄 RESTORE: Restore backed up fade values
+      // Restore từ backup
       const backup = fadeBackup[key];
       if (backup) {
-        console.log(`🔄 Restoring ${type} fade values from backup:`, backup);
-        
-        // Restore main selection
         if (backup.main !== undefined) {
           const mainFadeIn = type === 'in' ? backup.main : fadeIn;
           const mainFadeOut = type === 'out' ? backup.main : fadeOut;
-          console.log(`🎯 Restoring main ${type} fade to ${backup.main}s`);
-          // Trigger main fade change
           onChange(type === 'in' ? mainFadeIn : mainFadeOut, false, 'restore-main', { fadeIn: mainFadeIn, fadeOut: mainFadeOut });
         }
-        
-        // Restore regions
-        if (backup.regions && backup.regions.length > 0) {
-          console.log(`🎯 Restoring ${backup.regions.length} region ${type} fade values`);
-          // Trigger region restore
+        if (backup.regions?.length > 0) {
           onChange(0, false, 'restore-regions', { regions: backup.regions, fadeType });
         }
-        
-        // Clear backup
         setFadeBackup(prev => {
           const newBackup = { ...prev };
           delete newBackup[key];
@@ -93,28 +71,8 @@ const FadeSliderPopup = ({
       }
     }
     
-    // Update checkbox state
-    setApplyToAllState(prev => ({
-      ...prev,
-      [key]: checked
-    }));
+    setApplyToAllState(prev => ({ ...prev, [key]: checked }));
   }, [activeRegionId, type, regions, fadeIn, fadeOut, getCurrentFadeValues, onChange, fadeBackup]);
-  
-  // 🔧 CRITICAL FIX: Auto-uncheck when switching regions
-  useEffect(() => {
-    if (!isVisible) return;
-    
-    // Clear applyToAll for other regions when switching
-    const currentKey = `${activeRegionId || 'main'}-${type}`;
-    setApplyToAllState(prev => {
-      const newState = {};
-      // Keep only current region's state, clear others
-      newState[currentKey] = prev[currentKey] || false;
-      
-      console.log(`🔄 Region switched to ${activeRegionId || 'main'}, cleared other applyToAll states`);
-      return newState;
-    });
-  }, [activeRegionId, type, isVisible]);
   
   const currentValue = getCurrentFadeValues ? getCurrentFadeValues()[type === 'in' ? 'fadeIn' : 'fadeOut'] : value;
   
@@ -207,20 +165,15 @@ const FadeSliderPopup = ({
         
         {/* 🆕 Global Apply Checkbox - Only show when regions exist */}
         {showGlobalOption && (
-          <div className="flex items-center gap-2 py-2 border-t border-slate-200">
-            <input
-              type="checkbox"
+          <div className="py-2 border-t border-slate-200">
+            <ToggleSwitch
               id={`apply-all-${type}`}
               checked={currentApplyToAll}
-              onChange={(e) => setCurrentApplyToAll(e.target.checked)}
-              className="w-4 h-4 text-purple-600 bg-gray-100 border-gray-300 rounded focus:ring-purple-500 focus:ring-2"
+              onChange={setCurrentApplyToAll}
+              label={`Áp dụng cho tất cả (${regions.length + 1} items)`}
+              color="purple"
+              debug={true}
             />
-            <label 
-              htmlFor={`apply-all-${type}`} 
-              className={`text-slate-700 cursor-pointer select-none ${isMobile ? 'text-xs' : 'text-sm'}`}
-            >
-              Áp dụng cho tất cả ({regions.length + 1} items)
-            </label>
           </div>
         )}
         

@@ -553,9 +553,6 @@ const CutDownload = ({
             >
               <Save className="w-6 h-6 group-hover:scale-110 transition-transform duration-300" />
               <span className="text-lg">Download {processedFile.outputFormat?.toUpperCase()}</span>
-              <div className="ml-2 px-3 py-1 bg-white/20 rounded-full text-sm font-medium">
-                {(processedFile.fileSize / 1024 / 1024).toFixed(1)}MB
-              </div>
             </button>
 
             {/* Share Link Section */}

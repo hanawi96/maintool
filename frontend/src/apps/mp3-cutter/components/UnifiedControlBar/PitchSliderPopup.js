@@ -2,6 +2,7 @@ import React, { useCallback, useRef, useEffect, useState, useMemo } from 'react'
 import { createPortal } from 'react-dom';
 import { Music, X, RotateCcw } from 'lucide-react';
 import usePopupPosition from './usePopupPosition';
+import ToggleSwitch from './ToggleSwitch';
 
 const PitchSliderPopup = ({
   value = 0,
@@ -61,21 +62,6 @@ const PitchSliderPopup = ({
     };
   }, [isVisible, onClose, buttonRef]);
   
-  // 🔧 CRITICAL FIX: Auto-uncheck when switching regions
-  useEffect(() => {
-    if (!isVisible) return;
-    
-    // Clear applyToAll for other regions when switching
-    const currentKey = `${activeRegionId || 'main'}-pitch`;
-    setApplyToAllState(prev => {
-      const newState = {};
-      // Keep only current region's state, clear others
-      newState[currentKey] = prev[currentKey] || false;
-      
-      return newState;
-    });
-  }, [activeRegionId, isVisible]);
-
   const handleSliderChange = useCallback((e) => {
     const value = parseFloat(e.target.value);
     
@@ -107,10 +93,12 @@ const PitchSliderPopup = ({
   }, [onChange, currentApplyToAll]);
   
   const handleApplyToAllChange = useCallback((checked) => {
+    console.log(`🔧 Pitch Toggle: ${activeRegionId || 'main'} -> ${checked}`);
+    
     const key = `${activeRegionId || 'main'}-pitch`;
     
     if (checked) {
-      // 🔧 CRITICAL: Validate backup values before saving
+      // Backup và apply to all
       const mainPitch = typeof pitch === 'number' && isFinite(pitch) && !isNaN(pitch) 
         ? Math.max(-12, Math.min(12, pitch)) 
         : 0.0;
@@ -119,48 +107,31 @@ const PitchSliderPopup = ({
         main: mainPitch,
         regions: regions.map(region => {
           let regionPitch = region.pitch !== undefined ? region.pitch : 0.0;
-          
-          // 🔧 CRITICAL: Validate region pitch
           if (typeof regionPitch !== 'number' || !isFinite(regionPitch) || isNaN(regionPitch)) {
-            console.error('🚨 INVALID region pitch in backup:', {
-              regionId: region.id,
-              pitch: regionPitch,
-              type: typeof regionPitch
-            });
-            regionPitch = 0.0; // Safe fallback
+            regionPitch = 0.0;
           } else {
             regionPitch = Math.max(-12, Math.min(12, regionPitch));
           }
-          
-          return {
-            id: region.id,
-            value: regionPitch
-          };
+          return { id: region.id, value: regionPitch };
         })
       };
       
-      setPitchBackup(prev => ({
-        ...prev,
-        [key]: backup
-      }));
-      
+      setPitchBackup(prev => ({ ...prev, [key]: backup }));
       onChange(currentValue, true);
       
     } else {
-      // 🔄 RESTORE: Restore backed up pitch values
+      // Restore từ backup
       const backup = pitchBackup[key];
       if (backup) {
         if (backup.main !== undefined) {
           onChange(backup.main, false, 'restore-main', { pitch: backup.main });
         }
-        
-        if (backup.regions && backup.regions.length > 0) {
+        if (backup.regions?.length > 0) {
           onChange(0, false, 'restore-regions', { 
             regions: backup.regions,
             pitchType: 'pitch'
           });
         }
-        
         setPitchBackup(prev => {
           const newBackup = { ...prev };
           delete newBackup[key];
@@ -169,10 +140,7 @@ const PitchSliderPopup = ({
       }
     }
     
-    setApplyToAllState(prev => ({
-      ...prev,
-      [key]: checked
-    }));
+    setApplyToAllState(prev => ({ ...prev, [key]: checked }));
   }, [activeRegionId, pitch, regions, currentValue, onChange, pitchBackup]);
 
   if (!isVisible) return null;
@@ -206,21 +174,6 @@ const PitchSliderPopup = ({
           <X className="w-4 h-4 text-slate-500" />
         </button>
       </div>
-      
-      {showGlobalOption && (
-        <div className={`flex items-center gap-2 ${isMobile ? 'mb-2' : 'mb-3'} p-2 bg-slate-50 rounded-lg`}>
-          <input
-            type="checkbox"
-            id="applyPitchToAll"
-            checked={currentApplyToAll}
-            onChange={(e) => handleApplyToAllChange(e.target.checked)}
-            className="w-3 h-3 text-teal-600 border-slate-300 rounded focus:ring-teal-500"
-          />
-          <label htmlFor="applyPitchToAll" className={`text-slate-700 cursor-pointer ${isMobile ? 'text-xs' : 'text-sm'}`}>
-            Áp dụng cho tất cả
-          </label>
-        </div>
-      )}
       
       <div className={`space-y-${isMobile ? '2' : '3'}`}>
         <div className="flex items-center justify-between">
@@ -274,6 +227,19 @@ const PitchSliderPopup = ({
             </button>
           ))}
         </div>
+        
+        {showGlobalOption && (
+          <div className="pt-2 border-t border-slate-200">
+            <ToggleSwitch
+              id="applyPitchToAll"
+              checked={currentApplyToAll}
+              onChange={handleApplyToAllChange}
+              label="Áp dụng cho tất cả"
+              color="teal"
+              debug={true}
+            />
+          </div>
+        )}
       </div>
     </div>,
     document.body

@@ -2,6 +2,7 @@ import React, { useCallback, useRef, useEffect, useState, useMemo } from 'react'
 import { createPortal } from 'react-dom';
 import { Volume2, VolumeX, X, RotateCcw } from 'lucide-react';
 import usePopupPosition from './usePopupPosition';
+import ToggleSwitch from './ToggleSwitch';
 
 const getVolumeColor = (volume) => {
   const volumePercent = volume * 100;
@@ -47,7 +48,6 @@ const VolumeSliderPopup = ({
   const isMobile = screenSize === 'mobile';
 
   const [applyToAllState, setApplyToAllState] = useState({});
-  
   const [volumeBackup, setVolumeBackup] = useState({});
   
   const currentApplyToAll = useMemo(() => {
@@ -56,11 +56,12 @@ const VolumeSliderPopup = ({
   }, [applyToAllState, activeRegionId]);
   
   const setCurrentApplyToAll = useCallback((checked) => {
-    console.log(`🔧 Setting applyToAll for ${activeRegionId || 'main'}-volume: ${checked}`);
+    console.log(`🔧 Volume Toggle: ${activeRegionId || 'main'} -> ${checked}`);
     
     const key = `${activeRegionId || 'main'}-volume`;
     
     if (checked) {
+      // Backup và apply to all
       const backup = {
         main: volume,
         regions: regions.map(region => ({
@@ -69,31 +70,20 @@ const VolumeSliderPopup = ({
         }))
       };
       
-      console.log(`💾 Backing up volume values:`, backup);
-      setVolumeBackup(prev => ({
-        ...prev,
-        [key]: backup
-      }));
-      
-      const currentRegionValue = getCurrentVolumeValues().volume;
-      console.log(`🌐 Applying volume ${currentRegionValue} to ALL regions + main`);
-      onChange(currentRegionValue, true);
+      setVolumeBackup(prev => ({ ...prev, [key]: backup }));
+      const currentValue = getCurrentVolumeValues().volume;
+      onChange(currentValue, true);
       
     } else {
+      // Restore từ backup
       const backup = volumeBackup[key];
       if (backup) {
-        console.log(`🔄 Restoring volume values from backup:`, backup);
-        
         if (backup.main !== undefined) {
-          console.log(`🎯 Restoring main volume to ${backup.main}`);
           onChange(backup.main, false, 'restore-main', { volume: backup.main });
         }
-        
-        if (backup.regions && backup.regions.length > 0) {
-          console.log(`🎯 Restoring ${backup.regions.length} region volume values`);
+        if (backup.regions?.length > 0) {
           onChange(0, false, 'restore-regions', { regions: backup.regions });
         }
-        
         setVolumeBackup(prev => {
           const newBackup = { ...prev };
           delete newBackup[key];
@@ -102,24 +92,8 @@ const VolumeSliderPopup = ({
       }
     }
     
-    setApplyToAllState(prev => ({
-      ...prev,
-      [key]: checked
-    }));
+    setApplyToAllState(prev => ({ ...prev, [key]: checked }));
   }, [activeRegionId, regions, volume, getCurrentVolumeValues, onChange, volumeBackup]);
-  
-  useEffect(() => {
-    if (!isVisible) return;
-    
-    const currentKey = `${activeRegionId || 'main'}-volume`;
-    setApplyToAllState(prev => {
-      const newState = {};
-      newState[currentKey] = prev[currentKey] || false;
-      
-      console.log(`🔄 Region switched to ${activeRegionId || 'main'}, cleared other applyToAll states`);
-      return newState;
-    });
-  }, [activeRegionId, isVisible]);
   
   const currentValue = getCurrentVolumeValues ? getCurrentVolumeValues().volume : value;
   
@@ -216,20 +190,15 @@ const VolumeSliderPopup = ({
         </div>
         
         {showGlobalOption && (
-          <div className="flex items-center gap-2 py-2 border-t border-slate-200">
-            <input
-              type="checkbox"
+          <div className="py-2 border-t border-slate-200">
+            <ToggleSwitch
               id="apply-all-volume"
               checked={currentApplyToAll}
-              onChange={(e) => setCurrentApplyToAll(e.target.checked)}
-              className="w-4 h-4 text-purple-600 bg-gray-100 border-gray-300 rounded focus:ring-purple-500 focus:ring-2"
+              onChange={setCurrentApplyToAll}
+              label={`Áp dụng cho tất cả (${regions.length + 1} items)`}
+              color="purple"
+              debug={true}
             />
-            <label 
-              htmlFor="apply-all-volume" 
-              className={`text-slate-700 cursor-pointer select-none ${isMobile ? 'text-xs' : 'text-sm'}`}
-            >
-              Áp dụng cho tất cả ({regions.length + 1} items)
-            </label>
           </div>
         )}
         
