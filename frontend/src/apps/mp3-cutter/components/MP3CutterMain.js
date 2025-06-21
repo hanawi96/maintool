@@ -1026,7 +1026,7 @@ const MP3CutterMain = React.memo(() => {
   // 🚀 Final render with all optimizations
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-pink-50">
-      <div className="container mx-auto px-6 py-6">
+      <div className="max-w-screen-xl mx-auto px-6 py-6">
         <ConnectionErrorAlert 
           connectionError={connectionError} 
           uploadError={uploadError} 
