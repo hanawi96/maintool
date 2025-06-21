@@ -45,6 +45,9 @@ const UnifiedControlBar = React.memo(({
     equalizer: useRef(null),
   };  // Logic condition
   const canEditRegion = !disabled && duration > 0 && startTime < endTime;
+  
+  // 🔧 SEPARATE LOGIC: Invert selection only available when no regions exist
+  const canInvertSelection = canEditRegion && regions.length === 0;
 
   // 🎚️ Check if equalizer has non-default values
   const isEqualizerActive = equalizerState && Array.isArray(equalizerState) && 
@@ -96,8 +99,8 @@ const UnifiedControlBar = React.memo(({
 
   // Invert selection
   const handleInvertSelection = useCallback(() => {
-    if (onInvertSelection && canEditRegion) onInvertSelection();
-  }, [onInvertSelection, canEditRegion]);
+    if (onInvertSelection && canInvertSelection) onInvertSelection();
+  }, [onInvertSelection, canInvertSelection]);
 
   // Keyboard shortcut
   useEffect(() => {
@@ -249,7 +252,7 @@ const UnifiedControlBar = React.memo(({
           {/* 7. Invert Selection */}
           <button
             onClick={handleInvertSelection}
-            disabled={!canEditRegion}
+            disabled={!canInvertSelection}
             data-inverted={isInverted}
             className="p-2 bg-slate-100 hover:bg-slate-200 disabled:opacity-50 rounded-lg transition-colors relative group"
             title={`Invert Selection: ${isInverted ? 'ON' : 'OFF'}`}>
