@@ -1188,7 +1188,19 @@ const MP3CutterMain = React.memo(() => {
             }
           }
         } else {
+          const prevTime = currentTime;
           setCurrentTime(t);
+          
+          // 🔍 DEBUG: Log significant cursor changes
+          if (Math.abs(t - prevTime) > 0.5) {
+            console.log('🔍 DEBUG: Large cursor jump in playback loop:', {
+              from: prevTime.toFixed(2),
+              to: t.toFixed(2),
+              diff: (t - prevTime).toFixed(2),
+              isPlaying,
+              audioCurrentTime: audioRef.current?.currentTime?.toFixed(2)
+            });
+          }
         }
         animationId = requestAnimationFrame(updateCursor);
       }
@@ -1322,6 +1334,11 @@ const MP3CutterMain = React.memo(() => {
         setActiveRegionIdDebounced('main', 'mainSelectionClick');
         jumpToTime(startTime);
       } else if (wasAlreadyActive && clickPosition !== null) {
+        jumpToTime(clickPosition);
+      }
+    } else {
+      // 🔧 CRITICAL FIX: Handle main selection click when no regions exist
+      if (clickPosition !== null) {
         jumpToTime(clickPosition);
       }
     }

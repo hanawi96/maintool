@@ -66,9 +66,24 @@ export const useAudioPlayer = () => {
   const jumpToTime = useCallback((time) => {
     const audio = audioRef.current;
     if (!audio) return;
+    
+    const wasPlaying = !audio.paused; // Check if audio was playing before jump
     const newTime = Math.max(0, Math.min(duration, time));
+    
     if (Math.abs(audio.currentTime - newTime) > 0.01) {
       audio.currentTime = newTime;
+      
+      // 🎯 CRITICAL: If audio was playing, ensure it continues playing after time change
+      if (wasPlaying) {
+        // Use setTimeout to ensure currentTime change is processed first
+        setTimeout(() => {
+          if (audio.paused) {
+            audio.play().catch(() => {
+              console.warn('🚨 Failed to resume playback after jump');
+            });
+          }
+        }, 0);
+      }
     }
     setCurrentTime(newTime);
   }, [duration]);

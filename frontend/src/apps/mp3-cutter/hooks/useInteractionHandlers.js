@@ -179,8 +179,12 @@ export const useInteractionHandlers = ({
   const handleCanvasMouseUp = useCallback(() => {
     const manager = interactionManagerRef.current;
     const result = manager.handleMouseUp(startTime, endTime, audioContext, duration);
+    
+    // 🔧 CRITICAL FIX: Check dragging state BEFORE resetting it
     const wasDragging = isDragging !== null;
     const hadRealDrag = hasDraggedRef.current; // 🆕 Check if actual dragging occurred
+    
+    // 🔧 CRITICAL FIX: Reset dragging state AFTER checking
     setIsDragging(null);
     
     console.log('🎯 useInteractionHandlers: handleCanvasMouseUp called!', {
@@ -197,13 +201,15 @@ export const useInteractionHandlers = ({
     hasDraggedRef.current = false;
     
     // 🆕 Enhanced cursor jumping and endpoint jumping logic - Apply to ALL active regions including main
-    // 🔧 CRITICAL FIX: Only execute if NO real dragging occurred
+    // 🔧 CRITICAL FIX: Use hadRealDrag instead of wasDragging for the main condition
     // 🔧 MAIN FIX: Allow endpoint jumping for main region even when regions.length === 0
-    if (!wasDragging && !hadRealDrag && lastClickPositionRef.current !== null && activeRegionId) {
-      console.log('🔥 useInteractionHandlers: Entering cursor/endpoint jumping logic (no drag detected)...', {
+    if (!hadRealDrag && lastClickPositionRef.current !== null && activeRegionId) {
+      console.log('🔥 useInteractionHandlers: Entering cursor/endpoint jumping logic (no real drag detected)...', {
         activeRegionId,
         regionsCount: regions.length,
-        isMainOnly: activeRegionId === 'main' && regions.length === 0
+        isMainOnly: activeRegionId === 'main' && regions.length === 0,
+        wasDragging,
+        hadRealDrag
       });
       
       const canvas = canvasRef.current;
@@ -310,7 +316,14 @@ export const useInteractionHandlers = ({
               // ✅ Click INSIDE region area - jump cursor to click point (normal behavior)
               if (clickTime >= regionStart && clickTime <= regionEnd) {
                 console.log('🎯 Click INSIDE already-active region - jumping cursor to click point:', clickTime.toFixed(2));
+                console.log('🔍 DEBUG: Before jumpToTime - audio.currentTime:', audioRef?.current?.currentTime?.toFixed(2));
                 jumpToTime(clickTime);
+                console.log('🔍 DEBUG: After jumpToTime - audio.currentTime:', audioRef?.current?.currentTime?.toFixed(2));
+                
+                // 🔧 CRITICAL FIX: Clear pending operations to prevent double jumping
+                lastClickPositionRef.current = null;
+                activeRegionAtMouseDownRef.current = null;
+                return;
               } else {
                 console.log('🚫 Click within region area but outside active region - no action (let region selection handle)');
               }
@@ -391,12 +404,17 @@ export const useInteractionHandlers = ({
       }
     } else if (hadRealDrag) {
       console.log('🚫 Real drag detected, skipping cursor/endpoint jumping');
-    } else if (wasDragging) {
-      console.log('🚫 Was dragging state, skipping cursor/endpoint jumping');
     } else if (!lastClickPositionRef.current) {
       console.log('🚫 No click position stored, skipping cursor/endpoint jumping');
     } else if (!activeRegionId) {
       console.log('🚫 No active region, skipping cursor/endpoint jumping');
+    } else {
+      console.log('🔧 DEBUG: Cursor jumping conditions not met', {
+        hadRealDrag,
+        hasClickPosition: !!lastClickPositionRef.current,
+        activeRegionId,
+        wasDragging
+      });
     }
     
     // Clean up
