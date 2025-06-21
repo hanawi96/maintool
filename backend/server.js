@@ -20,18 +20,23 @@ const io = new SocketIOServer(httpServer, {
 
 // 🔌 **WEBSOCKET CONNECTION HANDLER**
 io.on('connection', (socket) => {
+  console.log('🔌 New WebSocket connection:', socket.id);
   
   // 📊 **PROGRESS ROOM**: Client tham gia room để nhận progress updates
   socket.on('join-progress-room', (data) => {
     const { sessionId } = data;
-    socket.join(`progress-${sessionId}`);
+    const roomName = `progress-${sessionId}`;
+    socket.join(roomName);
+    
+    console.log(`🏠 Socket ${socket.id} joined room: ${roomName}`);
     
     // Xác nhận join room
-    socket.emit('progress-room-joined', { sessionId, status: 'connected' });
+    socket.emit('progress-room-joined', { sessionId, status: 'connected', roomName });
   });
   
   // 🔌 **DISCONNECT HANDLER**
   socket.on('disconnect', () => {
+    console.log('🔌 WebSocket disconnected:', socket.id);
   });
 });
 

@@ -20,17 +20,28 @@ export const useWebSocketProgress = () => {
     socketRef.current = socket;
 
     socket.on('connect', () => {
+      console.log('🔌 WebSocket connected');
       setIsConnected(true);
       setConnectionError(null);
     });
-    socket.on('disconnect', () => setIsConnected(false));
+    
+    socket.on('disconnect', () => {
+      console.log('🔌 WebSocket disconnected');
+      setIsConnected(false);
+    });
+    
     socket.on('connect_error', (error) => {
+      console.log('🔌 WebSocket connection error:', error.message);
       setIsConnected(false);
       setConnectionError(`WebSocket connection failed: ${error.message}`);
     });
 
-    socket.on('progress-room-joined', () => {});
+    socket.on('progress-room-joined', (data) => {
+      console.log('🏠 Joined progress room:', data);
+    });
+    
     socket.on('cut-progress', (progressData) => {
+      console.log('📊 Frontend received progress:', progressData);
       setProgress(progressData);
       if (progressData.percent >= 100) {
         setTimeout(() => setProgress(null), 3000);
@@ -44,14 +55,22 @@ export const useWebSocketProgress = () => {
 
   const startProgressSession = useCallback((sessionId) => {
     const socket = socketRef.current;
-    if (!socket || !socket.connected) return false;
+    console.log('🚀 Starting progress session:', { sessionId, connected: socket?.connected });
+    
+    if (!socket || !socket.connected) {
+      console.log('❌ Cannot start progress session - socket not connected');
+      return false;
+    }
+    
     currentSessionRef.current = sessionId;
     socket.emit('join-progress-room', { sessionId });
+    console.log('📡 Emitted join-progress-room for sessionId:', sessionId);
     setProgress(null);
     return true;
   }, []);
 
   const clearProgress = useCallback(() => {
+    console.log('🧹 Clearing progress');
     setProgress(null);
     currentSessionRef.current = null;
   }, []);

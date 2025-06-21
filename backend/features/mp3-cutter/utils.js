@@ -38,14 +38,18 @@ function emitProgress(sessionId, data) {
       timestamp: new Date().toISOString()
     };
     
+    const roomName = `progress-${sessionId}`;
+    
     // Enhanced debug for startup phase (0-10%)
     if (percent <= 10) {
-      console.log(`📊 Backend Emit (Startup): ${percent}% - No Conflicts`);
+      console.log(`📊 Backend Emit (Startup): ${percent}% to room: ${roomName}`);
     } else if (percent === 100 || percent % 20 === 0) {
-      console.log(`📊 Backend Emit: ${percent}%`);
+      console.log(`📊 Backend Emit: ${percent}% to room: ${roomName}`);
     }
     
-    global.io.to(`progress-${sessionId}`).emit('cut-progress', simpleProgress);
+    global.io.to(roomName).emit('cut-progress', simpleProgress);
+  } else {
+    console.log('❌ Cannot emit progress:', { sessionId, hasIo: !!global.io });
   }
 }
 

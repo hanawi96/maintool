@@ -138,54 +138,27 @@ const CutDownload = ({
       return {
         icon: AlertCircle, text: 'No Active Regions', className: 'bg-orange-300 text-orange-700 cursor-not-allowed', disabled: true
       };
-    if (isProcessing) return {
-      icon: Loader, 
-      text: progress?.percent ? `Cutting...${progress.percent}%` : 'Cutting...', 
-      className: 'bg-blue-500 text-white cursor-not-allowed', 
-      disabled: true, 
-      spin: true
-    };
+    if (isProcessing) {
+      // Debug progress data
+      console.log('🔍 Progress Debug:', { progress, percent: progress?.percent, isProcessing });
+      
+      const progressPercent = progress?.percent;
+      const hasValidPercent = progressPercent !== undefined && progressPercent !== null && !isNaN(progressPercent);
+      
+      return {
+        icon: Loader, 
+        text: hasValidPercent ? `Cutting... ${Math.round(progressPercent)}%` : 'Cutting...', 
+        className: 'bg-blue-500 text-white cursor-not-allowed', 
+        disabled: true, 
+        spin: true
+      };
+    }
     return {
       icon: Scissors, text: 'Cut Audio',
-      className: 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white transform hover:scale-105',
+      className: 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white',
       disabled: false
     };
-  }, [audioFile, disabled, isInverted, activeRegionDuration, isProcessing, progress?.percent]);
-
-  const downloadButtonState = useMemo(() => {
-    if (!processedFile) return {
-      icon: Save, text: 'Save', className: 'bg-gray-300 text-gray-500 cursor-not-allowed', disabled: true
-    };
-    const isFormatMatch = processedFile.outputFormat === outputFormat;
-    if (!isFormatMatch) return {
-      icon: Save,
-      text: `Save (${processedFile.outputFormat?.toUpperCase()})`,
-      className: 'bg-yellow-200 text-yellow-700 cursor-not-allowed border-2 border-yellow-400',
-      tooltip: `Switch back to ${processedFile.outputFormat?.toUpperCase()} format to download`,
-      disabled: true
-    };
-    return {
-      icon: Save,
-      text: `Save ${outputFormat?.toUpperCase()}`,
-      className: 'bg-green-500 hover:bg-green-600 text-white transform hover:scale-105 shadow-md hover:shadow-lg',
-      disabled: false
-    };
-  }, [processedFile, outputFormat]);
-
-  // Clear progress on complete (auto-fade)
-  useEffect(() => {
-    if (progress?.stage === 'completed') {
-      const t = setTimeout(clearProgress, 3500);
-      return () => clearTimeout(t);
-    }
-  }, [progress, clearProgress]);
-
-  // Log if format changes
-  useEffect(() => {
-    if (processedFile && processedFile.outputFormat !== outputFormat) {
-      console.log('[CutDownload] Format mismatch detected');
-    }
-  }, [outputFormat, processedFile]);
+  }, [audioFile, disabled, isInverted, activeRegionDuration, isProcessing, progress]);
 
   // --- Actions ---
   const handleCutOnly = useCallback(async () => {
@@ -206,7 +179,10 @@ const CutDownload = ({
     
     try {
       const sessionId = `cut-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
-      startProgressSession(sessionId);
+      console.log('🎯 Generated sessionId:', sessionId);
+      
+      const sessionStarted = startProgressSession(sessionId);
+      console.log('🎯 Progress session started:', sessionStarted);
 
       const cutParams = {
         fileId: audioFile.filename,
@@ -220,6 +196,7 @@ const CutDownload = ({
         isInverted,
         normalizeVolume,
         quality: 'high',
+        sessionId, // 🎯 Add sessionId to params
         // 🆕 Add regions with enhanced effects
         regions: regions.map(region => {
           return {
@@ -244,6 +221,8 @@ const CutDownload = ({
           fadeOut: fadeOut || 0
         } : null
       };
+
+      console.log('🚀 Calling cutAudioByFileId with sessionId:', cutParams.sessionId);
 
       // 🔍 DETAILED FRONTEND LOG - Parameters being sent to backend
       console.log('\n🚀 FRONTEND TO BACKEND - DETAILED PARAMETERS:');
@@ -474,19 +453,6 @@ const CutDownload = ({
           <cutButtonState.icon className={`w-4 h-4 ${cutButtonState.spin ? 'animate-spin' : ''}`} />
           {cutButtonState.text}
         </button>
-        
-        {/* 🎯 DOWNLOAD BUTTON when not processing */}
-        {!isProcessing && (
-          <button
-            onClick={handleDownload}
-            disabled={downloadButtonState.disabled}
-            className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium transition-all duration-0 disabled:cursor-not-allowed ${downloadButtonState.className}`}
-            title={downloadButtonState.tooltip || `Download processed ${outputFormat?.toUpperCase()} file`}
-          >
-            <downloadButtonState.icon className="w-4 h-4" />
-            {downloadButtonState.text}
-          </button>
-        )}
       </div>
       {processingError && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-3">
@@ -552,7 +518,7 @@ const CutDownload = ({
               className="w-full bg-gradient-to-r from-green-500 via-emerald-500 to-green-600 hover:from-green-600 hover:via-emerald-600 hover:to-green-700 text-white font-bold py-4 px-8 rounded-xl shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-300 ease-out flex items-center justify-center gap-3 group"
             >
               <Save className="w-6 h-6 group-hover:scale-110 transition-transform duration-300" />
-              <span className="text-lg">Download {processedFile.outputFormat?.toUpperCase()}</span>
+              <span className="text-lg">SAVE {processedFile.outputFormat?.toUpperCase()}</span>
             </button>
 
             {/* Share Link Section */}
