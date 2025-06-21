@@ -580,6 +580,10 @@ const MP3CutterMain = React.memo(() => {
   const lastAppliedVolumeRef = useRef(volume);
   const volumeAnimationRef = useRef(null);
   
+  // 🚀 Dynamic region fade during playback
+  const lastAppliedFadeRef = useRef({ fadeIn, fadeOut, startTime, endTime });
+  const fadeAnimationRef = useRef(null);
+  
   useEffect(() => {
     if (!setMasterVolume) return;
     
@@ -642,6 +646,96 @@ const MP3CutterMain = React.memo(() => {
       }
     };
   }, [isPlaying, regions, volume, setMasterVolume, audioRef]);
+
+  // 🚀 Dynamic region fade during playback
+  useEffect(() => {
+    if (!updateFadeConfig) return;
+    
+    if (!isPlaying) {
+      // When not playing, ensure we use main fade config
+      const mainConfig = { fadeIn, fadeOut, startTime, endTime, isInverted, duration };
+      const lastConfig = lastAppliedFadeRef.current;
+      
+      if (lastConfig.fadeIn !== fadeIn || lastConfig.fadeOut !== fadeOut || 
+          lastConfig.startTime !== startTime || lastConfig.endTime !== endTime) {
+        updateFadeConfig(mainConfig);
+        lastAppliedFadeRef.current = mainConfig;
+      }
+      return;
+    }
+    
+    // Only run dynamic fade if there are regions with different fades
+    const hasRegionFades = regions.some(region => 
+      (region.fadeIn !== undefined && region.fadeIn > 0) || 
+      (region.fadeOut !== undefined && region.fadeOut > 0)
+    );
+    
+    if (!hasRegionFades) {
+      // No region fades, just ensure main fade config is applied
+      const mainConfig = { fadeIn, fadeOut, startTime, endTime, isInverted, duration };
+      const lastConfig = lastAppliedFadeRef.current;
+      
+      if (lastConfig.fadeIn !== fadeIn || lastConfig.fadeOut !== fadeOut || 
+          lastConfig.startTime !== startTime || lastConfig.endTime !== endTime) {
+        updateFadeConfig(mainConfig);
+        lastAppliedFadeRef.current = mainConfig;
+      }
+      return;
+    }
+    
+    const updateFadeForCurrentTime = () => {
+      if (!audioRef.current || !isPlaying) return;
+      
+      const currentAudioTime = audioRef.current.currentTime;
+      
+      // Find which region contains current time
+      const activeRegion = regions.find(region => 
+        currentAudioTime >= region.start && currentAudioTime <= region.end
+      );
+      
+      let targetConfig;
+      
+      if (activeRegion && (activeRegion.fadeIn > 0 || activeRegion.fadeOut > 0)) {
+        // Use region's fade config
+        targetConfig = {
+          fadeIn: activeRegion.fadeIn || 0,
+          fadeOut: activeRegion.fadeOut || 0,
+          startTime: activeRegion.start,
+          endTime: activeRegion.end,
+          isInverted: false, // Regions don't support invert
+          duration
+        };
+      } else {
+        // Use main fade config
+        targetConfig = { fadeIn, fadeOut, startTime, endTime, isInverted, duration };
+      }
+      
+      // Only update if config actually changed
+      const lastConfig = lastAppliedFadeRef.current;
+      const configChanged = lastConfig.fadeIn !== targetConfig.fadeIn || 
+                           lastConfig.fadeOut !== targetConfig.fadeOut ||
+                           lastConfig.startTime !== targetConfig.startTime ||
+                           lastConfig.endTime !== targetConfig.endTime;
+      
+      if (configChanged) {
+        updateFadeConfig(targetConfig);
+        lastAppliedFadeRef.current = targetConfig;
+      }
+      
+      // Continue animation
+      fadeAnimationRef.current = requestAnimationFrame(updateFadeForCurrentTime);
+    };
+    
+    // Start animation
+    fadeAnimationRef.current = requestAnimationFrame(updateFadeForCurrentTime);
+    
+    return () => {
+      if (fadeAnimationRef.current) {
+        cancelAnimationFrame(fadeAnimationRef.current);
+        fadeAnimationRef.current = null;
+      }
+    };
+  }, [isPlaying, regions, fadeIn, fadeOut, startTime, endTime, isInverted, duration, updateFadeConfig, audioRef]);
 
   // 🚀 Final render with all optimizations
   return (
