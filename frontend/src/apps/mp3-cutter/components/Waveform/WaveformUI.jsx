@@ -121,16 +121,24 @@ export const WaveformUI = memo(({
 
   // 🚀 **PHASE 3: EVENT HANDLER OPTIMIZATION** - Memoized handlers updated for Pointer Events
   const createHandlePointerDown = useCallback((handleType) => (e) => {
+    // 🔧 CRITICAL FIX: Active main region when clicking on its handles
+    console.log('🎯 Main selection handle clicked:', {
+      handleType,
+      regionsCount: regionPositions?.length || 0,
+      shouldActivateMain: regionPositions?.length >= 1
+    });
+    
     onHandleMouseDown?.({
       clientX: e.clientX,
       clientY: e.clientY,
       handleType,
       isHandleEvent: true,
+      isMainSelectionHandle: true, // 🆕 Flag to identify main selection handle
       pointerId: e.pointerId // 🆕 **POINTER ID**: Add pointer ID for tracking
     });
     e.preventDefault();
     e.stopPropagation();
-  }, [onHandleMouseDown]);
+  }, [onHandleMouseDown, regionPositions?.length]);
 
   const createHandlePointerMove = useCallback((handleType) => (e) => {
     onHandleMouseMove?.({

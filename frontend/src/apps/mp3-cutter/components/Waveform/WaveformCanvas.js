@@ -282,6 +282,23 @@ const WaveformCanvas = React.memo(({
   // Handle events for region handles (left/right)
   const handleHandlePointerDown = useCallback((e) => {
     clearHoverTooltip();
+    
+    // 🔧 CRITICAL FIX: Active main region when clicking on its handles
+    if (e.isMainSelectionHandle && regions.length >= 1) {
+      console.log('🎯 Main selection handle detected - activating main region:', {
+        handleType: e.handleType,
+        currentActiveRegion: activeRegionId,
+        regionsCount: regions.length,
+        shouldActivate: activeRegionId !== 'main'
+      });
+      
+      // Active main region if not already active
+      if (activeRegionId !== 'main') {
+        onMainSelectionClick?.(null, { isActivation: true });
+        console.log('✅ Main region activated via handle click');
+      }
+    }
+    
     const canvas = canvasRef.current;
     if (canvas) {
       canvas.setPointerCapture(e.pointerId);
@@ -293,13 +310,14 @@ const WaveformCanvas = React.memo(({
           target: canvas,
           handleType: e.handleType,
           isHandleEvent: true,
+          isMainSelectionHandle: e.isMainSelectionHandle || false,
           canvasX: e.clientX - rect.left,
           canvasY: e.clientY - rect.top,
           pointerId: e.pointerId
         });
       }
     }
-  }, [canvasRef, onMouseDown, clearHoverTooltip]);
+  }, [canvasRef, onMouseDown, clearHoverTooltip, regions.length, activeRegionId, onMainSelectionClick]);
 
   const handleHandlePointerMove = useCallback((e) => {
     const canvas = canvasRef.current;
