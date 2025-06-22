@@ -85,11 +85,26 @@ const CutDownload = ({
 
   // WebSocket progress
   const { progress, startProgressSession, clearProgress } = useWebSocketProgress();
-
   // Show toast notification
   const showToast = useCallback((type, title, message = '') => {
     console.log('🚀 showToast called:', { type, title, message, timestamp: new Date().toISOString() });
     setToast({ show: true, type, title, message });
+  }, []);
+
+  // Debug responsive behavior
+  useEffect(() => {
+    const handleResize = () => {
+      const width = window.innerWidth;
+      const isMobile = width < 640;
+      console.log('📱 Screen resize detected:', { 
+        width, 
+        isMobile, 
+        timestamp: new Date().toISOString() 
+      });
+    };
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   // Hide toast notification
@@ -461,16 +476,14 @@ const CutDownload = ({
           <p className="text-red-600 text-sm mt-1">{processingError}</p>
         </div>
       )}
-      {processedFile && !processingError && processedFile.outputFormat === outputFormat && (
-        <div className="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-200 rounded-xl p-6 shadow-lg">
-          {/* Header */}
+      {processedFile && !processingError && processedFile.outputFormat === outputFormat && (        <div className="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-200 rounded-xl p-6 shadow-lg">          {/* Header */}
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center">
-              <CheckCircle className="w-7 h-7 text-white" />
+            <div className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg sm:rounded-xl flex items-center justify-center flex-shrink-0">
+              <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 text-white" />
             </div>
-            <div>
-              <h3 className="text-xl font-bold text-green-800">Ready to Download!</h3>
-              <p className="text-green-600 text-sm">Your audio has been processed successfully</p>
+            <div className="min-w-0 flex-1">
+              <h3 className="text-lg sm:text-xl font-bold text-green-800">Ready to Download!</h3>
+              <p className="text-green-600 text-xs sm:text-sm">Your audio has been processed successfully</p>
             </div>
           </div>
 
@@ -517,39 +530,39 @@ const CutDownload = ({
             >
               <Save className="w-6 h-6 group-hover:scale-110 transition-transform duration-300" />
               <span className="text-lg">SAVE {processedFile.outputFormat?.toUpperCase()}</span>
-            </button>
-
-            {/* Share Link Section */}
+            </button>            {/* Share Link Section */}
             <div className="border-t border-green-200 pt-4">
-              <div className="text-green-700 text-sm font-medium mb-3 flex items-center gap-2">
-                <Copy className="w-4 h-4" />
-                Share Download Link:
+              <div className="text-green-700 text-xs sm:text-sm font-medium mb-3 flex items-center gap-2">
+                <Copy className="w-3 h-3 sm:w-4 sm:h-4" />
+                <span className="hidden sm:inline">Share Download Link:</span>
+                <span className="sm:hidden">Share Link:</span>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <input
                   type="text"
                   value={audioApi.getDownloadUrl(processedFile.filename)}
                   readOnly
-                  className="flex-1 px-4 py-3 text-sm bg-white border-2 border-green-200 rounded-lg text-slate-600 font-mono focus:outline-none focus:border-green-400 transition-colors"
+                  className="flex-1 px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm bg-white border-2 border-green-200 rounded-lg text-slate-600 font-mono focus:outline-none focus:border-green-400 transition-colors min-w-0"
                   onClick={e => e.target.select()}
                 />
                 <button
                   onClick={handleCopyLink}
-                  className={`px-4 py-3 rounded-lg text-sm font-medium transition-all duration-300 flex items-center gap-2 min-w-[100px] justify-center
+                  className={`px-3 sm:px-4 py-2 sm:py-3 rounded-lg text-xs sm:text-sm font-medium transition-all duration-300 flex items-center gap-2 min-w-[80px] sm:min-w-[100px] justify-center flex-shrink-0
                     ${copyLinkSuccess 
                       ? 'bg-green-600 text-white shadow-lg scale-105' 
                       : 'bg-green-100 text-green-700 hover:bg-green-200 hover:scale-105 shadow-md'
                     }`}
-                >
-                  {copyLinkSuccess ? (
+                >                  {copyLinkSuccess ? (
                     <>
-                      <Check className="w-4 h-4" />
-                      <span>Copied!</span>
+                      <Check className="w-3 h-3 sm:w-4 sm:h-4" />
+                      <span className="hidden sm:inline">Copied!</span>
+                      <span className="sm:hidden">✓</span>
                     </>
                   ) : (
                     <>
-                      <Copy className="w-4 h-4" />
-                      <span>Copy</span>
+                      <Copy className="w-3 h-3 sm:w-4 sm:h-4" />
+                      <span className="hidden sm:inline">Copy</span>
+                      <span className="sm:hidden">Copy</span>
                     </>
                   )}
                 </button>
