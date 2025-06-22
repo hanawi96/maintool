@@ -82,28 +82,46 @@ export const useRegionManagement = ({
     const mainSelectionExists = startTime < endTime && duration > 0;
     const totalItems = regions.length + (mainSelectionExists ? 1 : 0);
     
+    console.log('🗑️ Delete region debug:', {
+      activeRegionId,
+      totalRegions: regions.length,
+      mainSelectionExists,
+      totalItems
+    });
+    
     if (totalItems > 1 && activeRegionId) {
       if (activeRegionId === 'main') {
+        // Xóa main selection
         setStartTime(0);
         setEndTime(duration);
         
         if (regions.length > 0) {
           setActiveRegionIdDebounced(regions[0].id, 'deleteMainSelection');
+          console.log('✅ Deleted main selection, activated first region:', regions[0].id);
         } else {
           setActiveRegionIdDebounced(null, 'deleteMainSelection');
+          console.log('✅ Deleted main selection, no regions left');
         }
       } else {
+        // Xóa một region cụ thể
         const remaining = regions.filter(r => r.id !== activeRegionId);
         dispatch({ type: 'SET_REGIONS', regions: remaining });
         
-        if (mainSelectionExists) {
-          setActiveRegionIdDebounced('main', 'deleteRegion');
-          jumpToTime(startTime);
-        } else if (remaining.length > 0) {
+        // 🔧 CRITICAL FIX: Ưu tiên regions còn lại trước main selection
+        if (remaining.length > 0) {
+          // Còn regions khác → active region khác
           setActiveRegionIdDebounced(remaining[0].id, 'deleteRegion');
           jumpToTime(remaining[0].start);
+          console.log('✅ Deleted region, activated remaining region:', remaining[0].id);
+        } else if (mainSelectionExists) {
+          // Không còn region nào, nhưng có main selection → active main
+          setActiveRegionIdDebounced('main', 'deleteRegion');
+          jumpToTime(startTime);
+          console.log('✅ Deleted last region, activated main selection');
         } else {
+          // Không có gì cả → active null
           setActiveRegionIdDebounced(null, 'deleteRegion');
+          console.log('✅ Deleted last region, no main selection, activated null');
         }
       }
     }
