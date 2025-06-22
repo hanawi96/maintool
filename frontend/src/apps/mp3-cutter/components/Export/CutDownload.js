@@ -137,18 +137,14 @@ const CutDownload = ({
     if (isInverted && audioFile.duration && activeRegionDuration < 0.1)
       return {
         icon: AlertCircle, text: 'No Active Regions', className: 'bg-orange-300 text-orange-700 cursor-not-allowed', disabled: true
-      };
-    if (isProcessing) {
-      // Debug progress data
-      console.log('🔍 Progress Debug:', { progress, percent: progress?.percent, isProcessing });
-      
+      };    if (isProcessing) {
       const progressPercent = progress?.percent;
       const hasValidPercent = progressPercent !== undefined && progressPercent !== null && !isNaN(progressPercent);
       
       return {
         icon: Loader, 
         text: hasValidPercent ? `Cutting... ${Math.round(progressPercent)}%` : 'Cutting...', 
-        className: 'bg-blue-500 text-white cursor-not-allowed', 
+        className: 'bg-gradient-to-r from-blue-600 to-purple-600 text-white cursor-not-allowed', 
         disabled: true, 
         spin: true
       };
