@@ -39,7 +39,6 @@ export const useOptimizedTooltip = (
     const canvasWidth = getCanvasWidth(canvasRef.current);
     const { startX, endX, areaWidth } = getWaveformArea(canvasWidth);
     const x = startX + (currentTime / duration) * areaWidth;
-    console.log('🔍 DEBUG: Tooltip mainCursor calc:', { canvasWidth, startX, areaWidth, currentTime, x: x.toFixed(2) });
     return { visible: true, x: clampTooltipX(x, startX, endX, 'main'), time: currentTime, formattedTime: formatTime(currentTime) };
   }, [canvasRef, duration, currentTime, formatTime, getCanvasWidth]);
 
@@ -54,7 +53,6 @@ export const useOptimizedTooltip = (
     const midX = (sX + eX) / 2;
     const regionPx = Math.abs(eX - sX);
     const showDuration = selection >= 0.1 && regionPx >= DURATION_TOOLTIP.MIN_REGION_WIDTH;
-    console.log('🔍 DEBUG: Tooltip handle calc:', { canvasWidth, startX, areaWidth, startTime, endTime, sX: sX.toFixed(2), eX: eX.toFixed(2) });
     return {
       start: { visible: true, x: clampTooltipX(sX, startX, endX, 'start'), time: startTime, formattedTime: formatTime(startTime) },
       end: { visible: true, x: clampTooltipX(eX, startX, endX, 'end'), time: endTime, formattedTime: formatTime(endTime) },
@@ -77,7 +75,6 @@ export const useOptimizedTooltip = (
     const t = mousePositionToTime(x, canvasWidth, duration);
     if (t < 0 || t > duration) return null;
     
-    console.log('🔍 DEBUG: Tooltip hover calc:', { canvasWidth, startX, x, t: t.toFixed(2) });
     return { visible: true, x: clampTooltipX(x, startX, canvasWidth, 'hover'), time: t, formattedTime: formatTime(t) };
   }, [isHoverActive, hoverPos, canvasRef, duration, formatTime, isDragging, draggingRegion, getCanvasWidth]);
 

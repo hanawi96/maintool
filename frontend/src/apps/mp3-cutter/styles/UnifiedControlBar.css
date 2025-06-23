@@ -55,8 +55,6 @@
 /* ===== FONT/COLOR UTILS ===== */
 .text-color-timeselector,
 .unified-control-bar label,
-.unified-control-bar .compact-time-input,
-.unified-control-bar .compact-time-input button,
 .unified-control-bar .text-purple-700 {
   font-size: var(--ucb-font-size)!important;
 }
@@ -70,26 +68,65 @@
   font-weight: 600;
 }
 
-/* ===== TIME INPUT/BUTTONS ===== */
-.unified-control-bar .compact-time-input {
-  transition: all 0.15s ease;
+/* ===== TIME SELECTOR CONTAINER ===== */
+.unified-control-bar .time-selector-container {
+  background: transparent;
+  border-radius: 8px;
+  padding: 4px;
 }
-.unified-control-bar .compact-time-input:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+
+/* ===== TIME INPUT/BUTTONS - REMOVED CONFLICTING RULES ===== */
+
+/* ===== TIME SELECTOR ARROW BUTTONS ===== */
+.unified-control-bar .time-selector-container button {
+  transition: none;
+  padding: 0 !important;
+  background: transparent !important;
 }
-.unified-control-bar .compact-time-input button {
-  color: #374151!important;
-  font-weight: 500;
-  padding: 0.375rem 0.75rem !important;
-  width: 5rem !important;
-  background: var(--ucb-btn-bg)!important;
-  border: none!important;
-  transition: background 0.2s;
+
+/* ===== TIME SELECTOR ARROW COLUMN SPACING FIX ===== */
+.unified-control-bar .time-selector-container .flex.flex-col {
+  margin-left: 2px !important;
+  gap: 0 !important;
 }
-.unified-control-bar .compact-time-input button:hover {
-  color: #1f2937!important;
-  background: #f8fafc!important;
+
+/* Allow gap for arrow controls specifically */
+.unified-control-bar .time-selector-container .arrow-controls.flex.flex-col {
+  gap: 5px !important;
+}
+
+/* Force arrow controls gap in all media queries */
+@media (max-width: 768px) {
+  .unified-control-bar .time-selector-container .arrow-controls.flex.flex-col {
+    gap: 5px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .unified-control-bar .time-selector-container .arrow-controls.flex.flex-col {
+    gap: 5px !important;
+  }
+}
+
+/* Override global flex gap for time selector - REDUCED FOR COMPACT SEGMENTS */
+.unified-control-bar .time-selector-container .flex {
+  gap: 2px !important;
+  row-gap: 0 !important;
+}
+
+/* ===== SEGMENT TIME SELECTOR SPECIFIC OVERRIDES ===== */
+.unified-control-bar .time-selector-container .font-mono .flex {
+  gap: 0 !important;
+}
+
+.unified-control-bar .time-selector-container .font-mono span {
+  padding: 1px 2px !important;
+  margin: 0 !important;
+}
+
+.unified-control-bar .time-selector-container .font-mono .text-slate-400 {
+  margin: 0 !important;
+  padding: 0 !important;
 }
 
 /* ===== ARROW BUTTONS ===== */
@@ -295,10 +332,6 @@
   }
   .unified-control-bar button {
     background: rgba(255,255,255,0.1);
-    color: #fff;
-  }  .unified-control-bar .compact-time-input button {
-    background: rgba(255,255,255,0.1);
-    border-color: rgba(255,255,255,0.3);
     color: #fff;
   }
 }

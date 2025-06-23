@@ -453,19 +453,23 @@ const UnifiedControlBar = React.memo(({
             )}
           </button>
 
-          {/* 🆕 15. Play All Items - Show when there are regions OR main selection */}
-          {(regions.length > 0 || (duration > 0 && startTime < endTime)) && (
-            <button
-              onClick={onPlayAllRegions}
-              disabled={disabled}
-              className="relative p-2 rounded-lg group transition-all duration-200 bg-gradient-to-r from-purple-100 to-indigo-100 hover:from-purple-200 hover:to-indigo-200 border border-purple-300 hover:border-purple-400 shadow-sm hover:shadow-md"              title={`🎵 PLAY ALL ITEMS (${regions.length} regions) - Play main selection + regions in sequence`}>              <PlayCircle className="w-4 h-4 text-purple-700 group-hover:text-purple-800" />
-              {regions.length > 0 && (
-                <span className="absolute -top-1 -right-1 bg-purple-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center text-[10px] font-semibold">
-                  {regions.length}
-                </span>
-              )}
-            </button>
-          )}
+          {/* 🆕 15. Play All Items - Always show, border only when regions exist */}
+          <button
+            onClick={onPlayAllRegions}
+            disabled={disabled}
+            className={`relative p-2 rounded-lg group transition-all duration-200 ${
+              regions.length > 0 
+                ? 'bg-gradient-to-r from-purple-100 to-indigo-100 hover:from-purple-200 hover:to-indigo-200 border border-purple-300 hover:border-purple-400 shadow-sm hover:shadow-md'
+                : 'bg-slate-100 hover:bg-slate-200'
+            }`}
+            title={`🎵 PLAY ALL ITEMS (${regions.length} regions) - Play main selection + regions in sequence`}>
+            <PlayCircle className={`w-4 h-4 ${regions.length > 0 ? 'text-purple-700 group-hover:text-purple-800' : 'text-slate-700 group-hover:text-slate-900'}`} />
+            {regions.length > 0 && (
+              <span className="absolute -top-1 -right-1 bg-purple-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center text-[10px] font-semibold">
+                {regions.length}
+              </span>
+            )}
+          </button>
 
           {/* 🚧 SEPARATOR */}
           <div className="border-l border-slate-300 h-8 mx-1"></div>
