@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import {
   Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Zap, RotateCcw, RotateCw, Repeat, Shuffle, TrendingUp, TrendingDown, Music, Sliders,
   Plus, Minus, Trash2, PlayCircle
@@ -53,13 +53,40 @@ const UnifiedControlBar = React.memo(({
     equalizer: useRef(null),
   };  // Logic condition
   const canEditRegion = !disabled && duration > 0 && startTime < endTime;
-  
-  // 🔧 SEPARATE LOGIC: Invert selection only available when no regions exist
+    // 🔧 SEPARATE LOGIC: Invert selection only available when no regions exist
   const canInvertSelection = canEditRegion && regions.length === 0;
 
   // 🎚️ Check if equalizer has non-default values
   const isEqualizerActive = equalizerState && Array.isArray(equalizerState) && 
-    equalizerState.some(value => value !== 0);  // 🆕 Region management logic
+    equalizerState.some(value => value !== 0);
+  // 🆕 Get current values based on active region for visual indicators (memoized for performance)
+  const currentFadeValues = useMemo(() => {
+    return getCurrentFadeValues ? getCurrentFadeValues() : { fadeIn, fadeOut };
+  }, [getCurrentFadeValues, fadeIn, fadeOut]);
+  
+  const currentVolumeValue = useMemo(() => {
+    return getCurrentVolumeValues ? getCurrentVolumeValues().volume : volume;
+  }, [getCurrentVolumeValues, volume]);
+  
+  const currentSpeedValue = useMemo(() => {
+    return getCurrentSpeedValues ? getCurrentSpeedValues().playbackRate : playbackRate;
+  }, [getCurrentSpeedValues, playbackRate]);
+  
+  const currentPitchValue = useMemo(() => {
+    return getCurrentPitchValues ? getCurrentPitchValues().pitch : pitch;
+  }, [getCurrentPitchValues, pitch]);
+  
+  // 🔧 Debug log for region switch
+  useEffect(() => {
+    console.log('🎛️ [UnifiedControlBar] Values for visual indicators:', {
+      activeRegionId: activeRegionId || 'main',
+      currentFadeValues,
+      currentVolumeValue,
+      currentSpeedValue,
+      currentPitchValue,
+      mainValues: { fadeIn, fadeOut, volume, playbackRate, pitch }
+    });
+  }, [activeRegionId, currentFadeValues, currentVolumeValue, currentSpeedValue, currentPitchValue, fadeIn, fadeOut, volume, playbackRate, pitch]);// 🆕 Region management logic
   const canAddRegion = canAddNewRegion && !!onAddRegion; // 🆕 Now depends on available spaces
   
   // 🔧 Calculate total deletable items (regions + main selection when exists)
@@ -297,23 +324,21 @@ const UnifiedControlBar = React.memo(({
             className="p-2 bg-slate-100 hover:bg-slate-200 disabled:opacity-50 rounded-lg transition-colors relative group"
             title={`Invert Selection: ${isInverted ? 'ON' : 'OFF'}`}>
             <Shuffle className="w-4 h-4 text-slate-700 group-hover:text-slate-900" />
-          </button>
-
-          {/* 8. Fade In */}
+          </button>          {/* 8. Fade In */}
           <button
             ref={refs.fadeIn}
             onClick={() => togglePopup('fadeIn')}
             disabled={!canEditRegion}
             className={`relative p-2 rounded-lg group ${
-              fadeIn > 0
+              currentFadeValues.fadeIn > 0
                 ? 'bg-emerald-100 hover:bg-emerald-200 border border-emerald-300'
                 : popupState === 'fadeIn'
                 ? 'bg-slate-200 border border-slate-400'
                 : 'bg-slate-100 hover:bg-slate-200'
             }`}
-            title={`Fade In: ${fadeIn > 0 ? `${fadeIn.toFixed(1)}s` : 'Click to adjust'}`}>
-            <TrendingUp className={`w-4 h-4 ${fadeIn > 0 ? 'text-emerald-700' : 'text-slate-700'} group-hover:text-emerald-800`} />
-            {fadeIn > 0 && <div className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-500 rounded-full"></div>}
+            title={`Fade In: ${currentFadeValues.fadeIn > 0 ? `${currentFadeValues.fadeIn.toFixed(1)}s` : 'Click to adjust'}`}>
+            <TrendingUp className={`w-4 h-4 ${currentFadeValues.fadeIn > 0 ? 'text-emerald-700' : 'text-slate-700'} group-hover:text-emerald-800`} />
+            {currentFadeValues.fadeIn > 0 && <div className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-500 rounded-full"></div>}
           </button>
 
           {/* 9. Fade Out */}
@@ -322,15 +347,15 @@ const UnifiedControlBar = React.memo(({
             onClick={() => togglePopup('fadeOut')}
             disabled={!canEditRegion}
             className={`relative p-2 rounded-lg group ${
-              fadeOut > 0
+              currentFadeValues.fadeOut > 0
                 ? 'bg-orange-100 hover:bg-orange-200 border border-orange-300'
                 : popupState === 'fadeOut'
                 ? 'bg-slate-200 border border-slate-400'
                 : 'bg-slate-100 hover:bg-slate-200'
             }`}
-            title={`Fade Out: ${fadeOut > 0 ? `${fadeOut.toFixed(1)}s` : 'Click to adjust'}`}>
-            <TrendingDown className={`w-4 h-4 ${fadeOut > 0 ? 'text-orange-700' : 'text-slate-700'} group-hover:text-orange-800`} />
-            {fadeOut > 0 && <div className="absolute -top-1 -right-1 w-2 h-2 bg-orange-500 rounded-full"></div>}
+            title={`Fade Out: ${currentFadeValues.fadeOut > 0 ? `${currentFadeValues.fadeOut.toFixed(1)}s` : 'Click to adjust'}`}>
+            <TrendingDown className={`w-4 h-4 ${currentFadeValues.fadeOut > 0 ? 'text-orange-700' : 'text-slate-700'} group-hover:text-orange-800`} />
+            {currentFadeValues.fadeOut > 0 && <div className="absolute -top-1 -right-1 w-2 h-2 bg-orange-500 rounded-full"></div>}
           </button>          {/* 10. Volume */}
           <button
             ref={refs.volume}
@@ -339,22 +364,20 @@ const UnifiedControlBar = React.memo(({
             className={`relative p-2 rounded-lg group ${
               popupState === 'volume'
                 ? 'bg-slate-200 border border-slate-400'
-                : volume === 0
+                : currentVolumeValue === 0
                 ? 'bg-red-100 hover:bg-red-200 border border-red-300'
-                : volume !== 1
-                ? volume > 1
+                : currentVolumeValue !== 1
+                ? currentVolumeValue > 1
                   ? 'bg-orange-100 hover:bg-orange-200 border border-orange-300'
                   : 'bg-blue-100 hover:bg-blue-200 border border-blue-300'
                 : 'bg-slate-100 hover:bg-slate-200'
             }`}
-            title={`Volume: ${Math.round(volume * 100)}% - Click to adjust${volume > 1 ? ' (BOOST)' : ''}`}>
-            {volume === 0
+            title={`Volume: ${Math.round(currentVolumeValue * 100)}% - Click to adjust${currentVolumeValue > 1 ? ' (BOOST)' : ''}`}>
+            {currentVolumeValue === 0
               ? <VolumeX className="w-4 h-4 text-red-600 group-hover:text-red-700" />
-              : <Volume2 className={`w-4 h-4 ${volume > 1 ? 'text-orange-600 group-hover:text-orange-700' : volume !== 1 ? 'text-blue-600 group-hover:text-blue-700' : 'text-slate-600 group-hover:text-slate-700'}`} />}
-            {volume !== 0 && volume !== 1 && <div className={`absolute -top-1 -right-1 w-2 h-2 rounded-full ${volume > 1 ? 'bg-orange-500' : 'bg-blue-500'}`}></div>}
-          </button>
-
-          {/* 11. Speed */}
+              : <Volume2 className={`w-4 h-4 ${currentVolumeValue > 1 ? 'text-orange-600 group-hover:text-orange-700' : currentVolumeValue !== 1 ? 'text-blue-600 group-hover:text-blue-700' : 'text-slate-600 group-hover:text-slate-700'}`} />}
+            {currentVolumeValue !== 0 && currentVolumeValue !== 1 && <div className={`absolute -top-1 -right-1 w-2 h-2 rounded-full ${currentVolumeValue > 1 ? 'bg-orange-500' : 'bg-blue-500'}`}></div>}
+          </button>          {/* 11. Speed */}
           <button
             ref={refs.speed}
             onClick={() => togglePopup('speed')}
@@ -362,13 +385,13 @@ const UnifiedControlBar = React.memo(({
             className={`relative p-2 rounded-lg group ${
               popupState === 'speed'
                 ? 'bg-slate-200 border border-slate-400'
-                : playbackRate !== 1
+                : currentSpeedValue !== 1
                 ? 'bg-purple-100 hover:bg-purple-200 border border-purple-300'
                 : 'bg-slate-100 hover:bg-slate-200'
             }`}
-            title={`Speed: ${playbackRate.toFixed(1)}x - Click to adjust`}>
+            title={`Speed: ${currentSpeedValue.toFixed(1)}x - Click to adjust`}>
             <Zap className="w-4 h-4 text-purple-600 group-hover:text-purple-700" />
-            {playbackRate !== 1 && <div className="absolute -top-1 -right-1 w-2 h-2 bg-purple-500 rounded-full"></div>}
+            {currentSpeedValue !== 1 && <div className="absolute -top-1 -right-1 w-2 h-2 bg-purple-500 rounded-full"></div>}
           </button>          {/* 12. Pitch */}
           <button
             ref={refs.pitch}
@@ -377,14 +400,14 @@ const UnifiedControlBar = React.memo(({
             className={`relative p-2 rounded-lg group ${
               popupState === 'pitch'
                 ? 'bg-slate-200 border border-slate-400'
-                : pitch !== 0
+                : currentPitchValue !== 0
                 ? 'bg-teal-100 hover:bg-teal-200 border border-teal-300'
                 : 'bg-slate-100 hover:bg-slate-200'
             }`}
-            title={`Pitch: ${pitch > 0 ? '+' : ''}${pitch.toFixed(1)}st - Click to adjust`}>
+            title={`Pitch: ${currentPitchValue > 0 ? '+' : ''}${currentPitchValue.toFixed(1)}st - Click to adjust`}>
             <Music className="w-4 h-4 text-teal-600 group-hover:text-teal-700" />
-            {pitch !== 0 && <div className="absolute -top-1 -right-1 w-2 h-2 bg-teal-500 rounded-full"></div>}
-          </button>          {/* 13. Equalizer */}
+            {currentPitchValue !== 0 && <div className="absolute -top-1 -right-1 w-2 h-2 bg-teal-500 rounded-full"></div>}
+          </button>{/* 13. Equalizer */}
           <button
             ref={refs.equalizer}
             onClick={() => togglePopup('equalizer')}
