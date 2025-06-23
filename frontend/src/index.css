@@ -196,7 +196,14 @@ body {
 
 /* 🔧 SPECIFIC OVERRIDE: Allow all badges to use consistent text-[8px] styling */
 .unified-control-bar .text-\[8px\] {
-  font-size: 9px !important;
+  font-size: 10.5px !important;
+  line-height: 1.2 !important;
+  font-weight: bold !important;
+}
+
+/* 🔧 SPECIFIC OVERRIDE: Allow fade/volume/speed/pitch badges to use 10.5px font size */
+.unified-control-bar .text-\[7px\] {
+  font-size: 10.5px !important;
   line-height: 1.2 !important;
   font-weight: bold !important;
 }
