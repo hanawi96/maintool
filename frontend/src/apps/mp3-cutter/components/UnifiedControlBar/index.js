@@ -434,11 +434,12 @@ const UnifiedControlBar = React.memo(({
             title={canAddRegion 
               ? "➕ ADD NEW REGION (Ctrl+N)" 
               : "Add New Region - Need >1s space outside current selection"
-            }>
-            <Plus className={`w-4 h-4 ${canAddRegion ? 'text-emerald-700 group-hover:text-emerald-800' : 'text-slate-500'}`} />
-            <span className="absolute -top-1 -right-1 bg-emerald-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center text-[10px] font-semibold">
-              {1 + regions.length}
-            </span>
+            }>            <Plus className={`w-4 h-4 ${canAddRegion ? 'text-emerald-700 group-hover:text-emerald-800' : 'text-slate-500'}`} />
+            {regions.length > 0 && (
+              <span className="absolute -top-1 -right-1 bg-emerald-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center text-[10px] font-semibold">
+                {regions.length}
+              </span>
+            )}
           </button>
 
           {/* 🆕 15. Play All Items - Show when there are regions OR main selection */}
@@ -446,12 +447,12 @@ const UnifiedControlBar = React.memo(({
             <button
               onClick={onPlayAllRegions}
               disabled={disabled}
-              className="relative p-2 rounded-lg group transition-all duration-200 bg-gradient-to-r from-purple-100 to-indigo-100 hover:from-purple-200 hover:to-indigo-200 border border-purple-300 hover:border-purple-400 shadow-sm hover:shadow-md"
-              title={`🎵 PLAY ALL ITEMS (${(startTime < endTime ? 1 : 0) + regions.length} items) - Play main selection + regions in sequence`}>
-              <PlayCircle className="w-4 h-4 text-purple-700 group-hover:text-purple-800" />
-              <span className="absolute -top-1 -right-1 bg-purple-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center text-[10px] font-semibold">
-                {(startTime < endTime ? 1 : 0) + regions.length}
-              </span>
+              className="relative p-2 rounded-lg group transition-all duration-200 bg-gradient-to-r from-purple-100 to-indigo-100 hover:from-purple-200 hover:to-indigo-200 border border-purple-300 hover:border-purple-400 shadow-sm hover:shadow-md"              title={`🎵 PLAY ALL ITEMS (${regions.length} regions) - Play main selection + regions in sequence`}>              <PlayCircle className="w-4 h-4 text-purple-700 group-hover:text-purple-800" />
+              {regions.length > 0 && (
+                <span className="absolute -top-1 -right-1 bg-purple-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center text-[10px] font-semibold">
+                  {regions.length}
+                </span>
+              )}
             </button>
           )}
 
