@@ -289,13 +289,13 @@
   }
 }
 
-/* ===== FADE BADGES - OPTIMIZED FONT SIZE ===== */
+/* ===== CONTROL BADGES - OPTIMIZED FONT SIZE & POSITIONING ===== */
 .unified-control-bar .text-\[7px\] {
   font-size: 10px !important;
   line-height: 1.2 !important;
 }
 
-/* Badge positioning fix - Centered on top edge of button */
+/* Fade badges - Centered on top edge of button */
 .unified-control-bar .absolute.-top-0\.5.-right-0\.5 {
   font-size: 10px !important;
   line-height: 1.2 !important;
