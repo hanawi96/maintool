@@ -337,7 +337,7 @@ const UnifiedControlBar = React.memo(({
                 : 'bg-slate-100 hover:bg-slate-200'
             }`}            title={`Fade In: ${currentFadeValues.fadeIn > 0 ? `${currentFadeValues.fadeIn.toFixed(1)}s` : 'Click to adjust'}`}>
             <TrendingUp className={`w-4 h-4 ${currentFadeValues.fadeIn > 0 ? 'text-emerald-700' : 'text-emerald-600'} group-hover:text-emerald-800`} />            {currentFadeValues.fadeIn > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 bg-emerald-500 text-white text-[7px] rounded px-0.5 py-0 font-medium leading-tight min-w-[14px] text-center">
+              <span className="absolute text-white text-[7px] rounded px-0.5 py-0 font-medium leading-tight min-w-[14px] text-center -top-0.5 -right-0.5 bg-emerald-500">
                 {currentFadeValues.fadeIn.toFixed(1)}s
               </span>
             )}
@@ -356,7 +356,7 @@ const UnifiedControlBar = React.memo(({
                 : 'bg-slate-100 hover:bg-slate-200'
             }`}            title={`Fade Out: ${currentFadeValues.fadeOut > 0 ? `${currentFadeValues.fadeOut.toFixed(1)}s` : 'Click to adjust'}`}>
             <TrendingDown className={`w-4 h-4 ${currentFadeValues.fadeOut > 0 ? 'text-orange-700' : 'text-orange-600'} group-hover:text-orange-800`} />            {currentFadeValues.fadeOut > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 bg-orange-500 text-white text-[7px] rounded px-0.5 py-0 font-medium leading-tight min-w-[14px] text-center">
+              <span className="absolute text-white text-[7px] rounded px-0.5 py-0 font-medium leading-tight min-w-[14px] text-center -top-0.5 -right-0.5 bg-orange-500">
                 {currentFadeValues.fadeOut.toFixed(1)}s
               </span>
             )}
@@ -376,8 +376,8 @@ const UnifiedControlBar = React.memo(({
                   : 'bg-blue-100 hover:bg-blue-200 border border-blue-300'
                 : 'bg-slate-100 hover:bg-slate-200'
             }`}            title={`Volume: ${Math.round(currentVolumeValue * 100)}% - Click to adjust${currentVolumeValue > 1 ? ' (BOOST)' : ''}`}>            {currentVolumeValue === 0
-              ? <VolumeX className="w-4 h-4 text-red-600 group-hover:text-red-700" />
-              : <Volume2 className={`w-4 h-4 ${currentVolumeValue > 1 ? 'text-orange-600 group-hover:text-orange-700' : currentVolumeValue !== 1 ? 'text-blue-600 group-hover:text-blue-700' : 'text-blue-600 group-hover:text-blue-700'}`} />}            {currentVolumeValue !== 0 && currentVolumeValue !== 1 && (
+              ? <VolumeX className={`w-4 h-4 text-red-600 group-hover:text-red-700`} />
+              : <Volume2 className={`w-4 h-4 ${currentVolumeValue > 1 ? 'text-orange-600 group-hover:text-orange-700' : currentVolumeValue !== 1 ? 'text-blue-600 group-hover:text-blue-700' : 'text-blue-600 group-hover:text-blue-700'}`} />}{currentVolumeValue !== 0 && currentVolumeValue !== 1 && (
               <span className={`absolute text-white text-[7px] rounded px-0.5 py-0 font-medium leading-tight min-w-[14px] text-center -top-0.5 -right-0.5 ${currentVolumeValue > 1 ? 'bg-orange-500' : 'bg-blue-500'}`}>
                 {Math.round(currentVolumeValue * 100)}%
               </span>
@@ -394,7 +394,7 @@ const UnifiedControlBar = React.memo(({
                 ? 'bg-purple-100 hover:bg-purple-200 border border-purple-300'
                 : 'bg-slate-100 hover:bg-slate-200'
             }`}
-            title={`Speed: ${currentSpeedValue.toFixed(1)}x - Click to adjust`}>            <Zap className="w-4 h-4 text-purple-600 group-hover:text-purple-700" />            {currentSpeedValue !== 1 && (
+            title={`Speed: ${currentSpeedValue.toFixed(1)}x - Click to adjust`}>            <Zap className={`w-4 h-4 text-purple-600 group-hover:text-purple-700`} />            {currentSpeedValue !== 1 && (
               <span className="absolute text-white text-[7px] rounded px-0.5 py-0 font-medium leading-tight min-w-[14px] text-center -top-0.5 -right-0.5 bg-purple-500">
                 {currentSpeedValue.toFixed(1)}x
               </span>
@@ -411,9 +411,9 @@ const UnifiedControlBar = React.memo(({
                 ? 'bg-teal-100 hover:bg-teal-200 border border-teal-300'
                 : 'bg-slate-100 hover:bg-slate-200'
             }`}
-            title={`Pitch: ${currentPitchValue > 0 ? '+' : ''}${currentPitchValue.toFixed(1)}st - Click to adjust`}>            <Music className="w-4 h-4 text-teal-600 group-hover:text-teal-700" />            {currentPitchValue !== 0 && (
+            title={`Pitch: ${currentPitchValue > 0 ? '+' : ''}${currentPitchValue.toFixed(1)}st - Click to adjust`}>            <Music className={`w-4 h-4 text-teal-600 group-hover:text-teal-700`} />            {currentPitchValue !== 0 && (
               <span className="absolute text-white text-[7px] rounded px-0.5 py-0 font-medium leading-tight min-w-[14px] text-center -top-0.5 -right-0.5 bg-teal-500">
-                {currentPitchValue > 0 ? '+' : ''}{currentPitchValue.toFixed(1)}st
+                {currentPitchValue > 0 ? '+' : ''}{currentPitchValue.toFixed(1)}
               </span>
             )}
           </button>{/* 13. Equalizer */}
