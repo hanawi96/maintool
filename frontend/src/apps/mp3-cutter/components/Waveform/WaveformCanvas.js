@@ -5,6 +5,7 @@ import { WaveformUI } from './WaveformUI';
 import { useOptimizedTooltip } from '../../hooks/useOptimizedTooltip';
 import { useWaveformCursor } from '../../hooks/useWaveformCursor';
 import { useWaveformRender } from '../../hooks/useWaveformRender';
+import { debugPositionCalculation } from '../../utils/positionUtils';
 
 // Helper: responsive handle width & waveform area (reduce repetition)
 const getResponsiveHandleWidth = (width) =>
@@ -208,14 +209,11 @@ const WaveformCanvas = React.memo(({
             break;
           }
         }
-        
-        // Only detect main selection click if NOT clicking in any region area
-        if (!isClickInRegionArea && mouseX >= mainSelectionLeft && mouseX <= mainSelectionRight) {
-          const isMainAlreadyActive = activeRegionId === 'main';
+          // Only detect main selection click if NOT clicking in any region area
+        if (!isClickInRegionArea && mouseX >= mainSelectionLeft && mouseX <= mainSelectionRight) {          const isMainAlreadyActive = activeRegionId === 'main';
           
-          // 🎯 Always calculate click position for drag offset (needed for smooth dragging)
-          const clickRatio = (mouseX - mainSelectionLeft) / (mainSelectionRight - mainSelectionLeft);
-          const clickTime = startTime + (endTime - startTime) * clickRatio;
+          // 🎯 FIXED: Use unified position calculation to ensure consistency
+          const clickTime = debugPositionCalculation(mouseX, w, duration, 'MainSelectionClick');
           
           // 🔧 CRITICAL FIX: Store the main selection click info instead of calling immediately
           // This ensures cursor jumping happens at mouse up, not mouse down (consistent with no-regions behavior)
@@ -268,11 +266,14 @@ const WaveformCanvas = React.memo(({
 
   const handlePointerUp = useCallback((e) => {
     // 🔧 CRITICAL FIX: Handle pending main selection click at mouse up (not mouse down)
-    // This ensures consistent behavior with no-regions scenario
-    // Only process if no dragging occurred
+    // This ensures consistent behavior with no-regions scenario    // Only process if no dragging occurred
     if (pendingMainSelectionClickRef.current && onMainSelectionClick && !hasDraggedRef.current) {
       const { clickTime, isActivation } = pendingMainSelectionClickRef.current;
-      console.log('🎯 Processing pending main selection click at mouse up:', { clickTime, isActivation });
+      console.log('🎯 Processing pending main selection click at mouse up:', { 
+        clickTime: clickTime.toFixed(2), 
+        isActivation,
+        formattedTime: `${Math.floor(clickTime / 60)}:${(clickTime % 60).toFixed(1).padStart(4, '0')}`
+      });
       onMainSelectionClick(clickTime, { isActivation });
     }
     

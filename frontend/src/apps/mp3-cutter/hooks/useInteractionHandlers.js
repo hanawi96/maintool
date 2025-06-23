@@ -1,21 +1,5 @@
 import { useCallback, useRef } from 'react';
-import { WAVEFORM_CONFIG } from '../utils/constants';
-
-// Helper function to match WaveformCanvas.js responsive handle width calculation
-const getResponsiveHandleWidth = (width) =>
-  width < WAVEFORM_CONFIG.RESPONSIVE.MOBILE_BREAKPOINT
-    ? Math.max(3, WAVEFORM_CONFIG.MODERN_HANDLE_WIDTH * 0.75)
-    : WAVEFORM_CONFIG.MODERN_HANDLE_WIDTH;
-
-const getWaveformArea = (width) => {
-  const handleW = getResponsiveHandleWidth(width);
-  return {
-    startX: handleW,
-    endX: width - handleW,
-    areaWidth: width - 2 * handleW,
-    handleW
-  };
-};
+import { mousePositionToTime, getWaveformArea } from '../utils/positionUtils';
 
 // Helper: calculate region area boundaries (reduces redundancy)
 const getRegionAreaBounds = (region, startX, areaWidth, handleW, duration) => {
@@ -215,18 +199,16 @@ export const useInteractionHandlers = ({
         regionsCount: regions.length,
         isMainOnly: activeRegionId === 'main' && regions.length === 0,
         hadRealDrag
-      });
-      
-      const canvas = canvasRef.current;
+      });      const canvas = canvasRef.current;
       if (canvas) {
         const canvasWidth = canvas.offsetWidth || canvas.width || 800;
-        const { startX, areaWidth, handleW } = getWaveformArea(canvasWidth);
         
         // 🔧 FIXED: Use current mouse position for accurate endpoint jumping
         const mouseUpX = currentMousePositionRef.current;
         
         if (mouseUpX !== null && mouseUpX >= 0 && mouseUpX <= canvasWidth) {
-          const mouseUpTime = ((mouseUpX - startX) / areaWidth) * duration;
+          // 🎯 UNIFIED: Use same calculation as main selection click and hover
+          const mouseUpTime = mousePositionToTime(mouseUpX, canvasWidth, duration);
           
           let activeRegion = null;
           if (activeRegionId === 'main') {
@@ -373,15 +355,16 @@ export const useInteractionHandlers = ({
         }
         
         // ✅ Proceed with cursor/endpoint jumping only for already-active regions
-        if (wasAlreadyActive) {
-          console.log('✅ useInteractionHandlers: Proceeding with cursor/endpoint jumping for already-active region');
+        if (wasAlreadyActive) {          console.log('✅ useInteractionHandlers: Proceeding with cursor/endpoint jumping for already-active region');
           const canvasWidth = canvas.offsetWidth || canvas.width || 800;
           const clickX = lastClickPositionRef.current;
           
-          const { startX, areaWidth, handleW } = getWaveformArea(canvasWidth);
-          const clickTime = ((clickX - startX) / areaWidth) * duration;
+          // 🎯 UNIFIED: Use same calculation as main selection click and hover
+          const clickTime = mousePositionToTime(clickX, canvasWidth, duration);
           
-          console.log('🔍 DEBUG: Cursor jump calc:', { canvasWidth, startX, areaWidth, clickX, clickTime: clickTime.toFixed(2) });
+          console.log('🔍 DEBUG: Cursor jump calc (UNIFIED):', { canvasWidth, clickX, clickTime: clickTime.toFixed(2) });
+          
+          const { startX, areaWidth, handleW } = getWaveformArea(canvasWidth);
           
           let activeRegion = null;
           if (activeRegionId === 'main') {
