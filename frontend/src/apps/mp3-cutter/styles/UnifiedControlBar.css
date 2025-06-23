@@ -209,8 +209,22 @@
 
 /* ===== FLEX ITEM MIN-WIDTH ===== */
 .unified-control-bar .flex-1 { min-width: 200px; flex-shrink: 0; }
-@media (max-width: 768px) { .unified-control-bar .flex-1 { min-width: 150px; } }
-@media (max-width: 480px) { .unified-control-bar .flex-1 { min-width: 120px; } }
+@media (max-width: 768px) { 
+  .unified-control-bar .flex-1 { min-width: 150px; }
+  /* Increase gap between wrapped button rows on small screens */
+  .unified-control-bar .flex {
+    gap: 6px !important;
+    row-gap: 18px !important;
+  }
+}
+@media (max-width: 480px) { 
+  .unified-control-bar .flex-1 { min-width: 120px; }
+  /* Larger gap on very small screens */
+  .unified-control-bar .flex {
+    gap: 4px !important;
+    row-gap: 20px !important;
+  }
+}
 
 /* ===== MOBILE COLLAPSED SECTION ANIMATION ===== */
 @media (max-width: 639px) {
