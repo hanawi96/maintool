@@ -151,103 +151,95 @@ export class OffscreenWaveformRenderer {
     return canvas;
   }
 
-  async executeRender(renderData, ctx = this.offscreenCtx) {
-    const { waveformData, width, height, style } = renderData;
+  calculateFadeMultiplier(time, startTime, endTime, fadeIn, fadeOut, duration, isInverted) {
+    if (!fadeIn && !fadeOut) return 1;
+    
+    if (isInverted) {
+      let multiplier = 1;
+      if (fadeIn > 0 && time < startTime) {
+        const fadeInDur = Math.min(fadeIn, startTime);
+        if (time <= fadeInDur) multiplier = Math.max(0.05, time / fadeInDur);
+      }
+      if (fadeOut > 0 && time >= endTime) {
+        const fadeOutDur = Math.min(fadeOut, duration - endTime);
+        const fadeStart = duration - fadeOutDur;
+        if (time >= fadeStart) multiplier = Math.max(0.05, (duration - time) / fadeOutDur);
+      }
+      return multiplier;
+    } else {
+      const rel = (time - startTime) / (endTime - startTime);
+      let multiplier = 1;
+      if (fadeIn > 0 && rel < fadeIn / (endTime - startTime)) {
+        multiplier *= Math.max(0.05, rel / (fadeIn / (endTime - startTime)));
+      }
+      if (fadeOut > 0 && rel > 1 - fadeOut / (endTime - startTime)) {
+        multiplier *= Math.max(0.05, (1 - rel) / (fadeOut / (endTime - startTime)));
+      }
+      return multiplier;
+    }
+  }
+
+  async executeRender(renderData, providedCtx = null) {
+    const { waveformData, width, height, volume, startTime, endTime, duration, fadeIn, fadeOut, isInverted, style } = renderData;
+    
+    let ctx = providedCtx;
+    if (!ctx) {
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      ctx = canvas.getContext('2d', { willReadFrequently: true });
+    }
+
     ctx.imageSmoothingEnabled = false;
     ctx.clearRect(0, 0, width, height);
 
-    // Draw background gradient
+    // Background
+    if (style.backgroundColor && style.backgroundColor !== 'transparent') {
+      ctx.fillStyle = style.backgroundColor;
+      ctx.fillRect(0, 0, width, height);
+    }
+
+    // Gradient
     const gradient = ctx.createLinearGradient(0, 0, 0, height);
-    gradient.addColorStop(0, 'rgba(99,102,241,0.04)');
-    gradient.addColorStop(1, 'rgba(168,85,247,0.04)');
+    gradient.addColorStop(0, 'rgba(99, 102, 241, 0.04)');
+    gradient.addColorStop(1, 'rgba(168, 85, 247, 0.04)');
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, width, height);
 
-    await this._renderBars(ctx, renderData);
-    this._renderSelection(ctx, renderData);
-
-    return this.offscreenCanvas || ctx.canvas;
-  }
-
-  async _renderBars(ctx, data) {
-    const {
-      waveformData, width, height, volume, startTime, endTime, duration,
-      fadeIn, fadeOut, isInverted, style
-    } = data;
+    // Waveform bars
     const centerY = height / 2;
-    const barW = width / waveformData.length;
-    const FLAT_PX = 1;
-    const MAX_PX = 65;
-    const volPct = Math.max(0, Math.min(100, volume * 100));
-    const scalingPx = (volPct / 2) * (MAX_PX / 50);
-    const absBarH = FLAT_PX + scalingPx;
+    const maxHeightPerSide = height * 0.225; // 22.5% per side = 45% total
+    const barWidth = width / waveformData.length;
 
-    const fadeMultiplier = (i) => {
-      if (!fadeIn && !fadeOut) return 1;
+    for (let i = 0; i < waveformData.length; i++) {
       const time = (i / waveformData.length) * duration;
-      if (isInverted) {
-        if (fadeIn && time < startTime) {
-          const fadeInDur = Math.min(fadeIn, startTime);
-          if (time <= fadeInDur) return Math.max(0.05, time / fadeInDur);
-        }
-        if (fadeOut && time >= endTime) {
-          const outDur = Math.min(fadeOut, duration - endTime);
-          const fadeStart = duration - outDur;
-          if (time >= fadeStart) return Math.max(0.05, (duration - time) / outDur);
-        }
-        return 1;
-      } else {
-        const rel = (time - startTime) / (endTime - startTime);
-        if (fadeIn && rel < fadeIn / (endTime - startTime))
-          return Math.max(0.05, rel / (fadeIn / (endTime - startTime)));
-        if (fadeOut && rel > 1 - fadeOut / (endTime - startTime))
-          return Math.max(0.05, (1 - rel) / (fadeOut / (endTime - startTime)));
-        return 1;
-      }
-    };
-
-    ctx.save();
-    let lastStyle = null;
-    const batch = 200;    for (let i = 0; i < waveformData.length; i++) {
-      const value = waveformData[i];
-      const time = (i / waveformData.length) * duration;
-      let h = absBarH * value;
-      
-      // 🎯 Tăng chiều cao 20% khi volume từ 101% đến 200%
-      if (volume > 1) {
-        const volumePercent = volume * 100;
-        const heightBoost = Math.min((volumePercent - 100) / 100, 1) * 0.2; // 0-20% boost
-        h = h * (1 + heightBoost);
-      }
-      
-      if (fadeIn > 0 || fadeOut > 0)
-        h = FLAT_PX + (h - FLAT_PX) * fadeMultiplier(i);
-
-      const x = i * barW;
-      const inSelection = isInverted
+      const isSelected = isInverted 
         ? (time < startTime || time > endTime)
         : (time >= startTime && time <= endTime);
-      const thisStyle = inSelection ? style.waveformColor : '#e2e8f0';
-      if (thisStyle !== lastStyle) {
-        ctx.fillStyle = thisStyle;
-        lastStyle = thisStyle;
+
+      let h = Math.max(1, volume * maxHeightPerSide * waveformData[i]);
+
+      // Apply fade effect
+      if ((fadeIn > 0 || fadeOut > 0) && isSelected) {
+        const fadeMultiplier = this.calculateFadeMultiplier(time, startTime, endTime, fadeIn, fadeOut, duration, isInverted);
+        const baseFadeHeight = Math.max(1, volume * maxHeightPerSide * waveformData[i]);
+        h = Math.max(1, baseFadeHeight * fadeMultiplier);
       }
-      ctx.fillRect(Math.floor(x), centerY - h, Math.max(0.4, barW), h * 2);
 
-      // Yield every batch bars (keep UI smooth in main thread)
-      if (i % batch === 0) await Promise.resolve();
+      ctx.fillStyle = isSelected ? style.waveformColor : '#e2e8f0';
+      const x = i * barWidth;
+      ctx.fillRect(Math.floor(x), centerY - h, barWidth, h * 2);
     }
-    ctx.restore();
-  }
 
-  _renderSelection(ctx, data) {
-    const { width, height, startTime, endTime, duration, style } = data;
-    if (startTime < endTime) {
+    // Selection overlay
+    if (startTime < endTime && duration > 0) {
+      ctx.fillStyle = style.selectionColor;
       const sx = (startTime / duration) * width;
       const ex = (endTime / duration) * width;
-      ctx.fillStyle = style.selectionColor;
       ctx.fillRect(sx, 0, ex - sx, height);
     }
+
+    return providedCtx ? null : ctx.canvas;
   }
 
   _handleWorkerMessage(e) {

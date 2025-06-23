@@ -82,26 +82,19 @@ function interpolateColor(color1, color2, ratio) {
 }
 
 function drawBars(ctx, data, width, height, volume, startTime, endTime, duration, fadeIn, fadeOut, isInverted) {
-  const centerY = height / 2, baseHeight = 2, maxHeight = height * 0.8;
+  const centerY = height / 2;
+  const maxHeightTotal = height * 0.45; // 45% total canvas height
   const barCount = data.length, barWidth = width / barCount;
-  const vMul = Math.max(0, Math.min(1, volume));
   let lastFill = null;
 
   for (let i = 0; i < barCount; i++) {
     const value = data[i];
     const barTime = (i / barCount) * duration;
-    let rawHeight = baseHeight + (value * maxHeight * vMul);
-    
-    // 🎯 Tăng chiều cao 20% khi volume từ 101% đến 200%
-    if (volume > 1) {
-      const volumePercent = volume * 100;
-      const heightBoost = Math.min((volumePercent - 100) / 100, 1) * 0.2; // 0-20% boost
-      rawHeight = rawHeight * (1 + heightBoost);
-    }
+    let rawHeight = Math.max(1, volume * maxHeightTotal * value);
     
     const fadeMul = getFadeMul(i, barTime, barCount, duration, startTime, endTime, fadeIn, fadeOut, isInverted);
-    rawHeight = baseHeight + (rawHeight - baseHeight) * fadeMul;
-    const barHeight = Math.max(1, rawHeight);
+    const baseFadeHeight = Math.max(1, volume * maxHeightTotal * value);
+    rawHeight = Math.max(1, baseFadeHeight * fadeMul);
 
     // Selection logic (invert mode = outside region, else = inside)
     let sel = isInverted ? (barTime < startTime || barTime > endTime) : (barTime >= startTime && barTime <= endTime);
@@ -109,7 +102,7 @@ function drawBars(ctx, data, width, height, volume, startTime, endTime, duration
     if (color !== lastFill) ctx.fillStyle = lastFill = color;
 
     const x = i * barWidth;
-    ctx.fillRect(Math.floor(x), centerY - barHeight/2, Math.max(1, barWidth - 0.5), barHeight);
+    ctx.fillRect(Math.floor(x), centerY - rawHeight/2, Math.max(1, barWidth - 0.5), rawHeight);
   }
 }
 

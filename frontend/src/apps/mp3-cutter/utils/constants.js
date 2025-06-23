@@ -148,15 +148,9 @@ export const WAVEFORM_CONFIG = {
     }
   },
   VOLUME: {
-    FLAT_BAR_HEIGHT: 1,
-    MAX_SCALING: 65,
-    STEPS: 50,
-    STEP_SIZE: 2,
-    PX_PER_STEP: 1.3,
-    VARIATION: {
-      FLAT_THRESHOLD: 0,
-      DYNAMIC_THRESHOLD: 1
-    }
+    MAX_HEIGHT_PERCENT_TOTAL: 45, // 45% of canvas height total (both sides)
+    MAX_HEIGHT_PERCENT_PER_SIDE: 22.5, // 22.5% per side
+    MIN_HEIGHT: 1 // Minimum height in pixels
   }
 };
 

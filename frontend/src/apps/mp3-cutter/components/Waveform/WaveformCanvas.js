@@ -401,17 +401,20 @@ const WaveformCanvas = React.memo(({
     gradient.addColorStop(1, 'rgba(168,85,247,0.04)');
     ctx.fillStyle = gradient;
     ctx.fillRect(startX, 0, areaWidth, height);
-    // Gray bars
+    // Gray bars - 22.5% each side = 45% total
     ctx.fillStyle = '#e2e8f0';
-    const centerY = height / 2, FLAT_BAR = 1, MAX_PX = 65;
+    const centerY = height / 2;
+    const maxHeightPerSide = height * 0.225; // 22.5% per side = 45% total
     const barW = areaWidth / waveformData.length;
     for (let i = 0; i < waveformData.length; i++) {
-      const h = FLAT_BAR + (MAX_PX * waveformData[i]);
+      const h = Math.max(1, maxHeightPerSide * waveformData[i]);
       const x = startX + (i * barW);
       ctx.fillRect(Math.floor(x), centerY - h, barW, h * 2);
     }
     return createImageBitmap(bgCanvas);
-  }, []);  // ----- DYNAMIC WAVEFORM CACHE (color changes with volume) -----
+  }, []);
+
+  // ----- DYNAMIC WAVEFORM CACHE (color changes with volume) -----
   const createDynamicWaveformCache = useCallback(async (
     waveformData, width, height, containerWidth, volume, fadeIn, fadeOut, startTime, endTime, duration
   ) => {
@@ -421,8 +424,8 @@ const WaveformCanvas = React.memo(({
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     ctx.imageSmoothingEnabled = false;
     ctx.fillStyle = getWaveformColor(volume);
-    const centerY = height / 2, FLAT_BAR = 1, MAX_PX = 65;
-    const vol = Math.max(0, Math.min(1, volume));
+    const centerY = height / 2;
+    const maxHeightPerSide = height * 0.225; // 22.5% per side = 45% total
     const barW = areaWidth / waveformData.length;
     const fadeMultiplier = (i) => {
       if (!fadeIn && !fadeOut) return 1;
@@ -451,17 +454,17 @@ const WaveformCanvas = React.memo(({
         }
         return f;
       }
-    };    for (let i = 0; i < waveformData.length; i++) {
-      let h = FLAT_BAR + ((FLAT_BAR + (MAX_PX * waveformData[i]) - FLAT_BAR) * vol);
+    };
+
+    for (let i = 0; i < waveformData.length; i++) {
+      let h = Math.max(1, volume * maxHeightPerSide * waveformData[i]);
       
-      // 🎯 Tăng chiều cao 20% khi volume từ 101% đến 200%
-      if (volume > 1) {
-        const volumePercent = volume * 100;
-        const heightBoost = Math.min((volumePercent - 100) / 100, 1) * 0.2; // 0-20% boost
-        h = h * (1 + heightBoost);
+      if (fadeIn > 0 || fadeOut > 0) {
+        const baseFadeHeight = Math.max(1, volume * maxHeightPerSide * waveformData[i]);
+        const fadeMultiplierValue = fadeMultiplier(i);
+        h = Math.max(1, baseFadeHeight * fadeMultiplierValue);
       }
       
-      if (fadeIn > 0 || fadeOut > 0) h = FLAT_BAR + (h - FLAT_BAR) * fadeMultiplier(i);
       const x = startX + (i * barW);
       ctx.fillRect(Math.floor(x), centerY - h, barW, h * 2);
     }
@@ -532,8 +535,8 @@ const WaveformCanvas = React.memo(({
           // 🆕 Use region-specific volume or fallback to 1.0
           const regionVolume = region.volume !== undefined ? region.volume : 1.0;
           ctx.fillStyle = getWaveformColor(regionVolume);
-          const centerY = height / 2, FLAT_BAR = 1, MAX_PX = 65;
-          const vol = Math.max(0, Math.min(1, regionVolume));
+          const centerY = height / 2;
+          const maxHeightPerSide = height * 0.225; // 22.5% per side = 45% total
           const barW = areaWidth / renderData.waveformData.length;
           
           // Get region-specific fade values
@@ -545,19 +548,13 @@ const WaveformCanvas = React.memo(({
             
             // Only render bars within this region
             if (time >= region.start && time <= region.end) {
-              let h = FLAT_BAR + ((FLAT_BAR + (MAX_PX * renderData.waveformData[i]) - FLAT_BAR) * vol);
-              
-              // Apply region-specific volume boost if needed
-              if (regionVolume > 1) {
-                const volumePercent = regionVolume * 100;
-                const heightBoost = Math.min((volumePercent - 100) / 100, 1) * 0.2;
-                h = h * (1 + heightBoost);
-              }
+              let h = Math.max(1, regionVolume * maxHeightPerSide * renderData.waveformData[i]);
               
               // Apply region-specific fade (independent from main fade)
               if (regionFadeIn > 0 || regionFadeOut > 0) {
                 const fadeMultiplier = getRegionFadeMultiplier(time, region.start, region.end, regionFadeIn, regionFadeOut, duration);
-                h = FLAT_BAR + (h - FLAT_BAR) * fadeMultiplier;
+                const baseFadeHeight = Math.max(1, regionVolume * maxHeightPerSide * renderData.waveformData[i]);
+                h = Math.max(1, baseFadeHeight * fadeMultiplier);
               }
               
               const x = startX + (i * barW);
