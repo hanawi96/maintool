@@ -250,7 +250,7 @@ const UnifiedControlBar = React.memo(({
           {/* 1. Jump to Start */}
           <button
             onClick={onJumpToStart} disabled={disabled}
-            className="p-2 bg-slate-100 hover:bg-slate-200 disabled:opacity-50 rounded-lg transition-colors group"
+            className="p-2 bg-slate-100 hover:bg-slate-200 disabled:opacity-50 rounded-lg transition-colors duration-100 group"
             title="Jump to Start (Shift + ←)">
             <SkipBack className="w-4 h-4 text-slate-700 group-hover:text-slate-900" />
           </button>
@@ -258,7 +258,7 @@ const UnifiedControlBar = React.memo(({
           {/* 2. Play/Pause */}
           <button
             onClick={onTogglePlayPause} disabled={disabled}
-            className="p-2.5 bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 disabled:opacity-50 rounded-xl transition-all duration-200 shadow-md group"
+            className="p-2.5 bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 disabled:opacity-50 rounded-xl transition-all duration-100 shadow-md group"
             title={isPlaying ? "Pause (Space)" : "Play (Space)"}>
             {isPlaying
               ? <Pause className="w-5 h-5 text-white drop-shadow-sm" />
@@ -268,7 +268,7 @@ const UnifiedControlBar = React.memo(({
           {/* 3. Jump to End */}
           <button
             onClick={onJumpToEnd} disabled={disabled}
-            className="p-2 bg-slate-100 hover:bg-slate-200 disabled:opacity-50 rounded-lg transition-colors group"
+            className="p-2 bg-slate-100 hover:bg-slate-200 disabled:opacity-50 rounded-lg transition-colors duration-100 group"
             title="Jump to End (Shift + →)">
             <SkipForward className="w-4 h-4 text-slate-700 group-hover:text-slate-900" />
           </button>
@@ -289,7 +289,7 @@ const UnifiedControlBar = React.memo(({
           {/* 5. Undo */}
           <button
             onClick={onUndo} disabled={!canUndo || disabled}
-            className={`relative p-2 rounded-lg transition-colors group ${
+            className={`relative p-2 rounded-lg transition-colors duration-100 group ${
               canUndo
                 ? 'bg-indigo-100 hover:bg-indigo-200 border border-indigo-300'
                 : 'bg-slate-100 hover:bg-slate-200 disabled:opacity-40'
@@ -303,7 +303,7 @@ const UnifiedControlBar = React.memo(({
           {/* 6. Redo */}
           <button
             onClick={onRedo} disabled={!canRedo || disabled}
-            className={`relative p-2 rounded-lg transition-colors group ${
+            className={`relative p-2 rounded-lg transition-colors duration-100 group ${
               canRedo
                 ? 'bg-purple-100 hover:bg-purple-200 border border-purple-300'
                 : 'bg-slate-100 hover:bg-slate-200 disabled:opacity-40'
@@ -321,7 +321,7 @@ const UnifiedControlBar = React.memo(({
             onClick={handleInvertSelection}
             disabled={!canInvertSelection}
             data-inverted={isInverted}
-            className="p-2 bg-slate-100 hover:bg-slate-200 disabled:opacity-50 rounded-lg transition-colors relative group"
+            className="p-2 bg-slate-100 hover:bg-slate-200 disabled:opacity-50 rounded-lg transition-colors duration-100 relative group"
             title={`Invert Selection: ${isInverted ? 'ON' : 'OFF'}`}>
             <Shuffle className="w-4 h-4 text-slate-700 group-hover:text-slate-900" />
           </button>          {/* 8. Fade In */}
@@ -437,15 +437,18 @@ const UnifiedControlBar = React.memo(({
           <button
             onClick={onAddRegion}
             disabled={!canAddRegion}
-            className={`relative p-2 rounded-lg group transition-all duration-200 ml-2 ${
-              canAddRegion
+            className={`relative p-2 rounded-lg group transition-all duration-100 ${
+              canAddRegion && regions.length > 0
                 ? 'bg-gradient-to-r from-emerald-100 to-green-100 hover:from-emerald-200 hover:to-green-200 border border-emerald-300 hover:border-emerald-400 shadow-sm hover:shadow-md'
+                : canAddRegion
+                ? 'bg-slate-100 hover:bg-slate-200'
                 : 'bg-slate-100 opacity-50 cursor-not-allowed border border-slate-300'
             }`}
             title={canAddRegion 
               ? "➕ ADD NEW REGION (Ctrl+N)" 
               : "Add New Region - Need >1s space outside current selection"
-            }>            <Plus className={`w-4 h-4 ${canAddRegion ? 'text-emerald-700 group-hover:text-emerald-800' : 'text-slate-500'}`} />
+            }>
+            <Plus className={`w-4 h-4 ${canAddRegion ? 'text-emerald-700 group-hover:text-emerald-800' : 'text-slate-500'}`} />
             {regions.length > 0 && (
               <span className="absolute -top-2 -right-1 bg-emerald-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center text-[8px] font-semibold">
                 {regions.length}
@@ -457,9 +460,9 @@ const UnifiedControlBar = React.memo(({
           <button
             onClick={onPlayAllRegions}
             disabled={disabled}
-            className={`relative p-2 rounded-lg group transition-all duration-200 ${
+            className={`relative p-2 rounded-lg group transition-all duration-100 ${
               regions.length > 0 
-                ? 'bg-gradient-to-r from-purple-100 to-indigo-100 hover:from-purple-200 hover:to-indigo-200 border border-purple-300 hover:border-purple-400 shadow-sm hover:shadow-md'
+                ? 'bg-gradient-to-r from-purple-100 to-indigo-100 hover:from-purple-200 hover:to-indigo-200 shadow-sm hover:shadow-md'
                 : 'bg-slate-100 hover:bg-slate-200'
             }`}
             title={`🎵 PLAY ALL ITEMS (${regions.length} regions) - Play main selection + regions in sequence`}>
@@ -471,14 +474,11 @@ const UnifiedControlBar = React.memo(({
             )}
           </button>
 
-          {/* 🚧 SEPARATOR */}
-          <div className="border-l border-slate-300 h-8 mx-1"></div>
-
           {/* 🆕 16. Delete Region */}
           <button
             onClick={onDeleteRegion}
             disabled={!canDeleteRegion}
-            className={`relative p-2 rounded-lg group transition-all duration-200 ${
+            className={`relative p-2 rounded-lg group transition-all duration-100 ${
               canDeleteRegion
                 ? 'bg-gradient-to-r from-red-100 to-rose-100 hover:from-red-200 hover:to-rose-200 border border-red-300 hover:border-red-400 shadow-sm hover:shadow-md'
                 : 'bg-slate-100 opacity-50 cursor-not-allowed'
@@ -500,7 +500,7 @@ const UnifiedControlBar = React.memo(({
           <button
             onClick={handleClearAllRegions}
             disabled={!canClearAllRegions}
-            className={`relative p-2 rounded-lg group transition-all duration-200 ${
+            className={`relative p-2 rounded-lg group transition-all duration-100 ${
               canClearAllRegions
                 ? 'bg-gradient-to-r from-orange-100 to-amber-100 hover:from-orange-200 hover:to-amber-200 border border-orange-300 hover:border-orange-400 shadow-sm hover:shadow-md'
                 : 'bg-slate-100 opacity-50 cursor-not-allowed'
