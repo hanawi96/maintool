@@ -72,7 +72,7 @@
 .unified-control-bar .time-selector-container {
   background: transparent;
   border-radius: 8px;
-  padding: 4px;
+  padding: 6px 10px;
 }
 
 /* ===== TIME INPUT/BUTTONS - REMOVED CONFLICTING RULES ===== */

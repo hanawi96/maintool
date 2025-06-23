@@ -614,7 +614,7 @@ const SegmentTimeInput = React.memo(({
       </div>
       
       {/* Arrow controls */}
-      <div className="flex flex-col arrow-controls" style={{ marginLeft: '1px', gap: '5px' }}>
+      <div className="flex flex-col arrow-controls" style={{ marginLeft: '4px', gap: '5px' }}>
         <button
           onMouseDown={handleArrowMouseDown(+1)}
           onMouseUp={handleArrowMouseUp}
@@ -643,11 +643,11 @@ SegmentTimeInput.displayName = 'SegmentTimeInput';
 const CompactTimeSelector = React.memo(
   ({ startTime, endTime, duration, onStartTimeChange, onEndTimeChange }) => (
     <div 
-      className="time-selector-container flex items-center justify-center rounded-lg p-1" 
+      className="time-selector-container flex items-center justify-center rounded-lg px-3 py-1" 
       style={{ 
         border: '1px solid #cbd5e1',
         backgroundColor: 'transparent',
-        gap: '4px'
+        gap: '8px'
       }}
     >
       <SegmentTimeInput
