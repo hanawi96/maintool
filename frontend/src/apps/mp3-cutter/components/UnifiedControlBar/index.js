@@ -442,7 +442,7 @@ const UnifiedControlBar = React.memo(({
                 ? 'bg-gradient-to-r from-emerald-100 to-green-100 hover:from-emerald-200 hover:to-green-200 border border-emerald-300 hover:border-emerald-400 shadow-sm hover:shadow-md'
                 : canAddRegion
                 ? 'bg-slate-100 hover:bg-slate-200'
-                : 'bg-slate-100 opacity-50 cursor-not-allowed border border-slate-300'
+                : 'bg-slate-100 opacity-50 cursor-not-allowed'
             }`}
             title={canAddRegion 
               ? "➕ ADD NEW REGION (Ctrl+N)" 
@@ -462,7 +462,7 @@ const UnifiedControlBar = React.memo(({
             disabled={disabled}
             className={`relative p-2 rounded-lg group transition-all duration-100 ${
               regions.length > 0 
-                ? 'bg-gradient-to-r from-purple-100 to-indigo-100 hover:from-purple-200 hover:to-indigo-200 shadow-sm hover:shadow-md'
+                ? 'bg-gradient-to-r from-purple-100 to-indigo-100 hover:from-purple-200 hover:to-indigo-200 border border-purple-300 hover:border-purple-400 shadow-sm hover:shadow-md'
                 : 'bg-slate-100 hover:bg-slate-200'
             }`}
             title={`🎵 PLAY ALL ITEMS (${regions.length} regions) - Play main selection + regions in sequence`}>
