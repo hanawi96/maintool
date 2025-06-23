@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import {
-  Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Zap, RotateCcw, RotateCw, Repeat, Shuffle, TrendingUp, TrendingDown, Music, Sliders,
+  Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Gauge, RotateCcw, RotateCw, Repeat, Shuffle, TrendingUp, TrendingDown, Music, Sliders,
   Plus, Minus, Trash2, PlayCircle
 } from 'lucide-react';
 import CompactTimeSelector from './CompactTimeSelector';
@@ -394,7 +394,9 @@ const UnifiedControlBar = React.memo(({
                 ? 'bg-purple-100 hover:bg-purple-200 border border-purple-300'
                 : 'bg-slate-100 hover:bg-slate-200'
             }`}
-            title={`Speed: ${currentSpeedValue.toFixed(1)}x - Click to adjust`}>            <Zap className={`w-4 h-4 text-purple-600 group-hover:text-purple-700`} />            {currentSpeedValue !== 1 && (
+            title={`Speed: ${currentSpeedValue.toFixed(1)}x - Click to adjust`}>
+            <Gauge className={`w-4 h-4 text-purple-600 group-hover:text-purple-700`} />
+            {currentSpeedValue !== 1 && (
               <span className="absolute text-white text-[7px] rounded px-0.5 py-0 font-medium leading-tight min-w-[14px] text-center -top-0.5 -right-0.5 bg-purple-500">
                 {currentSpeedValue.toFixed(1)}x
               </span>
