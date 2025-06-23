@@ -323,7 +323,7 @@ const MP3CutterMain = React.memo(() => {
     };
   }, [activeRegionId, regions, startTime, endTime]);
 
-  const { handleDisplayStartTimeChange, handleDisplayEndTimeChange } = useTimeDisplayHandlers({
+  const { handleDisplayStartTimeChange, handleDisplayEndTimeChange, cleanup: timeDisplayCleanup } = useTimeDisplayHandlers({
     activeRegionId,
     regions,
     startTime,
@@ -332,7 +332,11 @@ const MP3CutterMain = React.memo(() => {
     handleStartTimeChange,
     handleEndTimeChange,
     getRegionBoundaries,
-    dispatch
+    dispatch,
+    // 🆕 Add saveState support for region time changes
+    saveState,
+    fadeIn,
+    fadeOut
   });
 
   // 🚀 File upload handler
@@ -1055,6 +1059,14 @@ const MP3CutterMain = React.memo(() => {
       }
     };
   }, [isPlaying, regions, pitchValue, setPitchValue, audioRef]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      cleanupTimeHandlers();
+      timeDisplayCleanup();
+    };
+  }, [cleanupTimeHandlers, timeDisplayCleanup]);
 
   // 🚀 Final render with all optimizations
   return (

@@ -18,42 +18,125 @@ export const useTimeChangeHandlers = ({
 }) => {
   const startTimeoutRef = useRef(null);
   const endTimeoutRef = useRef(null);
+  
+  // 🔧 Track if we're in a hold operation globally
+  const isInHoldOperationRef = useRef(false);
 
   const handleStartTimeChange = useCallback((newTime) => {
     const clampedTime = clamp(newTime, 0, endTime);
-    setStartTime(clampedTime);
-    if (historySavedRef) historySavedRef.current = false;
     
-    // 🎯 Only save history if not currently dragging
-    if (!isDragging) {
-      if (startTimeoutRef.current) clearTimeout(startTimeoutRef.current);      startTimeoutRef.current = setTimeout(() => {
+    // 🔧 Check if we're in a hold operation using global flag
+    const isInHoldOperation = window._isCompactTimeSelectorHolding || false;
+    
+    console.log('⏰ useTimeChangeHandlers.handleStartTimeChange called:', {
+      newTime: newTime.toFixed(3),
+      clampedTime: clampedTime.toFixed(3),
+      currentStartTime: startTime.toFixed(3),
+      isDragging,
+      historySavedBefore: historySavedRef?.current,
+      isInHoldOperation,
+      globalFlag: window._isCompactTimeSelectorHolding,
+      timestamp: Date.now()
+    });
+    
+    setStartTime(clampedTime);
+    
+    // 🔧 CRITICAL FIX: Don't reset historySavedRef during hold operations
+    if (!isInHoldOperation && historySavedRef) {
+      historySavedRef.current = false;
+      console.log('🔄 useTimeChangeHandlers: Reset historySavedRef to false (non-hold operation)');
+    } else if (isInHoldOperation) {
+      console.log('🔄 useTimeChangeHandlers: Keeping historySavedRef unchanged (hold operation detected)');
+    }
+    
+    // 🔧 CRITICAL FIX: Save history immediately for discrete clicks, debounce only for drag
+    if (isDragging) {
+      // During drag: use debouncing
+      console.log('⏰ useTimeChangeHandlers: Using debounce for drag operation');
+      if (startTimeoutRef.current) {
+        clearTimeout(startTimeoutRef.current);
+      }
+      
+      startTimeoutRef.current = setTimeout(() => {
         if (historySavedRef && !historySavedRef.current) {
+          console.log('💾 useTimeChangeHandlers: Saving start time history after drag debounce');
           historySavedRef.current = true;
-          // 🆕 Include regions in history state
           saveState({ startTime: clampedTime, endTime, fadeIn, fadeOut, regions, activeRegionId });
         }
         startTimeoutRef.current = null;
       }, 100);
+    } else {
+      // Discrete clicks: save immediately only if not in hold operation
+      if (!isInHoldOperation) {
+        console.log('⚡ useTimeChangeHandlers: Saving start time history immediately (discrete click)');
+        if (historySavedRef && !historySavedRef.current) {
+          historySavedRef.current = true;
+          saveState({ startTime: clampedTime, endTime, fadeIn, fadeOut, regions, activeRegionId });
+        }
+      } else {
+        console.log('🚫 useTimeChangeHandlers: Skipping history save (hold operation detected)');
+      }
     }
-  }, [endTime, setStartTime, saveState, fadeIn, fadeOut, historySavedRef, isDragging, regions, activeRegionId]);
+  }, [endTime, setStartTime, saveState, fadeIn, fadeOut, historySavedRef, isDragging, regions, activeRegionId, startTime]);
 
   const handleEndTimeChange = useCallback((newTime) => {
     const clampedTime = clamp(newTime, startTime, duration);
-    setEndTime(clampedTime);
-    if (historySavedRef) historySavedRef.current = false;
     
-    // 🎯 Only save history if not currently dragging
-    if (!isDragging) {
-      if (endTimeoutRef.current) clearTimeout(endTimeoutRef.current);      endTimeoutRef.current = setTimeout(() => {
+    // 🔧 Check if we're in a hold operation using global flag
+    const isInHoldOperation = window._isCompactTimeSelectorHolding || false;
+    
+    console.log('⏰ useTimeChangeHandlers.handleEndTimeChange called:', {
+      newTime: newTime.toFixed(3),
+      clampedTime: clampedTime.toFixed(3),
+      currentEndTime: endTime.toFixed(3),
+      isDragging,
+      historySavedBefore: historySavedRef?.current,
+      isInHoldOperation,
+      globalFlag: window._isCompactTimeSelectorHolding,
+      timestamp: Date.now()
+    });
+    
+    setEndTime(clampedTime);
+    
+    // 🔧 CRITICAL FIX: Don't reset historySavedRef during hold operations
+    if (!isInHoldOperation && historySavedRef) {
+      historySavedRef.current = false;
+      console.log('🔄 useTimeChangeHandlers: Reset historySavedRef to false (non-hold operation)');
+    } else if (isInHoldOperation) {
+      console.log('🔄 useTimeChangeHandlers: Keeping historySavedRef unchanged (hold operation detected)');
+    }
+    
+    // 🔧 CRITICAL FIX: Save history immediately for discrete clicks, debounce only for drag
+    if (isDragging) {
+      // During drag: use debouncing
+      console.log('⏰ useTimeChangeHandlers: Using debounce for drag operation');
+      if (endTimeoutRef.current) {
+        clearTimeout(endTimeoutRef.current);
+      }
+      
+      endTimeoutRef.current = setTimeout(() => {
         if (historySavedRef && !historySavedRef.current) {
+          console.log('💾 useTimeChangeHandlers: Saving end time history after drag debounce');
           historySavedRef.current = true;
-          // 🆕 Include regions in history state
           saveState({ startTime, endTime: clampedTime, fadeIn, fadeOut, regions, activeRegionId });
         }
         endTimeoutRef.current = null;
       }, 100);
+    } else {
+      // Discrete clicks: save immediately only if not in hold operation
+      if (!isInHoldOperation) {
+        console.log('⚡ useTimeChangeHandlers: Saving end time history immediately (discrete click)');
+        if (historySavedRef && !historySavedRef.current) {
+          historySavedRef.current = true;
+          saveState({ startTime, endTime: clampedTime, fadeIn, fadeOut, regions, activeRegionId });
+        }
+      } else {
+        console.log('🚫 useTimeChangeHandlers: Skipping history save (hold operation detected)');
+      }
     }
-  }, [startTime, duration, setEndTime, saveState, fadeIn, fadeOut, historySavedRef, isDragging, regions, activeRegionId]);  const saveHistoryNow = useCallback(() => {
+  }, [startTime, duration, setEndTime, saveState, fadeIn, fadeOut, historySavedRef, isDragging, regions, activeRegionId, endTime]);
+
+  const saveHistoryNow = useCallback(() => {
     if (historySavedRef && !historySavedRef.current) {
       historySavedRef.current = true;
       // 🆕 Include regions in history state

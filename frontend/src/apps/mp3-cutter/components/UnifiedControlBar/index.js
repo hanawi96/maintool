@@ -520,8 +520,26 @@ const UnifiedControlBar = React.memo(({
               startTime={startTime}
               endTime={endTime}
               duration={duration}
-              onStartTimeChange={onStartTimeChange}
-              onEndTimeChange={onEndTimeChange}
+              onStartTimeChange={(newTime) => {
+                console.log('🎯 UnifiedControlBar.onStartTimeChange called:', {
+                  newTime: newTime.toFixed(3),
+                  currentStartTime: startTime.toFixed(3),
+                  onStartTimeChange: !!onStartTimeChange
+                });
+                if (onStartTimeChange) {
+                  onStartTimeChange(newTime);
+                }
+              }}
+              onEndTimeChange={(newTime) => {
+                console.log('🎯 UnifiedControlBar.onEndTimeChange called:', {
+                  newTime: newTime.toFixed(3),
+                  currentEndTime: endTime.toFixed(3),
+                  onEndTimeChange: !!onEndTimeChange
+                });
+                if (onEndTimeChange) {
+                  onEndTimeChange(newTime);
+                }
+              }}
             />
           </div>
         </div>

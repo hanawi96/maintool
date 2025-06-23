@@ -1,4 +1,4 @@
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useRef } from 'react';
 
 // Time display handlers
 export const useTimeDisplayHandlers = ({
@@ -10,8 +10,15 @@ export const useTimeDisplayHandlers = ({
   handleStartTimeChange,
   handleEndTimeChange,
   getRegionBoundaries,
-  dispatch
+  dispatch,
+  // 🆕 Add saveState support for region time changes
+  saveState,
+  fadeIn = 0,
+  fadeOut = 0
 }) => {
+  // 🆕 Add debouncing for region history saves
+  const regionHistoryTimeoutRef = useRef(null);
+
   // 🚀 Memoized time display values
   const getTimeDisplayValues = useMemo(() => {
     if (activeRegionId && regions.length > 0) {
@@ -43,28 +50,62 @@ export const useTimeDisplayHandlers = ({
     };
   }, [activeRegionId, regions, startTime, endTime]);
 
-  // 🚀 Optimized time change handlers
+  // 🚀 Optimized time change handlers with history support
   const handleTimeDisplayChange = useCallback((type, newTime) => {
+    console.log(`🕐 TimeSelector Change: ${type} = ${newTime.toFixed(1)}s`, {
+      isRegionTime: timeDisplayValues.isRegionTime,
+      activeRegionId,
+      source: 'CompactTimeSelector'
+    });
+
     if (timeDisplayValues.isRegionTime && activeRegionId) {
+      // Handle region time changes
+      const updatedRegions = regions.map(region => {
+        if (region.id !== activeRegionId) return region;
+        
+        const boundaries = getRegionBoundaries(activeRegionId, type);
+        const safeTime = Math.max(boundaries.min, Math.min(newTime, boundaries.max));
+        
+        console.log(`🔧 Region Update: ${activeRegionId} ${type}: ${region[type].toFixed(1)}s -> ${safeTime.toFixed(1)}s`);
+        return { ...region, [type]: safeTime };
+      });
+
       dispatch({
         type: 'SET_REGIONS',
-        regions: regions.map(region => {
-          if (region.id !== activeRegionId) return region;
-          
-          const boundaries = getRegionBoundaries(activeRegionId, type);
-          const safeTime = Math.max(boundaries.min, Math.min(newTime, boundaries.max));
-          
-          return { ...region, [type]: safeTime };
-        })
+        regions: updatedRegions
       });
+
+      // 🆕 CRITICAL FIX: Debounced history save for region time changes
+      if (saveState) {
+        // Clear existing timeout
+        if (regionHistoryTimeoutRef.current) {
+          clearTimeout(regionHistoryTimeoutRef.current);
+        }
+
+        // Set new timeout for debounced save
+        regionHistoryTimeoutRef.current = setTimeout(() => {
+          console.log(`💾 Saving history for region time change: ${type} = ${newTime.toFixed(1)}s`);
+          saveState({ 
+            startTime, 
+            endTime, 
+            fadeIn, 
+            fadeOut, 
+            regions: updatedRegions, 
+            activeRegionId 
+          });
+          regionHistoryTimeoutRef.current = null;
+        }, 300); // 300ms debounce for region changes
+      }
     } else {
+      // Handle main selection time changes (already has history support)
+      console.log(`🔧 Main Selection Update: ${type} = ${newTime.toFixed(1)}s`);
       if (type === 'start') {
         handleStartTimeChange(newTime);
       } else {
         handleEndTimeChange(newTime);
       }
     }
-  }, [timeDisplayValues.isRegionTime, activeRegionId, handleStartTimeChange, handleEndTimeChange, getRegionBoundaries, regions, dispatch]);
+  }, [timeDisplayValues.isRegionTime, activeRegionId, handleStartTimeChange, handleEndTimeChange, getRegionBoundaries, regions, dispatch, saveState, startTime, endTime, fadeIn, fadeOut]);
 
   const handleDisplayStartTimeChange = useCallback((newTime) => {
     handleTimeDisplayChange('start', newTime);
@@ -74,10 +115,19 @@ export const useTimeDisplayHandlers = ({
     handleTimeDisplayChange('end', newTime);
   }, [handleTimeDisplayChange]);
 
+  // 🆕 Cleanup timeout on unmount
+  const cleanup = useCallback(() => {
+    if (regionHistoryTimeoutRef.current) {
+      clearTimeout(regionHistoryTimeoutRef.current);
+      regionHistoryTimeoutRef.current = null;
+    }
+  }, []);
+
   return {
     getTimeDisplayValues,
     handleDisplayStartTimeChange,
-    handleDisplayEndTimeChange
+    handleDisplayEndTimeChange,
+    cleanup
   };
 };
 
