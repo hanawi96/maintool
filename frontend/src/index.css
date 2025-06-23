@@ -185,9 +185,13 @@ body {
 }
 
 /* 🚫 **EXCLUDE UNIFIED CONTROL BAR** - Keep its enhanced sizing intact */
-.unified-control-bar,
+.unified-control-bar {
+  font-size: 0.875rem !important; /* 14px - default component size */
+}
+
+/* Allow child elements to override with specific sizes */
 .unified-control-bar * {
-  font-size: revert !important; /* Reset to component-specific sizing */
+  font-size: inherit; /* Remove !important to allow Tailwind overrides */
 }
 
 /* 🎯 **COMPONENT-SPECIFIC ENHANCEMENTS** - Target specific components for better UX */

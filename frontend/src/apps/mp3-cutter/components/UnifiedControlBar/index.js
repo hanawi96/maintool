@@ -336,8 +336,11 @@ const UnifiedControlBar = React.memo(({
                 ? 'bg-slate-200 border border-slate-400'
                 : 'bg-slate-100 hover:bg-slate-200'
             }`}            title={`Fade In: ${currentFadeValues.fadeIn > 0 ? `${currentFadeValues.fadeIn.toFixed(1)}s` : 'Click to adjust'}`}>
-            <TrendingUp className={`w-4 h-4 ${currentFadeValues.fadeIn > 0 ? 'text-emerald-700' : 'text-emerald-600'} group-hover:text-emerald-800`} />
-            {currentFadeValues.fadeIn > 0 && <div className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-500 rounded-full"></div>}
+            <TrendingUp className={`w-4 h-4 ${currentFadeValues.fadeIn > 0 ? 'text-emerald-700' : 'text-emerald-600'} group-hover:text-emerald-800`} />            {currentFadeValues.fadeIn > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 bg-emerald-500 text-white text-[7px] rounded px-0.5 py-0 font-medium leading-tight min-w-[14px] text-center">
+                {currentFadeValues.fadeIn.toFixed(1)}s
+              </span>
+            )}
           </button>
 
           {/* 9. Fade Out */}
@@ -352,8 +355,11 @@ const UnifiedControlBar = React.memo(({
                 ? 'bg-slate-200 border border-slate-400'
                 : 'bg-slate-100 hover:bg-slate-200'
             }`}            title={`Fade Out: ${currentFadeValues.fadeOut > 0 ? `${currentFadeValues.fadeOut.toFixed(1)}s` : 'Click to adjust'}`}>
-            <TrendingDown className={`w-4 h-4 ${currentFadeValues.fadeOut > 0 ? 'text-orange-700' : 'text-orange-600'} group-hover:text-orange-800`} />
-            {currentFadeValues.fadeOut > 0 && <div className="absolute -top-1 -right-1 w-2 h-2 bg-orange-500 rounded-full"></div>}
+            <TrendingDown className={`w-4 h-4 ${currentFadeValues.fadeOut > 0 ? 'text-orange-700' : 'text-orange-600'} group-hover:text-orange-800`} />            {currentFadeValues.fadeOut > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 bg-orange-500 text-white text-[7px] rounded px-0.5 py-0 font-medium leading-tight min-w-[14px] text-center">
+                {currentFadeValues.fadeOut.toFixed(1)}s
+              </span>
+            )}
           </button>          {/* 10. Volume */}
           <button
             ref={refs.volume}

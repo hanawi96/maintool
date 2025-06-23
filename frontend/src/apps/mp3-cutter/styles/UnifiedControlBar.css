@@ -282,10 +282,27 @@
   .unified-control-bar button {
     background: rgba(255,255,255,0.1);
     color: #fff;
-  }
-  .unified-control-bar .compact-time-input button {
+  }  .unified-control-bar .compact-time-input button {
     background: rgba(255,255,255,0.1);
     border-color: rgba(255,255,255,0.3);
     color: #fff;
   }
+}
+
+/* ===== FADE BADGES - OPTIMIZED FONT SIZE ===== */
+.unified-control-bar .text-\[7px\] {
+  font-size: 10px !important;
+  line-height: 1.2 !important;
+}
+
+/* Badge positioning fix - Centered on top edge of button */
+.unified-control-bar .absolute.-top-0\.5.-right-0\.5 {
+  font-size: 10px !important;
+  line-height: 1.2 !important;
+  padding: 1px 3px !important;
+  min-width: 16px !important;
+  top: -6px !important;
+  left: 50% !important;
+  right: auto !important;
+  transform: translateX(-50%) !important;
 }
