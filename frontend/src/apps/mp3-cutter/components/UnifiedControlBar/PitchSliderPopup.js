@@ -19,9 +19,16 @@ const PitchSliderPopup = ({
   const { position, responsive, ready } = usePopupPosition(isVisible, buttonRef, popupRef, 5);
   const { screenSize, maxWidth } = responsive;
   const isMobile = screenSize === 'mobile';
-  
-  const [applyToAllState, setApplyToAllState] = useState({});
+    const [applyToAllState, setApplyToAllState] = useState({});
   const [pitchBackup, setPitchBackup] = useState({});
+    // 🔧 CRITICAL FIX: Reset all "apply to all" states when activeRegionId changes
+  useEffect(() => {
+    console.log(`🔄 Pitch region changed, resetting apply-to-all states:`, {
+      newActiveRegion: activeRegionId || 'main'
+    });
+    setApplyToAllState({});
+    setPitchBackup({});
+  }, [activeRegionId]);
   
   // 🚀 Get current applyToAll state for active region
   const currentApplyToAll = useMemo(() => {

@@ -46,9 +46,16 @@ const VolumeSliderPopup = ({
   const { position, responsive, ready } = usePopupPosition(isVisible, buttonRef, popupRef, 5);
   const { screenSize, maxWidth } = responsive;
   const isMobile = screenSize === 'mobile';
-
   const [applyToAllState, setApplyToAllState] = useState({});
   const [volumeBackup, setVolumeBackup] = useState({});
+    // 🔧 CRITICAL FIX: Reset all "apply to all" states when activeRegionId changes
+  useEffect(() => {
+    console.log(`🔄 Volume region changed, resetting apply-to-all states:`, {
+      newActiveRegion: activeRegionId || 'main'
+    });
+    setApplyToAllState({});
+    setVolumeBackup({});
+  }, [activeRegionId]);
   
   const currentApplyToAll = useMemo(() => {
     const key = `${activeRegionId || 'main'}-volume`;

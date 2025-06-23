@@ -19,9 +19,16 @@ const SpeedSliderPopup = ({
   const { position, responsive, ready } = usePopupPosition(isVisible, buttonRef, popupRef, 5);
   const { screenSize, maxWidth } = responsive;
   const isMobile = screenSize === 'mobile';
-  
-  const [applyToAllState, setApplyToAllState] = useState({});
+    const [applyToAllState, setApplyToAllState] = useState({});
   const [speedBackup, setSpeedBackup] = useState({});
+    // 🔧 CRITICAL FIX: Reset all "apply to all" states when activeRegionId changes
+  useEffect(() => {
+    console.log(`🔄 Speed region changed, resetting apply-to-all states:`, {
+      newActiveRegion: activeRegionId || 'main'
+    });
+    setApplyToAllState({});
+    setSpeedBackup({});
+  }, [activeRegionId]);
   
   // 🚀 Get current applyToAll state for active region
   const currentApplyToAll = useMemo(() => {
