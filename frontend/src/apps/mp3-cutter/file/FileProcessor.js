@@ -66,9 +66,17 @@ export const useFileUploadHandler = ({
       
       const waveformResult = await generateWaveform(file);
       const audioDuration = waveformResult.duration || audioRef.current?.duration || duration || 0;
-      
-      if (audioDuration > 0) {
-        saveState({ startTime: 0, endTime: audioDuration, fadeIn: 0, fadeOut: 0, isInverted: false });
+        if (audioDuration > 0) {
+        // 🆕 Include regions in initial state (empty for new upload)
+        saveState({ 
+          startTime: 0, 
+          endTime: audioDuration, 
+          fadeIn: 0, 
+          fadeOut: 0, 
+          isInverted: false,
+          regions: [],
+          activeRegionId: null
+        });
       }
     } catch (error) {
       console.error('🔥 handleFileUpload error:', error);

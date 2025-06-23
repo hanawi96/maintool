@@ -14,7 +14,11 @@ export const useRegionManagement = ({
   setActiveRegionIdDebounced,
   jumpToTime,
   setStartTime,
-  setEndTime
+  setEndTime,
+  // 🆕 Add history support
+  saveState,
+  fadeIn = 0,
+  fadeOut = 0
 }) => {
   // 🚀 Optimized region generation
   const generateRandomRegion = useCallback(() => {
@@ -65,18 +69,30 @@ export const useRegionManagement = ({
     
     return newRegion;
   }, [duration, availableSpaces, minimumHandleGap, regions.length]);
-
   // 🚀 Optimized region management
   const handleAddRegion = useCallback(() => {
     if (!canAddNewRegion) return;
     
     const newRegion = generateRandomRegion();
     if (newRegion) {
-      dispatch({ type: 'SET_REGIONS', regions: [...regions, newRegion] });
+      const newRegions = [...regions, newRegion];
+      dispatch({ type: 'SET_REGIONS', regions: newRegions });
       setActiveRegionIdDebounced(newRegion.id, 'addRegion');
       jumpToTime(newRegion.start);
+      
+      // 🆕 Save history after adding region
+      if (saveState) {
+        saveState({ 
+          startTime, 
+          endTime, 
+          fadeIn, 
+          fadeOut, 
+          regions: newRegions, 
+          activeRegionId: newRegion.id 
+        });
+      }
     }
-  }, [generateRandomRegion, canAddNewRegion, regions, setActiveRegionIdDebounced, jumpToTime, dispatch]);
+  }, [generateRandomRegion, canAddNewRegion, regions, setActiveRegionIdDebounced, jumpToTime, dispatch, saveState, startTime, endTime, fadeIn, fadeOut]);
 
   const handleDeleteRegion = useCallback(() => {
     const mainSelectionExists = startTime < endTime && duration > 0;
@@ -97,10 +113,35 @@ export const useRegionManagement = ({
         
         if (regions.length > 0) {
           setActiveRegionIdDebounced(regions[0].id, 'deleteMainSelection');
+          jumpToTime(regions[0].start);
           console.log('✅ Deleted main selection, activated first region:', regions[0].id);
+          
+          // 🆕 Save history after deleting main selection
+          if (saveState) {
+            saveState({ 
+              startTime: 0, 
+              endTime: duration, 
+              fadeIn, 
+              fadeOut, 
+              regions, 
+              activeRegionId: regions[0].id 
+            });
+          }
         } else {
           setActiveRegionIdDebounced(null, 'deleteMainSelection');
           console.log('✅ Deleted main selection, no regions left');
+          
+          // 🆕 Save history after deleting main selection (no regions)
+          if (saveState) {
+            saveState({ 
+              startTime: 0, 
+              endTime: duration, 
+              fadeIn, 
+              fadeOut, 
+              regions, 
+              activeRegionId: null 
+            });
+          }
         }
       } else {
         // Xóa một region cụ thể
@@ -108,32 +149,78 @@ export const useRegionManagement = ({
         dispatch({ type: 'SET_REGIONS', regions: remaining });
         
         // 🔧 CRITICAL FIX: Ưu tiên regions còn lại trước main selection
-        if (remaining.length > 0) {
-          // Còn regions khác → active region khác
+        if (remaining.length > 0) {          // Còn regions khác → active region khác
           setActiveRegionIdDebounced(remaining[0].id, 'deleteRegion');
           jumpToTime(remaining[0].start);
           console.log('✅ Deleted region, activated remaining region:', remaining[0].id);
+          
+          // 🆕 Save history after deleting region
+          if (saveState) {
+            saveState({ 
+              startTime, 
+              endTime, 
+              fadeIn, 
+              fadeOut, 
+              regions: remaining, 
+              activeRegionId: remaining[0].id 
+            });
+          }
         } else if (mainSelectionExists) {
           // Không còn region nào, nhưng có main selection → active main
           setActiveRegionIdDebounced('main', 'deleteRegion');
           jumpToTime(startTime);
           console.log('✅ Deleted last region, activated main selection');
+          
+          // 🆕 Save history after deleting last region
+          if (saveState) {
+            saveState({ 
+              startTime, 
+              endTime, 
+              fadeIn, 
+              fadeOut, 
+              regions: remaining, 
+              activeRegionId: 'main' 
+            });
+          }
         } else {
           // Không có gì cả → active null
           setActiveRegionIdDebounced(null, 'deleteRegion');
           console.log('✅ Deleted last region, no main selection, activated null');
+          
+          // 🆕 Save history after deleting last region
+          if (saveState) {
+            saveState({ 
+              startTime, 
+              endTime, 
+              fadeIn, 
+              fadeOut, 
+              regions: remaining, 
+              activeRegionId: null 
+            });
+          }
         }
       }
     }
-  }, [activeRegionId, regions, startTime, endTime, duration, setStartTime, setEndTime, setActiveRegionIdDebounced, jumpToTime, dispatch]);
-
+  }, [activeRegionId, regions, startTime, endTime, duration, setStartTime, setEndTime, setActiveRegionIdDebounced, jumpToTime, dispatch, saveState, fadeIn, fadeOut]);
   const handleClearAllRegions = useCallback(() => {
     dispatch({ type: 'SET_REGIONS', regions: [] });
     setActiveRegionIdDebounced('main', 'clearAllRegions');
     if (startTime < endTime && duration > 0) {
       jumpToTime(startTime);
     }
-  }, [setActiveRegionIdDebounced, jumpToTime, startTime, endTime, duration, dispatch]);
+    
+    // 🆕 Save history after clearing all regions
+    if (saveState) {
+      saveState({ 
+        startTime, 
+        endTime, 
+        fadeIn, 
+        fadeOut, 
+        regions: [], 
+        activeRegionId: 'main' 
+      });
+    }
+  }, [setActiveRegionIdDebounced, jumpToTime, startTime, endTime, duration, dispatch, saveState, fadeIn, fadeOut]);
 
   return {
     handleAddRegion,
@@ -153,7 +240,14 @@ export const useRegionInteractions = ({
   getRegionBodyBoundaries,
   ultraSmoothRegionSync,
   dispatch,
-  setActiveRegionIdDebounced
+  setActiveRegionIdDebounced,
+  // 🆕 Add history support
+  saveState,
+  startTime,
+  endTime,
+  fadeIn = 0,
+  fadeOut = 0,
+  activeRegionId
 }) => {
   // 🚀 Consolidated region event handlers (eliminates redundancy)
   const handleRegionPointerDown = useCallback((regionId, handleType, e) => {
@@ -211,13 +305,24 @@ export const useRegionInteractions = ({
     
     dispatch({ type: 'SET_DRAGGING', dragging: { ...draggingRegion, startX: e.clientX } });
   }, [draggingRegion, duration, canvasRef, getRegionBoundaries, getRegionBodyBoundaries, regions, ultraSmoothRegionSync, dispatch]);
-
   const handleRegionPointerUp = useCallback((regionId, handleType, e) => {
     if (e.target?.releasePointerCapture && e.pointerId) {
       e.target.releasePointerCapture(e.pointerId);
     }
     dispatch({ type: 'SET_DRAGGING', dragging: null });
-  }, [dispatch]);
+    
+    // 🆕 Save history after region drag/resize operation
+    if (saveState) {
+      saveState({ 
+        startTime, 
+        endTime, 
+        fadeIn, 
+        fadeOut, 
+        regions, 
+        activeRegionId 
+      });
+    }
+  }, [dispatch, saveState, startTime, endTime, fadeIn, fadeOut, regions, activeRegionId]);
 
   return {
     handleRegionPointerDown,
@@ -278,4 +383,4 @@ export const useRegionClickHandlers = ({
     handleRegionClick,
     handleMainSelectionClick
   };
-}; 
+};

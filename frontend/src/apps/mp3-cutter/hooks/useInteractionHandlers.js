@@ -94,10 +94,18 @@ export const useInteractionHandlers = ({
     if (manager && canvasRef.current) {
       manager.setupGlobalDragContext(
         cachedRectRef.current, canvasRef.current.width, duration, startTime, endTime, audioContext,
-        result => {
-          if (result.action === 'saveHistoryOnGlobalMouseUp' && result.saveHistory && !historySavedRef.current) {
+        result => {          if (result.action === 'saveHistoryOnGlobalMouseUp' && result.saveHistory && !historySavedRef.current) {
             historySavedRef.current = true;
-            saveState({ startTime, endTime, fadeIn, fadeOut, isInverted: audioContext?.isInverted || false });
+            // 🆕 Include regions in history state
+            saveState({ 
+              startTime, 
+              endTime, 
+              fadeIn, 
+              fadeOut, 
+              isInverted: audioContext?.isInverted || false,
+              regions: regions || [],
+              activeRegionId
+            });
           }
           if (result.startTime !== undefined) handleStartTimeChange(result.startTime);
           if (result.endTime !== undefined) handleEndTimeChange(result.endTime);

@@ -11,7 +11,10 @@ export const useTimeChangeHandlers = ({
   setEndTime,
   saveState,
   historySavedRef,
-  isDragging // 🎯 Add isDragging prop to control when to save history
+  isDragging, // 🎯 Add isDragging prop to control when to save history
+  // 🆕 Add regions support for history
+  regions = [],
+  activeRegionId = null
 }) => {
   const startTimeoutRef = useRef(null);
   const endTimeoutRef = useRef(null);
@@ -23,16 +26,16 @@ export const useTimeChangeHandlers = ({
     
     // 🎯 Only save history if not currently dragging
     if (!isDragging) {
-      if (startTimeoutRef.current) clearTimeout(startTimeoutRef.current);
-      startTimeoutRef.current = setTimeout(() => {
+      if (startTimeoutRef.current) clearTimeout(startTimeoutRef.current);      startTimeoutRef.current = setTimeout(() => {
         if (historySavedRef && !historySavedRef.current) {
           historySavedRef.current = true;
-          saveState({ startTime: clampedTime, endTime, fadeIn, fadeOut });
+          // 🆕 Include regions in history state
+          saveState({ startTime: clampedTime, endTime, fadeIn, fadeOut, regions, activeRegionId });
         }
         startTimeoutRef.current = null;
       }, 100);
     }
-  }, [endTime, setStartTime, saveState, fadeIn, fadeOut, historySavedRef, isDragging]);
+  }, [endTime, setStartTime, saveState, fadeIn, fadeOut, historySavedRef, isDragging, regions, activeRegionId]);
 
   const handleEndTimeChange = useCallback((newTime) => {
     const clampedTime = clamp(newTime, startTime, duration);
@@ -41,22 +44,22 @@ export const useTimeChangeHandlers = ({
     
     // 🎯 Only save history if not currently dragging
     if (!isDragging) {
-      if (endTimeoutRef.current) clearTimeout(endTimeoutRef.current);
-      endTimeoutRef.current = setTimeout(() => {
+      if (endTimeoutRef.current) clearTimeout(endTimeoutRef.current);      endTimeoutRef.current = setTimeout(() => {
         if (historySavedRef && !historySavedRef.current) {
           historySavedRef.current = true;
-          saveState({ startTime, endTime: clampedTime, fadeIn, fadeOut });
+          // 🆕 Include regions in history state
+          saveState({ startTime, endTime: clampedTime, fadeIn, fadeOut, regions, activeRegionId });
         }
         endTimeoutRef.current = null;
       }, 100);
     }
-  }, [startTime, duration, setEndTime, saveState, fadeIn, fadeOut, historySavedRef, isDragging]);
-  const saveHistoryNow = useCallback(() => {
+  }, [startTime, duration, setEndTime, saveState, fadeIn, fadeOut, historySavedRef, isDragging, regions, activeRegionId]);  const saveHistoryNow = useCallback(() => {
     if (historySavedRef && !historySavedRef.current) {
       historySavedRef.current = true;
-      saveState({ startTime, endTime, fadeIn, fadeOut });
+      // 🆕 Include regions in history state
+      saveState({ startTime, endTime, fadeIn, fadeOut, regions, activeRegionId });
     }
-  }, [startTime, endTime, fadeIn, fadeOut, saveState, historySavedRef]);
+  }, [startTime, endTime, fadeIn, fadeOut, saveState, historySavedRef, regions, activeRegionId]);
 
   const cleanup = useCallback(() => {
     if (startTimeoutRef.current) clearTimeout(startTimeoutRef.current);

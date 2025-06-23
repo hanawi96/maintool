@@ -5,9 +5,19 @@ export const useHistory = (maxEntries = 20) => {
   const [historyIndex, setHistoryIndex] = useState(-1);
 
   const saveState = useCallback((state) => {
+    const completeState = {
+      startTime: state.startTime || 0,
+      endTime: state.endTime || 0,
+      fadeIn: state.fadeIn || 0,
+      fadeOut: state.fadeOut || 0,
+      isInverted: state.isInverted || false,
+      regions: state.regions || [],
+      activeRegionId: state.activeRegionId || null
+    };
+    
     setHistory(prev => {
       const cutIndex = Math.max(0, historyIndex + 1 - maxEntries + 1);
-      const newHistory = prev.slice(cutIndex, historyIndex + 1).concat([state]);
+      const newHistory = prev.slice(cutIndex, historyIndex + 1).concat([completeState]);
       return newHistory.length > maxEntries ? newHistory.slice(1) : newHistory;
     });
     setHistoryIndex(idx => Math.min(idx + 1, maxEntries - 1));

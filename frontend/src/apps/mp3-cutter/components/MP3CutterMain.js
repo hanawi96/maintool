@@ -125,10 +125,11 @@ const MP3CutterMain = React.memo(() => {
 
   // 🚀 Memoized audio context
   const audioContext = useAudioContext({ audioRef, setCurrentTime, jumpToTime, isPlaying, fadeIn, fadeOut, startTime, endTime, isInverted, updateFadeConfig });
-
   // 🚀 Optimized time change handlers
   const { handleStartTimeChange: originalHandleStartTimeChange, handleEndTimeChange: originalHandleEndTimeChange, saveHistoryNow, cleanup: cleanupTimeHandlers } = useTimeChangeHandlers({
-    startTime, endTime, duration, fadeIn, fadeOut, setStartTime, setEndTime, saveState, historySavedRef, isDragging
+    startTime, endTime, duration, fadeIn, fadeOut, setStartTime, setEndTime, saveState, historySavedRef, isDragging,
+    // 🆕 Add regions support for history
+    regions, activeRegionId
   });
 
   // 🚀 Main selection boundaries
@@ -173,11 +174,21 @@ const MP3CutterMain = React.memo(() => {
     handleStartTimeChange: t => (enhancedHandlersRef.current.handleStartTimeChange ? enhancedHandlersRef.current.handleStartTimeChange(t) : setStartTime(t)),
     handleEndTimeChange: t => (enhancedHandlersRef.current.handleEndTimeChange ? enhancedHandlersRef.current.handleEndTimeChange(t) : setEndTime(t)),
     jumpToTime, saveState, saveHistoryNow, historySavedRef, interactionManagerRef, audioContext,
-    regions, activeRegionId,
-    onRegionUpdate: (regionId, newStart, newEnd) => {
+    regions, activeRegionId,    onRegionUpdate: (regionId, newStart, newEnd) => {
+      const updatedRegions = regions.map(r => r.id === regionId ? { ...r, start: newStart, end: newEnd } : r);
       dispatch({ 
         type: 'SET_REGIONS', 
-        regions: regions.map(r => r.id === regionId ? { ...r, start: newStart, end: newEnd } : r)
+        regions: updatedRegions
+      });
+      
+      // 🆕 Save history after region drag/resize
+      saveState({ 
+        startTime, 
+        endTime, 
+        fadeIn, 
+        fadeOut, 
+        regions: updatedRegions, 
+        activeRegionId 
       });
     }
   });
@@ -232,7 +243,6 @@ const MP3CutterMain = React.memo(() => {
     getEqualizerState,
     dispatch
   });
-
   // 🚀 Region management
   const { handleAddRegion, handleDeleteRegion, handleClearAllRegions } = useRegionManagement({
     regions,
@@ -247,9 +257,12 @@ const MP3CutterMain = React.memo(() => {
     setActiveRegionIdDebounced,
     jumpToTime,
     setStartTime,
-    setEndTime
+    setEndTime,
+    // 🆕 Add history support
+    saveState,
+    fadeIn,
+    fadeOut
   });
-
   // 🚀 Region interactions
   const { handleRegionPointerDown, handleRegionPointerMove, handleRegionPointerUp } = useRegionInteractions({
     regions,
@@ -260,7 +273,14 @@ const MP3CutterMain = React.memo(() => {
     getRegionBodyBoundaries,
     ultraSmoothRegionSync,
     dispatch,
-    setActiveRegionIdDebounced
+    setActiveRegionIdDebounced,
+    // 🆕 Add history support
+    saveState,
+    startTime,
+    endTime,
+    fadeIn,
+    fadeOut,
+    activeRegionId
   });
 
   // 🚀 Region click handlers
@@ -405,7 +425,6 @@ const MP3CutterMain = React.memo(() => {
     
     smoothStart();
   }, [regions, startTime, endTime, duration, setActiveRegionIdDebounced, isPlaying, audioRef, setCurrentTime, setIsPlaying, dispatch]);
-
   // 🚀 Optimized undo/redo handlers
   const handleUndo = useCallback(() => {
     const prevState = undo();
@@ -414,35 +433,49 @@ const MP3CutterMain = React.memo(() => {
       setEndTime(prevState.endTime);
       dispatch({ type: 'SET_FADE', fadeIn: prevState.fadeIn, fadeOut: prevState.fadeOut });
       
+      // 🆕 Restore regions from history
+      if (prevState.regions !== undefined) {
+        dispatch({ type: 'SET_REGIONS', regions: prevState.regions });
+      }
+      if (prevState.activeRegionId !== undefined) {
+        setActiveRegionIdDebounced(prevState.activeRegionId, 'historyUndo');
+      }
+      
       const isNewFileUpload = Date.now() - (window.lastFileUploadTime || 0) < 5000;
       const hasPreventFlag = window.preventInvertStateRestore === true;
       setIsInverted(!isNewFileUpload && !hasPreventFlag ? prevState.isInverted : false);
       jumpToTime(prevState.startTime);
     }
-  }, [undo, setStartTime, setEndTime, jumpToTime, dispatch]);
-
-  const handleRedo = useCallback(() => {
+  }, [undo, setStartTime, setEndTime, jumpToTime, dispatch, setActiveRegionIdDebounced]);  const handleRedo = useCallback(() => {
     const nextState = redo();
     if (nextState) {
       setStartTime(nextState.startTime);
       setEndTime(nextState.endTime);
       dispatch({ type: 'SET_FADE', fadeIn: nextState.fadeIn, fadeOut: nextState.fadeOut });
       
+      // 🆕 Restore regions from history
+      if (nextState.regions !== undefined) {
+        dispatch({ type: 'SET_REGIONS', regions: nextState.regions });
+      }
+      if (nextState.activeRegionId !== undefined) {
+        setActiveRegionIdDebounced(nextState.activeRegionId, 'historyRedo');
+      }
+      
       const isNewFileUpload = Date.now() - (window.lastFileUploadTime || 0) < 5000;
       const hasPreventFlag = window.preventInvertStateRestore === true;
       setIsInverted(!isNewFileUpload && !hasPreventFlag ? nextState.isInverted : false);
       jumpToTime(nextState.startTime);
     }
-  }, [redo, setStartTime, setEndTime, jumpToTime, dispatch]);
-
+  }, [redo, setStartTime, setEndTime, jumpToTime, dispatch, setActiveRegionIdDebounced]);
   const handleInvertSelection = useCallback(() => {
     if (duration <= 0 || startTime >= endTime) return;
     const newInvert = !isInverted;
-    saveState({ startTime, endTime, fadeIn, fadeOut, isInverted: newInvert });
+    // 🆕 Include regions in history state
+    saveState({ startTime, endTime, fadeIn, fadeOut, isInverted: newInvert, regions, activeRegionId });
     setIsInverted(newInvert);
     updateFadeConfig({ fadeIn, fadeOut, startTime, endTime, isInverted: newInvert, duration });
     jumpToTime(newInvert ? (startTime >= 3 ? startTime - 3 : 0) : startTime);
-  }, [duration, startTime, endTime, isInverted, saveState, fadeIn, fadeOut, jumpToTime, updateFadeConfig]);
+  }, [duration, startTime, endTime, isInverted, saveState, fadeIn, fadeOut, jumpToTime, updateFadeConfig, regions, activeRegionId]);
 
   // Use optimized hooks
   useAudioEventHandlers({ audioRef, audioFile, setDuration, setEndTime, setCurrentTime, setIsPlaying, jumpToTime, startTime, isInverted, fileValidation, handleError });

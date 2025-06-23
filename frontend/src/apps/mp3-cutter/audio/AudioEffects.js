@@ -133,24 +133,40 @@ export const useEnhancedFadeHandlers = ({
       applyFade('out', value, applyToAll);
     }
   }, [applyFade, dispatch, updateFadeConfig, startTime, endTime, isInverted, duration, regions]);
-  
-  const handleFadeInDragEnd = useCallback((finalFadeIn, applyToAll = false, operation = 'normal', data = null) => {
+    const handleFadeInDragEnd = useCallback((finalFadeIn, applyToAll = false, operation = 'normal', data = null) => {
     if (operation === 'restore-main' || operation === 'restore-regions') {
       // Restore operations don't need dragEnd handling
       return;
     }
     applyFade('in', finalFadeIn, applyToAll);
-    saveState({ startTime, endTime, fadeIn: applyToAll || !activeRegionId || activeRegionId === 'main' ? finalFadeIn : fadeIn, fadeOut, isInverted });
-  }, [applyFade, startTime, endTime, fadeIn, fadeOut, isInverted, saveState, activeRegionId]);
-
+    // 🆕 Include regions in history state
+    saveState({ 
+      startTime, 
+      endTime, 
+      fadeIn: applyToAll || !activeRegionId || activeRegionId === 'main' ? finalFadeIn : fadeIn, 
+      fadeOut, 
+      isInverted,
+      regions,
+      activeRegionId
+    });
+  }, [applyFade, startTime, endTime, fadeIn, fadeOut, isInverted, saveState, activeRegionId, regions]);
   const handleFadeOutDragEnd = useCallback((finalFadeOut, applyToAll = false, operation = 'normal', data = null) => {
     if (operation === 'restore-main' || operation === 'restore-regions') {
       // Restore operations don't need dragEnd handling
       return;
     }
     applyFade('out', finalFadeOut, applyToAll);
-    saveState({ startTime, endTime, fadeIn, fadeOut: applyToAll || !activeRegionId || activeRegionId === 'main' ? finalFadeOut : fadeOut, isInverted });
-  }, [applyFade, startTime, endTime, fadeIn, fadeOut, isInverted, saveState, activeRegionId]);
+    // 🆕 Include regions in history state
+    saveState({ 
+      startTime, 
+      endTime, 
+      fadeIn, 
+      fadeOut: applyToAll || !activeRegionId || activeRegionId === 'main' ? finalFadeOut : fadeOut, 
+      isInverted,
+      regions,
+      activeRegionId
+    });
+  }, [applyFade, startTime, endTime, fadeIn, fadeOut, isInverted, saveState, activeRegionId, regions]);
   
   const handleFadeInToggle = useCallback((applyToAll = false) => { 
     const currentValues = getCurrentFadeValues();
