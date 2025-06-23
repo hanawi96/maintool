@@ -194,6 +194,13 @@ body {
   font-size: inherit; /* Remove !important to allow Tailwind overrides */
 }
 
+/* 🔧 SPECIFIC OVERRIDE: Allow all badges to use consistent text-[8px] styling */
+.unified-control-bar .text-\[8px\] {
+  font-size: 9px !important;
+  line-height: 1.2 !important;
+  font-weight: bold !important;
+}
+
 /* 🎯 **COMPONENT-SPECIFIC ENHANCEMENTS** - Target specific components for better UX */
 
 /* File Info Display */

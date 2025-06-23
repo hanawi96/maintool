@@ -297,7 +297,7 @@ const UnifiedControlBar = React.memo(({
             title="Undo">
             <RotateCcw className={`w-4 h-4 ${canUndo ? 'text-indigo-700' : 'text-slate-700'}`} />
             {historyIndex > 0 &&
-              <span className="absolute -top-1 -right-1 bg-indigo-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center text-[10px]">{historyIndex}</span>}
+              <span className="absolute -top-2 -right-1 bg-indigo-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center text-[8px]">{historyIndex}</span>}
           </button>
 
           {/* 6. Redo */}
@@ -311,7 +311,7 @@ const UnifiedControlBar = React.memo(({
             title="Redo">
             <RotateCw className={`w-4 h-4 ${canRedo ? 'text-purple-700' : 'text-slate-700'}`} />
             {canRedo &&
-              <span className="absolute -top-1 -right-1 bg-purple-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center text-[10px]">
+              <span className="absolute -top-2 -right-1 bg-purple-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center text-[8px]">
                 {historyLength - 1 - historyIndex}
               </span>}
           </button>
@@ -447,7 +447,7 @@ const UnifiedControlBar = React.memo(({
               : "Add New Region - Need >1s space outside current selection"
             }>            <Plus className={`w-4 h-4 ${canAddRegion ? 'text-emerald-700 group-hover:text-emerald-800' : 'text-slate-500'}`} />
             {regions.length > 0 && (
-              <span className="absolute -top-1 -right-1 bg-emerald-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center text-[10px] font-semibold">
+              <span className="absolute -top-2 -right-1 bg-emerald-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center text-[8px] font-semibold">
                 {regions.length}
               </span>
             )}
@@ -465,7 +465,7 @@ const UnifiedControlBar = React.memo(({
             title={`🎵 PLAY ALL ITEMS (${regions.length} regions) - Play main selection + regions in sequence`}>
             <PlayCircle className={`w-4 h-4 ${regions.length > 0 ? 'text-purple-700 group-hover:text-purple-800' : 'text-slate-700 group-hover:text-slate-900'}`} />
             {regions.length > 0 && (
-              <span className="absolute -top-1 -right-1 bg-purple-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center text-[10px] font-semibold">
+              <span className="absolute -top-2 -right-1 bg-purple-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center text-[8px] font-semibold">
                 {regions.length}
               </span>
             )}
@@ -508,7 +508,7 @@ const UnifiedControlBar = React.memo(({
             title={`🗑️ CLEAR ALL REGIONS ${canClearAllRegions ? `(DELETE ALL ${regions.length} regions)` : '(Need 2+ regions)'}`}>
             <Trash2 className={`w-4 h-4 ${canClearAllRegions ? 'text-orange-700 group-hover:text-orange-800' : 'text-slate-500'}`} />
             {canClearAllRegions && (
-              <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center text-[10px] font-semibold">
+              <span className="absolute -top-2 -right-1 bg-orange-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center text-[8px] font-semibold">
                 {regions.length}
               </span>
             )}
