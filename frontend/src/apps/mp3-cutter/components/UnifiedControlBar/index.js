@@ -335,9 +335,8 @@ const UnifiedControlBar = React.memo(({
                 : popupState === 'fadeIn'
                 ? 'bg-slate-200 border border-slate-400'
                 : 'bg-slate-100 hover:bg-slate-200'
-            }`}
-            title={`Fade In: ${currentFadeValues.fadeIn > 0 ? `${currentFadeValues.fadeIn.toFixed(1)}s` : 'Click to adjust'}`}>
-            <TrendingUp className={`w-4 h-4 ${currentFadeValues.fadeIn > 0 ? 'text-emerald-700' : 'text-slate-700'} group-hover:text-emerald-800`} />
+            }`}            title={`Fade In: ${currentFadeValues.fadeIn > 0 ? `${currentFadeValues.fadeIn.toFixed(1)}s` : 'Click to adjust'}`}>
+            <TrendingUp className={`w-4 h-4 ${currentFadeValues.fadeIn > 0 ? 'text-emerald-700' : 'text-emerald-600'} group-hover:text-emerald-800`} />
             {currentFadeValues.fadeIn > 0 && <div className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-500 rounded-full"></div>}
           </button>
 
@@ -352,9 +351,8 @@ const UnifiedControlBar = React.memo(({
                 : popupState === 'fadeOut'
                 ? 'bg-slate-200 border border-slate-400'
                 : 'bg-slate-100 hover:bg-slate-200'
-            }`}
-            title={`Fade Out: ${currentFadeValues.fadeOut > 0 ? `${currentFadeValues.fadeOut.toFixed(1)}s` : 'Click to adjust'}`}>
-            <TrendingDown className={`w-4 h-4 ${currentFadeValues.fadeOut > 0 ? 'text-orange-700' : 'text-slate-700'} group-hover:text-orange-800`} />
+            }`}            title={`Fade Out: ${currentFadeValues.fadeOut > 0 ? `${currentFadeValues.fadeOut.toFixed(1)}s` : 'Click to adjust'}`}>
+            <TrendingDown className={`w-4 h-4 ${currentFadeValues.fadeOut > 0 ? 'text-orange-700' : 'text-orange-600'} group-hover:text-orange-800`} />
             {currentFadeValues.fadeOut > 0 && <div className="absolute -top-1 -right-1 w-2 h-2 bg-orange-500 rounded-full"></div>}
           </button>          {/* 10. Volume */}
           <button
@@ -371,11 +369,10 @@ const UnifiedControlBar = React.memo(({
                   ? 'bg-orange-100 hover:bg-orange-200 border border-orange-300'
                   : 'bg-blue-100 hover:bg-blue-200 border border-blue-300'
                 : 'bg-slate-100 hover:bg-slate-200'
-            }`}
-            title={`Volume: ${Math.round(currentVolumeValue * 100)}% - Click to adjust${currentVolumeValue > 1 ? ' (BOOST)' : ''}`}>
+            }`}            title={`Volume: ${Math.round(currentVolumeValue * 100)}% - Click to adjust${currentVolumeValue > 1 ? ' (BOOST)' : ''}`}>
             {currentVolumeValue === 0
               ? <VolumeX className="w-4 h-4 text-red-600 group-hover:text-red-700" />
-              : <Volume2 className={`w-4 h-4 ${currentVolumeValue > 1 ? 'text-orange-600 group-hover:text-orange-700' : currentVolumeValue !== 1 ? 'text-blue-600 group-hover:text-blue-700' : 'text-slate-600 group-hover:text-slate-700'}`} />}
+              : <Volume2 className={`w-4 h-4 ${currentVolumeValue > 1 ? 'text-orange-600 group-hover:text-orange-700' : currentVolumeValue !== 1 ? 'text-blue-600 group-hover:text-blue-700' : 'text-blue-600 group-hover:text-blue-700'}`} />}
             {currentVolumeValue !== 0 && currentVolumeValue !== 1 && <div className={`absolute -top-1 -right-1 w-2 h-2 rounded-full ${currentVolumeValue > 1 ? 'bg-orange-500' : 'bg-blue-500'}`}></div>}
           </button>          {/* 11. Speed */}
           <button
