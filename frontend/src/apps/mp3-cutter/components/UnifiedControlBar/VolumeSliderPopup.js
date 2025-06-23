@@ -251,13 +251,7 @@ const VolumeSliderPopup = ({
           </div>
         )}
         
-        {isBoost && (
-          <div className="bg-orange-50 border border-orange-200 rounded-lg p-2">
-            <p className={`text-orange-700 ${isMobile ? 'text-[10px]' : 'text-xs'}`}>
-              ⚠️ Volume boost may cause audio distortion at high levels
-            </p>
-          </div>
-        )}
+        
       </div>
     </div>,
     document.body

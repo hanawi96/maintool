@@ -133,40 +133,23 @@ export const useEnhancedFadeHandlers = ({
       applyFade('out', value, applyToAll);
     }
   }, [applyFade, dispatch, updateFadeConfig, startTime, endTime, isInverted, duration, regions]);
-    const handleFadeInDragEnd = useCallback((finalFadeIn, applyToAll = false, operation = 'normal', data = null) => {
+  const handleFadeInDragEnd = useCallback((finalFadeIn, applyToAll = false, operation = 'normal', data = null) => {
     if (operation === 'restore-main' || operation === 'restore-regions') {
       // Restore operations don't need dragEnd handling
       return;
     }
     applyFade('in', finalFadeIn, applyToAll);
-    // 🆕 Include regions in history state
-    saveState({ 
-      startTime, 
-      endTime, 
-      fadeIn: applyToAll || !activeRegionId || activeRegionId === 'main' ? finalFadeIn : fadeIn, 
-      fadeOut, 
-      isInverted,
-      regions,
-      activeRegionId
-    });
-  }, [applyFade, startTime, endTime, fadeIn, fadeOut, isInverted, saveState, activeRegionId, regions]);
-  const handleFadeOutDragEnd = useCallback((finalFadeOut, applyToAll = false, operation = 'normal', data = null) => {
+    // 🚫 REMOVED: Unnecessary history saving during fade drag operations
+    // Fade adjustments are real-time and don't need individual history entries
+  }, [applyFade]);  const handleFadeOutDragEnd = useCallback((finalFadeOut, applyToAll = false, operation = 'normal', data = null) => {
     if (operation === 'restore-main' || operation === 'restore-regions') {
       // Restore operations don't need dragEnd handling
       return;
     }
     applyFade('out', finalFadeOut, applyToAll);
-    // 🆕 Include regions in history state
-    saveState({ 
-      startTime, 
-      endTime, 
-      fadeIn, 
-      fadeOut: applyToAll || !activeRegionId || activeRegionId === 'main' ? finalFadeOut : fadeOut, 
-      isInverted,
-      regions,
-      activeRegionId
-    });
-  }, [applyFade, startTime, endTime, fadeIn, fadeOut, isInverted, saveState, activeRegionId, regions]);
+    // 🚫 REMOVED: Unnecessary history saving during fade drag operations
+    // Fade adjustments are real-time and don't need individual history entries
+  }, [applyFade]);
   
   const handleFadeInToggle = useCallback((applyToAll = false) => { 
     const currentValues = getCurrentFadeValues();
@@ -377,14 +360,15 @@ export const useFadeHandlers = ({
 
   const handleFadeInChange = useCallback(newFadeIn => updateFade('in', newFadeIn), [updateFade]);
   const handleFadeOutChange = useCallback(newFadeOut => updateFade('out', newFadeOut), [updateFade]);
-  
-  const handleFadeInDragEnd = useCallback(finalFadeIn => {
-    saveState({ startTime, endTime, fadeIn: finalFadeIn, fadeOut, isInverted });
-  }, [startTime, endTime, fadeOut, saveState, isInverted]);
+    const handleFadeInDragEnd = useCallback(finalFadeIn => {
+    // 🚫 REMOVED: Unnecessary history saving during fade drag operations
+    // Fade adjustments are real-time and don't need individual history entries
+  }, []);
   
   const handleFadeOutDragEnd = useCallback(finalFadeOut => {
-    saveState({ startTime, endTime, fadeIn, fadeOut: finalFadeOut, isInverted });
-  }, [startTime, endTime, fadeIn, saveState, isInverted]);
+    // 🚫 REMOVED: Unnecessary history saving during fade drag operations
+    // Fade adjustments are real-time and don't need individual history entries
+  }, []);
 
   const handleFadeInToggle = useCallback(() => { 
     const v = fadeIn > 0 ? 0 : 3.0; 
