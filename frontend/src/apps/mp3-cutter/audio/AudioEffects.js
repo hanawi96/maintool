@@ -58,11 +58,8 @@ export const useEnhancedFadeHandlers = ({
 
   // 🚀 Apply fade to active region or globally
   const applyFade = useCallback((type, value, applyToAll = false) => {
-    console.log(`🎛️ Applying ${type} fade: ${value}s, applyToAll: ${applyToAll}, activeRegion: ${activeRegionId}`);
-    
     if (applyToAll && regions.length > 0) {
       // Apply to all regions + main selection
-      console.log(`🌐 Applying ${type} fade to ALL ${regions.length} regions + main selection`);
       const updatedRegions = regions.map(region => ({
         ...region,
         [type === 'in' ? 'fadeIn' : 'fadeOut']: value
@@ -76,49 +73,32 @@ export const useEnhancedFadeHandlers = ({
       dispatch({ type: 'SET_FADE', fadeIn: newMainFadeIn, fadeOut: newMainFadeOut });
       updateFadeConfig({ fadeIn: newMainFadeIn, fadeOut: newMainFadeOut, startTime, endTime, isInverted, duration });
       
-      console.log(`✅ Applied ${type} fade to all regions + main:`, { 
-        regionsUpdated: updatedRegions.length, 
-        mainFade: { fadeIn: newMainFadeIn, fadeOut: newMainFadeOut } 
-      });
-      
     } else if (!activeRegionId || activeRegionId === 'main') {
       // Apply to main selection only
-      console.log(`🎯 Applying ${type} fade to MAIN selection only`);
-    const newFadeIn = type === 'in' ? value : fadeIn;
-    const newFadeOut = type === 'out' ? value : fadeOut;
-    
-    dispatch({ type: 'SET_FADE', fadeIn: newFadeIn, fadeOut: newFadeOut });
-    updateFadeConfig({ fadeIn: newFadeIn, fadeOut: newFadeOut, startTime, endTime, isInverted, duration });
+      const newFadeIn = type === 'in' ? value : fadeIn;
+      const newFadeOut = type === 'out' ? value : fadeOut;
       
-      console.log(`✅ Applied ${type} fade to main selection:`, { fadeIn: newFadeIn, fadeOut: newFadeOut });
+      dispatch({ type: 'SET_FADE', fadeIn: newFadeIn, fadeOut: newFadeOut });
+      updateFadeConfig({ fadeIn: newFadeIn, fadeOut: newFadeOut, startTime, endTime, isInverted, duration });
       
     } else {
       // Apply to specific region only
-      console.log(`🎯 Applying ${type} fade to REGION ${activeRegionId} only (no audio effect)`);
       const updatedRegions = regions.map(region => 
         region.id === activeRegionId 
           ? { ...region, [type === 'in' ? 'fadeIn' : 'fadeOut']: value }
           : region
       );
       dispatch({ type: 'SET_REGIONS', regions: updatedRegions });
-      
-      const updatedRegion = updatedRegions.find(r => r.id === activeRegionId);
-      console.log(`✅ Applied ${type} fade to region ${activeRegionId}:`, { 
-        fadeIn: updatedRegion?.fadeIn || 0, 
-        fadeOut: updatedRegion?.fadeOut || 0 
-      });
     }
   }, [activeRegionId, regions, fadeIn, fadeOut, startTime, endTime, isInverted, duration, updateFadeConfig, dispatch]);
 
   const handleFadeInChange = useCallback((value, applyToAll = false, operation = 'normal', data = null) => {
     if (operation === 'restore-main' && data) {
       // Restore main selection fade
-      console.log(`🔄 Restoring main fade:`, data);
       dispatch({ type: 'SET_FADE', fadeIn: data.fadeIn, fadeOut: data.fadeOut });
       updateFadeConfig({ fadeIn: data.fadeIn, fadeOut: data.fadeOut, startTime, endTime, isInverted, duration });
     } else if (operation === 'restore-regions' && data) {
       // Restore individual region fades
-      console.log(`🔄 Restoring region fades:`, data);
       const updatedRegions = regions.map(region => {
         const backupRegion = data.regions.find(r => r.id === region.id);
         if (backupRegion) {
@@ -136,12 +116,10 @@ export const useEnhancedFadeHandlers = ({
   const handleFadeOutChange = useCallback((value, applyToAll = false, operation = 'normal', data = null) => {
     if (operation === 'restore-main' && data) {
       // Restore main selection fade
-      console.log(`🔄 Restoring main fade:`, data);
       dispatch({ type: 'SET_FADE', fadeIn: data.fadeIn, fadeOut: data.fadeOut });
       updateFadeConfig({ fadeIn: data.fadeIn, fadeOut: data.fadeOut, startTime, endTime, isInverted, duration });
     } else if (operation === 'restore-regions' && data) {
       // Restore individual region fades
-      console.log(`🔄 Restoring region fades:`, data);
       const updatedRegions = regions.map(region => {
         const backupRegion = data.regions.find(r => r.id === region.id);
         if (backupRegion) {

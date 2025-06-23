@@ -122,26 +122,44 @@ export const useRealTimeFadeEffects = () => {
     return true;
   }, [connectEqualizer, createPitchNode]);
 
+  // 🔧 Helper: clamp fade duration to maximum 50% of region duration
+  const clampFadeDuration = useCallback((fadeValue, regionDuration) => {
+    if (regionDuration <= 0) return 0;
+    const maxFade = regionDuration * 0.5;
+    return Math.min(fadeValue, maxFade);
+  }, []);
+
   // Fade calculation
   const calcFade = useCallback((currentTime, cfg) => {
     const { fadeIn, fadeOut, startTime, endTime, isInverted, duration = 0 } = cfg;
     if (isInverted) {
       if (fadeIn <= 0 && fadeOut <= 0) return 1.0;
+      
+      // Clamp fade durations to available space
+      const clampedFadeIn = clampFadeDuration(fadeIn, startTime);
+      const clampedFadeOut = clampFadeDuration(fadeOut, duration - endTime);
+      
       let m = 1.0;
-      if (fadeIn > 0 && currentTime < startTime) m = Math.min(m, Math.max(0, currentTime / Math.min(fadeIn, startTime)));
-      if (fadeOut > 0 && currentTime >= endTime)
-        m = Math.min(m, Math.max(0.05, (duration - currentTime) / Math.min(fadeOut, duration - endTime)));
+      if (clampedFadeIn > 0 && currentTime < startTime) m = Math.min(m, Math.max(0, currentTime / Math.min(clampedFadeIn, startTime)));
+      if (clampedFadeOut > 0 && currentTime >= endTime)
+        m = Math.min(m, Math.max(0.05, (duration - currentTime) / Math.min(clampedFadeOut, duration - endTime)));
       if (currentTime >= startTime && currentTime <= endTime) return 0.0;
       return Math.max(0.05, Math.min(1, m));
     }
     if (fadeIn === 0 && fadeOut === 0) return 1.0;
     if (currentTime < startTime || currentTime > endTime) return 1.0;
+    
+    // Clamp fade durations to 50% of selection duration
+    const selectionDuration = endTime - startTime;
+    const clampedFadeIn = clampFadeDuration(fadeIn, selectionDuration);
+    const clampedFadeOut = clampFadeDuration(fadeOut, selectionDuration);
+    
     let m = 1.0;
     const tSel = currentTime - startTime, tEnd = endTime - currentTime;
-    if (fadeIn > 0 && tSel <= fadeIn) m = Math.min(m, 0.001 + ((1 - Math.pow(1 - tSel / fadeIn, 1.5)) * 0.999));
-    if (fadeOut > 0 && tEnd <= fadeOut) m = Math.min(m, 0.001 + (Math.pow(tEnd / fadeOut, 1.5) * 0.999));
+    if (clampedFadeIn > 0 && tSel <= clampedFadeIn) m = Math.min(m, 0.001 + ((1 - Math.pow(1 - tSel / clampedFadeIn, 1.5)) * 0.999));
+    if (clampedFadeOut > 0 && tEnd <= clampedFadeOut) m = Math.min(m, 0.001 + (Math.pow(tEnd / clampedFadeOut, 1.5) * 0.999));
     return Math.max(0.0001, Math.min(1, m));
-  }, []);
+  }, [clampFadeDuration]);
 
   // Animation
   const startFadeAnimation = useCallback(audioElement => {

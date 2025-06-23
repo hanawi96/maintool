@@ -76,6 +76,13 @@ const getRegionAreaBounds = (region, startX, areaWidth, handleW, duration) => {
   };
 };
 
+// Helper: clamp fade duration to maximum 50% of region duration
+const clampFadeDuration = (fadeValue, regionDuration) => {
+  if (regionDuration <= 0) return 0;
+  const maxFade = regionDuration * 0.5;
+  return Math.min(fadeValue, maxFade);
+};
+
 // Helper: calculate fade multiplier for any region
 const getRegionFadeMultiplier = (time, regionStart, regionEnd, regionFadeIn, regionFadeOut, duration) => {
   if (!regionFadeIn && !regionFadeOut) return 1;
@@ -83,19 +90,23 @@ const getRegionFadeMultiplier = (time, regionStart, regionEnd, regionFadeIn, reg
   const regionDuration = regionEnd - regionStart;
   if (regionDuration <= 0) return 1;
   
+  // Clamp fade durations to 50% of region duration
+  const clampedFadeIn = clampFadeDuration(regionFadeIn, regionDuration);
+  const clampedFadeOut = clampFadeDuration(regionFadeOut, regionDuration);
+  
   const relativeTime = time - regionStart;
   const relativePosition = relativeTime / regionDuration;
   
   let multiplier = 1;
   
   // Fade In
-  if (regionFadeIn > 0 && relativePosition < (regionFadeIn / regionDuration)) {
-    multiplier *= Math.max(0.05, relativePosition / (regionFadeIn / regionDuration));
+  if (clampedFadeIn > 0 && relativePosition < (clampedFadeIn / regionDuration)) {
+    multiplier *= Math.max(0.05, relativePosition / (clampedFadeIn / regionDuration));
   }
   
   // Fade Out  
-  if (regionFadeOut > 0 && relativePosition > (1 - regionFadeOut / regionDuration)) {
-    multiplier *= Math.max(0.05, (1 - relativePosition) / (regionFadeOut / regionDuration));
+  if (clampedFadeOut > 0 && relativePosition > (1 - clampedFadeOut / regionDuration)) {
+    multiplier *= Math.max(0.05, (1 - relativePosition) / (clampedFadeOut / regionDuration));
   }
   
   return multiplier;
@@ -385,7 +396,12 @@ const WaveformCanvas = React.memo(({
     if (!data?.waveformData) return null;
     const v = data.volume ?? 1;
     const colorKey = Math.round(v * 5000); // Higher precision for 2% steps (0.02 * 5000 = 100)
-    return `dynamic-${data.waveformData.length}-${data.containerWidth || width}-${data.mode || 'default'}-${colorKey}-${Math.round((data.fadeIn || 0) * 10)}-${Math.round((data.fadeOut || 0) * 10)}-${Math.round((data.startTime || 0) * 10)}-${Math.round((data.endTime || 0) * 10)}-${data.isInverted || false}`;
+    
+    // Round fade values to reduce cache thrashing during drag (0.1s precision)
+    const fadeInKey = Math.round((data.fadeIn || 0) * 10);
+    const fadeOutKey = Math.round((data.fadeOut || 0) * 10);
+    
+    return `dynamic-${data.waveformData.length}-${data.containerWidth || width}-${data.mode || 'default'}-${colorKey}-${fadeInKey}-${fadeOutKey}-${Math.round((data.startTime || 0) * 10)}-${Math.round((data.endTime || 0) * 10)}-${data.isInverted || false}`;
   }, []);
 
   // ----- BACKGROUND CANVAS CACHE -----
@@ -432,25 +448,34 @@ const WaveformCanvas = React.memo(({
       const time = (i / waveformData.length) * duration;
       // Invert mode
       if (isInverted) {
+        // Clamp fade durations to available space
+        const clampedFadeIn = clampFadeDuration(fadeIn, startTime);
+        const clampedFadeOut = clampFadeDuration(fadeOut, duration - endTime);
+        
         let f = 1;
-        if (fadeIn > 0 && time < startTime) {
-          const fadeInDur = Math.min(fadeIn, startTime);
+        if (clampedFadeIn > 0 && time < startTime) {
+          const fadeInDur = Math.min(clampedFadeIn, startTime);
           if (time <= fadeInDur) f = Math.max(0.05, time / fadeInDur);
         }
-        if (fadeOut > 0 && time >= endTime) {
-          const fadeOutDur = Math.min(fadeOut, duration - endTime);
+        if (clampedFadeOut > 0 && time >= endTime) {
+          const fadeOutDur = Math.min(clampedFadeOut, duration - endTime);
           const fadeOutStart = duration - fadeOutDur;
           if (time >= fadeOutStart) f = Math.max(0.05, (duration - time) / fadeOutDur);
         }
         return f;
       } else {
-        const rel = (time - startTime) / (endTime - startTime);
+        // Normal mode - clamp fade to 50% of selection duration
+        const selectionDuration = endTime - startTime;
+        const clampedFadeIn = clampFadeDuration(fadeIn, selectionDuration);
+        const clampedFadeOut = clampFadeDuration(fadeOut, selectionDuration);
+        
+        const rel = (time - startTime) / selectionDuration;
         let f = 1;
-        if (fadeIn > 0 && rel < (fadeIn / (endTime - startTime))) {
-          f *= Math.max(0.05, Math.min(1, rel / (fadeIn / (endTime - startTime))));
+        if (clampedFadeIn > 0 && rel < (clampedFadeIn / selectionDuration)) {
+          f *= Math.max(0.05, Math.min(1, rel / (clampedFadeIn / selectionDuration)));
         }
-        if (fadeOut > 0 && rel > (1 - fadeOut / (endTime - startTime))) {
-          f *= Math.max(0.05, Math.min(1, (1 - rel) / (fadeOut / (endTime - startTime))));
+        if (clampedFadeOut > 0 && rel > (1 - clampedFadeOut / selectionDuration)) {
+          f *= Math.max(0.05, Math.min(1, (1 - rel) / (clampedFadeOut / selectionDuration)));
         }
         return f;
       }
@@ -529,10 +554,7 @@ const WaveformCanvas = React.memo(({
           ctx.rect(bounds.startX, 0, bounds.width, height);
           ctx.clip();
           
-          // 🔧 CRITICAL FIX: Always render regions independently from raw data
-          console.log(`🎨 Rendering region ${region.id} independently (fadeIn: ${region.fadeIn || 0}, fadeOut: ${region.fadeOut || 0}, volume: ${region.volume !== undefined ? region.volume : 1.0})`);
-          
-          // 🆕 Use region-specific volume or fallback to 1.0
+          // 🔧 Always render regions independently from raw data
           const regionVolume = region.volume !== undefined ? region.volume : 1.0;
           ctx.fillStyle = getWaveformColor(regionVolume);
           const centerY = height / 2;
@@ -632,7 +654,6 @@ const WaveformCanvas = React.memo(({
 
   // ----- CACHE MANAGEMENT -----
   useEffect(() => {
-    let mounted = true;
     if (!renderData?.waveformData || !canvasRef.current) return;
     const canvas = canvasRef.current;    const cacheKey = generateCacheKey(renderData, containerWidth);
     const dynamicKey = generateDynamicCacheKey(renderData, containerWidth);
@@ -664,26 +685,52 @@ const WaveformCanvas = React.memo(({
       if (needsRedraw) drawWaveform();
     };
     updateCaches();
-    return () => { mounted = false };
   }, [renderData, containerWidth, canvasRef, createBackgroundCache, createDynamicWaveformCache, drawWaveform, generateCacheKey, generateDynamicCacheKey]);
 
   // ----- REDRAW CONTROL (minimize effect triggers) -----
-  useEffect(() => {
-    if ((hoverTooltip?.visible || isPlaying || isDragging) && renderData) {
+  const lastRedrawTime = useRef(0);
+  const redrawTimeout = useRef(null);
+  
+  // Debounced redraw for smooth performance
+  const debouncedRedraw = useCallback((immediate = false) => {
+    if (immediate) {
+      if (redrawTimeout.current) clearTimeout(redrawTimeout.current);
       requestRedraw(drawWaveform);
+      lastRedrawTime.current = Date.now();
+      return;
     }
-  }, [hoverTooltip?.visible, isPlaying, isDragging, renderData, requestRedraw, drawWaveform]);
+    
+    const now = Date.now();
+    const timeSinceLastRedraw = now - lastRedrawTime.current;
+    
+    if (timeSinceLastRedraw >= 16) { // 60fps limit
+      requestRedraw(drawWaveform);
+      lastRedrawTime.current = now;
+    } else {
+      if (redrawTimeout.current) clearTimeout(redrawTimeout.current);
+      redrawTimeout.current = setTimeout(() => {
+        requestRedraw(drawWaveform);
+        lastRedrawTime.current = Date.now();
+      }, 16 - timeSinceLastRedraw);
+    }
+  }, [requestRedraw, drawWaveform]);
 
   useEffect(() => {
-    if (renderData) requestRedraw(drawWaveform);
-  }, [renderData, requestRedraw, drawWaveform]);
+    if ((hoverTooltip?.visible || isPlaying || isDragging) && renderData) {
+      debouncedRedraw(true); // Immediate for interactions
+    }
+  }, [hoverTooltip?.visible, isPlaying, isDragging, renderData, debouncedRedraw]);
+
+  useEffect(() => {
+    if (renderData) debouncedRedraw(); // Debounced for fade changes
+  }, [renderData, debouncedRedraw]);
 
   // ----- REDRAW ON REGIONS CHANGE -----
   useEffect(() => {
     if (renderData && regions?.length > 0) {
-      requestRedraw(drawWaveform);
+      debouncedRedraw();
     }
-  }, [regions, activeRegionId, renderData, requestRedraw, drawWaveform]);
+  }, [regions, activeRegionId, renderData, debouncedRedraw]);
 
   // ----- HANDLE POSITION CALC -----
   const handlePositions = useMemo(() => {
@@ -794,6 +841,10 @@ const WaveformCanvas = React.memo(({
 
   // ----- CLEANUP IMAGEBITMAP -----
   useEffect(() => () => {
+    // Cleanup timeout
+    if (redrawTimeout.current) clearTimeout(redrawTimeout.current);
+    
+    // Cleanup imagebitmaps
     backgroundCacheRef.current?.close?.();
     backgroundCacheRef.current = null;
     dynamicWaveformCacheRef.current?.close?.();

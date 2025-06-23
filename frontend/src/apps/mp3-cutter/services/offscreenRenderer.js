@@ -40,6 +40,13 @@ const interpolateColor = (color1, color2, ratio) => {
   return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
 };
 
+// Helper: clamp fade duration to maximum 50% of region duration
+const clampFadeDuration = (fadeValue, regionDuration) => {
+  if (regionDuration <= 0) return 0;
+  const maxFade = regionDuration * 0.5;
+  return Math.min(fadeValue, maxFade);
+};
+
 export class OffscreenWaveformRenderer {
   constructor() {
     this.offscreenCanvas = null;
@@ -155,25 +162,34 @@ export class OffscreenWaveformRenderer {
     if (!fadeIn && !fadeOut) return 1;
     
     if (isInverted) {
+      // Clamp fade durations to available space
+      const clampedFadeIn = clampFadeDuration(fadeIn, startTime);
+      const clampedFadeOut = clampFadeDuration(fadeOut, duration - endTime);
+      
       let multiplier = 1;
-      if (fadeIn > 0 && time < startTime) {
-        const fadeInDur = Math.min(fadeIn, startTime);
+      if (clampedFadeIn > 0 && time < startTime) {
+        const fadeInDur = Math.min(clampedFadeIn, startTime);
         if (time <= fadeInDur) multiplier = Math.max(0.05, time / fadeInDur);
       }
-      if (fadeOut > 0 && time >= endTime) {
-        const fadeOutDur = Math.min(fadeOut, duration - endTime);
+      if (clampedFadeOut > 0 && time >= endTime) {
+        const fadeOutDur = Math.min(clampedFadeOut, duration - endTime);
         const fadeStart = duration - fadeOutDur;
         if (time >= fadeStart) multiplier = Math.max(0.05, (duration - time) / fadeOutDur);
       }
       return multiplier;
     } else {
-      const rel = (time - startTime) / (endTime - startTime);
+      // Normal mode - clamp fade to 50% of selection duration
+      const selectionDuration = endTime - startTime;
+      const clampedFadeIn = clampFadeDuration(fadeIn, selectionDuration);
+      const clampedFadeOut = clampFadeDuration(fadeOut, selectionDuration);
+      
+      const rel = (time - startTime) / selectionDuration;
       let multiplier = 1;
-      if (fadeIn > 0 && rel < fadeIn / (endTime - startTime)) {
-        multiplier *= Math.max(0.05, rel / (fadeIn / (endTime - startTime)));
+      if (clampedFadeIn > 0 && rel < clampedFadeIn / selectionDuration) {
+        multiplier *= Math.max(0.05, rel / (clampedFadeIn / selectionDuration));
       }
-      if (fadeOut > 0 && rel > 1 - fadeOut / (endTime - startTime)) {
-        multiplier *= Math.max(0.05, (1 - rel) / (fadeOut / (endTime - startTime)));
+      if (clampedFadeOut > 0 && rel > 1 - clampedFadeOut / selectionDuration) {
+        multiplier *= Math.max(0.05, (1 - rel) / (clampedFadeOut / selectionDuration));
       }
       return multiplier;
     }

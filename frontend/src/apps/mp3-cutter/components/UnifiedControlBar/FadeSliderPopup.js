@@ -5,6 +5,25 @@ import { FADE_CONFIG } from '../../utils/constants';
 import usePopupPosition from './usePopupPosition';
 import ToggleSwitch from './ToggleSwitch';
 
+// Throttle helper for smooth slider performance
+const throttle = (func, delay) => {
+  let timeoutId;
+  let lastExecTime = 0;
+  return (...args) => {
+    const currentTime = Date.now();
+    if (currentTime - lastExecTime > delay) {
+      func(...args);
+      lastExecTime = currentTime;
+    } else {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        func(...args);
+        lastExecTime = Date.now();
+      }, delay - (currentTime - lastExecTime));
+    }
+  };
+};
+
 const FadeSliderPopup = ({
   type = 'in',
   value = 0,
@@ -32,8 +51,6 @@ const FadeSliderPopup = ({
   }, [applyToAllState, activeRegionId, type]);
   
   const setCurrentApplyToAll = useCallback((checked) => {
-    console.log(`🔧 Fade ${type} Toggle: ${activeRegionId || 'main'} -> ${checked}`);
-    
     const key = `${activeRegionId || 'main'}-${type}`;
     const fadeType = type === 'in' ? 'fadeIn' : 'fadeOut';
     
@@ -94,7 +111,16 @@ const FadeSliderPopup = ({
     };
   }, [isVisible, onClose, buttonRef]);
 
-  const handleSliderChange = useCallback((e) => onChange(parseFloat(e.target.value), currentApplyToAll), [onChange, currentApplyToAll]);
+  // Throttled onChange for smooth slider performance (16ms = ~60fps)
+  const throttledOnChange = useMemo(() => throttle((value, applyToAll) => {
+    onChange(value, applyToAll);
+  }, 16), [onChange]);
+
+  const handleSliderChange = useCallback((e) => {
+    const value = parseFloat(e.target.value);
+    throttledOnChange(value, currentApplyToAll);
+  }, [throttledOnChange, currentApplyToAll]);
+  
   const handleReset = useCallback(() => onChange(0, currentApplyToAll), [onChange, currentApplyToAll]);
   const handlePresetClick = useCallback((presetValue) => onChange(presetValue, currentApplyToAll), [onChange, currentApplyToAll]);
 

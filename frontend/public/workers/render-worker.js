@@ -108,20 +108,31 @@ function drawBars(ctx, data, width, height, volume, startTime, endTime, duration
 
 // ---- Fade calculation helper ----
 
+// Helper: clamp fade duration to maximum 50% of region duration
+function clampFadeDuration(fadeValue, regionDuration) {
+  if (regionDuration <= 0) return 0;
+  const maxFade = regionDuration * 0.5;
+  return Math.min(fadeValue, maxFade);
+}
+
 function getFadeMul(i, barTime, barCount, duration, startTime, endTime, fadeIn, fadeOut, isInverted) {
   if (!fadeIn && !fadeOut) return 1;
   if (isInverted) {
+    // Clamp fade durations to available space
+    const clampedFadeIn = clampFadeDuration(fadeIn, startTime);
+    const clampedFadeOut = clampFadeDuration(fadeOut, duration - endTime);
+    
     let mul = 1;
     // FadeIn: region [0, startTime]
-    if (fadeIn > 0 && barTime < startTime) {
-      const dur = Math.min(fadeIn, startTime);
+    if (clampedFadeIn > 0 && barTime < startTime) {
+      const dur = Math.min(clampedFadeIn, startTime);
       if (dur > 0 && barTime <= dur) {
         mul = Math.max(0.05, barTime / dur);
       }
     }
     // FadeOut: region [endTime, duration]
-    if (fadeOut > 0 && barTime >= endTime) {
-      const dur = Math.min(fadeOut, duration - endTime);
+    if (clampedFadeOut > 0 && barTime >= endTime) {
+      const dur = Math.min(clampedFadeOut, duration - endTime);
       const fadeStart = duration - dur;
       if (dur > 0 && barTime >= fadeStart) {
         mul = Math.max(0.05, (duration - barTime) / dur);
@@ -129,18 +140,22 @@ function getFadeMul(i, barTime, barCount, duration, startTime, endTime, fadeIn, 
     }
     return mul;
   } else {
-    // Normal mode: fade inside [startTime, endTime]
+    // Normal mode: fade inside [startTime, endTime] - clamp to 50% of selection duration
     const selDur = endTime - startTime;
     if (selDur <= 0) return 1;
+    
+    const clampedFadeIn = clampFadeDuration(fadeIn, selDur);
+    const clampedFadeOut = clampFadeDuration(fadeOut, selDur);
+    
     const relPos = (barTime - startTime) / selDur;
     let mul = 1;
     // FadeIn
-    if (fadeIn > 0 && relPos < fadeIn / selDur) {
-      mul *= Math.max(0.05, relPos / (fadeIn / selDur));
+    if (clampedFadeIn > 0 && relPos < clampedFadeIn / selDur) {
+      mul *= Math.max(0.05, relPos / (clampedFadeIn / selDur));
     }
     // FadeOut
-    if (fadeOut > 0 && relPos > 1 - fadeOut / selDur) {
-      mul *= Math.max(0.05, (1 - relPos) / (fadeOut / selDur));
+    if (clampedFadeOut > 0 && relPos > 1 - clampedFadeOut / selDur) {
+      mul *= Math.max(0.05, (1 - relPos) / (clampedFadeOut / selDur));
     }
     return mul;
   }
