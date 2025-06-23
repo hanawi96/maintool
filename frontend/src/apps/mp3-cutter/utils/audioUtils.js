@@ -14,13 +14,13 @@ export const SUPPORTED_FORMATS = {
     'audio/ogg': ['.ogg', '.oga'],
     'audio/webm': ['.webm'],
     'audio/x-wav': ['.wav']
-  },
-  LIMITED: {
+  },  LIMITED: {
     'audio/flac': ['.flac'],
     'audio/aac': ['.aac'],
     'audio/x-aac': ['.aac'],
     'audio/3gpp': ['.3gp'],
-    'audio/amr': ['.amr']
+    'audio/amr': ['.amr'],
+    'audio/x-ms-wma': ['.wma']
   }
 };
 
@@ -32,7 +32,8 @@ const FORMAT_DISPLAY_NAMES = {
   'audio/x-m4a': 'M4A',  'audio/ogg': 'OGG',
   'audio/webm': 'WebM',  'audio/flac': 'FLAC',
   'audio/aac': 'AAC',    'audio/x-aac': 'AAC',
-  'audio/3gpp': '3GP',   'audio/amr': 'AMR'
+  'audio/3gpp': '3GP',   'audio/amr': 'AMR',
+  'audio/x-ms-wma': 'WMA'
 };
 
 // ====== UTILS ======

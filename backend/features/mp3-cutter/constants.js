@@ -6,19 +6,18 @@ export const MP3_CONFIG = {
   MIN_DURATION: 1,
   SUPPORTED_INPUT_FORMATS: [
     'mp3', 'wav', 'aac', 'ogg', 'flac', 'm4a', 'wma'
+  ],  SUPPORTED_OUTPUT_FORMATS: [
+    'mp3', 'wav', 'aac', 'ogg', 'flac', 'm4a', 'm4r', 'wma'
   ],
-  SUPPORTED_OUTPUT_FORMATS: [
-    'mp3', 'wav', 'aac', 'ogg', 'flac', 'm4a', 'm4r'
-  ],
-  QUALITY_PRESETS: {
-    low: {
+  QUALITY_PRESETS: {    low: {
       mp3: { bitrate: '128k', codec: 'libmp3lame' },
       wav: { bitrate: null, codec: 'pcm_s16le' },
       aac: { bitrate: '128k', codec: 'aac' },
       ogg: { bitrate: '128k', codec: 'libvorbis' },
       flac: { bitrate: null, codec: 'flac' },
       m4a: { bitrate: '128k', codec: 'aac' },
-      m4r: { bitrate: '128k', codec: 'aac' }
+      m4r: { bitrate: '128k', codec: 'aac' },
+      wma: { bitrate: '128k', codec: 'wmav2' }
     },
     medium: {
       mp3: { bitrate: '192k', codec: 'libmp3lame' },
@@ -27,7 +26,8 @@ export const MP3_CONFIG = {
       ogg: { bitrate: '192k', codec: 'libvorbis' },
       flac: { bitrate: null, codec: 'flac' },
       m4a: { bitrate: '192k', codec: 'aac' },
-      m4r: { bitrate: '192k', codec: 'aac' }
+      m4r: { bitrate: '192k', codec: 'aac' },
+      wma: { bitrate: '192k', codec: 'wmav2' }
     },
     high: {
       mp3: { bitrate: '320k', codec: 'libmp3lame' },
@@ -36,7 +36,8 @@ export const MP3_CONFIG = {
       ogg: { bitrate: '256k', codec: 'libvorbis' },
       flac: { bitrate: null, codec: 'flac' },
       m4a: { bitrate: '256k', codec: 'aac' },
-      m4r: { bitrate: '256k', codec: 'aac' }
+      m4r: { bitrate: '256k', codec: 'aac' },
+      wma: { bitrate: '256k', codec: 'wmav2' }
     }
   },
   MAX_FADE_DURATION: 30,

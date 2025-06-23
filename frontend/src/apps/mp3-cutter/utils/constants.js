@@ -10,7 +10,8 @@ export const AUDIO_FORMATS = {
   FLAC:  { value: 'flac', label: 'FLAC', mime: 'audio/flac', description: 'Lossless' },
   WAV:   { value: 'wav',  label: 'WAV',  mime: 'audio/wav',  description: 'Uncompressed' },
   AAC:   { value: 'aac',  label: 'AAC',  mime: 'audio/aac',  description: 'Advanced Audio' },
-  OGG:   { value: 'ogg',  label: 'OGG',  mime: 'audio/ogg',  description: 'Open Source' }
+  OGG:   { value: 'ogg',  label: 'OGG',  mime: 'audio/ogg',  description: 'Open Source' },
+  WMA:   { value: 'wma',  label: 'WMA',  mime: 'audio/x-ms-wma', description: 'Windows Media' }
 };
 
 /** Định nghĩa chất lượng */

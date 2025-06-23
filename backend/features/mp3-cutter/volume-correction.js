@@ -26,10 +26,21 @@ export class VolumeCorrection {
         description: 'FLAC lossless minimal reduction',
         verified: false
       },
-      
-      aac: {
+        aac: {
         gainReduction: 0.90,  // AAC encoding reduction
         description: 'AAC encoder gain reduction',
+        verified: false
+      },
+      
+      wma: {
+        gainReduction: 0.92,  // WMA encoding reduction
+        description: 'WMA encoder gain reduction',
+        verified: false
+      },
+      
+      ogg: {
+        gainReduction: 0.89,  // OGG Vorbis encoding reduction
+        description: 'OGG Vorbis encoder gain reduction',
         verified: false
       }
     };
@@ -239,13 +250,12 @@ export const VolumeCorrectionUtils = {
     const corrector = new VolumeCorrection();
     return corrector.smartVolumeCorrection(webAudioGain, 'mp3', quality);
   },
-  
-  /**
+    /**
    * Check if volume correction is recommended
    */
   isCorrectionsRecommended(format) {
     // Recommend correction for lossy formats
-    const lossyFormats = ['mp3', 'aac', 'ogg'];
+    const lossyFormats = ['mp3', 'aac', 'ogg', 'wma'];
     return lossyFormats.includes(format.toLowerCase());
   },
   

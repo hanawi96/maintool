@@ -253,9 +253,8 @@ export class MP3Utils {
       
       // 🔊 Convert volume using precise Web Audio API mapping with format correction
       let volumeFilter = null;
-      
-      // 🔧 Check if format needs encoding compensation (lossy formats)
-      const needsEncodingCompensation = ['mp3', 'aac', 'ogg'].includes(format.toLowerCase());
+        // 🔧 Check if format needs encoding compensation (lossy formats)
+      const needsEncodingCompensation = ['mp3', 'aac', 'ogg', 'wma'].includes(format.toLowerCase());
       
       if (volume !== 1 || needsEncodingCompensation) {
         try {
@@ -338,15 +337,14 @@ export class MP3Utils {
         }
       });
 
-      if (filters.length) command = command.audioFilters(filters);
-
-      const { codec, bitrate } = getFormatSettings(format, quality);
+      if (filters.length) command = command.audioFilters(filters);      const { codec, bitrate } = getFormatSettings(format, quality);
       command = command.audioCodec(codec);
       if (bitrate) command = command.audioBitrate(bitrate);
       if (['m4r', 'm4a'].includes(format)) {
         command = command.format('mp4').outputOptions(['-f', 'mp4', '-movflags', '+faststart']);
       } else if (format === 'flac') command = command.format('flac');
       else if (format === 'ogg') command = command.format('ogg');
+      else if (format === 'wma') command = command.format('asf');
 
       console.log('🎬 Starting FFmpeg processing...\n');
 
@@ -525,13 +523,13 @@ export class MP3Utils {
               if (endTime && endTime > startTime) retryCommand = retryCommand.duration(endTime - startTime);
               
               if (retryFilters.length) retryCommand = retryCommand.audioFilters(retryFilters);
-              
-              retryCommand = retryCommand.audioCodec(codec);
+                retryCommand = retryCommand.audioCodec(codec);
               if (bitrate) retryCommand = retryCommand.audioBitrate(bitrate);
               if (['m4r', 'm4a'].includes(format)) {
                 retryCommand = retryCommand.format('mp4').outputOptions(['-f', 'mp4', '-movflags', '+faststart']);
               } else if (format === 'flac') retryCommand = retryCommand.format('flac');
               else if (format === 'ogg') retryCommand = retryCommand.format('ogg');
+              else if (format === 'wma') retryCommand = retryCommand.format('asf');
               
               console.log('🔄 Retrying FFmpeg with fallback EQ filters:', retryFilters);
               
@@ -723,12 +721,12 @@ export class MP3Utils {
         }
         
         const { codec, bitrate } = getFormatSettings(format, quality);
-        command = command.audioCodec(codec);
-        if (bitrate) command = command.audioBitrate(bitrate);
+        command = command.audioCodec(codec);        if (bitrate) command = command.audioBitrate(bitrate);
         if (['m4r', 'm4a'].includes(format)) {
           command = command.format('mp4').outputOptions(['-f', 'mp4', '-movflags', '+faststart']);
         } else if (format === 'flac') command = command.format('flac');
         else if (format === 'ogg') command = command.format('ogg');
+        else if (format === 'wma') command = command.format('asf');
 
         emitProgress(sessionId, { percent: 0 });
         command
@@ -994,13 +992,14 @@ export class MP3Utils {
       const { codec, bitrate } = getFormatSettings(format, quality);
       command = command.audioCodec(codec);
       if (bitrate) command = command.audioBitrate(bitrate);
-      
-      if (['m4r', 'm4a'].includes(format)) {
+        if (['m4r', 'm4a'].includes(format)) {
         command = command.format('mp4').outputOptions(['-f', 'mp4', '-movflags', '+faststart']);
       } else if (format === 'flac') {
         command = command.format('flac');
       } else if (format === 'ogg') {
         command = command.format('ogg');
+      } else if (format === 'wma') {
+        command = command.format('asf');
       }
       
       console.log('🔗 Starting concatenation...');
