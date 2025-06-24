@@ -376,26 +376,20 @@ export const WaveformUI = memo(({
       {shouldRenderStartHandle && (
         <div
           className="absolute"
-          style={startHandleStyle}
-          onPointerDown={(e) => {
+          style={startHandleStyle}          onPointerDown={(e) => {
             console.log('🟦🟦🟦 MAIN START HANDLE - POINTER DOWN:', {
               handleType: 'start',
-              elementInfo: {
-                className: e.currentTarget.className,
-                computedZIndex: getComputedStyle(e.currentTarget).zIndex,
-                styleZIndex: e.currentTarget.style.zIndex,
-                position: {
-                  left: e.currentTarget.style.left,
-                  top: e.currentTarget.style.top,
-                  width: e.currentTarget.style.width,
-                  height: e.currentTarget.style.height
-                }
-              },
+              zIndex: e.currentTarget.style.zIndex || 'from-style-object',
+              computedZIndex: getComputedStyle(e.currentTarget).zIndex,
+              elementsBehind: document.elementsFromPoint(e.clientX, e.clientY).slice(0, 5).map(el => ({
+                tagName: el.tagName,
+                className: el.className,
+                zIndex: getComputedStyle(el).zIndex
+              })),
               pointerInfo: {
                 clientX: e.clientX,
                 clientY: e.clientY,
                 pointerId: e.pointerId,
-                target: e.target === e.currentTarget ? 'SAME' : 'DIFFERENT',
                 timestamp: Date.now()
               }
             });
@@ -412,26 +406,20 @@ export const WaveformUI = memo(({
       {shouldRenderEndHandle && (
         <div
           className="absolute"
-          style={endHandleStyle}
-          onPointerDown={(e) => {
+          style={endHandleStyle}          onPointerDown={(e) => {
             console.log('🟪🟪🟪 MAIN END HANDLE - POINTER DOWN:', {
               handleType: 'end',
-              elementInfo: {
-                className: e.currentTarget.className,
-                computedZIndex: getComputedStyle(e.currentTarget).zIndex,
-                styleZIndex: e.currentTarget.style.zIndex,
-                position: {
-                  left: e.currentTarget.style.left,
-                  top: e.currentTarget.style.top,
-                  width: e.currentTarget.style.width,
-                  height: e.currentTarget.style.height
-                }
-              },
+              zIndex: e.currentTarget.style.zIndex || 'from-style-object',
+              computedZIndex: getComputedStyle(e.currentTarget).zIndex,
+              elementsBehind: document.elementsFromPoint(e.clientX, e.clientY).slice(0, 5).map(el => ({
+                tagName: el.tagName,
+                className: el.className,
+                zIndex: getComputedStyle(el).zIndex
+              })),
               pointerInfo: {
                 clientX: e.clientX,
                 clientY: e.clientY,
                 pointerId: e.pointerId,
-                target: e.target === e.currentTarget ? 'SAME' : 'DIFFERENT',
                 timestamp: Date.now()
               }
             });
@@ -452,45 +440,119 @@ export const WaveformUI = memo(({
       )}      {/* 🖱️ **HOVER LINE** - Disabled during playback for performance */}
       {shouldRenderHoverLine && (
         <div className="absolute" style={hoverLineStyle} />
-      )}      {/* 🆕 **REGION BACKGROUNDS** - Simple clickable areas */}      {regionPositions.map(region => {
-        // 🚫 **VALIDATION**: Skip invalid regions first
+      )}      {/* 🆕 **REGION BACKGROUNDS** - Smart clickable areas avoiding main handles */}
+      {regionPositions.map(region => {
+        // 🔍 **VALIDATION**: Skip invalid regions
         if (!region?.startHandle || !region?.endHandle) {
-          return null; // Skip regions without proper handle data
+          return null;
         }
         
-        const regionStartX = region.startHandle.x;
-        const regionStartWidth = region.startHandle.width;
-        const regionEndX = region.endHandle.x;
+        // 🎯 **SMART AREA CALCULATION**: Avoid main handle overlap
+        const regionLeft = region.startHandle.x + region.startHandle.width;
+        const regionRight = region.endHandle.x;
+        const regionWidth = regionRight - regionLeft;
         
-        // 🚫 **VALIDATION**: Skip regions where start handle overlaps or comes after end handle
-        if (regionStartX + regionStartWidth >= regionEndX) {
-          return null; // Skip invalid/inverted regions
+        // Skip if too narrow
+        if (regionWidth <= 10) {
+          return null;
         }
         
-        // 🔧 **CRITICAL FIX**: Prevent region background from overlapping with main handles
-        const mainStartEnd = handlePositions?.start?.x + handlePositions?.start?.width || 0;
-        const mainEndStart = handlePositions?.end?.x || 1000000; // Large number if no end handle
+        // 🚀 **CRITICAL FIX**: Cut out main handle areas to prevent event blocking
+        const mainStartX = handlePositions?.start?.x || -1000;
+        const mainStartWidth = handlePositions?.start?.width || 0;
+        const mainEndX = handlePositions?.end?.x || -1000;
+        const mainEndWidth = handlePositions?.end?.width || 0;
         
-        // Background should span from end of region start handle to start of region end handle
-        const regionBackgroundLeft = regionStartX + regionStartWidth;
-        const regionBackgroundRight = regionEndX;
+        // Check if main handles overlap with this region background
+        const mainStartOverlaps = mainStartX < regionRight && (mainStartX + mainStartWidth) > regionLeft;
+        const mainEndOverlaps = mainEndX < regionRight && (mainEndX + mainEndWidth) > regionLeft;
         
-        // 🚀 **SMART TRIMMING**: Cut out main handle areas from region background
-        const backgroundLeft = Math.max(regionBackgroundLeft, mainStartEnd + 5); // 5px buffer after main start
-        const backgroundRight = Math.min(regionBackgroundRight, mainEndStart - 5); // 5px buffer before main end
-        const regionWidth = Math.max(0, backgroundRight - backgroundLeft); // Ensure positive width
-        
-        // 🚫 Skip rendering if region background would be too small
-        if (regionWidth < 10) {
-          return null; // Silently skip small regions
+        // If main handles overlap, we need to split the region background
+        if (mainStartOverlaps || mainEndOverlaps) {
+          // Split into multiple segments avoiding main handles
+          const segments = [];
+          
+          // Segment 1: From region start to first main handle (if any)
+          if (mainStartOverlaps && regionLeft < mainStartX) {
+            const segmentWidth = mainStartX - regionLeft - 2; // 2px buffer
+            if (segmentWidth > 5) {
+              segments.push({
+                left: regionLeft,
+                width: segmentWidth,
+                key: `${region.id}-seg1`
+              });
+            }
+          }
+          
+          // Segment 2: Between main handles (if both exist and don't overlap)
+          if (mainStartOverlaps && mainEndOverlaps && (mainStartX + mainStartWidth + 4) < mainEndX) {
+            const segmentLeft = mainStartX + mainStartWidth + 2;
+            const segmentWidth = mainEndX - segmentLeft - 2;
+            if (segmentWidth > 5) {
+              segments.push({
+                left: segmentLeft,
+                width: segmentWidth,
+                key: `${region.id}-seg2`
+              });
+            }
+          }
+          
+          // Segment 3: After last main handle to region end
+          if (mainEndOverlaps && (mainEndX + mainEndWidth + 2) < regionRight) {
+            const segmentLeft = mainEndX + mainEndWidth + 2;
+            const segmentWidth = regionRight - segmentLeft;
+            if (segmentWidth > 5) {
+              segments.push({
+                left: segmentLeft,
+                width: segmentWidth,
+                key: `${region.id}-seg3`
+              });
+            }
+          }
+          
+          // If no segments viable, skip this region background
+          if (segments.length === 0) {
+            return null;
+          }
+          
+          // Render multiple segments
+          return segments.map(segment => (
+            <div
+              key={segment.key}
+              className="absolute"
+              style={{
+                left: `${segment.left}px`,
+                top: `${region.startHandle.y}px`,
+                width: `${segment.width}px`,
+                height: `${region.startHandle.height}px`,
+                zIndex: 15,
+                backgroundColor: 'transparent',
+                cursor: 'pointer'
+              }}
+              onPointerDown={(e) => {
+                console.log('🟢 REGION SEGMENT CLICKED:', {
+                  regionId: region.id,
+                  segmentKey: segment.key,
+                  isActive: region.isActive
+                });
+                
+                e.preventDefault();
+                e.stopPropagation();
+                
+                if (!region.isActive) {
+                  onRegionClick?.(region.id, null);
+                }              }}
+            />
+          ));
         }
         
+        // 🎯 **NO OVERLAP CASE**: Render single region background
         return (
           <div
             key={`bg-${region.id}`}
             className="absolute"
             style={{
-              left: `${backgroundLeft}px`,
+              left: `${regionLeft}px`,
               top: `${region.startHandle.y}px`,
               width: `${regionWidth}px`,
               height: `${region.startHandle.height}px`,
@@ -499,14 +561,10 @@ export const WaveformUI = memo(({
               cursor: 'pointer'
             }}
             onPointerEnter={(e) => {
-              if (updateHoverTooltip) {
-                updateHoverTooltip(e);
-              }
+              updateHoverTooltip?.(e);
             }}
             onPointerMove={(e) => {
-              if (updateHoverTooltip) {
-                updateHoverTooltip(e);
-              }
+              updateHoverTooltip?.(e);
               
               if (pointerDownPositionRef.current && !hasDraggedRef.current) {
                 const dragDistance = Math.sqrt(
@@ -523,15 +581,14 @@ export const WaveformUI = memo(({
               onRegionBodyMove?.(region.id, e);
             }}
             onPointerLeave={(e) => {
-              if (clearHoverTooltip) {
-                clearHoverTooltip();
-              }
+              clearHoverTooltip?.();
             }}
             onPointerDown={(e) => {
               console.log('🟢 REGION BACKGROUND CLICKED:', {
                 regionId: region.id,
                 regionName: region.name,
-                isActive: region.isActive
+                isActive: region.isActive,
+                mainHandlesOverlap: false
               });
               
               e.preventDefault();
@@ -540,16 +597,14 @@ export const WaveformUI = memo(({
               pointerDownPositionRef.current = { x: e.clientX, y: e.clientY };
               hasDraggedRef.current = false;
               
-              // Calculate click position as time
-              const rect = e.currentTarget.getBoundingClientRect();
-              const clickX = e.clientX - rect.left;
-              const clickRatio = clickX / rect.width;
-              const clickTime = region.startTime + (region.endTime - region.startTime) * clickRatio;
-              
               if (!region.isActive) {
-                console.log('🎯 Immediate region activation:', region.id);
                 onRegionClick?.(region.id, null);
               } else {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const clickX = e.clientX - rect.left;
+                const clickRatio = clickX / rect.width;
+                const clickTime = region.startTime + (region.endTime - region.startTime) * clickRatio;
+                
                 pendingRegionClickRef.current = {
                   regionId: region.id,
                   clickTime: clickTime
