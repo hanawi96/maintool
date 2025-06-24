@@ -87,11 +87,11 @@ export class InteractionManager {
     this.canvasWidth = 0;
     this.audioDuration = 0;
     this.audioContext = null;
-    this.onGlobalDragUpdate = null;
-    this.debugId = Math.random().toString(36).substring(2, 8);
+    this.onGlobalDragUpdate = null;    this.debugId = Math.random().toString(36).substring(2, 8);
 
-    // 🆕 Collision detection function
+    // 🆕 Collision detection functions
     this.collisionDetectionFn = null;
+    this.regionCollisionDetectionFn = null;
 
     // Event listeners (only bind once)
     this._bindedMouseUp = this._onGlobalMouseUp.bind(this);
@@ -506,22 +506,26 @@ export class InteractionManager {
   setAudioSyncEnabled(enabled) { this.audioSyncManager?.setEnabled(enabled); }
   getAudioSyncDebugInfo() { return this.audioSyncManager?.getDebugInfo() || null; }
   getSmartClickDebugInfo() { return this.smartClickManager?.getDebugInfo() || null; }
-  
-  // 🆕 Set collision detection function
+    // 🆕 Set collision detection function
   setCollisionDetection(fn) { this.collisionDetectionFn = fn; }
   
-  // 🆕 Helper method to calculate region body collision boundaries
+  // 🆕 Set region collision detection function for enhanced region body dragging
+  setRegionCollisionDetection(fn) { this.regionCollisionDetectionFn = fn; }
+    // 🆕 Helper method to calculate region body collision boundaries
   _getRegionBodyBoundaries(newStart, newEnd, currentStart, currentEnd) {
-    if (!this.collisionDetectionFn) {
+    // 🎯 Use region-specific collision detection if available, fallback to main collision detection
+    const collisionFn = this.regionCollisionDetectionFn || this.collisionDetectionFn;
+    
+    if (!collisionFn) {
       return { minStart: 0, maxEnd: Infinity };
     }
     
     // For region body movement, we need to check collision for the entire region
     // Check what the safe start position would be
-    const safeStart = this.collisionDetectionFn('start', newStart, currentStart, currentEnd);
+    const safeStart = collisionFn('start', newStart, currentStart, currentEnd);
     
     // Check what the safe end position would be  
-    const safeEnd = this.collisionDetectionFn('end', newEnd, currentStart, currentEnd);
+    const safeEnd = collisionFn('end', newEnd, currentStart, currentEnd);
     
     // Calculate the boundaries for the entire region movement
     // If start is constrained, the entire region should respect that constraint

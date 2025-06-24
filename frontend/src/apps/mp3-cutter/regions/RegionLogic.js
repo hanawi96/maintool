@@ -5,11 +5,11 @@ export const useRegionCalculations = (regions, startTime, endTime, duration, can
   // Memoized minimum handle gap calculation
   const minimumHandleGap = useMemo(() => {
     if (!canvasRef.current || duration <= 0) return 0;
-    
-    const canvas = canvasRef.current;
+      const canvas = canvasRef.current;
     const canvasWidth = canvas.offsetWidth || 800;
     const handleW = canvasWidth < 640 ? Math.max(3, 8 * 0.75) : 8;
-    const requiredPixelGap = handleW + 2;
+    // 🎯 ENHANCED: Add extra 4px buffer to prevent handle overlap (total: handle width + 4px + 2px)
+    const requiredPixelGap = handleW + 4 + 2;
     return (requiredPixelGap / canvasWidth) * duration;
   }, [canvasRef, duration]);
 
@@ -102,28 +102,43 @@ export const useRegionCalculations = (regions, startTime, endTime, duration, can
   };
 };
 
-// 🚀 Custom hook for collision detection - Optimized
-export const useCollisionDetection = (handleEdgePositions, duration) => {
+// 🚀 Custom hook for collision detection - Optimized with handle buffer
+export const useCollisionDetection = (handleEdgePositions, duration, canvasWidth = 800) => {
   return useCallback((targetType, targetRegionId, handleType, newTime, currentStartTime, currentEndTime) => {
     let minBoundary = 0;
     let maxBoundary = duration;
+      // Calculate handle buffer in time units to prevent overlap
+    const getResponsiveHandleWidth = (width) =>
+      width < 640 // MOBILE_BREAKPOINT
+        ? Math.max(3, 8 * 0.75) // 6px on mobile
+        : 8; // 8px on desktop
+    
+    const handleWidthPx = getResponsiveHandleWidth(canvasWidth);
+    const waveformAreaWidth = canvasWidth - 2 * handleWidthPx;
+    // 🎯 ENHANCED: Add extra 4px buffer to prevent handle overlap (total: handle width + 4px)
+    const totalBufferPx = handleWidthPx + 4;
+    const handleBufferTime = waveformAreaWidth > 0 ? (totalBufferPx / waveformAreaWidth) * duration : 0.01;
     
     for (const edge of handleEdgePositions) {
       if (edge.regionId === targetRegionId) continue;
       
       if (handleType === 'start') {
         if (edge.position > newTime && edge.position < maxBoundary) {
-          maxBoundary = edge.position;
+          // Add buffer to prevent handle overlap
+          maxBoundary = Math.max(0, edge.position - handleBufferTime);
         }
         if (edge.position <= newTime && edge.position > minBoundary) {
-          minBoundary = edge.position;
+          // Add buffer to prevent handle overlap
+          minBoundary = Math.min(duration, edge.position + handleBufferTime);
         }
       } else {
         if (edge.position < newTime && edge.position > minBoundary) {
-          minBoundary = edge.position;
+          // Add buffer to prevent handle overlap
+          minBoundary = Math.min(duration, edge.position + handleBufferTime);
         }
         if (edge.position >= newTime && edge.position < maxBoundary) {
-          maxBoundary = edge.position;
+          // Add buffer to prevent handle overlap
+          maxBoundary = Math.max(0, edge.position - handleBufferTime);
         }
       }
     }
@@ -135,5 +150,5 @@ export const useCollisionDetection = (handleEdgePositions, duration) => {
     }
     
     return { min: minBoundary, max: maxBoundary };
-  }, [handleEdgePositions, duration]);
-}; 
+  }, [handleEdgePositions, duration, canvasWidth]);
+};

@@ -516,10 +516,19 @@ const MP3CutterMain = React.memo(() => {
     if (!interactionManagerRef.current) {
       interactionManagerRef.current = createInteractionManager();
     }
-    
-    if (interactionManagerRef.current) {
+      if (interactionManagerRef.current) {
       interactionManagerRef.current.setCollisionDetection((handleType, newTime, currentStartTime, currentEndTime) => {
+        // 🎯 For main selection, use main selection boundaries
         const boundaries = getMainSelectionBoundaries(handleType, currentStartTime, currentEndTime);
+        return Math.max(boundaries.min, Math.min(newTime, boundaries.max));
+      });
+        // 🆕 Set region collision detection function for region body dragging
+      // This function has a different signature than main selection collision detection
+      interactionManagerRef.current.setRegionCollisionDetection?.((handleType, newTime, currentStartTime, currentEndTime) => {
+        // For region body dragging, we need to identify which region is being moved
+        // Since InteractionManager doesn't know which region, we'll use a generic approach
+        // that applies the +4px buffer to any collision detection for region body movement
+        const boundaries = getEnhancedCollisionBoundaries('region', 'body', handleType, newTime, currentStartTime, currentEndTime);
         return Math.max(boundaries.min, Math.min(newTime, boundaries.max));
       });
     }
@@ -528,10 +537,9 @@ const MP3CutterMain = React.memo(() => {
       import('../utils/audioSyncManager').then(({ createAudioSyncManager }) => {
         regionAudioSyncManager.current = createAudioSyncManager();
       });
-    }
-    
+    }    
     return cleanupTimeHandlers;
-  }, [cleanupTimeHandlers, getMainSelectionBoundaries]);
+  }, [cleanupTimeHandlers, getMainSelectionBoundaries, getEnhancedCollisionBoundaries]);
 
   // Initialize compatibility report
   useEffect(() => {
