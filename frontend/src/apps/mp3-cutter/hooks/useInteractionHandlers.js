@@ -44,7 +44,8 @@ export const useInteractionHandlers = ({
   audioContext,
   regions = [],
   activeRegionId = null,
-  onRegionUpdate = null
+  onRegionUpdate = null,
+  getRegionBoundaries = null
 }) => {
   const cachedRectRef = useRef(null);
   const rafIdRef = useRef(null);
@@ -247,16 +248,43 @@ export const useInteractionHandlers = ({
               // 🔧 Calculate safe boundary for endpoint jumping
               let newTime = mouseUpTime;
               let updateType = null;
-              
-              if (isBeforeStart) {
+                if (isBeforeStart) {
                 // Mouse up before active region start - move start point to mouse up position
-                newTime = Math.max(0, Math.min(mouseUpTime, regionEnd - 0.1));
                 updateType = 'start';
+                
+                // 🆕 Apply collision detection for region start handle
+                if (activeRegionId === 'main') {
+                  // Main selection uses existing boundary logic
+                  newTime = Math.max(0, Math.min(mouseUpTime, regionEnd - 0.1));
+                } else {
+                  // Region uses collision detection
+                  const boundaries = getRegionBoundaries?.(activeRegionId, 'start') || { min: 0, max: regionEnd - 0.1 };
+                  newTime = Math.max(boundaries.min, Math.min(mouseUpTime, boundaries.max));
+                  console.log('🎯🔧 Region START collision check (drag):', {
+                    mouseUpTime: mouseUpTime.toFixed(2),
+                    boundaries: { min: boundaries.min.toFixed(2), max: boundaries.max.toFixed(2) },
+                    finalTime: newTime.toFixed(2)
+                  });
+                }
                 console.log('🎯 Drag ended BEFORE active region start - applying endpoint jumping to move start point');
               } else if (isAfterEnd) {
                 // Mouse up after active region end - move end point to mouse up position
-                newTime = Math.max(regionStart + 0.1, Math.min(mouseUpTime, duration));
                 updateType = 'end';
+                
+                // 🆕 Apply collision detection for region end handle
+                if (activeRegionId === 'main') {
+                  // Main selection uses existing boundary logic
+                  newTime = Math.max(regionStart + 0.1, Math.min(mouseUpTime, duration));
+                } else {
+                  // Region uses collision detection
+                  const boundaries = getRegionBoundaries?.(activeRegionId, 'end') || { min: regionStart + 0.1, max: duration };
+                  newTime = Math.max(boundaries.min, Math.min(mouseUpTime, boundaries.max));
+                  console.log('🎯🔧 Region END collision check (drag):', {
+                    mouseUpTime: mouseUpTime.toFixed(2),
+                    boundaries: { min: boundaries.min.toFixed(2), max: boundaries.max.toFixed(2) },
+                    finalTime: newTime.toFixed(2)
+                  });
+                }
                 console.log('🎯 Drag ended AFTER active region end - applying endpoint jumping to move end point');
               }
               
@@ -477,16 +505,43 @@ export const useInteractionHandlers = ({
             // 🔧 Calculate safe boundary for endpoint jumping
             let newTime = clickTime;
             let updateType = null;
-            
-            if (isBeforeStart) {
+              if (isBeforeStart) {
               // Click before active region start - move start point to click position
-              newTime = Math.max(0, Math.min(clickTime, regionEnd - 0.1));
               updateType = 'start';
+              
+              // 🆕 Apply collision detection for region start handle
+              if (activeRegionId === 'main') {
+                // Main selection uses existing boundary logic
+                newTime = Math.max(0, Math.min(clickTime, regionEnd - 0.1));
+              } else {
+                // Region uses collision detection
+                const boundaries = getRegionBoundaries?.(activeRegionId, 'start') || { min: 0, max: regionEnd - 0.1 };
+                newTime = Math.max(boundaries.min, Math.min(clickTime, boundaries.max));
+                console.log('🎯🔧 Region START collision check (click):', {
+                  clickTime: clickTime.toFixed(2),
+                  boundaries: { min: boundaries.min.toFixed(2), max: boundaries.max.toFixed(2) },
+                  finalTime: newTime.toFixed(2)
+                });
+              }
               console.log('🎯 Click BEFORE active region start - applying endpoint jumping to move start point');
             } else if (isAfterEnd) {
               // Click after active region end - move end point to click position
-              newTime = Math.max(regionStart + 0.1, Math.min(clickTime, duration));
               updateType = 'end';
+              
+              // 🆕 Apply collision detection for region end handle
+              if (activeRegionId === 'main') {
+                // Main selection uses existing boundary logic
+                newTime = Math.max(regionStart + 0.1, Math.min(clickTime, duration));
+              } else {
+                // Region uses collision detection
+                const boundaries = getRegionBoundaries?.(activeRegionId, 'end') || { min: regionStart + 0.1, max: duration };
+                newTime = Math.max(boundaries.min, Math.min(clickTime, boundaries.max));
+                console.log('🎯🔧 Region END collision check (click):', {
+                  clickTime: clickTime.toFixed(2),
+                  boundaries: { min: boundaries.min.toFixed(2), max: boundaries.max.toFixed(2) },
+                  finalTime: newTime.toFixed(2)
+                });
+              }
               console.log('🎯 Click AFTER active region end - applying endpoint jumping to move end point');
             } else {
               // Click within active region - just jump cursor
