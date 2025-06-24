@@ -164,11 +164,12 @@ const WaveformCanvas = React.memo(({
     hoverTooltip,
     handleTooltips: handleTooltipsData,
     mainCursorTooltip,
+    regionDurationTooltips,
     updateHoverTooltip,
     clearHoverTooltip
   } = useOptimizedTooltip(
     canvasRef, duration, currentTime, isPlaying,
-    audioRef, startTime, endTime, hoveredHandle, isDragging, isInverted, draggingRegion
+    audioRef, startTime, endTime, hoveredHandle, isDragging, isInverted, draggingRegion, regions
   );
   const { updateCursor } = useWaveformCursor(canvasRef, duration, startTime, endTime, isDragging);
   const {
@@ -873,6 +874,7 @@ const WaveformCanvas = React.memo(({
           hoverTooltip={hoverTooltip}
           handleTooltips={handleTooltipsData}
           mainCursorTooltip={mainCursorTooltip}
+          regionDurationTooltips={regionDurationTooltips}
           handlePositions={handlePositions}
           cursorPositions={cursorPositions}          // 🆕 Region props
           regionPositions={regionPositions}

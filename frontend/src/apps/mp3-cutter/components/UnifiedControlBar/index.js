@@ -76,17 +76,7 @@ const UnifiedControlBar = React.memo(({
     return getCurrentPitchValues ? getCurrentPitchValues().pitch : pitch;
   }, [getCurrentPitchValues, pitch]);
   
-  // 🔧 Debug log for region switch
-  useEffect(() => {
-    console.log('🎛️ [UnifiedControlBar] Values for visual indicators:', {
-      activeRegionId: activeRegionId || 'main',
-      currentFadeValues,
-      currentVolumeValue,
-      currentSpeedValue,
-      currentPitchValue,
-      mainValues: { fadeIn, fadeOut, volume, playbackRate, pitch }
-    });
-  }, [activeRegionId, currentFadeValues, currentVolumeValue, currentSpeedValue, currentPitchValue, fadeIn, fadeOut, volume, playbackRate, pitch]);// 🆕 Region management logic
+  // 🆕 Region management logic
   const canAddRegion = canAddNewRegion && !!onAddRegion; // 🆕 Now depends on available spaces
   
   // 🔧 Calculate total deletable items (regions + main selection when exists)
@@ -100,7 +90,10 @@ const UnifiedControlBar = React.memo(({
   const isMainRegionActive = activeRegionId === 'main';
   const canDeleteRegion = !disabled && totalDeletableItems > 1 && onDeleteRegion && !isMainRegionActive;
   const canClearAllRegions = !disabled && regions.length >= 2 && onClearAllRegions;
-
+  
+  // 🆕 Play All logic - Only active when has at least 1 region
+  const canPlayAllRegions = !disabled && regions.length > 0 && onPlayAllRegions;
+  
   // Auto-return logic
   const toggleAutoReturn = useCallback(() => {
     setAutoReturnEnabled(v => {
@@ -456,18 +449,22 @@ const UnifiedControlBar = React.memo(({
             )}
           </button>
 
-          {/* 🆕 15. Play All Items - Always show, border only when regions exist */}
+          {/* 🆕 15. Play All Items - Active only when has regions */}
           <button
             onClick={onPlayAllRegions}
-            disabled={disabled}
+            disabled={!canPlayAllRegions}
             className={`relative p-2 rounded-lg group transition-all duration-100 ${
-              regions.length > 0 
+              canPlayAllRegions
                 ? 'bg-gradient-to-r from-purple-100 to-indigo-100 hover:from-purple-200 hover:to-indigo-200 border border-purple-300 hover:border-purple-400 shadow-sm hover:shadow-md'
-                : 'bg-slate-100 hover:bg-slate-200'
+                : 'bg-slate-100 opacity-50 cursor-not-allowed'
             }`}
-            title={`🎵 PLAY ALL ITEMS (${regions.length} regions) - Play main selection + regions in sequence`}>
-            <PlayCircle className={`w-4 h-4 ${regions.length > 0 ? 'text-purple-700 group-hover:text-purple-800' : 'text-slate-700 group-hover:text-slate-900'}`} />
-            {regions.length > 0 && (
+            title={
+              canPlayAllRegions 
+                ? `🎵 PLAY ALL ITEMS (${regions.length} regions) - Play main selection + regions in sequence`
+                : `🎵 PLAY ALL ITEMS - Need at least 1 region to play all (currently: ${regions.length} regions)`
+            }>
+            <PlayCircle className={`w-4 h-4 ${canPlayAllRegions ? 'text-purple-700 group-hover:text-purple-800' : 'text-slate-500'}`} />
+            {canPlayAllRegions && (
               <span className="absolute -top-2 -right-1 bg-purple-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center text-[8px] font-semibold">
                 {regions.length}
               </span>

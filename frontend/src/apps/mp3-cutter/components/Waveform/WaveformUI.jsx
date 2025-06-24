@@ -69,6 +69,7 @@ export const WaveformUI = memo(({
   hoverTooltip,
   handleTooltips,
   mainCursorTooltip,
+  regionDurationTooltips = [],
   handlePositions,
   cursorPositions,
   // 🆕 Region props
@@ -313,6 +314,22 @@ export const WaveformUI = memo(({
           {handleTooltips.selectionDuration.formattedTime}
         </div>
       )}
+
+      {/* 🆕 📏 **REGION DURATION TOOLTIPS** - Identical to main selection duration */}
+      {regionDurationTooltips.map(regionTooltip => (
+        <div
+          key={`region-duration-${regionTooltip.id}`}
+          className="absolute pointer-events-none z-50 waveform-tooltip-custom"
+          style={{
+            ...TOOLTIP_STYLES.base,
+            ...TOOLTIP_STYLES.tooltip,
+            left: `${regionTooltip.x}px`,
+            top: `${WAVEFORM_HEIGHT + TOOLTIP_OFFSETS.DURATION}px`
+          }}
+        >
+          {regionTooltip.formattedTime}
+        </div>
+      ))}
 
       {/* 🔵 **MAIN CURSOR TOOLTIP** - Always visible for playback feedback */}
       {shouldRenderMainCursorTooltip && (

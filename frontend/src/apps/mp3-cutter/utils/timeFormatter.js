@@ -12,15 +12,36 @@ const pad = (n, l = 2) => n.toString().padStart(l, '0');
 function coreFormatTime(time, mode = 'cs') {
   if (typeof time !== 'number' || isNaN(time)) return '00:00';
 
-  const minutes = Math.floor(time / 60);
-  const seconds = Math.floor(time % 60);
-  const ms = Math.floor((time % 1) * 1000);
-  const cs = Math.round((time % 1) * 10) * 10; // 0-90 (steps 10)
+  const totalSeconds = Math.floor(time);
+  const decimal = time - totalSeconds;
   
-  if (mode === 'ms')
+  let minutes = Math.floor(totalSeconds / 60);
+  let seconds = totalSeconds % 60;
+  
+  // 🔧 FIXED: Proper centiseconds calculation
+  let centiseconds = Math.round(decimal * 10);
+  
+  // 🔧 CRITICAL FIX: Handle centiseconds overflow
+  if (centiseconds >= 10) {
+    seconds += 1;
+    centiseconds = 0;
+    
+    // Handle seconds overflow
+    if (seconds >= 60) {
+      minutes += 1;
+      seconds = 0;
+    }
+  }
+  
+  if (mode === 'ms') {
+    const ms = Math.floor(decimal * 1000);
     return `${pad(minutes)}:${pad(seconds)}.${pad(ms,3)}`;
-  if (mode === 'cs')
-    return `${pad(minutes)}.${pad(seconds)}.${pad(cs)}`;
+  }
+  
+  if (mode === 'cs') {
+    return `${pad(minutes)}.${pad(seconds)}.${centiseconds}`;
+  }
+  
   // legacy
   return `${pad(minutes)}:${pad(seconds)}`;
 }

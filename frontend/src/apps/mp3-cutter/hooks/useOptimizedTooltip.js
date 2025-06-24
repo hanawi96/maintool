@@ -23,7 +23,7 @@ const clampTooltipX = (x, start, end, type = 'default') => {
 };
 
 export const useOptimizedTooltip = (
-  canvasRef, duration, currentTime, isPlaying, audioRef, startTime, endTime, hoveredHandle, isDragging, isInverted = false, draggingRegion = null
+  canvasRef, duration, currentTime, isPlaying, audioRef, startTime, endTime, hoveredHandle, isDragging, isInverted = false, draggingRegion = null, regions = []
 ) => {
   const [hoverPos, setHoverPos] = useState(null);
   const [isHoverActive, setIsHoverActive] = useState(false);
@@ -61,6 +61,38 @@ export const useOptimizedTooltip = (
       } : null
     };
   }, [canvasRef, duration, startTime, endTime, formatTime, getCanvasWidth]);
+
+  // 🆕 Calculate region duration tooltips - IDENTICAL logic to main selection
+  const calcRegionDurations = useCallback(() => {
+    const canvas = canvasRef?.current;
+    if (!canvas || !duration || !regions?.length) return [];
+    
+    const canvasWidth = getCanvasWidth(canvas);
+    const { startX, endX, areaWidth } = getWaveformArea(canvasWidth);
+    
+    const tooltips = regions.map(region => {
+      const regionDuration = region.end - region.start;
+      const regionStartX = startX + (region.start / duration) * areaWidth;
+      const regionEndX = startX + (region.end / duration) * areaWidth;
+      const regionMidX = (regionStartX + regionEndX) / 2;
+      const regionPx = Math.abs(regionEndX - regionStartX);
+      
+      // 🎯 IDENTICAL condition to main selection
+      const showDuration = regionDuration >= 0.1 && regionPx >= DURATION_TOOLTIP.MIN_REGION_WIDTH;
+      
+      return showDuration ? {
+        id: region.id,
+        visible: true,
+        x: clampTooltipX(regionMidX, startX, endX, 'center'),
+        duration: regionDuration,
+        formattedTime: formatTime(regionDuration),
+        regionName: region.name
+      } : null;
+    }).filter(Boolean); // Remove null entries
+    
+    return tooltips;
+  }, [canvasRef, duration, regions, formatTime, getCanvasWidth]);
+
   const calcHover = useCallback(() => {
     if (!isHoverActive || !hoverPos || !canvasRef?.current || !duration ||
         ['start', 'end', 'region', 'region-potential'].includes(isDragging) ||
@@ -105,12 +137,14 @@ export const useOptimizedTooltip = (
   const mainCursorTooltip = useMemo(() => calcMainCursor(), [calcMainCursor]);
   const handleTooltips = useMemo(() => calcHandle(), [calcHandle]);
   const hoverTooltip = useMemo(() => calcHover(), [calcHover]);
+  const regionDurationTooltips = useMemo(() => calcRegionDurations(), [calcRegionDurations]);
 
   return useMemo(() => ({
     hoverTooltip,
     handleTooltips,
     mainCursorTooltip,
+    regionDurationTooltips,
     updateHoverTooltip,
     clearHoverTooltip
-  }), [hoverTooltip, handleTooltips, mainCursorTooltip, updateHoverTooltip, clearHoverTooltip]);
+  }), [hoverTooltip, handleTooltips, mainCursorTooltip, regionDurationTooltips, updateHoverTooltip, clearHoverTooltip]);
 };
