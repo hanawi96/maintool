@@ -173,9 +173,7 @@ const MP3CutterMain = React.memo(() => {
     handleStartTimeChange: t => (enhancedHandlersRef.current.handleStartTimeChange ? enhancedHandlersRef.current.handleStartTimeChange(t) : setStartTime(t)),
     handleEndTimeChange: t => (enhancedHandlersRef.current.handleEndTimeChange ? enhancedHandlersRef.current.handleEndTimeChange(t) : setEndTime(t)),
     jumpToTime, saveState, saveHistoryNow, historySavedRef, interactionManagerRef, audioContext,
-    regions, activeRegionId,
-    getRegionBoundaries, // 🆕 Add collision detection for regions
-    onRegionUpdate: (regionId, newStart, newEnd) => {
+    regions, activeRegionId,    onRegionUpdate: (regionId, newStart, newEnd) => {
       const updatedRegions = regions.map(r => r.id === regionId ? { ...r, start: newStart, end: newEnd } : r);
       dispatch({ 
         type: 'SET_REGIONS', 
