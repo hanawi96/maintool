@@ -23,9 +23,7 @@ const PitchSliderPopup = ({
   const [pitchBackup, setPitchBackup] = useState({});
     // 🔧 CRITICAL FIX: Reset all "apply to all" states when activeRegionId changes
   useEffect(() => {
-    console.log(`🔄 Pitch region changed, resetting apply-to-all states:`, {
-      newActiveRegion: activeRegionId || 'main'
-    });
+
     setApplyToAllState({});
     setPitchBackup({});
   }, [activeRegionId]);

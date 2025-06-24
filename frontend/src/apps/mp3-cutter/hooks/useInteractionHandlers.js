@@ -154,7 +154,6 @@ export const useInteractionHandlers = ({
       const boundsCheck = x >= 0 && x <= (canvasRef.current.width || 800);
       if (dragDistance > 3 && boundsCheck) { // 3px threshold for drag detection
         hasDraggedRef.current = true;
-        console.log('🔄 Real drag detected, distance:', dragDistance, 'bounds check:', boundsCheck);
       }
     }
     

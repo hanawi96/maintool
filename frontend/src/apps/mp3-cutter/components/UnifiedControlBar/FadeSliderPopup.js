@@ -50,9 +50,7 @@ const FadeSliderPopup = ({
     return applyToAllState[key] || false;
   }, [applyToAllState, activeRegionId, type]);  // 🔧 CRITICAL FIX: Reset all "apply to all" states when activeRegionId changes
   useEffect(() => {
-    console.log(`🔄 Fade region changed, resetting apply-to-all states:`, {
-      newActiveRegion: activeRegionId || 'main'
-    });
+
     setApplyToAllState({});
     setFadeBackup({});
   }, [activeRegionId]);

@@ -28,31 +28,18 @@ export const useTimeChangeHandlers = ({
     // 🔧 Check if we're in a hold operation using global flag
     const isInHoldOperation = window._isCompactTimeSelectorHolding || false;
     
-    console.log('⏰ useTimeChangeHandlers.handleStartTimeChange called:', {
-      newTime: newTime.toFixed(3),
-      clampedTime: clampedTime.toFixed(3),
-      currentStartTime: startTime.toFixed(3),
-      isDragging,
-      historySavedBefore: historySavedRef?.current,
-      isInHoldOperation,
-      globalFlag: window._isCompactTimeSelectorHolding,
-      timestamp: Date.now()
-    });
-    
+
     setStartTime(clampedTime);
     
     // 🔧 CRITICAL FIX: Don't reset historySavedRef during hold operations
     if (!isInHoldOperation && historySavedRef) {
       historySavedRef.current = false;
-      console.log('🔄 useTimeChangeHandlers: Reset historySavedRef to false (non-hold operation)');
     } else if (isInHoldOperation) {
-      console.log('🔄 useTimeChangeHandlers: Keeping historySavedRef unchanged (hold operation detected)');
     }
     
     // 🔧 CRITICAL FIX: Save history immediately for discrete clicks, debounce only for drag
     if (isDragging) {
       // During drag: use debouncing
-      console.log('⏰ useTimeChangeHandlers: Using debounce for drag operation');
       if (startTimeoutRef.current) {
         clearTimeout(startTimeoutRef.current);
       }
@@ -109,7 +96,6 @@ export const useTimeChangeHandlers = ({
     // 🔧 CRITICAL FIX: Save history immediately for discrete clicks, debounce only for drag
     if (isDragging) {
       // During drag: use debouncing
-      console.log('⏰ useTimeChangeHandlers: Using debounce for drag operation');
       if (endTimeoutRef.current) {
         clearTimeout(endTimeoutRef.current);
       }

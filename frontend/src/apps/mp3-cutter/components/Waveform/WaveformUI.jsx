@@ -34,7 +34,7 @@ const HANDLE_STYLES = {
   base: {
     position: 'absolute',
     pointerEvents: 'auto',
-    zIndex: 40,
+    zIndex: 45, // 🔧 **HIGHER Z-INDEX**: Main selection handles above region handles (40)
     cursor: 'ew-resize',
     display: 'flex',
     flexDirection: 'column',
@@ -120,14 +120,18 @@ export const WaveformUI = memo(({
   const shouldRenderEndHandle = handlePositions?.end?.visible && handlePositions.end.x >= 0;
   const shouldRenderMainCursor = cursorPositions?.mainCursor?.visible && cursorPositions.mainCursor.x >= 0;
   const shouldRenderHoverLine = enableHoverEffects && cursorPositions?.hoverLine?.visible && cursorPositions.hoverLine.x >= 0;
-
   // 🚀 **PHASE 3: EVENT HANDLER OPTIMIZATION** - Memoized handlers updated for Pointer Events
   const createHandlePointerDown = useCallback((handleType) => (e) => {
     // 🔧 CRITICAL FIX: Active main region when clicking on its handles
-    console.log('🎯 Main selection handle clicked:', {
+    console.log('🎯🎯🎯 MAIN SELECTION HANDLE CLICKED - DEBUG:', {
       handleType,
       regionsCount: regionPositions?.length || 0,
-      shouldActivateMain: regionPositions?.length >= 1
+      shouldActivateMain: regionPositions?.length >= 1,
+      pointerPosition: { x: e.clientX, y: e.clientY },
+      targetElement: e.target,
+      currentTarget: e.currentTarget,
+      zIndex: e.currentTarget.style.zIndex || 'from-style-object',
+      timestamp: Date.now()
     });
     
     onHandleMouseDown?.({
@@ -368,14 +372,35 @@ export const WaveformUI = memo(({
         <div className="absolute pointer-events-none z-50 waveform-tooltip-custom" style={mainCursorTooltipStyle}>
           {mainCursorTooltip.formattedTime}
         </div>
-      )}
-
-      {/* 🤚 **START HANDLE** - Always functional */}
+      )}      {/* 🤚 **START HANDLE** - Always functional */}
       {shouldRenderStartHandle && (
         <div
           className="absolute"
           style={startHandleStyle}
-          onPointerDown={startHandlePointerDown}
+          onPointerDown={(e) => {
+            console.log('🟦🟦🟦 MAIN START HANDLE - POINTER DOWN:', {
+              handleType: 'start',
+              elementInfo: {
+                className: e.currentTarget.className,
+                computedZIndex: getComputedStyle(e.currentTarget).zIndex,
+                styleZIndex: e.currentTarget.style.zIndex,
+                position: {
+                  left: e.currentTarget.style.left,
+                  top: e.currentTarget.style.top,
+                  width: e.currentTarget.style.width,
+                  height: e.currentTarget.style.height
+                }
+              },
+              pointerInfo: {
+                clientX: e.clientX,
+                clientY: e.clientY,
+                pointerId: e.pointerId,
+                target: e.target === e.currentTarget ? 'SAME' : 'DIFFERENT',
+                timestamp: Date.now()
+              }
+            });
+            startHandlePointerDown(e);
+          }}
           onPointerMove={startHandlePointerMove}
           onPointerUp={startHandlePointerUp}
         >
@@ -383,14 +408,35 @@ export const WaveformUI = memo(({
           <div style={HANDLE_DOT_STYLE} />
           <div style={HANDLE_DOT_STYLE} />
         </div>
-      )}
-
-      {/* 🤚 **END HANDLE** - Always functional */}
+      )}      {/* 🤚 **END HANDLE** - Always functional */}
       {shouldRenderEndHandle && (
         <div
           className="absolute"
           style={endHandleStyle}
-          onPointerDown={endHandlePointerDown}
+          onPointerDown={(e) => {
+            console.log('🟪🟪🟪 MAIN END HANDLE - POINTER DOWN:', {
+              handleType: 'end',
+              elementInfo: {
+                className: e.currentTarget.className,
+                computedZIndex: getComputedStyle(e.currentTarget).zIndex,
+                styleZIndex: e.currentTarget.style.zIndex,
+                position: {
+                  left: e.currentTarget.style.left,
+                  top: e.currentTarget.style.top,
+                  width: e.currentTarget.style.width,
+                  height: e.currentTarget.style.height
+                }
+              },
+              pointerInfo: {
+                clientX: e.clientX,
+                clientY: e.clientY,
+                pointerId: e.pointerId,
+                target: e.target === e.currentTarget ? 'SAME' : 'DIFFERENT',
+                timestamp: Date.now()
+              }
+            });
+            endHandlePointerDown(e);
+          }}
           onPointerMove={endHandlePointerMove}
           onPointerUp={endHandlePointerUp}
         >
@@ -406,15 +452,38 @@ export const WaveformUI = memo(({
       )}      {/* 🖱️ **HOVER LINE** - Disabled during playback for performance */}
       {shouldRenderHoverLine && (
         <div className="absolute" style={hoverLineStyle} />
-      )}
-
-      {/* 🆕 **REGION BACKGROUNDS** - Simple clickable areas */}
-      {regionPositions.map(region => {
-        // 🔧 Background should span from end of start handle to start of end handle
-        // This prevents overlapping with handles and main cursor at boundaries
-        const backgroundLeft = region.startHandle.x + region.startHandle.width; // End of start handle
-        const backgroundRight = region.endHandle.x; // Start of end handle
-        const regionWidth = backgroundRight - backgroundLeft;
+      )}      {/* 🆕 **REGION BACKGROUNDS** - Simple clickable areas */}      {regionPositions.map(region => {
+        // 🚫 **VALIDATION**: Skip invalid regions first
+        if (!region?.startHandle || !region?.endHandle) {
+          return null; // Skip regions without proper handle data
+        }
+        
+        const regionStartX = region.startHandle.x;
+        const regionStartWidth = region.startHandle.width;
+        const regionEndX = region.endHandle.x;
+        
+        // 🚫 **VALIDATION**: Skip regions where start handle overlaps or comes after end handle
+        if (regionStartX + regionStartWidth >= regionEndX) {
+          return null; // Skip invalid/inverted regions
+        }
+        
+        // 🔧 **CRITICAL FIX**: Prevent region background from overlapping with main handles
+        const mainStartEnd = handlePositions?.start?.x + handlePositions?.start?.width || 0;
+        const mainEndStart = handlePositions?.end?.x || 1000000; // Large number if no end handle
+        
+        // Background should span from end of region start handle to start of region end handle
+        const regionBackgroundLeft = regionStartX + regionStartWidth;
+        const regionBackgroundRight = regionEndX;
+        
+        // 🚀 **SMART TRIMMING**: Cut out main handle areas from region background
+        const backgroundLeft = Math.max(regionBackgroundLeft, mainStartEnd + 5); // 5px buffer after main start
+        const backgroundRight = Math.min(regionBackgroundRight, mainEndStart - 5); // 5px buffer before main end
+        const regionWidth = Math.max(0, backgroundRight - backgroundLeft); // Ensure positive width
+        
+        // 🚫 Skip rendering if region background would be too small
+        if (regionWidth < 10) {
+          return null; // Silently skip small regions
+        }
         
         return (
           <div
@@ -430,27 +499,23 @@ export const WaveformUI = memo(({
               cursor: 'pointer'
             }}
             onPointerEnter={(e) => {
-              // 🔧 CRITICAL FIX: Update hover tooltip when entering region
               if (updateHoverTooltip) {
                 updateHoverTooltip(e);
               }
             }}
             onPointerMove={(e) => {
-              // 🔧 CRITICAL FIX: Continuously update hover tooltip while moving over region
               if (updateHoverTooltip) {
                 updateHoverTooltip(e);
               }
               
-              // 🔧 Track dragging to prevent false region clicks
               if (pointerDownPositionRef.current && !hasDraggedRef.current) {
                 const dragDistance = Math.sqrt(
                   Math.pow(e.clientX - pointerDownPositionRef.current.x, 2) + 
                   Math.pow(e.clientY - pointerDownPositionRef.current.y, 2)
                 );
                 
-                if (dragDistance > 3) { // 3px threshold
+                if (dragDistance > 3) {
                   hasDraggedRef.current = true;
-                  // Clear pending region click if dragging is detected
                   pendingRegionClickRef.current = null;
                 }
               }
@@ -458,55 +523,39 @@ export const WaveformUI = memo(({
               onRegionBodyMove?.(region.id, e);
             }}
             onPointerLeave={(e) => {
-              // 🔧 CRITICAL FIX: Clear hover tooltip when leaving region  
               if (clearHoverTooltip) {
                 clearHoverTooltip();
               }
             }}
             onPointerDown={(e) => {
+              console.log('🟢 REGION BACKGROUND CLICKED:', {
+                regionId: region.id,
+                regionName: region.name,
+                isActive: region.isActive
+              });
+              
               e.preventDefault();
               e.stopPropagation();
               
-              // 🔧 Reset drag tracking
               pointerDownPositionRef.current = { x: e.clientX, y: e.clientY };
               hasDraggedRef.current = false;
               
-              // 🆕 Calculate click position as time
+              // Calculate click position as time
               const rect = e.currentTarget.getBoundingClientRect();
               const clickX = e.clientX - rect.left;
-              const regionWidth = rect.width;
-              const regionStartTime = region.startTime;
-              const regionEndTime = region.endTime;
-              const clickRatio = clickX / regionWidth;
-              const clickTime = regionStartTime + (regionEndTime - regionStartTime) * clickRatio;
+              const clickRatio = clickX / rect.width;
+              const clickTime = region.startTime + (region.endTime - region.startTime) * clickRatio;
               
-              console.log('🎯 Region click position calculated:', {
-                regionId: region.id,
-                regionName: region.name,
-                clickX,
-                regionWidth,
-                clickRatio: clickRatio.toFixed(3),
-                regionStartTime: regionStartTime.toFixed(2),
-                regionEndTime: regionEndTime.toFixed(2),
-                calculatedClickTime: clickTime.toFixed(2)
-              });
-              
-              // 🔧 SMART LOGIC: Immediate activation for inactive regions, delayed for active regions
-              const isRegionActive = region.isActive;
-              
-              if (!isRegionActive) {
-                // 🚀 IMMEDIATE: Region not active → activate immediately + jump to start
+              if (!region.isActive) {
                 console.log('🎯 Immediate region activation:', region.id);
-                onRegionClick?.(region.id, null); // Pass null to trigger start point jump
+                onRegionClick?.(region.id, null);
               } else {
-                // 🔧 DELAYED: Region already active → store for mouse up processing
                 pendingRegionClickRef.current = {
                   regionId: region.id,
                   clickTime: clickTime
                 };
               }
               
-              // 🔧 FIX: Change cursor to grabbing when dragging
               e.target.style.cursor = 'grabbing';
               onRegionBodyDown?.(region.id, e);
             }}
@@ -514,19 +563,14 @@ export const WaveformUI = memo(({
               e.preventDefault();
               e.stopPropagation();
               
-              // 🔧 FIX: Restore pointer cursor when drag ends
               e.target.style.cursor = 'pointer';
               onRegionBodyUp?.(region.id, e);
               
-              // 🔧 CRITICAL FIX: Only process pending region clicks for already-active regions
-              // (Inactive regions are handled immediately at mouse down)
               if (pendingRegionClickRef.current && onRegionClick && !hasDraggedRef.current) {
                 const { regionId, clickTime } = pendingRegionClickRef.current;
-                console.log('🎯 Processing pending click for active region at mouse up:', { regionId, clickTime });
                 onRegionClick(regionId, clickTime);
               }
               
-              // Clear pending click and reset drag tracking
               pendingRegionClickRef.current = null;
               pointerDownPositionRef.current = null;
               hasDraggedRef.current = false;
@@ -550,8 +594,18 @@ export const WaveformUI = memo(({
               height: `${region.startHandle.height}px`,
               backgroundColor: region.startHandle.color,
               zIndex: 40
-            }}
-            onPointerDown={(e) => {
+            }}            onPointerDown={(e) => {
+              console.log('🔴🔴🔴 REGION HANDLE CLICKED - DEBUG:', {
+                regionId: region.id,
+                regionName: region.name,
+                handleType: 'start',
+                pointerPosition: { x: e.clientX, y: e.clientY },
+                targetElement: e.target,
+                currentTarget: e.currentTarget,
+                zIndex: e.currentTarget.style.zIndex,
+                timestamp: Date.now()
+              });
+              
               e.preventDefault();
               e.stopPropagation();
               onRegionHandleDown?.(region.id, 'start', e);
@@ -582,8 +636,18 @@ export const WaveformUI = memo(({
               height: `${region.endHandle.height}px`,
               backgroundColor: region.endHandle.color,
               zIndex: 40
-            }}
-            onPointerDown={(e) => {
+            }}            onPointerDown={(e) => {
+              console.log('🟠🟠🟠 REGION HANDLE CLICKED - DEBUG:', {
+                regionId: region.id,
+                regionName: region.name,
+                handleType: 'end',
+                pointerPosition: { x: e.clientX, y: e.clientY },
+                targetElement: e.target,
+                currentTarget: e.currentTarget,
+                zIndex: e.currentTarget.style.zIndex,
+                timestamp: Date.now()
+              });
+              
               e.preventDefault();
               e.stopPropagation();
               onRegionHandleDown?.(region.id, 'end', e);

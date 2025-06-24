@@ -14,31 +14,14 @@ export const useHistory = (maxEntries = 20) => {
       regions: state.regions || [],
       activeRegionId: state.activeRegionId || null
     };
-    
-    console.log('💾 useHistory.saveState called:', {
-      newState: {
-        startTime: completeState.startTime.toFixed(3),
-        endTime: completeState.endTime.toFixed(3),
-        fadeIn: completeState.fadeIn,
-        fadeOut: completeState.fadeOut,
-        regions: completeState.regions.length,
-        activeRegionId: completeState.activeRegionId
-      },
-      currentHistoryIndex: historyIndex,
-      currentHistoryLength: history.length,
-      timestamp: Date.now()
-    });
+
     
     setHistory(prev => {
       const cutIndex = Math.max(0, historyIndex + 1 - maxEntries + 1);
       const newHistory = prev.slice(cutIndex, historyIndex + 1).concat([completeState]);
       const finalHistory = newHistory.length > maxEntries ? newHistory.slice(1) : newHistory;
       
-      console.log('💾 useHistory.saveState result:', {
-        newHistoryLength: finalHistory.length,
-        newHistoryIndex: Math.min(historyIndex + 1, maxEntries - 1),
-        action: 'stateAdded'
-      });
+
       
       return finalHistory;
     });
