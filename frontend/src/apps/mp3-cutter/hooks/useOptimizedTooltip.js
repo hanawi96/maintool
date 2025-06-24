@@ -93,6 +93,39 @@ export const useOptimizedTooltip = (
     return tooltips;
   }, [canvasRef, duration, regions, formatTime, getCanvasWidth]);
 
+  // 🆕 Calculate region handle tooltips (start/end) - IDENTICAL logic to main selection
+  const calcRegionHandleTooltips = useCallback(() => {
+    const canvas = canvasRef?.current;
+    if (!canvas || !duration || !regions?.length) return [];
+    
+    const canvasWidth = getCanvasWidth(canvas);
+    const { startX, endX, areaWidth } = getWaveformArea(canvasWidth);
+    
+    const tooltips = regions.map(region => {
+      const regionStartX = startX + (region.start / duration) * areaWidth;
+      const regionEndX = startX + (region.end / duration) * areaWidth;
+      
+      return {
+        id: region.id,
+        regionName: region.name,
+        start: {
+          visible: true,
+          x: clampTooltipX(regionStartX, startX, endX, 'start'),
+          time: region.start,
+          formattedTime: formatTime(region.start)
+        },
+        end: {
+          visible: true,
+          x: clampTooltipX(regionEndX, startX, endX, 'end'),
+          time: region.end,
+          formattedTime: formatTime(region.end)
+        }
+      };
+    });
+    
+    return tooltips;
+  }, [canvasRef, duration, regions, formatTime, getCanvasWidth]);
+
   const calcHover = useCallback(() => {
     if (!isHoverActive || !hoverPos || !canvasRef?.current || !duration ||
         ['start', 'end', 'region', 'region-potential'].includes(isDragging) ||
@@ -138,13 +171,15 @@ export const useOptimizedTooltip = (
   const handleTooltips = useMemo(() => calcHandle(), [calcHandle]);
   const hoverTooltip = useMemo(() => calcHover(), [calcHover]);
   const regionDurationTooltips = useMemo(() => calcRegionDurations(), [calcRegionDurations]);
+  const regionHandleTooltips = useMemo(() => calcRegionHandleTooltips(), [calcRegionHandleTooltips]);
 
   return useMemo(() => ({
     hoverTooltip,
     handleTooltips,
     mainCursorTooltip,
     regionDurationTooltips,
+    regionHandleTooltips,
     updateHoverTooltip,
     clearHoverTooltip
-  }), [hoverTooltip, handleTooltips, mainCursorTooltip, regionDurationTooltips, updateHoverTooltip, clearHoverTooltip]);
+  }), [hoverTooltip, handleTooltips, mainCursorTooltip, regionDurationTooltips, regionHandleTooltips, updateHoverTooltip, clearHoverTooltip]);
 };

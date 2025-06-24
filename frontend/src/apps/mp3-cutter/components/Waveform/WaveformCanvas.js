@@ -165,6 +165,7 @@ const WaveformCanvas = React.memo(({
     handleTooltips: handleTooltipsData,
     mainCursorTooltip,
     regionDurationTooltips,
+    regionHandleTooltips,
     updateHoverTooltip,
     clearHoverTooltip
   } = useOptimizedTooltip(
@@ -875,6 +876,7 @@ const WaveformCanvas = React.memo(({
           handleTooltips={handleTooltipsData}
           mainCursorTooltip={mainCursorTooltip}
           regionDurationTooltips={regionDurationTooltips}
+          regionHandleTooltips={regionHandleTooltips}
           handlePositions={handlePositions}
           cursorPositions={cursorPositions}          // 🆕 Region props
           regionPositions={regionPositions}

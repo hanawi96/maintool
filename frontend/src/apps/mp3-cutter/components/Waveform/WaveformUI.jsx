@@ -70,6 +70,7 @@ export const WaveformUI = memo(({
   handleTooltips,
   mainCursorTooltip,
   regionDurationTooltips = [],
+  regionHandleTooltips = [],
   handlePositions,
   cursorPositions,
   // 🆕 Region props
@@ -307,6 +308,37 @@ export const WaveformUI = memo(({
           {handleTooltips.end.formattedTime}
         </div>
       )}
+
+      {/* 🆕 🤚 **REGION HANDLE TOOLTIPS** - Identical to main selection handles */}
+      {regionHandleTooltips.map(regionTooltip => (
+        <React.Fragment key={`region-handles-${regionTooltip.id}`}>
+          {/* Region Start Handle Tooltip */}
+          <div
+            className="absolute pointer-events-none z-50 waveform-tooltip-custom"
+            style={{
+              ...TOOLTIP_STYLES.base,
+              ...TOOLTIP_STYLES.tooltip,
+              left: `${regionTooltip.start.x}px`,
+              top: `${WAVEFORM_HEIGHT + TOOLTIP_OFFSETS.HANDLE}px`
+            }}
+          >
+            {regionTooltip.start.formattedTime}
+          </div>
+          
+          {/* Region End Handle Tooltip */}
+          <div
+            className="absolute pointer-events-none z-50 waveform-tooltip-custom"
+            style={{
+              ...TOOLTIP_STYLES.base,
+              ...TOOLTIP_STYLES.tooltip,
+              left: `${regionTooltip.end.x}px`,
+              top: `${WAVEFORM_HEIGHT + TOOLTIP_OFFSETS.HANDLE}px`
+            }}
+          >
+            {regionTooltip.end.formattedTime}
+          </div>
+        </React.Fragment>
+      ))}
 
       {/* 📏 **DURATION TOOLTIP** - Smart rendering during playback */}
       {shouldRenderDurationTooltip && (
