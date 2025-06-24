@@ -13,50 +13,54 @@ export const useRegionCalculations = (regions, startTime, endTime, duration, can
     return (requiredPixelGap / canvasWidth) * duration;
   }, [canvasRef, duration]);
 
-  // Memoized handle edge positions
+  // Memoized all regions (including main region as a unified region)
+  const allRegions = useMemo(() => {
+    const allRegionsList = [...regions];
+    
+    // Add main region as a regular region if it exists
+    if (startTime < endTime) {
+      allRegionsList.push({
+        id: 'main',
+        start: startTime,
+        end: endTime,
+        type: 'main'
+      });
+    }
+    
+    return allRegionsList;
+  }, [regions, startTime, endTime]);
+
+  // Memoized handle edge positions - unified logic for all regions
   const handleEdgePositions = useMemo(() => {
     const handleEdges = [];
     
-    if (startTime < endTime) {
+    allRegions.forEach(region => {
+      const edgeType = region.type === 'main' ? 'main' : 'region';
       handleEdges.push(
-        { position: startTime, type: 'main_start_edge', regionId: 'main' },
-        { position: endTime, type: 'main_end_edge', regionId: 'main' }
-      );
-    }
-    
-    regions.forEach(region => {
-      handleEdges.push(
-        { position: region.start, type: 'region_start_edge', regionId: region.id },
-        { position: region.end, type: 'region_end_edge', regionId: region.id }
+        { position: region.start, type: `${edgeType}_start_edge`, regionId: region.id },
+        { position: region.end, type: `${edgeType}_end_edge`, regionId: region.id }
       );
     });
     
     return handleEdges.sort((a, b) => a.position - b.position);
-  }, [regions, startTime, endTime]);
+  }, [allRegions]);
 
-  // Memoized available spaces
+  // Memoized available spaces - unified logic for all regions
   const availableSpaces = useMemo(() => {
     if (duration <= 0) return [];
     
     const occupiedAreas = [];
     const minGap = minimumHandleGap;
     
-    regions.forEach(region => {
+    // Process all regions with unified logic
+    allRegions.forEach(region => {
       occupiedAreas.push({
         start: Math.max(0, region.start - minGap / 2),
         end: Math.min(duration, region.end + minGap / 2),
-        type: 'region',
+        type: region.type === 'main' ? 'selection' : 'region',
         id: region.id
       });
     });
-    
-    if (startTime < endTime) {
-      occupiedAreas.push({
-        start: Math.max(0, startTime - minGap / 2),
-        end: Math.min(duration, endTime + minGap / 2),
-        type: 'selection'
-      });
-    }
     
     if (occupiedAreas.length === 0) {
       return [{ start: 0, end: duration, length: duration, hasMinGap: true }];
@@ -92,17 +96,18 @@ export const useRegionCalculations = (regions, startTime, endTime, duration, can
     }
     
     return spaces;
-  }, [regions, duration, startTime, endTime, minimumHandleGap]);
+  }, [allRegions, duration, minimumHandleGap]);
 
   return {
     minimumHandleGap,
     handleEdgePositions,
     availableSpaces,
+    allRegions,
     canAddNewRegion: availableSpaces.length > 0
   };
 };
 
-// 🚀 Custom hook for collision detection - Optimized with handle buffer
+// 🚀 Custom hook for collision detection - Unified logic for all regions
 export const useCollisionDetection = (handleEdgePositions, duration, canvasWidth = 800) => {
   return useCallback((targetType, targetRegionId, handleType, newTime, currentStartTime, currentEndTime) => {
     let minBoundary = 0;
@@ -119,6 +124,7 @@ export const useCollisionDetection = (handleEdgePositions, duration, canvasWidth
     const totalBufferPx = handleWidthPx + 4;
     const handleBufferTime = waveformAreaWidth > 0 ? (totalBufferPx / waveformAreaWidth) * duration : 0.01;
     
+    // Unified collision detection for all regions (main and regular regions)
     for (const edge of handleEdgePositions) {
       if (edge.regionId === targetRegionId) continue;
       
