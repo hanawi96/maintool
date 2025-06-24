@@ -112,9 +112,8 @@ const MP3CutterMain = React.memo(() => {
   const { minimumHandleGap, handleEdgePositions, availableSpaces, canAddNewRegion } = useRegionCalculations(
     regions, startTime, endTime, duration, canvasRef
   );
-
-  // 🚀 Optimized collision detection
-  const getEnhancedCollisionBoundaries = useCollisionDetection(handleEdgePositions, duration);
+  // 🚀 Optimized collision detection with buffer support
+  const getEnhancedCollisionBoundaries = useCollisionDetection(handleEdgePositions, duration, canvasRef);
 
   // Refs
   const animationRef = useRef({ isPlaying: false, startTime: 0, endTime: 0 });

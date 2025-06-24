@@ -1,4 +1,21 @@
 import { useMemo, useCallback } from 'react';
+import { COLLISION_CONFIG } from '../utils/constants';
+
+// 🚀 Dynamic buffer calculation for collision detection
+const calculateDynamicBuffer = (canvasRef, duration) => {
+  if (!canvasRef?.current || duration <= 0) return 0;
+  
+  const canvas = canvasRef.current;
+  const canvasWidth = canvas.offsetWidth || 800;
+  
+  // Responsive buffer: Mobile = 12px, Desktop = 8px
+  const bufferPx = canvasWidth < COLLISION_CONFIG.MOBILE_BREAKPOINT 
+    ? COLLISION_CONFIG.MOBILE_BUFFER_PX 
+    : COLLISION_CONFIG.DESKTOP_BUFFER_PX;
+  
+  const waveformWidth = canvasWidth - 16; // Minus handle space
+  return waveformWidth > 0 ? (bufferPx / waveformWidth) * duration : 0;
+};
 
 // 🚀 Custom hook for region calculations - Optimized with memoization
 export const useRegionCalculations = (regions, startTime, endTime, duration, canvasRef) => {
@@ -102,28 +119,31 @@ export const useRegionCalculations = (regions, startTime, endTime, duration, can
   };
 };
 
-// 🚀 Custom hook for collision detection - Optimized
-export const useCollisionDetection = (handleEdgePositions, duration) => {
+// 🚀 Custom hook for collision detection - Enhanced with buffer
+export const useCollisionDetection = (handleEdgePositions, duration, canvasRef) => {
   return useCallback((targetType, targetRegionId, handleType, newTime, currentStartTime, currentEndTime) => {
     let minBoundary = 0;
     let maxBoundary = duration;
+    
+    // Calculate dynamic buffer for visual spacing
+    const buffer = calculateDynamicBuffer(canvasRef, duration);
     
     for (const edge of handleEdgePositions) {
       if (edge.regionId === targetRegionId) continue;
       
       if (handleType === 'start') {
         if (edge.position > newTime && edge.position < maxBoundary) {
-          maxBoundary = edge.position;
+          maxBoundary = edge.position - buffer;
         }
         if (edge.position <= newTime && edge.position > minBoundary) {
-          minBoundary = edge.position;
+          minBoundary = edge.position + buffer;
         }
       } else {
         if (edge.position < newTime && edge.position > minBoundary) {
-          minBoundary = edge.position;
+          minBoundary = edge.position + buffer;
         }
         if (edge.position >= newTime && edge.position < maxBoundary) {
-          maxBoundary = edge.position;
+          maxBoundary = edge.position - buffer;
         }
       }
     }
@@ -134,6 +154,6 @@ export const useCollisionDetection = (handleEdgePositions, duration) => {
       minBoundary = Math.max(minBoundary, currentStartTime + 0.1);
     }
     
-    return { min: minBoundary, max: maxBoundary };
-  }, [handleEdgePositions, duration]);
-}; 
+    return { min: Math.max(0, minBoundary), max: Math.min(duration, maxBoundary) };
+  }, [handleEdgePositions, duration, canvasRef]);
+};

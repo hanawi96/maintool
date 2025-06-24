@@ -38,6 +38,13 @@ export const FADE_CONFIG = {
   }
 };
 
+/** Cấu hình collision buffer */
+export const COLLISION_CONFIG = {
+  MOBILE_BUFFER_PX: 12,
+  DESKTOP_BUFFER_PX: 16,
+  MOBILE_BREAKPOINT: 640
+};
+
 /** Cấu hình waveform component */
 export const WAVEFORM_CONFIG = {
   SAMPLE_COUNT: 2000,

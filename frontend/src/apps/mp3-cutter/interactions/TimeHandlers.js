@@ -154,31 +154,28 @@ export const useRegionBoundaries = (regions, getEnhancedCollisionBoundaries, dur
       handleType === 'start' ? targetRegion.start : targetRegion.end,
       targetRegion.start, targetRegion.end);
   }, [regions, getEnhancedCollisionBoundaries, duration]);
-
-  // 🚀 Optimized region body boundaries
+  // 🚀 Enhanced region body boundaries with buffer support
   const getRegionBodyBoundaries = useCallback((targetRegionId) => {
     const targetRegion = regions.find(r => r.id === targetRegionId);
     if (!targetRegion) return { min: 0, max: duration };
     
     const regionDuration = targetRegion.end - targetRegion.start;
-    let minStart = 0;
-    let maxStart = duration - regionDuration;
     
-    for (const edge of handleEdgePositions) {
-      if (edge.regionId === targetRegionId) continue;
-      
-      if (edge.position <= targetRegion.start && edge.position > minStart) {
-        minStart = edge.position;
-      }
-      
-      if (edge.position >= targetRegion.end && edge.position - regionDuration < maxStart) {
-        maxStart = edge.position - regionDuration;
-      }
-    }
+    // Use enhanced collision detection for start and end positions with buffer
+    const startBoundaries = getEnhancedCollisionBoundaries('region', targetRegionId, 'start',
+      targetRegion.start, targetRegion.start, targetRegion.end);
+    const endBoundaries = getEnhancedCollisionBoundaries('region', targetRegionId, 'end',
+      targetRegion.end, targetRegion.start, targetRegion.end);
     
-    maxStart = Math.max(minStart, Math.min(maxStart, duration - regionDuration));
-    return { min: Math.max(0, minStart), max: Math.max(0, maxStart) };
-  }, [regions, handleEdgePositions, duration]);
+    // Calculate safe range for region start position
+    const minStart = Math.max(0, startBoundaries.min);
+    const maxStart = Math.max(0, Math.min(endBoundaries.max - regionDuration, duration - regionDuration));
+    
+    return { 
+      min: Math.max(0, minStart), 
+      max: Math.max(minStart, maxStart)
+    };
+  }, [regions, getEnhancedCollisionBoundaries, duration]);
 
   return {
     getRegionBoundaries,
