@@ -338,7 +338,7 @@ export const useInteractionHandlers = ({
                 }
               }
             } else {
-              // Mouse up within active region - just jump cursor to mouse up positionn
+              // Mouse up within active region - just jump cursor to mouse up position
               console.log('🎯 Drag ended within active region - jumping cursor to mouse up position:', mouseUpTime.toFixed(2));
               jumpToTime(mouseUpTime);
               endpointJumpingApplied = true;
