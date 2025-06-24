@@ -334,13 +334,26 @@ export class InteractionManager {
           // Get boundaries for the entire region (not individual handles)
           const boundaries = this._getRegionBodyBoundaries(newStart, newEnd, startTime, endTime);
           
-          // Apply boundaries to the entire region
+          // 🔧 SIMPLIFIED: Apply boundaries to the entire region with proper constraint logic
           if (newStart < boundaries.minStart) {
             finalStart = boundaries.minStart;
             finalEnd = finalStart + regionDur;
           } else if (newEnd > boundaries.maxEnd) {
             finalEnd = boundaries.maxEnd;
             finalStart = finalEnd - regionDur;
+          } else {
+            // No collision, use original calculated values
+            finalStart = newStart;
+            finalEnd = newEnd;
+          }
+          
+          // 🆕 Debug logging to track boundary application
+          if (finalStart !== newStart || finalEnd !== newEnd) {
+            console.log('🔧 Region drag collision applied:', {
+              original: { start: newStart.toFixed(2), end: newEnd.toFixed(2) },
+              boundaries: { minStart: boundaries.minStart.toFixed(2), maxEnd: boundaries.maxEnd.toFixed(2) },
+              final: { start: finalStart.toFixed(2), end: finalEnd.toFixed(2) }
+            });
           }
         }
         
@@ -520,21 +533,31 @@ export class InteractionManager {
       return { minStart: 0, maxEnd: Infinity };
     }
     
-    // For region body movement, we need to check collision for the entire region
-    // Check what the safe start position would be
-    const safeStart = collisionFn('start', newStart, currentStart, currentEnd);
+    // 🔧 CRITICAL FIX: For region body movement, we need to pass the NEW positions as current
+    // This prevents collision detection from using stale position data
+    const regionDuration = newEnd - newStart;
     
-    // Check what the safe end position would be  
-    const safeEnd = collisionFn('end', newEnd, currentStart, currentEnd);
+    // Check collision for start position (with new region duration)
+    const safeStart = collisionFn('start', newStart, newStart, newEnd);
     
-    // Calculate the boundaries for the entire region movement
-    // If start is constrained, the entire region should respect that constraint
-    // If end is constrained, the entire region should respect that constraint
+    // Check collision for end position (with new region duration) 
+    const safeEnd = collisionFn('end', newEnd, newStart, newEnd);
     
-    return {
-      minStart: safeStart,
-      maxEnd: safeEnd === newEnd ? Infinity : safeEnd // If end is constrained, respect it
-    };
+    // Calculate safe boundaries for entire region movement
+    let minStart = Math.max(0, safeStart);
+    let maxEnd = Math.min(this.audioDuration || Infinity, safeEnd);
+    
+    // Ensure region doesn't exceed audio duration
+    if (maxEnd - minStart < regionDuration) {
+      // If constrained space is smaller than region, adjust accordingly
+      if (newStart < minStart) {
+        maxEnd = Math.min(this.audioDuration || Infinity, minStart + regionDuration);
+      } else if (newEnd > maxEnd) {
+        minStart = Math.max(0, maxEnd - regionDuration);
+      }
+    }
+    
+    return { minStart, maxEnd };
   }
   
   getDebugInfo() {

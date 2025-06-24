@@ -525,10 +525,9 @@ const MP3CutterMain = React.memo(() => {
         // 🆕 Set region collision detection function for region body dragging
       // This function has a different signature than main selection collision detection
       interactionManagerRef.current.setRegionCollisionDetection?.((handleType, newTime, currentStartTime, currentEndTime) => {
-        // For region body dragging, we need to identify which region is being moved
-        // Since InteractionManager doesn't know which region, we'll use a generic approach
-        // that applies the +4px buffer to any collision detection for region body movement
-        const boundaries = getEnhancedCollisionBoundaries('region', 'body', handleType, newTime, currentStartTime, currentEndTime);
+        // 🔧 CRITICAL FIX: Use proper collision detection for main selection region body movement
+        // Since region body dragging affects the main selection, use 'main' as target
+        const boundaries = getEnhancedCollisionBoundaries('main', 'main', handleType, newTime, currentStartTime, currentEndTime);
         return Math.max(boundaries.min, Math.min(newTime, boundaries.max));
       });
     }
